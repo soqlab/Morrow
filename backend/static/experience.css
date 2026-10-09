@@ -1,0 +1,255 @@
+/* ==========================================================================
+   Penumbra — document and operator surfaces.
+
+   Loads after design.css on the public documents, the vendor admin and the
+   traffic workspace, and maps their existing markup onto the system: one ink
+   ground, hairline rules instead of cards, mono for every label, and a single
+   iris accent.
+   ========================================================================== */
+
+body.public-document,
+body.admin-experience,
+body.traffic-experience {
+  background: var(--ink);
+  color: var(--chalk);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  --void: var(--ink); --panel: var(--slab); --panel-2: var(--slab-2);
+  --ink-2: var(--fog); --ink-3: var(--fog-dim);
+  --line-2: var(--line); --blue: var(--iris); --amber: var(--ember);
+  --ok: var(--jade); --warn: var(--ember); --bad: var(--rose);
+}
+body.public-document::before, body.public-document::after { display: none; }
+
+h1, h2, h3, h4 {
+  font-family: var(--display); font-weight: 700; text-wrap: balance; margin: 0;
+}
+.public-document h1 { font-size: clamp(2.5rem,4.6vw,4.2rem); line-height: .98; letter-spacing: -.035em; font-weight: 800; }
+.public-document h2 { font-size: clamp(1.9rem,3.9vw,3.1rem); line-height: 1.03; letter-spacing: -.03em; font-weight: 700; }
+.public-document h3 { font-size: clamp(1.1rem,1.7vw,1.45rem); line-height: 1.15; letter-spacing: -.02em; }
+
+/* ---------- shell ---------- */
+.public-document .doc-shell {
+  width: calc(100% - (var(--gut) * 2)); max-width: var(--maxw);
+  margin: 0 auto; padding-bottom: 0;
+}
+.public-document .topbar {
+  position: sticky; top: 0; z-index: 20; margin: 0; min-height: 0; height: auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 0; border: 0; border-bottom: 1px solid var(--line);
+  /* No backdrop-filter: the bar is sticky over the generative field, so the
+     blur was re-filtered on every frame the field drew. The ground carries what
+     the blur was for instead: the document passing under the bar stays a wash. */
+  background: rgba(5,7,11,.95); border-radius: 0;
+  color: var(--chalk);
+}
+.public-document .topbar > * { min-height: 64px; display: flex; align-items: center; }
+.public-document .brand {
+  font-family: var(--display); font-weight: 700; letter-spacing: .16em; font-size: 13px;
+  color: var(--chalk); gap: 11px; text-transform: uppercase;
+}
+.public-document .brand-mark {
+  width: 18px; height: 18px; border-radius: 50%; background: transparent;
+  border: 1px solid var(--iris); box-shadow: none; position: relative;
+}
+.public-document .brand-mark::after { content: ""; position: absolute; inset: 0 50% 0 0; background: var(--iris); border-radius: 9px 0 0 9px; }
+.public-document .topbar .nav { gap: 28px; }
+.public-document .topbar .nav a {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fog); transition: color .2s ease;
+}
+.public-document .topbar .nav a:hover { color: var(--chalk); }
+.public-document .topbar .nav .nav-cta {
+  background: var(--chalk) !important; border: 1px solid var(--chalk) !important; color: var(--ink) !important;
+  padding: 11px 20px; border-radius: 0; font-weight: 600;
+}
+.public-document .topbar .nav .nav-cta:hover { background: var(--iris) !important; border-color: var(--iris) !important; color: #fff !important; }
+
+/* ---------- hero ---------- */
+.public-document .doc-hero {
+  position: relative; isolation: isolate; overflow: hidden; border: 0;
+  border-bottom: 1px solid var(--line); background: transparent; box-shadow: none;
+  padding: clamp(56px,8vw,104px) 0 clamp(40px,5vw,64px); gap: clamp(32px,5vw,80px);
+}
+.public-document .doc-hero::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(120% 85% at 78% 8%,rgba(123,107,255,.16),transparent 60%);
+  border: 0; border-radius: 0; box-shadow: none; transform: none; width: auto; height: auto;
+}
+.public-document .doc-hero h1 { max-width: 16ch; }
+.public-document .doc-hero .eyebrow { color: var(--fog-dim); font-family: var(--mono); font-size: 11px; letter-spacing: .18em; margin-bottom: 24px; }
+.public-document .lead { color: var(--fog); font-size: clamp(1rem,1.25vw,1.16rem); line-height: 1.65; max-width: 58ch; margin-top: 26px; }
+.public-document .doc-meta {
+  align-self: end; color: var(--fog); background: var(--slab);
+  border: 1px solid var(--line); border-left-width: 1px; padding: 24px 26px;
+}
+.public-document .doc-meta b {
+  color: var(--chalk); font-family: var(--mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: .14em;
+}
+.public-document .doc-meta p { color: var(--fog); font-size: 13px; line-height: 1.7; }
+
+/* ---------- sections ---------- */
+.public-document .doc-section { margin-top: clamp(44px,5vw,72px); padding: 0; }
+.public-document .doc-section h2 { font-size: clamp(1.5rem,2.6vw,2.2rem); letter-spacing: -.03em; margin-bottom: 22px; }
+.public-document .doc-section > p { color: var(--fog); font-size: .98rem; line-height: 1.75; max-width: 78ch; }
+.public-document .doc-section li { color: var(--fog); }
+
+.public-document .matrix { gap: 0; }
+.public-document .matrix-row {
+  border: 0; border-bottom: 1px solid var(--line-soft); background: transparent;
+  grid-template-columns: minmax(170px,.6fr) minmax(0,2fr); gap: 40px; padding: 20px 0;
+  transition: background .3s ease;
+}
+.public-document .matrix-row:hover { background: rgba(123,107,255,.04); }
+.public-document .matrix-row strong {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--chalk);
+}
+.public-document .matrix-row p { color: var(--fog); font-size: .93rem; line-height: 1.7; }
+
+.public-document .ops-grid, .public-document .proof-grid { gap: 0; }
+.public-document .ops-card, .public-document .proof-panel {
+  border: 0; border-top: 1px solid var(--line); background: transparent;
+  padding: 22px 26px 22px 0; box-shadow: none;
+}
+.public-document .ops-card h3, .public-document .proof-panel h3 { font-family: var(--display); font-weight: 700; font-size: 1.2rem; letter-spacing: -.02em; }
+.public-document .ops-card small, .public-document .ops-card p { color: var(--fog); }
+
+.public-document .notice, .public-document .cta {
+  background: var(--slab); border: 1px solid var(--line); border-left: 2px solid var(--iris);
+  color: var(--fog); padding: 22px 26px; box-shadow: none;
+}
+.public-document code {
+  font-family: var(--mono); color: var(--iris); border: 1px solid var(--line);
+  background: var(--slab-2); overflow-wrap: anywhere;
+}
+.public-document footer {
+  margin-top: clamp(56px,6vw,88px); border-top: 1px solid var(--line);
+  padding: 32px 0 40px; font-family: var(--mono); font-size: 11px; color: var(--fog-dim);
+}
+.public-document footer a { color: var(--fog-dim); transition: color .2s ease; }
+.public-document footer a:hover { color: var(--chalk); }
+
+/* ---------- operator workspaces ---------- */
+.admin-experience, .traffic-experience { background: var(--ink); color: var(--chalk); }
+.admin-experience h1, .traffic-experience h1 {
+  font-family: var(--display); font-weight: 800; letter-spacing: -.035em; line-height: 1;
+}
+.admin-experience .adminRail, .traffic-experience .topbar {
+  background: var(--slab); border-color: var(--line); color: var(--chalk);
+}
+.admin-experience .adminRail .brand, .traffic-experience .brand {
+  font-family: var(--display); letter-spacing: .16em; text-transform: uppercase; font-size: 13px; color: var(--chalk);
+}
+.admin-experience .adminRail nav a, .admin-experience .adminRail nav button {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fog);
+}
+.admin-experience .adminRail nav [aria-current=page] {
+  color: var(--chalk); background: rgba(123,107,255,.09); box-shadow: inset 2px 0 var(--iris);
+}
+.admin-experience .adminRail nav span, .admin-experience .railLabel { color: var(--fog-dim); font-family: var(--mono); }
+.admin-experience .railFoot, .admin-experience .railFoot a { color: var(--fog-dim); font-family: var(--mono); font-size: 11px; }
+.admin-experience .workspaceTop, .traffic-experience .workspaceTop {
+  border-color: var(--line); color: var(--fog); font-family: var(--mono); font-size: 11px;
+  letter-spacing: .08em; text-transform: uppercase; background: transparent;
+}
+.admin-experience .eyebrow, .traffic-experience .eyebrow { color: var(--fog-dim); }
+.admin-experience .connection, .traffic-experience .control {
+  border: 1px solid var(--line); background: var(--slab);
+}
+.admin-experience .metrics, .traffic-experience .metrics, .admin-experience .missionState {
+  border-color: var(--line); background: transparent; gap: 0;
+}
+.admin-experience .metric, .traffic-experience .metric, .admin-experience .missionState > div {
+  border-color: var(--line-soft); background: transparent;
+}
+.admin-experience .metric strong, .traffic-experience .metric strong {
+  font-family: var(--display); font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--chalk);
+}
+.admin-experience .metric small, .admin-experience .metric span,
+.traffic-experience .metric small, .traffic-experience .metric span {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--fog-dim);
+}
+.admin-experience .card, .traffic-experience .panel, .traffic-experience .widePanel {
+  border: 1px solid var(--line); background: var(--slab); box-shadow: none;
+}
+.admin-experience input, .admin-experience select, .admin-experience textarea,
+.traffic-experience input, .traffic-experience select {
+  background: var(--slab-2); border: 1px solid var(--line); color: var(--chalk); border-radius: 0;
+}
+.admin-experience th, .traffic-experience th {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--fog-dim); background: transparent; border-color: var(--line);
+}
+.admin-experience td, .traffic-experience td {
+  font-family: var(--mono); font-size: 11.5px; color: var(--fog); border-color: var(--line-soft);
+}
+.admin-experience td b, .traffic-experience td b { color: var(--chalk); font-weight: 500; }
+.admin-experience tbody tr, .traffic-experience tbody tr { transition: background .2s ease; }
+.admin-experience tbody tr:hover, .traffic-experience tbody tr:hover { background: rgba(123,107,255,.05); }
+.admin-experience .event, .admin-experience .riskItem, .admin-experience .logItem, .admin-experience .healthItem,
+.traffic-experience .event {
+  border-color: var(--line-soft); background: transparent; color: var(--fog);
+}
+.admin-experience .event b, .traffic-experience .event b { color: var(--chalk); font-weight: 500; }
+.admin-experience .bar, .traffic-experience .bar { background: var(--line-soft); }
+.admin-experience .bar i, .traffic-experience .bar i { background: var(--iris); }
+.admin-experience .status, .traffic-experience .status { color: var(--fog-dim); font-family: var(--mono); }
+.admin-experience .portalFoot, .traffic-experience .portalFoot {
+  border-color: var(--line); color: var(--fog-dim); font-family: var(--mono); font-size: 10.5px;
+}
+.admin-experience .drawer .panel { background: var(--slab); border-color: var(--line); }
+.admin-experience .backdrop { background: rgba(5,7,11,.72); }
+
+/* Pills across the operator surfaces inherit the chip vocabulary. */
+.admin-experience .pill, .traffic-experience .pill {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  border: 1px solid var(--line); background: transparent; color: var(--fog); border-radius: 0;
+}
+.admin-experience .pill.ok, .traffic-experience .pill.ok { color: var(--jade); border-color: rgba(79,181,139,.4); background: rgba(79,181,139,.08); }
+.admin-experience .pill.bad, .traffic-experience .pill.bad { color: var(--rose); border-color: rgba(217,89,76,.4); background: rgba(217,89,76,.08); }
+.admin-experience .pill.warn, .traffic-experience .pill.warn { color: var(--ember); border-color: rgba(212,145,63,.4); background: rgba(212,145,63,.08); }
+
+.public-document .page-fabric.scene-ready,
+.admin-experience .page-fabric.scene-ready,
+.traffic-experience .page-fabric.scene-ready { opacity: .42; }
+
+@media (max-width: 760px) {
+  .public-document .doc-shell { width: calc(100% - 36px); }
+  .public-document .doc-hero { padding: 36px 0; grid-template-columns: 1fr; gap: 26px; }
+  .public-document .doc-meta { align-self: auto; }
+  .public-document .topbar { flex-wrap: wrap; }
+  .public-document .ops-grid { grid-template-columns: 1fr; }
+  .public-document .matrix-row { grid-template-columns: 1fr; gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* The rail wordmark is one line; .16em tracking on a 224px rail wraps it. */
+.admin-experience .adminRail .brand { font-size: 11.5px; letter-spacing: .12em; gap: 10px; }
+.admin-experience .adminRail .brand span { white-space: nowrap; }
+.admin-experience .adminRail .brand small { letter-spacing: .14em; }
+.admin-experience .mark { border: 1px solid var(--iris); color: var(--iris); background: transparent; border-radius: 0; }
+
+/* Secondary and danger buttons kept their pre-system colours, which land
+   dark-on-dark now that the ground is ink. */
+.admin-experience .btn, .traffic-experience .btn {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase;
+  border-radius: 0; background: var(--chalk); color: var(--ink); border: 1px solid var(--chalk); font-weight: 600;
+}
+.admin-experience .btn:hover, .traffic-experience .btn:hover { background: var(--iris-solid); border-color: var(--iris-solid); color: #fff; }
+.admin-experience .btn.secondary, .traffic-experience .btn.secondary {
+  background: transparent; color: var(--chalk); border-color: var(--line); font-weight: 400;
+}
+.admin-experience .btn.secondary:hover, .traffic-experience .btn.secondary:hover {
+  border-color: var(--iris); background: rgba(123,107,255,.09); color: var(--chalk);
+}
+.admin-experience .btn.danger, .traffic-experience .btn.danger {
+  background: transparent; color: var(--rose); border-color: rgba(228,110,98,.45); font-weight: 400;
+}
+.admin-experience .btn:disabled, .traffic-experience .btn:disabled { opacity: .45; }
+.admin-experience .accessNote, .admin-experience .copy, .admin-experience .rail-note { color: var(--fog); }
+.admin-experience .label { color: var(--fog); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }

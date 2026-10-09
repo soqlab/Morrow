@@ -1,0 +1,7 @@
+local/
+*.secret
+*.pem
+*bootstrap*.json
+.git/
+airlock-gateway
+*.test

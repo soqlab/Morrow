@@ -1,0 +1,25 @@
+User-agent: *
+Disallow: /scan
+Disallow: /scans
+Disallow: /assets
+Disallow: /repositories
+Disallow: /collections
+Disallow: /remediations
+Disallow: /organizations
+Disallow: /platform/
+Disallow: /auth/
+Disallow: /vendor-admin/
+Disallow: /ui/
+Disallow: /api/
+Disallow: /v1/
+Disallow: /docs
+Disallow: /redoc
+Disallow: /openapi.json
+Allow: /r/
+Allow: /ui/*.css
+Allow: /check
+Allow: /healthz
+Allow: /health
+
+# Absolute URL required here. A deployment on another hostname should edit this line.
+Sitemap: /sitemap.xml

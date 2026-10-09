@@ -1,0 +1,12 @@
+project_id     = "YOUR_CUSTOMER_PROJECT"
+region         = "europe-west1"
+name_prefix    = "pqc-ent"
+image_tag      = "latest"
+deploy_runtime = false
+
+# For enterprise SSO, switch to jwt and fill these values.
+auth_mode         = "headers"
+auth_required     = false
+auth_jwt_issuer   = ""
+auth_jwt_audience = ""
+auth_jwt_jwks_url = ""

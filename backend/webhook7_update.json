@@ -1,0 +1,10 @@
+{
+    "id":  7,
+    "name":  "REPLACE_WITH_NAME",
+    "secret":  "",
+    "events":  [
+
+               ],
+    "url":  "REPLACE_WITH_URL",
+    "enabled":  true
+}

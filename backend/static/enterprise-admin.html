@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise Admin | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Enterprise admin control center for customer operations, go-live readiness, tenant isolation, traffic metadata, Airlock onboarding, and audit evidence.">
+  <link rel="stylesheet" href="/ui/public.css?v=12">
+  <style>
+    :root{--ops-bg:#070809;--ops-panel:#10151b;--ops-line:#2d3743;--ops-ink:#f0f1ed;--ops-muted:#9da59f;--ops-amber:#d7a34e;--ops-blue:#7eb6ff;--ops-bad:#ff7474;--ops-ok:#5bd59e;--ops-mono:"Cascadia Mono","Cascadia Code",Consolas,monospace;--ops-sans:"Aptos Display","Aptos","Segoe UI Variable Text","Segoe UI",sans-serif}
+    body{background:radial-gradient(circle at 75% 0%,rgba(126,182,255,.13),transparent 30rem),radial-gradient(circle at 10% 20%,rgba(215,163,78,.14),transparent 26rem),linear-gradient(180deg,#0b0d10,#070809);color:var(--ops-ink);font-family:var(--ops-sans)}
+    .doc-shell{max-width:1440px}.topbar{border:1px solid rgba(255,255,255,.08);background:rgba(7,8,9,.82);backdrop-filter:blur(18px)}.brand-mark{background:linear-gradient(135deg,rgba(215,163,78,.24),rgba(126,182,255,.12));color:var(--ops-amber);border:1px solid var(--ops-line)}
+    .nav a{color:var(--ops-muted)}.nav-cta{background:var(--ops-amber)!important;color:#08090a!important;border-color:#8f642c!important}.doc-hero{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:18px;padding:38px;border:1px solid var(--ops-line);background:linear-gradient(135deg,rgba(18,24,31,.94),rgba(8,10,12,.96));box-shadow:0 28px 80px rgba(0,0,0,.42)}.eyebrow{font-family:var(--ops-mono);color:var(--ops-amber);letter-spacing:.16em}.doc-hero h1{font-size:clamp(44px,6vw,92px);line-height:.9;letter-spacing:-.065em}.lead{color:#b7beb7;font-size:17px}.doc-meta,.ops-card,.matrix-row,.notice,.cta{border:1px solid var(--ops-line);background:rgba(255,255,255,.035)}.doc-meta{padding:18px}.doc-meta b{color:var(--ops-amber)}.doc-section{margin-top:28px}.doc-section h2{font-size:28px}.ops-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}.ops-card{padding:18px;min-height:170px}.ops-card small{font-family:var(--ops-mono);color:var(--ops-amber);letter-spacing:.12em;text-transform:uppercase}.ops-card h3{margin:12px 0 8px;font-size:21px}.ops-card p,.matrix-row p,.doc-section li{color:var(--ops-muted);line-height:1.65}.matrix{display:grid;gap:10px}.matrix-row{display:grid;grid-template-columns:220px 1fr;gap:18px;padding:16px}.matrix-row strong{color:var(--ops-ink)}code{color:var(--ops-blue);background:rgba(126,182,255,.08);border:1px solid rgba(126,182,255,.18);padding:1px 5px}.notice{padding:14px;color:#cfc7b8}.cta{padding:26px;margin-top:34px}.btn.primary{background:var(--ops-amber);color:#08090a;border-color:#8f642c}@media(max-width:900px){.doc-hero,.ops-grid,.matrix-row{grid-template-columns:1fr}.doc-hero{padding:24px}.doc-hero h1{font-size:46px}}
+  </style>
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+<link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script></head>
+<body class="public-document"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+  <main class="doc-shell">
+    <header class="topbar">
+      <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+      <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+    </header>
+
+    <section class="doc-hero">
+      <div>
+        <span class="eyebrow">Enterprise Control Center</span>
+        <h1>Operate the platform without crossing the customer data boundary.</h1>
+        <p class="lead">The operator console controls tenants, billing, usage, rate limits, alerting, support access, traffic metadata, incidents, feature flags, feedback, audit exports, and go-live gates. It is a private vendor surface, separate from the customer console.</p>
+      </div>
+      <aside class="doc-meta">
+        <b>Private by design</b>
+        <p>The operator portal and Traffic Lens are not linked from the public site. Your deployment team publishes their address behind your approved SSO or VPN, and every action requires operator credentials.</p>
+      </aside>
+    </section>
+
+    <section class="doc-section">
+      <h2>Admin Capabilities</h2>
+      <div class="ops-grid">
+        <article class="ops-card"><small>Operator console</small><h3>One control surface</h3><p>A dashboard with range-based KPIs, trends and an explicit list of metrics the server cannot measure, plus menus for customers, revenue, product, access, operations and security, and search across pages and records.</p></article>
+        <article class="ops-card"><small>Identity</small><h3>SSO, MFA and break-glass</h3><p>Operators sign in through your identity provider with authenticator-app MFA and recovery codes. Destructive actions ask for a fresh code. The shared key is an emergency credential only, and every use is audited and raised as critical.</p></article>
+        <article class="ops-card"><small>Customer ops</small><h3>Customer 360</h3><p>Lifecycle, members, API keys, sessions, feature adoption, per-organization usage and rate limits, invitations by single-use link, notes, and GDPR or audit-package exports for each tenant.</p></article>
+        <article class="ops-card"><small>Support ops</small><h3>Audited support access</h3><p>Support can open a customer's console read-only for a limited time with a stated reason. Secrets, exports and changes stay blocked, every request is journaled, customers see each visit, and customer admins can switch access off.</p></article>
+        <article class="ops-card"><small>Alerting</small><h3>On-call routing</h3><p>SLA breaches, failed-login spikes, incidents, maintenance, go-live blockers and more go to Slack, email, PagerDuty or a webhook, with de-duplication, reminders, a per-channel rate cap and a delivery log.</p></article>
+        <article class="ops-card"><small>Revenue ops</small><h3>Billing and entitlements</h3><p>After an order form is signed, operators create the Stripe customer and subscription. Revenue figures come from synced Stripe data, per currency, and plan entitlements can be enforced when the catalogue matches your contracts.</p></article>
+        <article class="ops-card"><small>Trust ops</small><h3>Go-live evidence</h3><p>Run readiness checks, the go-live gate (including operator SSO, MFA and break-glass checks), tenant isolation probe, platform health, retention visibility, and security truth review before launch.</p></article>
+        <article class="ops-card"><small>Traffic ops</small><h3>Metadata lens</h3><p>Traffic Lens monitors source IPs, route pressure, status code families, rate limits, errors, latency, and user agents without request body or query capture.</p></article>
+        <article class="ops-card"><small>Engineering ops</small><h3>Governed autopatch</h3><p>Create autopatch intake, approve/reject fixes, and prepare draft PR metadata. It does not auto-merge into production.</p></article>
+      </div>
+    </section>
+
+    <section class="doc-section">
+      <h2>Production Must-Pass</h2>
+      <p class="notice">A local green page is not enough. These must pass in the deployment environment that customers will use.</p>
+      <div class="matrix">
+        <div class="matrix-row"><strong>Identity</strong><p><code>PQC_AUTH_MODE=jwt</code>, <code>PQC_AUTH_REQUIRED=1</code>, production issuer/audience/JWKS, MFA at the identity provider, and no header-auth public production access.</p></div>
+        <div class="matrix-row"><strong>Data layer</strong><p>Managed Postgres, managed Redis, secret manager, backup/restore evidence, retention policy, and verified RLS with a non-superuser app role.</p></div>
+        <div class="matrix-row"><strong>Admin boundary</strong><p>Vendor routes behind SSO/VPN, operator SSO with MFA required, shared platform key kept as break-glass only and rotated after any use, traffic monitor export policy defined, and no request bodies, query strings, cookies, or auth headers in traffic records.</p></div>
+        <div class="matrix-row"><strong>Evidence</strong><p>Passing market readiness report, launch collateral check, browser smoke, Airlock signature smoke, tenant isolation probe, and archived go-live evidence bundle.</p></div>
+        <div class="matrix-row"><strong>Operations</strong><p>Sentry or equivalent runtime errors, support email, incident contacts, legal-approved privacy/terms/DPA, support process, and escalation runbook.</p></div>
+      </div>
+    </section>
+
+    <section class="doc-section">
+      <h2>Operator Flow</h2>
+      <ol>
+        <li>Open the operator console from your private address and choose <b>Sign in with SSO</b>. Enter your authenticator code; on first sign-in, enrol an authenticator app and save the recovery codes. Named operator keys remain available for scripts and carry their own role, so every change is recorded against a person.</li>
+        <li>Start on the <b>Dashboard</b>: pick a range, review KPIs against the previous period, and work <b>Needs attention</b>. A metric the server cannot measure is listed as unavailable, never shown as zero.</li>
+        <li>Open <b>Customers</b> for each tenant's Customer 360: confirm plan, status and lifecycle, review usage and rate limits, send invitations, and export audit packages when needed.</li>
+        <li>When a customer needs hands-on help, start a read-only support session with a reason the customer will see. It ends on its own, can be revoked, and appears in the customer's audit log.</li>
+        <li>Connect <b>Alert routing</b> to your on-call tools and send a test, so operators are paged instead of watching the console.</li>
+        <li>Use <b>Revenue</b> for subscriptions and invoices synced from Stripe after an order form is signed. No payment is taken on the public website.</li>
+        <li>In Traffic Lens, select the recent buffer or retained database history. Apply IP/route filters and export up to 5,000 matching records as NDJSON/OTEL-shaped JSON. Summary totals cover this process only. Clearing the buffer leaves retained history intact. Optional live refresh pauses in hidden tabs.</li>
+        <li>Review <b>Security</b> audit logs for administrator changes and authentication outcomes. External identity-provider failures need the IdP's own logs. A request is not a login.</li>
+        <li>Run tenant isolation and the go-live gate immediately before external deployment. Keep the operator routes behind your approved SSO/VPN gateway.</li>
+      </ol>
+    </section>
+
+    <section class="cta">
+      <h2>Admin is the control surface. The customer console is the workflow.</h2>
+      <a class="btn primary" href="/pilot">Scope a pilot</a>
+      <a class="btn" href="/security">Review security</a>
+    </section>
+  </main>
+</body>
+</html>

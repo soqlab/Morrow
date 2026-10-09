@@ -1,0 +1,11 @@
+# Test-only dependencies. Floors are set past known advisories reported by pip-audit
+# (pytest 9.0.2 is affected by PYSEC-2026-1845; pygments arrives via pytest and rich).
+pytest>=9.0.3
+httpx>=0.27
+pygments>=2.20.0
+ruff>=0.14
+# CBOM conformance is checked against the vendored CycloneDX schema (test_cbom_conformance.py).
+jsonschema>=4.20
+# AWS Secrets Manager / SSM are stubbed in-process for test_secrets_scanner_aws.py,
+# so the scanner is covered without credentials or a live AWS account.
+moto>=5.0

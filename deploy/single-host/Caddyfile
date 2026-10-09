@@ -1,0 +1,39 @@
+# Caddy obtains and renews the certificate itself; there is no certbot step and no cron entry.
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	reverse_proxy api:{$API_PORT} {
+		# The app decides tenancy, rate limits and the traffic journal from the client address, so
+		# it has to receive the real one rather than Caddy's.
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+	}
+
+	# The application sets its own Content-Security-Policy per path (app.py: _csp_for), including
+	# the strict policy on /check, /r/, /trial and /vendor-admin. Nothing here may override that.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 50MB
+			roll_keep 7
+		}
+	}
+}
+
+# www -> apex, so one hostname is canonical. The registry's canonical links and badge URLs are
+# built from PQC_PUBLIC_BASE_URL, and two hostnames serving one record splits its search ranking.
+www.{$SITE_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy notice for the free checker | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="What the free post-quantum readiness checker records about the person asking and about the party being checked, for how long, and how to opt out. Draft for legal review.">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/experience.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/check.css?v=20261005">
+  <script src="/ui/fabric.js?v=20260915-perf2" defer></script>
+  <script src="/ui/motion.js?v=20260918-idle" defer></script>
+  <script src="/ui/check-pages.js?v=20261005" defer></script>
+</head>
+<body class="public-document">
+<div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+<a class="skip-link" href="#content">Skip to content</a>
+<main class="doc-shell" id="content">
+  <header class="topbar">
+    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+  </header>
+
+  <section class="doc-hero">
+    <div>
+      <span class="eyebrow">Free checker / Privacy</span>
+      <h1>Two people, not one.</h1>
+      <p class="lead">Last updated 2026-10-04. The free check at <a href="/check">/check</a> has two subjects: the person who types a domain, and the party whose server is contacted because of it. This notice covers both. It covers only the free checker &mdash; the <a href="/privacy">platform privacy policy</a> covers accounts and the paid product.</p>
+    </div>
+    <aside class="doc-meta">
+      <b>Draft &mdash; not yet reviewed by a lawyer</b>
+      <p>This page is a draft for a qualified lawyer to review before the free checker is switched on for the public. It is not legal advice, and nothing here claims compliance with any regime.</p>
+    </aside>
+  </section>
+
+  <section class="doc-section">
+    <h2>Who Operates This</h2>
+    <p>The operator of this deployment is Yasseen Nandally, based in Mauritius. Contact for anything on this page, including an opt-out or a request about your own data: <span data-abuse-contact>no abuse address is configured on this deployment, so the only route is the <a href="/support">contact page</a></span>.</p>
+    <p class="notice">For counsel: no registered address, company details or data-protection representative are stated here because none have been supplied. If a published postal address or an EU representative is required, that is for the operator to add before this page goes live.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Part One: If You Are The Person Asking</h2>
+    <h3>What is recorded when you run a check</h3>
+    <div class="matrix">
+      <div class="matrix-row"><strong>The check log</strong><p>One row per attempt, including refusals: the domain you typed, the time in UTC, a salted SHA-256 hash of your IP address truncated to 128 bits, the outcome, a short detail such as an error code, and how long the check took. Your IP address itself is not written to this log, and the hash cannot be reversed to recover it. Two rows with the same hash came from the same address; that is all this log supports.</p></div>
+      <div class="matrix-row"><strong>The platform request journal</strong><p>Separately from the check log, this server journals ordinary request metadata for every route, including these ones: <strong>the source IP address in the clear</strong>, the method, the path, the status code, the duration and a browser category. It is visible to platform administrators only and is kept for 7 days by default (configurable). This is the same journal described on the <a href="/data-boundary">data boundary</a> page, and it is the reason this notice does not claim that your address is never stored.</p></div>
+      <div class="matrix-row"><strong>Nothing else</strong><p>No account, no cookie set by these pages, no analytics, no advertising identifier, and no third-party request from the page itself. Results are not stored against any customer account, and a check never reads or writes any customer's workspace.</p></div>
+    </div>
+    <h3>Why</h3>
+    <p>The check log exists so that an abuse report about a domain can be investigated, and so the per-address, per-domain and service-wide limits can be enforced. Without it, a complaint from a domain owner could not be answered with facts. The request journal exists to operate and secure the service.</p>
+    <h3>How long</h3>
+    <p>Check-log rows older than the retention window are deleted. The window is <span data-config="log_retention_days">30</span> days by default on this deployment. One honest detail: the pruning runs when the next check is logged, so on a quiet service a row can outlive its window by as long as it takes for somebody to run another check.</p>
+    <h3>What leaves this server</h3>
+    <p>The domain you typed is sent to a public Certificate Transparency search service &mdash; crt.sh by default, which is a third party &mdash; and to the hostname itself as the SNI of a TLS handshake. Your IP address is not sent to either: the CT service sees this server, and the checked host sees this server. The hostname you typed is also published, as a URL, in the result.</p>
+    <h3>Your rights, and a real limit on them</h3>
+    <p>Depending on where you are, you may have rights to access, correct, erase, restrict or object to the processing of your personal data, and to complain to a supervisory authority. There is a practical limit worth stating plainly: because the check log holds a salted hash rather than your address, the operator cannot find &ldquo;your&rdquo; rows without the address they came from. You would have to supply it, which means handing over the very thing the log avoids storing. The request journal is searchable by address and is the place a request about your own data can actually be answered, within its 7-day window.</p>
+    <h3>Results are public and kept, so think before you type</h3>
+    <p>A result is published at <code>/r/{domain}</code> and can be read by anyone with that URL, as JSON and as a CBOM. Two different things happen to it, and the difference matters: it is <strong>cached</strong> for about <span data-config="cache_minutes">60</span> minutes, which is what stops repeated visits turning into repeated connections to the endpoint; and it is <strong>recorded</strong> in an append-only register that is kept indefinitely, so a link, a citation or a README badge still resolves years later. The register also holds what changed and when, because a posture that improved is the useful part of a record.</p>
+    <p>So do not type a hostname you need to keep private. Submitting it makes the name part of a permanent public URL, and the page will say what that endpoint negotiated. There is no undo you can run yourself: removal is an operator action, through the <a href="/abuse">abuse and opt-out page</a>, and it is available to whoever operates the domain rather than to whoever typed it.</p>
+    <p class="fine">Opening a record does not start a check and is not written to the check log; only submitting a check is. A crawler or a link preview that follows a shared record reads stored data and contacts nobody. A record is served with a 5-minute public cache header, so an intermediary may hold a copy briefly.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Part Two: If You Are The Party Being Checked</h2>
+    <p>Somebody who is not you can cause this service to make a connection to your host, without asking you first. That is the honest shape of this tool, and it is why this section exists and why the <a href="/abuse">opt-out</a> is unconditional.</p>
+    <h3>What the connection is</h3>
+    <p>At most two TCP connections to the hostname that was typed, on port 443 only. One ordinary verified TLS handshake &mdash; the same one a browser makes &mdash; and one single ClientHello that offers post-quantum key-exchange groups, whose ServerHello is read before the socket closes. No HTTP request is ever sent to your host, so there is nothing for your web access log to record and no User-Agent for it to hold. The <a href="/scanner">scanner identity page</a> sets this out in full, including what to look for in your logs.</p>
+    <h3>What is recorded about you, and published</h3>
+    <ul>
+      <li>The hostname that was checked, and <strong>the IP address it resolved to and was connected to</strong>. The address appears in the published result.</li>
+      <li>From the handshake: the TLS version, the cipher suite, the ALPN protocol selected, the negotiated key-exchange group, and whether the certificate verified against public roots.</li>
+      <li>From the certificate your server presented: subject, issuer, validity dates, days to expiry, public-key type, size and curve, and signature algorithm.</li>
+      <li>From Certificate Transparency: how many unexpired certificates are logged for the name, the issuers, the key types in a small number of logged certificates, and the issuer, common name and validity of the ten most recent entries.</li>
+      <li>A verdict and a set of findings derived from the above, plus model figures that are labelled as a model rather than a measurement.</li>
+    </ul>
+    <p>All of it is configuration your server tells every client that connects, or data already published in public logs. None of it is content, and nothing inside your systems is read.</p>
+    <h3>Your certificate data is already public</h3>
+    <p>Certificates issued for your domain are published in Certificate Transparency: append-only public logs operated by other organisations, which browsers require. This service reads those logs; it does not write to them and cannot remove anything from them. An opt-out here stops this service reading and republishing them for your domain; it does not change what the logs themselves hold.</p>
+    <h3>The result is linkable, indexable and kept</h3>
+    <p>The result for your domain sits at a predictable, shareable URL, <code>/r/{your-domain}</code>, and can be read by anyone who has it or guesses it. It is deliberately indexable: a search engine may list it, and the page carries an embeddable badge anyone can put in a README. It is served from stored data rather than re-measured, so link traffic, crawling and badge views never turn into more connections to your server &mdash; none of those routes can start a check. Observations are kept indefinitely, including the record of a posture you have since fixed.</p>
+    <h3>How to stop it</h3>
+    <p>Ask, and your domain is refused before its name is resolved &mdash; not at the firewall, not after a connection, but before DNS. It covers every name under your domain. In the same operation the cached result is deleted and the permanent record is hidden: the page, the history, the JSON and the CBOM all answer with the refusal, and the domain drops out of anything that lists or advertises records. No reason is needed. The route and what to include is on the <a href="/abuse">abuse and opt-out page</a>.</p>
+    <p class="fine">Hidden, not erased. The observations stay in the operator's database, unreachable through every public route, because they are the evidence of what this service checked and what it saw &mdash; which is what makes a complaint about it answerable. If you want them erased rather than hidden, say so in the same request and it becomes a question for the operator, not an automatic outcome. The one exception to the refusal is the badge: it returns the same neutral grey image for an opted-out domain as for a domain nobody has ever checked, so that a README it was embedded in does not break and so that the image itself does not announce that you opted out.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Applicable Regimes</h2>
+    <p>The regimes the operator believes are relevant, named without any claim of compliance:</p>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Mauritius</strong><p>The Data Protection Act 2017, because the operator is in Mauritius.</p></div>
+      <div class="matrix-row"><strong>EU and EEA</strong><p>The GDPR, where a visitor or the operator of a checked host is in the EU or EEA. An IP address, and a hostname that identifies an individual, can be personal data.</p></div>
+    </div>
+    <p class="notice">For counsel: the lawful basis for each of the two processing activities above, whether the checked party is a data subject under either regime and on what basis, whether a legitimate-interests assessment is required and whether it survives one, retention periods, international-transfer analysis for the Certificate Transparency lookup, and whether a representative must be appointed are all open questions for review. This notice describes what the software does; it does not assert that doing it is lawful anywhere.</p>
+    <p>No automated decision with legal effect is made about anyone. The verdict is a statement about a TLS endpoint's configuration, not about a person.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Related</h2>
+    <p><a href="/public-check/terms">Terms of use</a>, <a href="/public-check/acceptable-use">acceptable-use policy</a>, <a href="/abuse">abuse and opt-out</a>, <a href="/scanner">scanner identity</a>, and the live guardrails on <a href="/check#guardrails">/check</a>. For the platform and accounts, see the <a href="/privacy">platform privacy policy</a> and the <a href="/data-boundary">data boundary</a>.</p>
+  </section>
+
+  <footer>
+    <span>Airlock Command / Free checker</span>
+    <nav><a href="/check">Free check</a> / <a href="/public-check/terms">Terms of use</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/abuse">Abuse &amp; opt-out</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
+  </footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PQC Scanner">
+  <!-- Matches the .brand-mark used on /launch, /vendor-admin and the console: a
+       teal-to-sky rounded square. The glyph reads as both the Q of the quantum
+       brand and a scanner lens, and survives being drawn at 16px. -->
+  <defs>
+    <linearGradient id="q" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#q)"/>
+  <circle cx="29" cy="29" r="13" fill="none" stroke="#04120f" stroke-width="6"/>
+  <path d="M38 38 L49 49" fill="none" stroke="#04120f" stroke-width="6" stroke-linecap="round"/>
+</svg>

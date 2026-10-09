@@ -1,0 +1,12 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/yasseennandally/pqc_scanner/security/advisories/new
+    about: >
+      Do not open a public issue for a vulnerability. Open a private draft advisory here,
+      or email contact@soqlab.com. See SECURITY.md for scope and response times.
+  - name: Documentation
+    url: https://github.com/yasseennandally/pqc_scanner/tree/main/docs
+    about: >
+      Setup, the user guide, the API reference, and the measured scanner accuracy audit.
+      The console also has a built-in Guide & Tutorial that needs no network access.

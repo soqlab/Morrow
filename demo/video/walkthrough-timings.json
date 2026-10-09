@@ -1,0 +1,617 @@
+{
+  "total_seconds": 664.773,
+  "cues": [
+    {
+      "t0": 10.22,
+      "t1": 15.302,
+      "lines": [
+        "Airlock Command"
+      ]
+    },
+    {
+      "t0": 15.43,
+      "t1": 21.985,
+      "lines": [
+        "A cryptographic governance platform",
+        "for the post-quantum migration."
+      ]
+    },
+    {
+      "t0": 21.987,
+      "t1": 29.06,
+      "lines": [
+        "Recorded against a live build",
+        "and a fictional customer estate."
+      ]
+    },
+    {
+      "t0": 29.061,
+      "t1": 36.163,
+      "lines": [
+        "Traffic your organisation encrypts today",
+        "can be recorded today."
+      ]
+    },
+    {
+      "t0": 36.164,
+      "t1": 46.144,
+      "lines": [
+        "It becomes readable later, once a quantum computer",
+        "can break RSA and elliptic-curve cryptography."
+      ]
+    },
+    {
+      "t0": 46.145,
+      "t1": 55.971,
+      "lines": [
+        "So data with a long secrecy requirement",
+        "is already exposed, though nothing has been broken yet."
+      ]
+    },
+    {
+      "t0": 55.973,
+      "t1": 64.22,
+      "lines": [
+        "The company here is Example Financial Group —",
+        "an invented bank with thirty-eight endpoints."
+      ]
+    },
+    {
+      "t0": 64.222,
+      "t1": 73.224,
+      "lines": [
+        "The console opens on posture: inventory, open fixes,",
+        "modelled exposure and crypto-agility."
+      ]
+    },
+    {
+      "t0": 73.225,
+      "t1": 87.363,
+      "lines": [
+        "And the deadlines are not hypothetical.",
+        "CNSA 2.0, NSM-10 and NIST guidance carry published dates."
+      ]
+    },
+    {
+      "t0": 87.365,
+      "t1": 94.203,
+      "lines": [
+        "Optimistic, median and conservative scenarios —",
+        "not one confident date."
+      ]
+    },
+    {
+      "t0": 94.205,
+      "t1": 100.857,
+      "lines": [
+        "Some target dates have already passed.",
+        "Others land in 2030 and 2033."
+      ]
+    },
+    {
+      "t0": 100.858,
+      "t1": 110.945,
+      "lines": [
+        "The platform models when a relevant quantum computer",
+        "becomes credible — and labels it as a model."
+      ]
+    },
+    {
+      "t0": 110.946,
+      "t1": 115.795,
+      "lines": [
+        "Discovery."
+      ]
+    },
+    {
+      "t0": 115.797,
+      "t1": 125.291,
+      "lines": [
+        "Everything downstream starts with what you actually run,",
+        "not what the documentation says you run."
+      ]
+    },
+    {
+      "t0": 125.301,
+      "t1": 132.785,
+      "lines": [
+        "Airlock Command scans TLS endpoints and records",
+        "what each one really negotiated."
+      ]
+    },
+    {
+      "t0": 132.786,
+      "t1": 141.193,
+      "lines": [
+        "Protocol version, cipher suite, key algorithm,",
+        "key size, and the certificate chain behind it."
+      ]
+    },
+    {
+      "t0": 141.194,
+      "t1": 149.39,
+      "lines": [
+        "Eight scan runs over five months, so the history",
+        "has shape rather than being one snapshot."
+      ]
+    },
+    {
+      "t0": 149.391,
+      "t1": 157.314,
+      "lines": [
+        "The inventory it builds."
+      ]
+    },
+    {
+      "t0": 157.314,
+      "t1": 167.374,
+      "lines": [
+        "Each endpoint becomes an asset with an owner, a team,",
+        "an environment and a data-confidentiality lifetime."
+      ]
+    },
+    {
+      "t0": 167.375,
+      "t1": 176.608,
+      "lines": [
+        "RSA 2048 and 3072. Elliptic curve P-256 and P-384.",
+        "One gateway already negotiating a hybrid key exchange."
+      ]
+    },
+    {
+      "t0": 176.611,
+      "t1": 185.229,
+      "lines": [
+        "Confidentiality lifetime is the field that matters most —",
+        "how long this data has to stay secret."
+      ]
+    },
+    {
+      "t0": 185.232,
+      "t1": 194.723,
+      "lines": [
+        "Ownership is what turns a cryptographic finding",
+        "into work a named team can be asked to do."
+      ]
+    },
+    {
+      "t0": 194.724,
+      "t1": 205.601,
+      "lines": [
+        "Exposure."
+      ]
+    },
+    {
+      "t0": 205.602,
+      "t1": 213.569,
+      "lines": [
+        "Harvest now, decrypt later. The question is not",
+        "whether an endpoint is weak today."
+      ]
+    },
+    {
+      "t0": 213.57,
+      "t1": 220.668,
+      "lines": [
+        "It is what an adversary could store today",
+        "and read after Q-Day."
+      ]
+    },
+    {
+      "t0": 220.668,
+      "t1": 230.931,
+      "lines": [
+        "So each asset is priced: what the traffic is worth,",
+        "how long it stays secret, the odds it is broken by then."
+      ]
+    },
+    {
+      "t0": 230.932,
+      "t1": 237.407,
+      "lines": [
+        "Exposure grouped by algorithm class.",
+        "RSA-2048 carries most of it."
+      ]
+    },
+    {
+      "t0": 237.408,
+      "t1": 244.541,
+      "lines": [
+        "The priority queue is ranked by modelled exposure,",
+        "not by a severity label."
+      ]
+    },
+    {
+      "t0": 244.541,
+      "t1": 253.627,
+      "lines": [
+        "Owner, environment, algorithm, probability broken,",
+        "data category, and how long it has been harvestable."
+      ]
+    },
+    {
+      "t0": 253.628,
+      "t1": 257.382,
+      "lines": [
+        "Then the exposure timeline."
+      ]
+    },
+    {
+      "t0": 257.382,
+      "t1": 267.253,
+      "lines": [
+        "It is a real three-dimensional chart. You can turn it."
+      ]
+    },
+    {
+      "t0": 267.253,
+      "t1": 272.167,
+      "lines": [
+        "Amber is traffic captured but still sealed."
+      ]
+    },
+    {
+      "t0": 272.167,
+      "t1": 279.289,
+      "lines": [
+        "Red is the same traffic, readable,",
+        "once the model's Q-Day wall is crossed."
+      ]
+    },
+    {
+      "t0": 279.29,
+      "t1": 289.14,
+      "lines": [
+        "Beside it, the probability ribbons: one curve per algorithm,",
+        "with the year each reaches a fifty per cent chance."
+      ]
+    },
+    {
+      "t0": 289.141,
+      "t1": 299.36,
+      "lines": [
+        "Every modelled figure carries a badge saying it is a model,",
+        "with the date, the sources and the assumptions."
+      ]
+    },
+    {
+      "t0": 299.361,
+      "t1": 307.016,
+      "lines": [
+        "Nothing here is presented as measurement",
+        "when it is an estimate."
+      ]
+    },
+    {
+      "t0": 307.017,
+      "t1": 311.546,
+      "lines": [
+        "Evidence."
+      ]
+    },
+    {
+      "t0": 311.547,
+      "t1": 319.024,
+      "lines": [
+        "Exposure is an argument.",
+        "Evidence is what an auditor actually reads."
+      ]
+    },
+    {
+      "t0": 319.025,
+      "t1": 327.768,
+      "lines": [
+        "The cryptographic bill of materials is generated",
+        "from the scans themselves, in CycloneDX 1.6."
+      ]
+    },
+    {
+      "t0": 327.769,
+      "t1": 335.099,
+      "lines": [
+        "Every protocol, certificate and algorithm found,",
+        "each with its quantum status."
+      ]
+    },
+    {
+      "t0": 335.1,
+      "t1": 342.385,
+      "lines": [
+        "Eighty-seven components in this estate.",
+        "Two of them are already post-quantum."
+      ]
+    },
+    {
+      "t0": 342.386,
+      "t1": 349.977,
+      "lines": [
+        "Downloadable as JSON or CSV, so it can leave",
+        "the product and still mean something."
+      ]
+    },
+    {
+      "t0": 349.978,
+      "t1": 361.165,
+      "lines": [
+        "Then the mapping to control frameworks.",
+        "It is honest: this estate scores badly, and it says so."
+      ]
+    },
+    {
+      "t0": 361.166,
+      "t1": 370.496,
+      "lines": [
+        "Evidence packs collect the control artefacts",
+        "with timestamps and a hash chain."
+      ]
+    },
+    {
+      "t0": 370.496,
+      "t1": 383.075,
+      "lines": [
+        "Action."
+      ]
+    },
+    {
+      "t0": 383.077,
+      "t1": 390.189,
+      "lines": [
+        "Finding cryptography is the easy part.",
+        "Changing it is the work."
+      ]
+    },
+    {
+      "t0": 390.19,
+      "t1": 397.604,
+      "lines": [
+        "Every fix moves through suggested, approved,",
+        "pull request, and verified closed."
+      ]
+    },
+    {
+      "t0": 397.605,
+      "t1": 405.282,
+      "lines": [
+        "Two are closed and verified against a later scan.",
+        "Seven are still open."
+      ]
+    },
+    {
+      "t0": 405.282,
+      "t1": 413.279,
+      "lines": [
+        "Open one and it carries the file,",
+        "the current configuration, and the proposed change."
+      ]
+    },
+    {
+      "t0": 413.279,
+      "t1": 422.368,
+      "lines": [
+        "Approve, reject, validate, open a pull request, mark merged —",
+        "every step is recorded against the asset."
+      ]
+    },
+    {
+      "t0": 422.368,
+      "t1": 429.849,
+      "lines": [
+        "Before you change a certificate authority,",
+        "you want to know what depends on it."
+      ]
+    },
+    {
+      "t0": 429.849,
+      "t1": 437.182,
+      "lines": [
+        "Blast radius: assets, repositories and fixes",
+        "in one graph you can interrogate."
+      ]
+    },
+    {
+      "t0": 437.183,
+      "t1": 445.577,
+      "lines": [
+        "Two roots and two issuing authorities sit",
+        "under thirty-eight leaf certificates here."
+      ]
+    },
+    {
+      "t0": 445.578,
+      "t1": 455.615,
+      "lines": [
+        "If that public root failed, fifty-five dependent nodes",
+        "would be affected, and the model prices it."
+      ]
+    },
+    {
+      "t0": 455.616,
+      "t1": 464.798,
+      "lines": [
+        "And a tripwire ladder: five canary keys at five strengths.",
+        "Each only breaks if that algorithm breaks."
+      ]
+    },
+    {
+      "t0": 464.798,
+      "t1": 473.921,
+      "lines": [
+        "So the first one to trip tells you",
+        "how far quantum capability has actually reached."
+      ]
+    },
+    {
+      "t0": 473.921,
+      "t1": 479.785,
+      "lines": [
+        "Governance."
+      ]
+    },
+    {
+      "t0": 479.786,
+      "t1": 486.28,
+      "lines": [
+        "For the board, one composite score —",
+        "with every weight shown."
+      ]
+    },
+    {
+      "t0": 486.28,
+      "t1": 494.08,
+      "lines": [
+        "Inventory coverage, open exposure reduction,",
+        "crypto-agility, blocker control."
+      ]
+    },
+    {
+      "t0": 494.081,
+      "t1": 503.611,
+      "lines": [
+        "Components with no evidence behind them are marked",
+        "not measured, rather than scored from nothing."
+      ]
+    },
+    {
+      "t0": 503.612,
+      "t1": 512.481,
+      "lines": [
+        "Regulatory exposure is listed by regime,",
+        "with the alignment state the evidence supports."
+      ]
+    },
+    {
+      "t0": 512.482,
+      "t1": 523.996,
+      "lines": [
+        "The executive view is the same view the engineers",
+        "work in. There is no second set of numbers."
+      ]
+    },
+    {
+      "t0": 523.997,
+      "t1": 532.197,
+      "lines": [
+        "If you are the security team buying this,",
+        "four things matter."
+      ]
+    },
+    {
+      "t0": 532.198,
+      "t1": 539.77,
+      "lines": [
+        "One: tenant isolation is enforced in the database,",
+        "not only in application code."
+      ]
+    },
+    {
+      "t0": 539.77,
+      "t1": 548.085,
+      "lines": [
+        "Row-level security, scoped per organisation,",
+        "with a cross-tenant probe you can run yourself."
+      ]
+    },
+    {
+      "t0": 548.085,
+      "t1": 557.612,
+      "lines": [
+        "Two: vendor support cannot look at your workspace silently.",
+        "Read-only, time-limited, with a stated reason."
+      ]
+    },
+    {
+      "t0": 557.612,
+      "t1": 564.761,
+      "lines": [
+        "Three: the audit trail is hash-chained,",
+        "so a removed entry is detectable."
+      ]
+    },
+    {
+      "t0": 564.761,
+      "t1": 573.957,
+      "lines": [
+        "Four: the operators who run the platform sign in",
+        "through an identity provider, with authenticator MFA."
+      ]
+    },
+    {
+      "t0": 573.958,
+      "t1": 582.084,
+      "lines": [
+        "Destructive actions ask for a fresh code.",
+        "The shared key is an emergency credential only."
+      ]
+    },
+    {
+      "t0": 582.084,
+      "t1": 589.886,
+      "lines": [
+        "And the data boundary is explicit about what",
+        "is allowed to leave your environment."
+      ]
+    },
+    {
+      "t0": 589.887,
+      "t1": 601.128,
+      "lines": [
+        "Cryptographic metadata, fingerprints and workflow records",
+        "may cross. Source code, private keys and tokens do not."
+      ]
+    },
+    {
+      "t0": 601.13,
+      "t1": 614.177,
+      "lines": [
+        "Where to start."
+      ]
+    },
+    {
+      "t0": 614.181,
+      "t1": 622.124,
+      "lines": [
+        "A first pilot is deliberately narrow.",
+        "Six to eight weeks. One organisation."
+      ]
+    },
+    {
+      "t0": 622.125,
+      "t1": 629.716,
+      "lines": [
+        "Three to five critical applications,",
+        "and the assets that support them."
+      ]
+    },
+    {
+      "t0": 629.716,
+      "t1": 638.43,
+      "lines": [
+        "One approved cryptographic inventory.",
+        "One fix carried all the way to verified closure."
+      ]
+    },
+    {
+      "t0": 638.431,
+      "t1": 643.777,
+      "lines": [
+        "One evidence pack an auditor can read."
+      ]
+    },
+    {
+      "t0": 643.777,
+      "t1": 651.654,
+      "lines": [
+        "Start with the endpoints whose data",
+        "has to stay secret the longest."
+      ]
+    },
+    {
+      "t0": 651.656,
+      "t1": 661.38,
+      "lines": [
+        "Airlock Command.",
+        "Cryptographic governance for the post-quantum migration."
+      ]
+    }
+  ]
+}

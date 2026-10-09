@@ -1,0 +1,33 @@
+/* Operator sign-in: SSO button, key disclosure, MFA challenge and enrolment, auth summary (admin-auth.js). */
+.ssoSlot { display: grid; gap: 4px; margin-bottom: 18px; }
+.ssoSlot .btn.ssoBtn { width: 100%; padding: 12px; font-size: 11.5px; text-align: center; text-decoration: none; }
+.ssoSlot .accessNote { margin-top: 8px; }
+
+.authError { margin: 0 0 16px; padding: 10px 12px; border: 1px solid rgba(228, 110, 98, .45); background: rgba(228, 110, 98, .09); color: var(--rose); font-size: 12.5px; line-height: 1.5; }
+
+.keyDisclosure > summary { cursor: pointer; margin-bottom: 14px; font: 500 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fog); }
+.keyDisclosure > summary:hover, .keyDisclosure > summary:focus-visible { color: var(--chalk); }
+.keyDisclosure:not(.secondary) > summary { display: none; }
+.keyDisclosure.secondary { border-top: 1px solid var(--line-2); padding-top: 14px; }
+
+.mfaStep { display: grid; gap: 14px; }
+.mfaStep h2 { font: 700 20px/1.2 var(--display); letter-spacing: -.01em; }
+.mfaStep .copy { color: var(--fog); font-size: 13px; line-height: 1.55; }
+.mfaStep .row .btn { flex: 1 1 auto; }
+
+.mfaEnrol { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.mfaEnrol img { width: 196px; max-width: 100%; height: auto; aspect-ratio: 1; background: #fff; padding: 6px; }
+.mfaEnrol code { display: block; word-break: break-all; font-size: 13px; color: var(--chalk); }
+
+.mfaCodes ol, .mfaCodeList { columns: 2; column-gap: 24px; margin: 8px 0 0; padding-left: 22px; font-size: 13px; color: var(--chalk); }
+.mfaInline { display: grid; gap: 12px; margin-top: 14px; }
+.mfaInline input { max-width: 160px; }
+
+.authMeta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 12px; }
+.authMeta dt { color: var(--fog); }
+.authMeta dd { margin: 0; color: var(--chalk-2); }
+.authWarn { margin: 8px 0 0; font-size: 11.5px; color: var(--rose); }
+
+@media (max-width: 480px) {
+  .mfaCodes ol, .mfaCodeList { columns: 1; }
+}

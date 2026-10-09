@@ -1,0 +1,4 @@
+{
+  "targets": ["google.com:443"],
+  "name": "cooldown-test"
+}

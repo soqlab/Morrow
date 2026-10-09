@@ -1,0 +1,143 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/your-org/pqc-scanner
+  pullPolicy: IfNotPresent
+  tag: ""  # defaults to Chart.appVersion
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/health"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+  hosts:
+    - host: pqc-scanner.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: pqc-scanner-tls
+      hosts:
+        - pqc-scanner.example.com
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+postgresql:
+  enabled: true
+  auth:
+    username: pqc
+    password: changeme
+    database: pqc
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: changeme
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+
+env:
+  PQC_AUTH_MODE: headers
+  PQC_AUTH_REQUIRED: "1"
+  PQC_DEFAULT_ROLE: viewer
+  PQC_CORS_ALLOW_ALL: "0"
+  ENABLE_INPROCESS_SCHEDULER: "0"
+  WORKER_ROLE: api
+  PER_TARGET_TIMEOUT: "20"
+
+# Set these via --set or a values override file
+secrets:
+  openaiApiKey: ""
+  pqcVaultMasterKey: ""
+  pqcPlatformAdminKey: ""
+  jwtIssuer: ""
+  jwtAudience: ""
+  jwksUrl: ""
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8000
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 3
+
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - pqc-scanner
+          topologyKey: kubernetes.io/hostname

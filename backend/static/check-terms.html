@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of use for the free checker | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Terms for the free post-quantum readiness check at /check. There is no account and no signup, so these terms bind on use. Draft for legal review.">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/experience.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/check.css?v=20261005">
+  <script src="/ui/fabric.js?v=20260915-perf2" defer></script>
+  <script src="/ui/motion.js?v=20260918-idle" defer></script>
+  <script src="/ui/check-pages.js?v=20261005" defer></script>
+</head>
+<body class="public-document">
+<div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+<a class="skip-link" href="#content">Skip to content</a>
+<main class="doc-shell" id="content">
+  <header class="topbar">
+    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+  </header>
+
+  <section class="doc-hero">
+    <div>
+      <span class="eyebrow">Free checker / Terms of use</span>
+      <h1>Terms for the free check.</h1>
+      <p class="lead">Last updated 2026-10-04. These terms cover the free post-quantum readiness check at <a href="/check">/check</a> and its public API. There is no account and no signup box to tick, so they bind on use: if you submit a domain, you accept them.</p>
+    </div>
+    <aside class="doc-meta">
+      <b>Draft &mdash; not yet reviewed by a lawyer</b>
+      <p>This page is a draft for a qualified lawyer to review before the free checker is switched on for the public. It is not legal advice and it is not represented as legally sufficient.</p>
+    </aside>
+  </section>
+
+  <section class="doc-section">
+    <h2>Acceptance Without A Signup</h2>
+    <p>There is no account, no login and no click-through for this service, so acceptance works on use. Submitting a domain to the checker, or calling its public API, means you accept these terms and the <a href="/public-check/acceptable-use">acceptable-use policy</a>. If you do not accept them, do not submit a domain.</p>
+    <p>So that this is not buried, the same statement and the links to it sit inside the form on <a href="/check">/check</a>, with the box you type into, and again on the result page. The boundaries the service enforces are also printed on that page, read live from its configuration, rather than only described here.</p>
+    <p>The version in force for your use is the one published at the moment you use it. The operator may change these terms; the date above says when this text last changed.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>What The Service Is</h2>
+    <p>You type a hostname. The service reads public Certificate Transparency records for that name and makes at most two TLS connections to that hostname on port 443 &mdash; the same kind of connection a browser makes &mdash; and publishes what it observed at a shareable URL.</p>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Passive part</strong><p>Public Certificate Transparency logs, read through a third-party search service. The checked host is not contacted for this.</p></div>
+      <div class="matrix-row"><strong>Active part</strong><p>At most two connections, to one hostname, on port 443. One ordinary verified TLS handshake, and one ClientHello that offers post-quantum key-exchange groups so hybrid support can be observed. No HTTP request is ever sent to the checked host.</p></div>
+      <div class="matrix-row"><strong>The result</strong><p>Published at <code>/r/{domain}</code> and readable by anyone with that URL, with JSON and CycloneDX exports and an embeddable badge. It is cached, so a popular domain is checked once per cache window rather than once per visitor, and it is recorded, so the address keeps resolving indefinitely. Both are described in the <a href="/public-check/privacy">privacy notice</a>.</p></div>
+    </div>
+    <p>The exact technical behaviour is set out on the <a href="/scanner">scanner identity page</a>, and the live limits this deployment enforces are published by <code>GET /api/public-check/config</code> and shown on <a href="/check#guardrails">/check</a>.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Provided As-Is, With No Warranty</h2>
+    <p>The service is provided as-is and as-available, free of charge, with no warranty of any kind, express or implied, including any warranty of accuracy, completeness, availability, fitness for a particular purpose or non-infringement, to the fullest extent the law allows.</p>
+    <p class="notice">For counsel: the formula above needs to be checked against Mauritian law and against the consumer-protection rules of the places visitors are likely to come from. Some of these exclusions may not be excludable for consumers.</p>
+    <p>In particular, and as a statement of fact rather than a disclaimer: the Certificate Transparency source is a third-party service that is frequently slow or unavailable. When it does not answer, the result says so. An unavailable source is never reported as &ldquo;this domain has no certificates&rdquo;.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>A Point-In-Time Observation, Not An Audit</h2>
+    <p>A result is one endpoint, at one moment, as seen by one client. It is not a security audit, a penetration test, a certification, an attestation, a compliance statement or advice.</p>
+    <ul>
+      <li>It covers the hostname you typed on port 443. Other names, other ports and anything behind a different load balancer were not checked.</li>
+      <li>It describes what that server negotiated with this client, just now. A different client, a different data centre or tomorrow's configuration can differ.</li>
+      <li>&ldquo;Not observed&rdquo; means not observed. It is never a statement that something is absent.</li>
+      <li>The Q-Day year, the break probabilities and the harvest-now-decrypt-later tier are a stated planning model, not a measurement and not a forecast. The result labels them as such.</li>
+      <li>A check that reached nothing is reported as failed, with no verdict. It never scores better than an endpoint that answered honestly.</li>
+    </ul>
+    <p>If you need an assurance you can rely on, or evidence an auditor will accept, commission an assessment. The free check is a first look, and it says so on its own page.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>No Liability For Decisions Taken On A Result</h2>
+    <p>To the fullest extent the law allows, the operator is not liable for any loss or damage arising from the use of this service or from reliance on a result, including decisions about migration, procurement, supplier assessment, disclosure or risk. You decide what to do with what you read here, and that decision is yours.</p>
+    <p class="notice">For counsel: whether this exclusion is enforceable, whether a liability cap should be stated instead for a free service, and how it interacts with the consumer and data-protection rules of a visitor's own country all need confirming before this page is published.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Only Check What You Have A Reason To Check</h2>
+    <p>You must not use this service against systems you have no legitimate interest in checking. Checking your own estate, a supplier you are assessing, or a domain you are researching in good faith is fine. Using it to look over someone else's fence is not.</p>
+    <p>You are responsible for your own legal position in your own jurisdiction and in the jurisdiction of the host you name. The connection this service makes is the kind a browser makes, and reading a public TLS handshake is ordinary; that is not a defence everywhere, and it is not legal advice.</p>
+    <p>The <a href="/public-check/acceptable-use">acceptable-use policy</a> sets out what is permitted and what is prohibited in detail, and it forms part of these terms.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>The Right To Refuse, Limit And Stop</h2>
+    <p>The operator may refuse a request, rate-limit you, block you, or switch the service off, at any time and without notice. Several of these are automatic rather than discretionary:</p>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Refusals</strong><p>Targets that are not a single public hostname are refused before anything is contacted: IP addresses, wildcards, credentials before the host, single-label names, any port other than 443, and names that resolve to a private, loopback, link-local, carrier-grade NAT or reserved address.</p></div>
+      <div class="matrix-row"><strong>Limits</strong><p>Per requesting address, per target domain, and for the whole service, by the hour and by the minute. A target domain has an hourly ceiling whoever asks, so the service cannot be pointed repeatedly at one host even from many addresses. The live numbers are published by <code>GET /api/public-check/config</code>.</p></div>
+      <div class="matrix-row"><strong>Opt-out</strong><p>A domain whose owner has asked not to be checked is refused before its name is resolved. See <a href="/abuse">abuse and opt-out</a>.</p></div>
+      <div class="matrix-row"><strong>Off</strong><p>The whole service can be switched off while leaving these pages readable.</p></div>
+    </div>
+    <p>A refused or limited request gets a plain reason and, where it applies, a retry hint. Nothing was contacted for a refused target.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Results Are Public</h2>
+    <p>A result is published at a shareable URL and is readable by anyone who has it. The checker is for public TLS endpoints and the result is a statement about a public endpoint, so do not submit a hostname that you need to keep private: submitting it makes the name part of a public URL. The <a href="/public-check/privacy">privacy notice for the checker</a> describes this in full, for both the person asking and the party being checked.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Abuse, Opt-Out And Privacy</h2>
+    <p>If this service has been pointed at something it should not have been, or you operate a domain and never want it checked here, the <a href="/abuse">abuse and opt-out page</a> is the route. An opt-out is honoured before the domain is resolved, covers everything under the domain, and deletes the cached result.</p>
+    <p>What is recorded about you, what is recorded about a checked host, and for how long, is in the <a href="/public-check/privacy">privacy notice</a>. The <a href="/privacy">platform privacy policy</a> covers the paid product and accounts, not this free check.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Self-Hosting</h2>
+    <p>This checker ships with the platform source under the MIT licence and runs from the command line as well as this web page. If you run your own copy, these terms do not cover it: you are the party making the connections, and the responsibility for what your copy contacts is yours, under your own jurisdiction's rules and your hosting provider's acceptable-use policy.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Governing Law And Contact</h2>
+    <p>The operator of this deployment is Yasseen Nandally, based in Mauritius. These terms are intended to be governed by the laws of Mauritius, with the courts of Mauritius as the forum.</p>
+    <p class="notice">For counsel: this clause is a placeholder for a lawyer to confirm. It needs checking against Mauritian law, against whether a choice of law and forum can be imposed on a visitor who never signed anything, and against the consumer and data-protection rules that follow a visitor from their own country regardless of this clause. No company registration details or registered address are stated here because none have been supplied.</p>
+    <p>Notices, abuse reports and opt-out requests: <span data-abuse-contact>no abuse address is configured on this deployment, so the only route is the <a href="/support">contact page</a></span>. The same address is published on <a href="/check">/check</a> and on the <a href="/abuse">abuse and opt-out page</a>.</p>
+  </section>
+
+  <footer>
+    <span>Airlock Command / Free checker</span>
+    <nav><a href="/check">Free check</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/abuse">Abuse &amp; opt-out</a> / <a href="/public-check/privacy">Checker privacy</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
+  </footer>
+</main>
+</body>
+</html>

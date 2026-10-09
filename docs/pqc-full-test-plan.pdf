@@ -1,0 +1,245 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 4 /Kids [4 0 R 6 0 R 8 0 R 10 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 1763 >>
+stream
+BT
+/F1 11 Tf
+50 760 Td
+14 TL
+(PQC Scanner Full Test Plan) Tj
+T* () Tj
+T* (Ordered end-to-end test checklist) Tj
+T* () Tj
+T* (1. Environment / startup) Tj
+T* (- Docker/local stack starts) Tj
+T* (- Cloud Run API/worker/beat healthy) Tj
+T* (- Postgres/Redis reachable) Tj
+T* (- UI loads) Tj
+T* () Tj
+T* (2. Automated regression suite) Tj
+T* (- Run backend pytest suites for compliance gate, remediations, RBAC/audit, multi-tenancy,) Tj
+T* (GitHub App bridge, compliance report, drift/notifications, drift response, and hosted JWT) Tj
+T* (auth) Tj
+T* () Tj
+T* (3. Auth / login) Tj
+T* (- Auth0 login works) Tj
+T* (- Logout works) Tj
+T* (- /auth/config is correct) Tj
+T* (- /auth/context returns authenticated user after login) Tj
+T* (- Role/org claims are read from JWT) Tj
+T* (- Unauthenticated access is blocked where expected) Tj
+T* () Tj
+T* (4. RBAC) Tj
+T* (- Viewer blocked from write actions) Tj
+T* (- Operator allowed for normal remediation flow) Tj
+T* (- Admin allowed for sensitive actions) Tj
+T* (- Deny events appear in audit log) Tj
+T* () Tj
+T* (5. Multi-tenancy / org isolation) Tj
+T* (- Org A only sees org A data) Tj
+T* (- Org B only sees org B data) Tj
+T* (- Same repo name / asset key can exist across orgs) Tj
+T* (- JWT org claim scopes requests correctly) Tj
+T* () Tj
+T* (6. Vault / credentials) Tj
+T* (- Credentials list works) Tj
+T* (- GitHub App credential resolves correctly) Tj
+T* (- Secrets are not exposed in responses) Tj
+T* (- Temporary/manual creds are not required for normal GitHub App flow) Tj
+T* () Tj
+T* (7. GitHub App integration) Tj
+T* (- Installation sync works) Tj
+T* (- Repository sync works) Tj
+T* (- Target repo appears in /repositories) Tj
+T* (- Repo token minting works for that repo) Tj
+T* () Tj
+T* (8. Scan lifecycle) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 1668 >>
+stream
+BT
+/F1 11 Tf
+50 760 Td
+14 TL
+(- Create scan) Tj
+T* (- Job starts in background) Tj
+T* (- Progress updates) Tj
+T* (- Scan reaches completed) Tj
+T* (- Results persist after refresh/reload) Tj
+T* () Tj
+T* (9. Asset inventory / asset views) Tj
+T* (- Assets list loads) Tj
+T* (- Asset detail loads) Tj
+T* (- Metadata/tags update works) Tj
+T* (- Asset history works) Tj
+T* () Tj
+T* (10. Correlation) Tj
+T* (- Correlate assets to repos) Tj
+T* (- Linked repo appears on asset record) Tj
+T* (- Linked asset appears in repo-related views) Tj
+T* () Tj
+T* (11. Compliance gate) Tj
+T* (- Repo with linked critical finding returns FAIL) Tj
+T* (- Clean/no-linked-risk case returns expected pass behavior) Tj
+T* () Tj
+T* (12. Remediation suggestion) Tj
+T* (- Suggest remediation from repo + asset) Tj
+T* (- Original content loads from GitHub) Tj
+T* (- Suggested content/diff created) Tj
+T* (- No wrapper-marker corruption in new suggestions) Tj
+T* () Tj
+T* (13. Remediation approval / rejection) Tj
+T* (- Approve works) Tj
+T* (- Reject works) Tj
+T* (- Status transitions correct) Tj
+T* (- Audit log records action) Tj
+T* () Tj
+T* (14. Validation sandbox) Tj
+T* (- Validate remediation) Tj
+T* (- Terraform validation passes for valid fix) Tj
+T* (- Failed validation stores exit code/stdout/stderr) Tj
+T* (- PR creation blocked when latest validation failed) Tj
+T* () Tj
+T* (15. PR creation) Tj
+T* (- Create PR from validated remediation) Tj
+T* (- Branch/commit/PR created in GitHub) Tj
+T* (- Remediation status becomes pr_created) Tj
+T* () Tj
+T* (16. Merge webhook) Tj
+T* (- Merge PR in GitHub) Tj
+T* (- GitHub webhook reaches cloud endpoint) Tj
+T* (- Remediation becomes merged) Tj
+ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 1671 >>
+stream
+BT
+/F1 11 Tf
+50 760 Td
+14 TL
+(- merged_at populated) Tj
+T* () Tj
+T* (17. Verify-close loop) Tj
+T* (- Run verification scan) Tj
+T* (- Remediation becomes verified_closed) Tj
+T* (- verification_scan_id and closed_at populated) Tj
+T* () Tj
+T* (18. Drift detection) Tj
+T* (- Drift check on unchanged remediation => clean) Tj
+T* (- Drift check on changed file => drifted) Tj
+T* (- Audit event recorded) Tj
+T* () Tj
+T* (19. Drift response) Tj
+T* (- Drift auto-creates follow-up remediation) Tj
+T* (- Parent/child linkage is correct) Tj
+T* (- Acknowledge drift works) Tj
+T* (- Revalidate drift works) Tj
+T* () Tj
+T* (20. Notifications) Tj
+T* (- Generic webhook delivery works) Tj
+T* (- Validation failure emits event) Tj
+T* (- Remediation merged emits event) Tj
+T* (- Remediation drifted/follow-up emits event) Tj
+T* (- Retry queue works for failed deliveries) Tj
+T* () Tj
+T* (21. Compliance report JSON) Tj
+T* (- /org/compliance-report?format=json returns valid payload) Tj
+T* (- Summary numbers make sense) Tj
+T* (- Remediation list includes validation/merge/verify/drift fields) Tj
+T* (- Recent alerts are present) Tj
+T* () Tj
+T* (22. Dashboard UI) Tj
+T* (- Executive metrics load) Tj
+T* (- Remediations list loads) Tj
+T* (- Validation status visible) Tj
+T* (- Drift status visible) Tj
+T* (- Report JSON view works) Tj
+T* () Tj
+T* (23. Persistence / restart safety) Tj
+T* (- Restart local containers) Tj
+T* (- Cloud revision redeploy) Tj
+T* (- Data still present in Postgres) Tj
+T* (- Scans/remediations/audit/report still load) Tj
+T* () Tj
+T* (24. Security / negative tests) Tj
+T* (- Missing token rejected) Tj
+T* (- Invalid token rejected) Tj
+T* (- Wrong role denied) Tj
+ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 524 >>
+stream
+BT
+/F1 11 Tf
+50 760 Td
+14 TL
+(- Invalid GitHub credential handled cleanly) Tj
+T* (- Forbidden remediation content blocked by guardrails) Tj
+T* () Tj
+T* (25. Final end-to-end money flow) Tj
+T* (- Login) Tj
+T* (- Sync repo) Tj
+T* (- Scan) Tj
+T* (- Correlate) Tj
+T* (- Compliance fail) Tj
+T* (- Suggest) Tj
+T* (- Approve) Tj
+T* (- Validate) Tj
+T* (- Create PR) Tj
+T* (- Merge) Tj
+T* (- Verify close) Tj
+T* (- Drift check) Tj
+T* (- Follow-up remediation if drifted) Tj
+T* (- Compliance report reflects everything) Tj
+T* () Tj
+ET
+endstream
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000140 00000 n 
+0000000210 00000 n 
+0000000336 00000 n 
+0000002151 00000 n 
+0000002277 00000 n 
+0000003997 00000 n 
+0000004123 00000 n 
+0000005846 00000 n 
+0000005974 00000 n 
+trailer
+<< /Size 12 /Root 1 0 R >>
+startxref
+6550
+%%EOF

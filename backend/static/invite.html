@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Accept Invitation | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+<link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script>
+<script src="/ui/invite.js?v=20260916-invite1" defer></script>
+<style>
+  .invite-summary { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; margin: 16px 0 0; }
+  .invite-summary dt { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); padding-top: 3px; }
+  .invite-summary dd { margin: 0; color: var(--chalk, #eee); overflow-wrap: anywhere; }
+  .invite-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+  .public-document .invite-state { max-width: 70ch; padding-left: 52px; }
+  .invite-state p { color: var(--fog, #b9b9b9); line-height: 1.7; }
+  .invite-state[data-tone="bad"] { border-left-color: var(--rose, #ff6f6f); }
+  .invite-state[data-tone="ok"] { border-left-color: var(--jade, #6fd3a0); }
+  .invite-pill { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--line, #27303a); }
+  .invite-pill[data-status="valid"] { color: var(--jade, #6fd3a0); border-color: currentColor; }
+  .invite-pill[data-status="expired"], .invite-pill[data-status="used"], .invite-pill[data-status="revoked"] { color: var(--rose, #ff6f6f); border-color: currentColor; }
+  .invite-skeleton { color: var(--fog-dim, #7f7f7f); }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+  @media (max-width: 640px) { .invite-summary { grid-template-columns: 1fr; gap: 2px; } .invite-summary dd { margin-bottom: 10px; } }
+</style>
+</head>
+<body class="public-document"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+  <main class="doc-shell">
+    <header class="topbar">
+      <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+      <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+    </header>
+
+    <section class="doc-hero">
+      <div>
+        <span class="eyebrow">Invitation</span>
+        <h1 id="inviteTitle" tabindex="-1">Checking your invitation.</h1>
+        <p class="lead" id="inviteLead">One moment while we look up this invitation link.</p>
+      </div>
+      <aside class="doc-meta" aria-labelledby="inviteSummaryTitle">
+        <b id="inviteSummaryTitle">Invitation details</b>
+        <dl class="invite-summary" id="inviteSummary">
+          <dt>Organization</dt><dd id="inviteOrg" class="invite-skeleton">Loading</dd>
+          <dt>Role</dt><dd id="inviteRole" class="invite-skeleton">Loading</dd>
+          <dt>Invited address</dt><dd id="inviteEmail" class="invite-skeleton">Loading</dd>
+          <dt>Expires</dt><dd id="inviteExpires" class="invite-skeleton">Loading</dd>
+          <dt>Status</dt><dd><span class="invite-pill" id="inviteStatus" data-status="loading">Checking</span></dd>
+        </dl>
+      </aside>
+    </section>
+
+    <section class="doc-section" aria-live="polite">
+      <div class="notice invite-state" id="inviteState">
+        <p>Looking up the invitation.</p>
+      </div>
+      <noscript><p class="notice">This page needs JavaScript to read the invitation from the link.</p></noscript>
+    </section>
+
+    <section class="doc-section">
+      <h2>How invitations work</h2>
+      <p>An invitation works once, expires, and can only be accepted by a signed-in account whose email address matches the one it was sent to. The invitation code stays in your browser: it is part of the link after the <code>#</code>, which browsers do not send to servers or other sites.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,35 @@
+name: airlock-website-gateway
+x-gateway: &gateway
+  build: .
+  user: "${AIRLOCK_GATEWAY_UID:-10001}:${AIRLOCK_GATEWAY_GID:-10001}"
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp:size=16m,mode=1777]
+  mem_limit: 768m
+  cpus: 1.0
+  environment:
+    GOMEMLIMIT: 512MiB
+    GOMAXPROCS: "2"
+  volumes:
+    - ./local/state:/state
+    - ./local/secrets:/secrets:ro
+    - ./local/certs:/certs:ro
+  expose: ["8443"]
+
+services:
+  gateway-a:
+    <<: *gateway
+  gateway-b:
+    <<: *gateway
+  edge:
+    image: haproxy:3.2-alpine
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports: ["${AIRLOCK_LISTEN_IP:-127.0.0.1}:${AIRLOCK_HTTPS_PORT:-8443}:8443"]
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    depends_on: [gateway-a, gateway-b]

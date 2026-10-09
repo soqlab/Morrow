@@ -1,0 +1,15 @@
+apiVersion: v2
+name: pqc-scanner
+description: Post-Quantum Cryptography governance platform
+type: application
+version: 1.0.0
+appVersion: "16.0"
+keywords:
+  - pqc
+  - post-quantum
+  - cryptography
+  - security
+  - governance
+home: https://github.com/your-org/pqc-scanner
+maintainers:
+  - name: PQC Scanner Team

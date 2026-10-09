@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acceptable use of the free checker | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="What the free post-quantum readiness check may and may not be used for: permitted checks, prohibited enumeration and automation, and what happens on breach. Draft for legal review.">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/experience.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/check.css?v=20261005">
+  <script src="/ui/fabric.js?v=20260915-perf2" defer></script>
+  <script src="/ui/motion.js?v=20260918-idle" defer></script>
+  <script src="/ui/check-pages.js?v=20261005" defer></script>
+</head>
+<body class="public-document">
+<div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+<a class="skip-link" href="#content">Skip to content</a>
+<main class="doc-shell" id="content">
+  <header class="topbar">
+    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+  </header>
+
+  <section class="doc-hero">
+    <div>
+      <span class="eyebrow">Free checker / Acceptable use</span>
+      <h1>What this may be used for.</h1>
+      <p class="lead">Last updated 2026-10-04. This is the line between a readiness tool and a reconnaissance tool. The free check at <a href="/check">/check</a> makes a connection to a host the person asking may not own, so what it may be used for has to be stated, and it forms part of the <a href="/public-check/terms">terms of use</a>.</p>
+    </div>
+    <aside class="doc-meta">
+      <b>Draft &mdash; not yet reviewed by a lawyer</b>
+      <p>This page is a draft for a qualified lawyer to review before the free checker is switched on for the public. It is not legal advice and it is not represented as legally sufficient.</p>
+    </aside>
+  </section>
+
+  <section class="doc-section">
+    <h2>The Short Version</h2>
+    <p>This tool reads public Certificate Transparency data for a domain and makes at most two TLS connections to it on port 443. That is the same kind of contact a browser or SSL Labs makes, and nothing more. Check hosts you own, or hosts whose public configuration you have a legitimate reason to read. Do not use it as a step in attacking anyone, and do not automate it.</p>
+    <p class="fine">The statement the service itself publishes is served by <code>GET /api/public-check/config</code> and shown on <a href="/check#acceptable-use">/check</a>, so it cannot drift from the running code. This page is the longer form of that statement. If the two ever disagree, the one the service publishes describes the software that is actually running, and the difference is a bug &mdash; please report it to the address at the bottom of this page.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Permitted</h2>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Your own estate</strong><p>Any hostname you operate, or operate on behalf of someone who asked you to. This is what the tool is for.</p></div>
+      <div class="matrix-row"><strong>A supplier you are assessing</strong><p>A vendor, processor or partner whose public TLS posture is part of your own due diligence. You are reading what their server tells every browser that visits it.</p></div>
+      <div class="matrix-row"><strong>A domain you are researching in good faith</strong><p>Research, teaching, journalism, or a public-interest look at a public endpoint. One domain, because you have a reason to look at that domain.</p></div>
+    </div>
+    <p>In all three cases the limits still apply, the result is still public at its URL, and the domain owner can still opt out.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Prohibited</h2>
+    <ul>
+      <li><strong>Automated or bulk use.</strong> Do not drive this from a script, a crawler, a job, or a list of domains. One hostname at a time, because you have a reason to look at that hostname. The cached result is the same answer as a fresh one, so re-running it gains nothing.</li>
+      <li><strong>Enumeration.</strong> Do not work through subdomains, name lists or an organisation's estate. The service does not discover subdomains, and using it as a substitute for a tool that does is prohibited.</li>
+      <li><strong>Mapping someone else's attack surface.</strong> Do not use this service as a reconnaissance step against a third party, whether or not what follows is an intrusion. This is the use this policy exists to refuse.</li>
+      <li><strong>Trying to make the service connect somewhere it refuses.</strong> IP literals, private, loopback, link-local, carrier-grade NAT and reserved addresses, names engineered to resolve inside a network, DNS rebinding, credentials before the host, ports other than 443, and wildcards are all refused in code. Attempting it anyway is a breach of this policy, and the attempt is logged.</li>
+      <li><strong>Circumventing the rate limits.</strong> Do not rotate addresses or use proxies, many clients or repeated refreshes to get around the per-address, per-domain or service-wide budgets. The per-domain budget exists so one host cannot be hammered even from many addresses.</li>
+      <li><strong>Reselling the output as a service</strong>, or presenting a result as your own audit, certification or attestation. The result is a point-in-time observation of one endpoint and says so; passing it off as more than that misleads whoever reads it next.</li>
+      <li><strong>Anything unlawful</strong> where you are, or where the host you name is.</li>
+    </ul>
+  </section>
+
+  <section class="doc-section">
+    <h2>What Happens On Breach</h2>
+    <p>Most of the enforcement is automatic and impersonal: a request outside the rules is refused with a reason, and an address or a domain that is over budget is rate-limited with a retry hint. Beyond that:</p>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Blocking</strong><p>A requester who behaves as described above is blocked. This happens upstream of the application, at the edge, because the check log stores only a salted hash of a requesting address &mdash; the checker itself holds no requester blocklist and could not enforce one from a hash. The limits can also be tightened for everyone, and the service can be switched off entirely.</p></div>
+      <div class="matrix-row"><strong>Opt-out for the complained-of domain</strong><p>If a domain owner asks, their domain is added to the opt-out list and is refused before its name is resolved. That is done first, before any investigation.</p></div>
+      <div class="matrix-row"><strong>Referral</strong><p>Where the law requires it, or where a competent authority makes a valid request, the operator will refer a matter or respond to that request. The check log holds the domain, the time, the outcome and a salted hash of the requesting address &mdash; not the address itself. If more is asked for than that, the honest answer is that the data does not exist.</p></div>
+    </div>
+  </section>
+
+  <section class="doc-section">
+    <h2>If You Operate A Domain You Do Not Want Checked</h2>
+    <p>You do not have to argue the point or wait for an investigation. Ask, and the domain is refused before anything is resolved or connected to, including everything under it, and its cached result is deleted. The route and what to include is on the <a href="/abuse">abuse and opt-out page</a>. The <a href="/scanner">scanner identity page</a> describes exactly what the traffic in your logs was.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Your Own Copy Is Not Covered By This</h2>
+    <p>The checker ships with the platform source under the MIT licence and runs from the command line against your own copy. This policy governs use of <em>this</em> hosted service. If you run your own copy, you are the party making the connections and the rules that apply are those of your own jurisdiction and your hosting provider.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Contact</h2>
+    <p>Abuse reports, opt-out requests, and anything you think this page gets wrong: <span data-abuse-contact>no abuse address is configured on this deployment, so the only route is the <a href="/support">contact page</a></span>.</p>
+  </section>
+
+  <footer>
+    <span>Airlock Command / Free checker</span>
+    <nav><a href="/check">Free check</a> / <a href="/public-check/terms">Terms of use</a> / <a href="/abuse">Abuse &amp; opt-out</a> / <a href="/public-check/privacy">Checker privacy</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
+  </footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,77 @@
+# OS
+.DS_Store
+
+# Node
+node_modules/
+.next/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.*
+# ...but templates must be in the repo: .env.* previously swallowed
+# .env.prod.example too, so a clone had no deployment template at all.
+# These hold placeholders only — never real values.
+!.env.example
+!.env.*.example
+!.env.example.*
+backend/pqc_scanner.db
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+backend/celerybeat-schedule
+backend/.pqc-server.pid
+
+# Terraform / infra state
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+tfplan
+
+# Logs
+*.log
+
+# Local tools and generated demo media.
+#
+# Rendered media is regenerated from the scripts in demo/video/ (render-*.js, assemble-*.py,
+# make-*-music.py), so none of it belongs in the repository. Before this section was widened,
+# only *.mp4 was ignored: a `git add .` would have committed ~190 MB of .wav masters, a 29 MB
+# seeded demo.db and 67 MB of raw .webm captures. Publish the finished videos as GitHub release
+# assets or external hosting instead -- see docs/OPEN_SOURCE_READINESS.md.
+.tools/
+demo/video/screens/
+demo/video/segments/
+demo/video/audio/
+demo/video/captions/
+demo/video/frames/
+demo/video/raw/
+demo/video/caption-check.png
+demo/video/*.mp4
+demo/video/*.wav
+demo/video/*.m4a
+demo/video/*.mp3
+demo/video/*.webm
+
+# The demo workspace is reproducible from demo/video/seed-demo-data.py, so the database it
+# produces is a build artifact, not source. Never commit it.
+demo/video/demo.db
+demo/video/demo.db-shm
+demo/video/demo.db-wal
+
+# demo/tour/*.jpg are deliberately NOT ignored: they are the screenshots the README embeds.
+# The tour's audio bed is generated and large, so it is.
+demo/tour/*.m4a
+demo/tour/*.mp3
+
+# Transient verification output. These are written to fixed filenames on every run, unlike
+# reports/release-evidence-local/<timestamp>/ which is archived evidence and is tracked.
+reports/e2e-smoke/
+reports/go-live/
+reports/market-ready/
+reports/prod-handoff/
+reports/release-evidence/
+backups/

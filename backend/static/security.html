@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Security | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Airlock Command security model, data boundary, and enterprise pilot controls.">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+<link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script></head>
+<body class="public-document"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+  <main class="doc-shell">
+    <header class="topbar">
+      <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+      <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+    </header>
+
+    <section class="doc-hero">
+      <div>
+        <span class="eyebrow">Security Boundary</span>
+        <h1>Minimum access by design.</h1>
+        <p class="lead">The enterprise path is built around Quantum Airlock and minimum customer access: signed, redacted cryptographic evidence leaves the customer boundary; source code, private keys, secrets, and packet payloads do not leave by default.</p>
+      </div>
+      <aside class="doc-meta">
+        <b>Status</b>
+        <p>Controlled enterprise pilot / private beta. Production use still requires JWT auth, managed secrets, managed Postgres/Redis, RLS verification, backup evidence, and a passing go-live gate.</p>
+      </aside>
+    </section>
+
+    <section class="doc-section">
+      <h2>What Leaves</h2>
+      <div class="matrix">
+        <div class="matrix-row"><strong>Evidence</strong><p>Algorithm family, cipher suite, TLS version, certificate metadata, package hash, firmware hash, CI findings, runtime crypto metadata, and policy results.</p></div>
+        <div class="matrix-row"><strong>Fingerprints</strong><p>Salted host, repository, component, service, and device fingerprints when the customer chooses privacy-preserving mode.</p></div>
+        <div class="matrix-row"><strong>Workflow</strong><p>Ownership metadata, remediation state, validation result, audit events, and compliance ledger references.</p></div>
+      </div>
+    </section>
+
+    <section class="doc-section">
+      <h2>What Never Leaves By Default</h2>
+      <div class="matrix">
+        <div class="matrix-row"><strong>Code</strong><p>No source-code upload is required for the Airlock-first workflow.</p></div>
+        <div class="matrix-row"><strong>Secrets</strong><p>No private keys, tokens, passwords, PEM keys, or cloud credentials should be submitted.</p></div>
+        <div class="matrix-row"><strong>Payloads</strong><p>No raw packet payloads, customer records, production data samples, or broad filesystem images are required.</p></div>
+      </div>
+    </section>
+
+    <section class="doc-section">
+      <h2>Production Controls</h2>
+      <div>
+        <p class="notice">Header auth is local/dev only. Production must use hosted JWT identity, least-privilege secret management, managed Postgres, managed Redis, and verified row-level security.</p>
+        <div class="matrix">
+          <div class="matrix-row"><strong>Identity</strong><p>Use <code>PQC_AUTH_MODE=jwt</code>, <code>PQC_AUTH_REQUIRED=1</code>, real issuer/audience/JWKS, and MFA in the identity provider.</p></div>
+          <div class="matrix-row"><strong>Airlock</strong><p>Set <code>PQC_AIRLOCK_SIGNING_KEY</code> and <code>PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1</code> for enterprise pilots.</p></div>
+          <div class="matrix-row"><strong>Evidence</strong><p>Archive go-live gate, launch collateral check, backup/restore, browser smoke, tenant isolation, and Trust Passport outputs.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="doc-section">
+      <h2>Buyer Review References</h2>
+      <p>For a security review, read the <a href="/data-boundary">data boundary</a>, the <a href="/airlock-deployment">deployment guide</a>, the <a href="/trust-passport-demo">Trust Passport overview</a>, and <a href="/support">support and incident response</a>. Your account team can share the full security questionnaire under NDA.</p>
+    </section>
+  <section class="doc-section"><h2>Customer-controlled AI</h2><p>AI is off until an organization admin approves a Data Control policy. Review the local filtering kit, read-only assistant, support permission and signed gateway receipts, with their explicit limitations.</p><a class="btn" href="/ui/ai-trust.html">AI data controls</a></section></main>
+</body>
+</html>

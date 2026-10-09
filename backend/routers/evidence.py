@@ -1,0 +1,457 @@
+from typing import Any, Callable, Dict
+import io
+import logging
+import os
+import sys
+import time
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+
+from db import current_organization_id, reset_current_organization_id, set_current_organization_id
+from services.board_risk import build_crypto_weather, build_quantum_risk_index, build_regulatory_alignment, build_team_agility_leaderboard
+from services.postgres_rls import build_rls_plan
+
+
+def _build_compliance_pdf(report: Dict[str, Any]) -> bytes:
+    """Generate a PDF compliance report using reportlab."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+
+    accent = colors.HexColor("#34D380")
+    dark   = colors.HexColor("#0B0E0C")
+    gray   = colors.HexColor("#8AAF97")
+
+    title_style   = ParagraphStyle("Title",   parent=styles["Title"],   fontSize=22, textColor=dark,  spaceAfter=4)
+    heading_style = ParagraphStyle("Heading", parent=styles["Heading2"], fontSize=13, textColor=dark,  spaceBefore=12, spaceAfter=4)
+    ParagraphStyle("Body",    parent=styles["Normal"],  fontSize=10, textColor=dark,  spaceAfter=3)
+    meta_style    = ParagraphStyle("Meta",    parent=styles["Normal"],  fontSize=9,  textColor=gray,  spaceAfter=2)
+
+    org   = report.get("organization") or {}
+    scan  = report.get("scan_summary") or {}
+    remed = report.get("remediation_summary") or {}
+    compl = report.get("compliance") or {}
+    items = report.get("items") or []
+
+    story = []
+    story.append(Paragraph("PQC Scanner — Compliance Report", title_style))
+    story.append(Paragraph(f"Organization: {org.get('name', 'N/A')}  |  Generated: {report.get('generated_at', '')}",  meta_style))
+    story.append(HRFlowable(width="100%", thickness=2, color=accent, spaceAfter=8))
+
+    # Summary table
+    story.append(Paragraph("Executive Summary", heading_style))
+    summary_data = [
+        ["Metric", "Value"],
+        ["Total assets",         str(scan.get("total_assets", 0))],
+        ["Scanned assets",       str(scan.get("scanned_assets", 0))],
+        ["PQC-ready assets",     str(scan.get("pqc_ready", 0))],
+        ["Quantum-vulnerable",   str(scan.get("quantum_vulnerable", 0))],
+        ["Open remediations",    str(remed.get("open", 0))],
+        ["Validated",            str(remed.get("validated", 0))],
+        ["Verified closed",      str(remed.get("verified_closed", 0))],
+        ["Compliance gate",      str(compl.get("gate_result", "N/A"))],
+    ]
+    t = Table(summary_data, colWidths=[8*cm, 8*cm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), accent),
+        ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",   (0, 0), (-1, -1), 9),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#F5FAF7"), colors.white]),
+        ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#DDEEDF")),
+        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING",(0, 0), (-1, -1), 6),
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 0.4*cm))
+
+    # Top findings
+    if items:
+        story.append(Paragraph("Remediation Items", heading_style))
+        rows = [["#", "Asset", "Status", "Validation", "PR"]]
+        for r in items[:50]:
+            rows.append([
+                str(r.get("id", "")),
+                str(r.get("asset_key", ""))[:40],
+                str(r.get("status", "")),
+                str(r.get("validation_status", "") or "-"),
+                "Yes" if r.get("pr_url") else "No",
+            ])
+        ft = Table(rows, colWidths=[1.2*cm, 7*cm, 3*cm, 3*cm, 1.8*cm])
+        ft.setStyle(TableStyle([
+            ("BACKGROUND",  (0, 0), (-1, 0), accent),
+            ("TEXTCOLOR",   (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",    (0, 0), (-1, -1), 8),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor("#F5FAF7"), colors.white]),
+            ("GRID",        (0, 0), (-1, -1), 0.5, colors.HexColor("#DDEEDF")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(ft)
+        if len(items) > 50:
+            story.append(Paragraph(f"... and {len(items) - 50} more. Download JSON for full list.", meta_style))
+
+    story.append(Spacer(1, 0.6*cm))
+    story.append(HRFlowable(width="100%", thickness=1, color=gray))
+    story.append(Paragraph("This report was generated by PQC Scanner. For full audit evidence including validation jobs, PR state, drift history, and audit logs, use the JSON format.", meta_style))
+
+    doc.build(story)
+    buf.seek(0)
+    return buf.read()
+
+
+RequireRole = Callable[..., Dict[str, Any]]
+
+
+def _app_attr(name: str) -> Any:
+    app_module = sys.modules.get("app")
+    if app_module is None or not hasattr(app_module, name):
+        raise HTTPException(status_code=503, detail=f"{name} unavailable")
+    return getattr(app_module, name)
+
+
+def _default_org_id() -> str:
+    app_module = sys.modules.get("app")
+    return str(getattr(app_module, "DEFAULT_ORG_ID", "default-org") if app_module else "default-org")
+
+
+def _active_org_id(request: Request) -> str:
+    return str(getattr(request.state, "org_id", current_organization_id()) or _default_org_id()).strip() or _default_org_id()
+
+
+def _require_same_org_or_admin(request: Request, actor: Dict[str, Any], organization_id: str, reason: str) -> None:
+    """Refuse unless the caller is acting for `organization_id`.
+
+    This used to read "…or the caller's role is admin", which is not a tenant check: every one of
+    these routes was readable, for every tenant, by an administrator of any tenant. The decision is
+    now the same one app._caller_can_act_for_org makes for /admin/* -- the request's resolved
+    organization, or an active membership of the target -- so there is one rule, in one place.
+    """
+    target = str(organization_id or "").strip()
+    if _active_org_id(request) == target and target:
+        return
+    checker = _app_attr("_caller_can_act_for_org")
+    if checker(request, target, actor):
+        return
+    # `reason` names the view, so the message stays specific about what was refused.
+    raise HTTPException(status_code=403, detail=f"{reason} ({_app_attr('CROSS_TENANT_DETAIL')})")
+
+
+def create_evidence_router(require_role: RequireRole) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/org/compliance-report")
+    def api_org_compliance_report(
+        request: Request,
+        format: str = Query("json", max_length=16),
+        remediation_limit: int = Query(500, ge=1, le=5000),
+        asset_limit: int = Query(5000, ge=1, le=10000),
+        audit_limit: int = Query(100, ge=0, le=1000),
+        include_audit: bool = Query(True),
+    ):
+        org_id = _active_org_id(request)
+        require_role(request, allowed_roles=["operator", "admin"], action="organization.compliance_report", resource_type="organization", resource_id=org_id)
+        fmt = str(format or "json").strip().lower()
+        if fmt not in ("json", "pdf"):
+            raise HTTPException(status_code=400, detail="supported formats: json, pdf")
+        report = _app_attr("_build_compliance_report")(
+            org_id=org_id,
+            remediation_limit=int(remediation_limit),
+            asset_limit=int(asset_limit),
+            audit_limit=int(audit_limit),
+            include_audit=bool(include_audit),
+        )
+        if fmt == "pdf":
+            try:
+                pdf_bytes = _build_compliance_pdf(report)
+            except Exception as pdf_exc:
+                raise HTTPException(status_code=500, detail=f"PDF generation failed: {pdf_exc}")
+            ts = time.strftime("%Y%m%d-%H%M%S")
+            filename = f"pqc-compliance-{org_id[:8]}-{ts}.pdf"
+            return StreamingResponse(
+                io.BytesIO(pdf_bytes),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+        return report
+
+    @router.get("/org/{organization_id}/metrics")
+    def api_org_roi_metrics(
+        organization_id: str,
+        request: Request,
+        remediation_limit: int = Query(5000, ge=1, le=10000),
+    ):
+        actor = require_role(request, allowed_roles=["operator", "admin"], action="organization.metrics", resource_type="organization", resource_id=organization_id)
+        _require_same_org_or_admin(request, actor, organization_id, "you cannot read another organization's metrics")
+        token = set_current_organization_id(str(organization_id).strip())
+        try:
+            return _app_attr("_build_org_metrics")(str(organization_id).strip(), remediation_limit=int(remediation_limit))
+        finally:
+            reset_current_organization_id(token)
+
+    @router.get("/org/{organization_id}/drift-analytics")
+    def api_org_drift_analytics(organization_id: str, request: Request):
+        # Pass remediation_limit explicitly. Calling a route handler as a plain function means
+        # FastAPI never resolves its defaults, so the parameter arrives as the Query object itself
+        # and int() on it raised TypeError — this endpoint always returned 500.
+        metrics = api_org_roi_metrics(organization_id, request, remediation_limit=5000)
+        return {
+            "generated_at": metrics["generated_at"],
+            "organization": metrics["organization"],
+            "drift_analytics": metrics["drift_analytics"],
+        }
+
+    @router.get("/org/{organization_id}/quantum-migrations")
+    def api_org_quantum_migrations(
+        organization_id: str,
+        request: Request,
+        scan_limit: int = Query(25, ge=1, le=200),
+        asset_limit: int = Query(5000, ge=1, le=10000),
+    ):
+        actor = require_role(request, allowed_roles=["viewer", "operator", "admin"], action="organization.quantum_migrations", resource_type="organization", resource_id=organization_id)
+        _require_same_org_or_admin(request, actor, organization_id, "you cannot read another organization's quantum migrations")
+        token = set_current_organization_id(str(organization_id).strip())
+        try:
+            return _app_attr("_build_quantum_migration_portfolio")(str(organization_id).strip(), scan_limit=int(scan_limit), asset_limit=int(asset_limit))
+        finally:
+            reset_current_organization_id(token)
+
+    @router.get("/org/{organization_id}/readiness")
+    @router.get("/v1/org/{organization_id}/readiness")
+    def api_v1_org_readiness(
+        organization_id: str,
+        request: Request,
+        scan_limit: int = Query(100, ge=1, le=500),
+        asset_limit: int = Query(10000, ge=1, le=20000),
+    ):
+        actor = require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.organization.readiness", resource_type="organization", resource_id=organization_id)
+        _require_same_org_or_admin(request, actor, organization_id, "you cannot read another organization's readiness")
+        token = set_current_organization_id(str(organization_id).strip())
+        try:
+            portfolio = _app_attr("_build_quantum_migration_portfolio")(str(organization_id).strip(), scan_limit=int(scan_limit), asset_limit=int(asset_limit))
+            metrics = _app_attr("_build_org_metrics")(str(organization_id).strip(), remediation_limit=10000)
+            policy = _app_attr("_load_org_policy")(str(organization_id).strip())
+            return {
+                "api_version": "v1",
+                "generated_at": _app_attr("_now_iso")(),
+                "organization": portfolio.get("organization"),
+                "policy": policy,
+                "readiness": portfolio.get("summary") or {},
+                "roi": metrics.get("roi") or {},
+                "drift_analytics": metrics.get("drift_analytics") or {},
+                "top_next_actions": [
+                    {
+                        "asset_key": item.get("asset_key"),
+                        "status": item.get("pqc_migration_status"),
+                        "hndl_risk": item.get("harvest_now_decrypt_later_risk"),
+                        "provider": item.get("provider_guess"),
+                        "next_action": item.get("next_action"),
+                    }
+                    for item in (portfolio.get("items") or [])[:25]
+                ],
+            }
+        finally:
+            reset_current_organization_id(token)
+
+    @router.get("/org/{organization_id}/qri")
+    @router.get("/v1/org/{organization_id}/qri")
+    def api_v1_org_quantum_risk_index(
+        organization_id: str,
+        request: Request,
+        scan_limit: int = Query(100, ge=1, le=500),
+        asset_limit: int = Query(10000, ge=1, le=20000),
+    ):
+        actor = require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.organization.qri", resource_type="organization", resource_id=organization_id)
+        _require_same_org_or_admin(request, actor, organization_id, "you cannot read another organization's QRI")
+        token = set_current_organization_id(str(organization_id).strip())
+        try:
+            compliance = _app_attr("_build_compliance_report")(org_id=str(organization_id).strip(), remediation_limit=5000, asset_limit=int(asset_limit), audit_limit=50, include_audit=True)
+            portfolio = _app_attr("_build_quantum_migration_portfolio")(str(organization_id).strip(), scan_limit=int(scan_limit), asset_limit=int(asset_limit))
+            metrics = _app_attr("_build_org_metrics")(str(organization_id).strip(), remediation_limit=10000)
+            policy = _app_attr("_load_org_policy")(str(organization_id).strip())
+            qri = build_quantum_risk_index(compliance=compliance, portfolio=portfolio, metrics=metrics, policy=policy)
+            return {
+                "api_version": "v1",
+                "generated_at": _app_attr("_now_iso")(),
+                "organization": portfolio.get("organization") or compliance.get("organization"),
+                "quantum_risk_index": qri,
+            }
+        finally:
+            reset_current_organization_id(token)
+
+    @router.get("/org/{organization_id}/regulatory-alignment")
+    @router.get("/v1/org/{organization_id}/regulatory-alignment")
+    def api_v1_org_regulatory_alignment(
+        organization_id: str,
+        request: Request,
+        scan_limit: int = Query(100, ge=1, le=500),
+        asset_limit: int = Query(10000, ge=1, le=20000),
+    ):
+        actor = require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.organization.regulatory_alignment", resource_type="organization", resource_id=organization_id)
+        _require_same_org_or_admin(request, actor, organization_id, "you cannot read another organization's regulatory alignment")
+        token = set_current_organization_id(str(organization_id).strip())
+        try:
+            compliance = _app_attr("_build_compliance_report")(org_id=str(organization_id).strip(), remediation_limit=5000, asset_limit=int(asset_limit), audit_limit=50, include_audit=True)
+            portfolio = _app_attr("_build_quantum_migration_portfolio")(str(organization_id).strip(), scan_limit=int(scan_limit), asset_limit=int(asset_limit))
+            metrics = _app_attr("_build_org_metrics")(str(organization_id).strip(), remediation_limit=10000)
+            policy = _app_attr("_load_org_policy")(str(organization_id).strip())
+            qri = build_quantum_risk_index(compliance=compliance, portfolio=portfolio, metrics=metrics, policy=policy)
+            alignment = build_regulatory_alignment(qri=qri, compliance=compliance, portfolio=portfolio, metrics=metrics)
+            return {
+                "api_version": "v1",
+                "generated_at": _app_attr("_now_iso")(),
+                "organization": portfolio.get("organization") or compliance.get("organization"),
+                "quantum_risk_index": qri,
+                "regulatory_alignment": alignment,
+            }
+        finally:
+            reset_current_organization_id(token)
+
+    @router.get("/org/{organization_id}/agility-leaderboard")
+    @router.get("/v1/org/{organization_id}/agility-leaderboard")
+    def api_v1_org_agility_leaderboard(
+        organization_id: str,
+        request: Request,
+        scan_limit: int = Query(100, ge=1, le=500),
+        asset_limit: int = Query(10000, ge=1, le=20000),
+    ):
+        actor = require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.organization.agility_leaderboard", resource_type="organization", resource_id=organization_id)
+        _require_same_org_or_admin(request, actor, organization_id, "you cannot read another organization's agility leaderboard")
+        token = set_current_organization_id(str(organization_id).strip())
+        try:
+            compliance = _app_attr("_build_compliance_report")(org_id=str(organization_id).strip(), remediation_limit=5000, asset_limit=int(asset_limit), audit_limit=25, include_audit=True)
+            portfolio = _app_attr("_build_quantum_migration_portfolio")(str(organization_id).strip(), scan_limit=int(scan_limit), asset_limit=int(asset_limit))
+            leaderboard = build_team_agility_leaderboard(compliance=compliance, portfolio=portfolio)
+            return {
+                "api_version": "v1",
+                "generated_at": _app_attr("_now_iso")(),
+                "organization": portfolio.get("organization") or compliance.get("organization"),
+                "leaderboard": leaderboard,
+            }
+        finally:
+            reset_current_organization_id(token)
+
+    @router.get("/org/{organization_id}/crypto-weather")
+    @router.get("/v1/org/{organization_id}/crypto-weather")
+    def api_v1_org_crypto_weather(
+        organization_id: str,
+        request: Request,
+        scan_limit: int = Query(100, ge=1, le=500),
+        asset_limit: int = Query(10000, ge=1, le=20000),
+    ):
+        actor = require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.organization.crypto_weather", resource_type="organization", resource_id=organization_id)
+        _require_same_org_or_admin(request, actor, organization_id, "you cannot read another organization's crypto weather")
+        token = set_current_organization_id(str(organization_id).strip())
+        try:
+            compliance = _app_attr("_build_compliance_report")(org_id=str(organization_id).strip(), remediation_limit=5000, asset_limit=int(asset_limit), audit_limit=25, include_audit=True)
+            portfolio = _app_attr("_build_quantum_migration_portfolio")(str(organization_id).strip(), scan_limit=int(scan_limit), asset_limit=int(asset_limit))
+            policy = _app_attr("_load_org_policy")(str(organization_id).strip())
+            weather = build_crypto_weather(compliance=compliance, portfolio=portfolio, policy=policy)
+            return {
+                "api_version": "v1",
+                "generated_at": _app_attr("_now_iso")(),
+                "organization": portfolio.get("organization") or compliance.get("organization"),
+                "crypto_weather": weather,
+            }
+        finally:
+            reset_current_organization_id(token)
+
+    @router.get("/admin/postgres-rls/plan")
+    @router.get("/v1/admin/postgres-rls/plan")
+    def api_v1_postgres_rls_plan(
+        request: Request,
+        app_role: str = Query("pqc_app", max_length=64),
+    ):
+        require_role(request, allowed_roles=["admin"], action="v1.admin.postgres_rls_plan", resource_type="database", resource_id="postgres")
+        return {"api_version": "v1", "plan": build_rls_plan(app_role=app_role)}
+
+    @router.get("/admin/postgres-rls/verify")
+    @router.get("/v1/admin/postgres-rls/verify")
+    def api_v1_postgres_rls_verify(request: Request):
+        """Report whether tenant isolation is actually enforced right now.
+
+        The plan endpoint above only describes what to apply. This inspects the live database:
+        which org-scoped tables have RLS forced, which have an isolation policy, whether any
+        org-scoped table is uncovered by the plan, and -- the check that most often invalidates the
+        others -- whether the connected role is a superuser or holds BYPASSRLS, which exempts it
+        from every policy.
+        """
+        require_role(request, allowed_roles=["admin"], action="v1.admin.postgres_rls_verify", resource_type="database", resource_id="postgres")
+        dsn = os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
+        if not str(dsn).strip():
+            return {
+                "api_version": "v1",
+                "verification": {
+                    "status": "not_applicable",
+                    "failures": [],
+                    "detail": "No Postgres DSN configured; this deployment is SQLite-backed and "
+                              "row-level security does not apply.",
+                },
+            }
+        try:
+            from services.rls_verify import verify_postgres_rls
+            result = verify_postgres_rls(dsn)
+        except Exception as exc:
+            logging.getLogger(__name__).exception("postgres RLS verification failed")
+            raise HTTPException(status_code=503, detail=f"RLS verification failed: {exc}") from exc
+        # The escape hatch is only defensible if its use is visible. This is the in-process ledger,
+        # bounded and per-replica; it answers "is anything crossing the tenant boundary, and why",
+        # which no amount of policy inspection can.
+        from services import tenant_scope
+
+        return {
+            "api_version": "v1",
+            "verification": result,
+            "cross_tenant_access": {
+                "setting": tenant_scope.PLATFORM_SETTING,
+                "entries_since_start": tenant_scope.escape_count(),
+                "recent": tenant_scope.escape_events(limit=25),
+            },
+        }
+
+    @router.get("/assets/{asset_key:path}/evidence")
+    @router.get("/v1/assets/{asset_key:path}/evidence")
+    def api_v1_asset_evidence(asset_key: str, request: Request):
+        org_id = _active_org_id(request)
+        require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.asset.evidence", resource_type="asset", resource_id=asset_key)
+        return _app_attr("_asset_evidence")(asset_key, org_id)
+
+    @router.get("/evidence/assets/{asset_key:path}")
+    @router.get("/v1/evidence/assets/{asset_key:path}")
+    def api_v1_asset_evidence_alias(asset_key: str, request: Request):
+        return api_v1_asset_evidence(asset_key, request)
+
+    @router.get("/evidence/remediations/{remediation_id}")
+    @router.get("/v1/evidence/remediations/{remediation_id}")
+    def api_v1_remediation_evidence(remediation_id: int, request: Request):
+        org_id = _active_org_id(request)
+        require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.remediation.evidence", resource_type="remediation", resource_id=str(remediation_id))
+        return _app_attr("_remediation_evidence")(int(remediation_id), org_id)
+
+    @router.get("/evidence/repos/{repo:path}")
+    @router.get("/v1/evidence/repos/{repo:path}")
+    def api_v1_repo_evidence(repo: str, request: Request):
+        org_id = _active_org_id(request)
+        require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.repo.evidence", resource_type="repository", resource_id=repo)
+        return _app_attr("_repo_evidence")(repo, org_id)
+
+    @router.get("/repos/{repo:path}/gate")
+    @router.get("/v1/repos/{repo:path}/gate")
+    def api_v1_repo_gate(repo: str, request: Request):
+        org_id = _active_org_id(request)
+        require_role(request, allowed_roles=["viewer", "operator", "admin"], action="v1.repo.gate", resource_type="repository", resource_id=repo)
+        policy = _app_attr("_load_org_policy")(org_id)
+        return {
+            "api_version": "v1",
+            "policy_version": policy.get("version") or "v1",
+            **_app_attr("_repo_enforcement_decision")(repo, changed_files=[], require_verified_closed=bool(policy.get("require_verified_closed_for_ci_gate", True))),
+        }
+
+    return router

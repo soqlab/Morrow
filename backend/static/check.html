@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Free post-quantum readiness check | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Type a domain and see what its TLS endpoint actually negotiates today, whether any of it is quantum-vulnerable, and what the published deadlines mean for it. Free, no account, one endpoint, public data only.">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/experience.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/check.css?v=20261005">
+  <script src="/ui/fabric.js?v=20260915-perf2" defer></script>
+  <script src="/ui/motion.js?v=20260918-idle" defer></script>
+  <script src="/ui/check.js?v=20261005" defer></script>
+</head>
+<body class="public-document">
+<div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+<a class="skip-link" href="#check-form">Skip to the check</a>
+<main class="doc-shell">
+  <header class="topbar">
+    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+  </header>
+
+  <section class="doc-hero">
+    <div>
+      <span class="eyebrow">Free check / No account</span>
+      <h1>Is your TLS quantum-vulnerable?</h1>
+      <p class="lead">Type a domain. You get what its public endpoint negotiates <em>today</em> &mdash; protocol, cipher, certificate key, signature, and whether the key exchange is already post&#8209;quantum &mdash; plus what the published migration deadlines mean for it. One endpoint, one moment, public data only, and every figure says where it came from.</p>
+      <form id="check-form" class="check-form" novalidate>
+        <label class="check-label" for="check-domain">Domain</label>
+        <div class="check-row">
+          <input id="check-domain" name="domain" type="text" inputmode="url" autocomplete="off"
+                 spellcheck="false" placeholder="example.com" aria-describedby="check-hint"
+                 maxlength="300">
+          <button id="check-submit" class="btn primary" type="submit">Check it</button>
+        </div>
+        <p class="check-hint fine" id="check-hint">A hostname, nothing else. No ports, no paths, no IP addresses, no wildcards.</p>
+        <p class="check-consent fine">Running a check means you accept the <a href="/public-check/terms">terms of use</a> and the <a href="/public-check/acceptable-use">acceptable&#8209;use policy</a>: check hosts you own, a supplier you are assessing, or a domain you are researching in good faith &mdash; not someone else's attack surface, and not from a script. There is no account here, so acceptance works on use. If you operate a domain and never want it checked, <a href="/abuse">opt out</a>.</p>
+      </form>
+      <div id="check-status" class="check-status" role="status" aria-live="polite"></div>
+    </div>
+    <aside class="doc-meta">
+      <b>What this contacts</b>
+      <p>Public Certificate Transparency logs for the domain &mdash; passive, the target is not touched. Then at most two connections to the hostname you typed, on port&nbsp;443: one ordinary TLS handshake, and one that offers post&#8209;quantum key&#8209;exchange groups so hybrid support can be observed.</p>
+      <p class="check-meta-second">No port scanning. No subdomain discovery. No vulnerability probing. No crawling. Nothing private, loopback or reserved, ever.</p>
+    </aside>
+  </section>
+
+  <!-- ─────────────── Result (populated by /ui/check.js) ─────────────── -->
+  <section id="check-result" class="doc-section check-result" hidden aria-labelledby="result-heading">
+    <h2 id="result-heading"><span id="result-domain">Result</span></h2>
+
+    <div id="verdict" class="verdict">
+      <div class="verdict-main">
+        <span id="verdict-chip" class="chip">&nbsp;</span>
+        <h3 id="verdict-headline">&nbsp;</h3>
+        <p id="verdict-explanation"></p>
+      </div>
+      <dl id="verdict-figures" class="verdict-figures"></dl>
+    </div>
+
+    <h3 class="sub">What was measured</h3>
+    <p class="sub-note fine" id="measured-note"></p>
+    <div class="table-wrap">
+      <table class="facts" id="facts-table">
+        <caption class="sr-only">Every figure on this page, with its source</caption>
+        <thead><tr><th scope="col">What</th><th scope="col">Value</th><th scope="col">Source</th></tr></thead>
+        <tbody id="facts-body"></tbody>
+      </table>
+    </div>
+
+    <h3 class="sub">Algorithms this endpoint depends on</h3>
+    <div id="algorithms" class="algo-grid"></div>
+
+    <h3 class="sub">Certificate Transparency</h3>
+    <div id="ct-block" class="ct-block"></div>
+
+    <h3 class="sub">What the published deadlines say</h3>
+    <p class="sub-note fine">Quoted from the issuing authority. Whether a deadline binds this domain depends on who operates it, which this check cannot know.</p>
+    <div id="deadlines" class="deadline-grid"></div>
+
+    <h3 class="sub">Harvest now, decrypt later</h3>
+    <div id="hndl-block" class="notice hndl"></div>
+
+    <h3 class="sub">What this check does not tell you</h3>
+    <ul id="limits-list" class="limits"></ul>
+
+    <h3 class="sub">Take it with you</h3>
+    <div class="export-row">
+      <a id="export-permalink" class="btn" href="#">Copy permalink</a>
+      <a id="export-json" class="btn" href="#">Download JSON</a>
+      <a id="export-cbom" class="btn" href="#">Download CBOM (CycloneDX&nbsp;1.6)</a>
+      <a class="btn" id="recheck" href="#">Re-check now</a>
+    </div>
+    <p class="fine" id="cache-note"></p>
+    <p class="fine">This result is public at its permanent address and readable by anyone who has the link, now and later. What was recorded about the person who asked and about the endpoint that was checked is in the <a href="/public-check/privacy">privacy notice for this checker</a>. It is a point&#8209;in&#8209;time observation, not an audit &mdash; see the <a href="/public-check/terms">terms of use</a>. If this is your domain and you want it gone, <a href="/abuse">opt out</a>: the cached result is deleted, the permanent record is hidden, and the domain is refused before DNS. If you are the operator who saw the handshake, <a href="/scanner">this is what connected to you</a>.</p>
+  </section>
+
+  <!-- ─────────────── Boundaries, always visible ─────────────── -->
+  <section class="doc-section" id="acceptable-use" aria-labelledby="au-heading">
+    <h2 id="au-heading">Acceptable use</h2>
+    <p id="au-summary">This tool reads public Certificate Transparency data for a domain and makes one TLS handshake to it on port 443. That is the same kind of contact a browser or SSL Labs makes, and nothing more.</p>
+    <div class="matrix">
+      <div class="matrix-row"><strong>What it does</strong><div><ul id="au-does" class="tight"></ul></div></div>
+      <div class="matrix-row"><strong>What it never does</strong><div><ul id="au-does-not" class="tight"></ul></div></div>
+      <div class="matrix-row"><strong>Rules for using it</strong><div><ul id="au-rules" class="tight"></ul></div></div>
+    </div>
+    <div class="notice" id="contact-notice">
+      <p><strong>Abuse reports and opt&#8209;out requests.</strong> If this service has been pointed at something it should not have been, or you operate a domain and do not want it checked here, write to <span id="abuse-contact" class="mono">the address published on <a href="/support">our contact page</a></span>. An opted&#8209;out domain is refused <em>before</em> anything is resolved or connected to, and its cached result is deleted. The opt&#8209;out covers the domain and everything under it.</p>
+      <p class="fine">Every check is logged: the domain, the time, a salted hash of the requester's address, and the outcome. That is what makes an abuse report investigable. It is described in the <a href="/public-check/privacy">privacy notice for this checker</a>, and nothing here is stored against a customer account.</p>
+    </div>
+    <p class="fine">The full documents: <a href="/public-check/terms">terms of use</a> &middot; <a href="/public-check/acceptable-use">acceptable&#8209;use policy</a> &middot; <a href="/abuse">abuse and opt&#8209;out</a> &middot; <a href="/public-check/privacy">privacy notice</a> &middot; <a href="/scanner">scanner identity</a>. They are drafts awaiting review by a qualified lawyer. The statement above is served live from <code>/api/public-check/config</code>, so it cannot drift from the running code; if it and the policy pages ever disagree, this one describes the software.</p>
+  </section>
+
+  <section class="doc-section" id="guardrails" aria-labelledby="gr-heading">
+    <h2 id="gr-heading">The guardrails, and their current settings</h2>
+    <p class="sub-note fine">Read from this deployment's live configuration, not from this page.</p>
+    <div class="table-wrap">
+      <table class="facts" id="guardrail-table">
+        <thead><tr><th scope="col">Guardrail</th><th scope="col">Setting here</th></tr></thead>
+        <tbody id="guardrail-body"><tr><td colspan="2" class="fine">Loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="doc-section" id="full-picture" aria-labelledby="fp-heading">
+    <h2 id="fp-heading">What a full assessment adds</h2>
+    <p>This check is free and it is real, but it is one endpoint at one moment. Here is what it cannot see, stated plainly so you can decide whether you need more than this.</p>
+    <ul id="adds-list" class="limits"></ul>
+    <div class="cta">
+      <div>
+        <h2>Want the whole estate?</h2>
+        <p>The platform discovers every endpoint, repository and certificate you own, prices the harvest&#8209;now&#8209;decrypt&#8209;later exposure, and produces signed evidence and validated migration changes. It is the same classification you just read, applied to everything rather than one host.</p>
+      </div>
+      <div class="cta-actions">
+        <a class="btn primary" href="/pricing">See editions and pricing</a>
+        <a class="btn" href="/pilot">Plan a pilot</a>
+        <a class="btn" href="/ui/">Open the console</a>
+      </div>
+    </div>
+    <p class="fine">Self&#8209;hosting: this checker ships with the platform under the MIT licence and runs from the command line as well as the web page &mdash; see <code>docs/PUBLIC_CHECKER.md</code>. If you run your own copy, what it contacts is your responsibility, under your own jurisdiction's rules.</p>
+  </section>
+
+  <footer>
+    <span>Airlock Command / Free checker</span>
+    <nav><a href="/public-check/terms">Terms of use</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/abuse">Abuse &amp; opt-out</a> / <a href="/public-check/privacy">Checker privacy</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
+  </footer>
+</main>
+</body>
+</html>

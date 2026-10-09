@@ -1,0 +1,351 @@
+/* ============================================================================
+   /check — the free public post-quantum readiness checker.
+
+   Also loaded by the checker's companion documents: /public-check/terms,
+   /public-check/acceptable-use, /public-check/privacy, /abuse and /scanner.
+   They share this file rather than copying it because the light-theme token
+   block below is the only one in the public stylesheets, and two copies of a
+   palette drift. Those pages use the primitives (.fine, .mono, ul.tight,
+   table.facts, .skip-link) and ignore the result-page rules.
+
+   WHICH TOKENS THIS FILE USES, AND WHY IT MATTERS
+   -----------------------------------------------
+   The public pages load three stylesheets in this order: public.css, then
+   design.css (Penumbra), then experience.css. Both of the first two define a
+   token called --ink, and they mean opposite things by it:
+
+       public.css   --ink = the loudest TEXT colour (near-white)
+       design.css   --ink = the page GROUND (near-black)
+
+   design.css loads second, so --ink resolves to the ground, and
+   experience.css then makes that explicit for this page:
+
+       body.public-document { background: var(--ink); color: var(--chalk); }
+
+   So Penumbra is the live system here, and anything on this page written
+   against public.css's meaning of --ink renders near-black on a near-black
+   ground. Everything below therefore uses the Penumbra names only:
+
+       --ink     ground          --chalk    loudest text
+       --slab    panel           --fog      body text
+       --slab-2  inset panel     --fog-dim  labels and fine print
+       --line    hairline        --iris     accent
+       --jade / --ember / --rose   ok / warn / bad
+
+   A few inherited public.css rules still use its own meaning of --ink for
+   <strong> and <code>; those are re-pointed at --chalk at the bottom of the
+   primitives section rather than left to resolve to the ground colour.
+
+   BOTH THEMES
+   -----------
+   Penumbra is a dark system. This page is the one surface a stranger arrives
+   at from a search result, often on a phone in daylight, so it answers
+   prefers-color-scheme as well. The light block redefines the Penumbra tokens
+   (and the public.css tokens that are unambiguous) on :root, so every shared
+   primitive follows without a second rule.
+
+   NO THIRD-PARTY REQUESTS: no font CDN, no analytics, no off-origin icon.
+   Everything this page loads is served from this origin.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- light theme */
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Penumbra, inverted. --ink stays the ground; it just becomes paper. */
+    --ink: #FAFAF8;
+    --slab: #FFFFFF;
+    --slab-2: #F3F4F6;
+    --line: #DCDEE3;
+    --line-soft: #E7E9ED;
+
+    --chalk: #14161A;        /* 15.8:1 on --ink */
+    --fog: #4A5059;          /* 7.9:1  on --ink */
+    --fog-dim: #5A616C;      /* 6.1:1  on --ink */
+
+    --iris: #5A4BD6;
+    --iris-text: #4A3DBF;    /* 7.3:1 on --ink */
+    --iris-solid: #4A3DBF;
+    --iris-dim: #BDB7F0;
+    --ember: #8A5A12;        /* 5.6:1 on --ink */
+    --jade: #1C6B49;         /* 5.6:1 on --ink */
+    --rose: #B32B20;         /* 6.0:1 on --ink */
+
+    /* public.css's own tokens, for the rules of its that still apply. --ink is
+       deliberately NOT among them: Penumbra owns that name on this page. */
+    --void: #FAFAF8;
+    --ground: #F3F4F6;
+    --panel: #FFFFFF;
+    --panel-2: #F3F4F6;
+    --raise: #EDEEF1;
+    --ink-2: #4A5059;
+    --ink-3: #5A616C;
+    --line-2: #C9CCD3;
+    --line-hot: #AFB3BC;
+    --blue: #1B4F94;
+    --blue-dim: #9FB6D6;
+    --blue-wash: rgba(27, 79, 148, .07);
+    --amber: #8A5A12;
+    --amber-dim: #D2B184;
+    --amber-wash: rgba(138, 90, 18, .07);
+    --ok: #1C6B49;
+    --warn: #8A5A12;
+    --bad: #B32B20;
+  }
+
+  /* experience.css hardcodes a near-black wash behind the sticky bar and a
+     radial violet behind the hero, both tuned for the dark ground. */
+  .public-document .topbar { background: rgba(250, 250, 248, .96); }
+  .public-document .doc-hero::before,
+  .public-document .doc-hero::after { opacity: .35; }
+  .page-fabric { opacity: .25; }
+  body::before { opacity: .5; }
+}
+
+/* --------------------------------------------------------------- primitives */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  padding: 10px 16px; background: var(--slab); color: var(--chalk);
+  border: 1px solid var(--iris);
+}
+.skip-link:focus { left: 12px; top: 12px; }
+.mono { font-family: var(--mono); }
+.fine { font-family: var(--mono); font-size: 12px; color: var(--fog-dim); line-height: 1.6; }
+
+/* public.css points these at its own --ink, which is the ground here. */
+.public-document strong,
+.public-document b,
+.doc-section strong,
+.notice strong { color: var(--chalk); }
+.public-document code {
+  font-family: var(--mono); font-size: .92em;
+  padding: 1px 5px; border: 1px solid var(--line);
+  background: var(--slab-2); color: var(--chalk);
+}
+/* ...and so does bare <h3>, which is worse, because an invisible heading is not obviously missing:
+   it renders near-black on the near-black ground in the dark theme and paper-on-paper in the light
+   one. The companion documents use h3 as a sub-heading inside a .doc-section. This rule stays above
+   .check-result h3.sub and .verdict-main h3, which are more specific or later and keep their own. */
+.doc-section h3 {
+  margin: 34px 0 10px;
+  font-size: 16px; font-weight: 600; letter-spacing: -.012em; color: var(--chalk);
+}
+
+ul.tight { margin: 0; padding: 0; list-style: none; }
+ul.tight > li {
+  position: relative; margin: 0; padding: 7px 0 7px 18px;
+  border-bottom: 1px solid var(--line-soft); color: var(--fog); font-size: 14.5px;
+}
+ul.tight > li:last-child { border-bottom: 0; }
+ul.tight > li::before {
+  content: "\2192"; position: absolute; left: 0; top: 7px; color: var(--iris-text);
+}
+
+/* -------------------------------------------------------------------- form */
+.check-form { margin: 32px 0 0; }
+.check-label {
+  display: block; margin-bottom: 9px;
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .2em; text-transform: uppercase; color: var(--fog-dim);
+}
+.check-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.check-row input {
+  flex: 1 1 260px; min-width: 0;
+  padding: 13px 15px;
+  background: var(--slab); color: var(--chalk);
+  border: 1px solid var(--line); border-radius: 0;
+  font-family: var(--mono); font-size: 16px; letter-spacing: .01em;
+}
+.check-row input::placeholder { color: var(--fog-dim); }
+.check-row input:focus-visible {
+  outline: 1px solid var(--iris); outline-offset: 1px; border-color: var(--iris);
+}
+.check-row button { flex: 0 0 auto; }
+.check-row button[disabled] { opacity: .55; cursor: progress; }
+.check-hint { margin: 10px 0 0; }
+/* The acceptance statement, at the point of use. There is no account and no click-through for this
+   service, so the terms bind on use, and a visitor has to be able to read that next to the button
+   rather than find it on a page they never open. */
+.check-consent { margin: 14px 0 0 !important; max-width: 74ch; }
+.check-consent a { color: var(--iris-text); }
+
+.check-status { margin: 16px 0 0; min-height: 1.2em; font-size: 15px; color: var(--fog); }
+.check-status.working { color: var(--fog); }
+.check-status.error {
+  padding: 13px 15px; border: 1px solid var(--line);
+  border-left: 2px solid var(--rose); background: var(--slab); color: var(--chalk);
+}
+.check-status.error strong { color: var(--rose); }
+.check-status .btn { margin-left: 10px; }
+.check-meta-second { margin-top: 12px !important; }
+
+/* ------------------------------------------------------------------ verdict */
+.check-result h3.sub {
+  margin: 46px 0 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px; font-weight: 600; letter-spacing: -.01em; color: var(--chalk);
+}
+.check-result p.sub-note { margin: 0 0 18px; }
+
+.verdict {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(250px, .9fr);
+  gap: 26px 40px;
+  padding: 26px 0 0;
+}
+.verdict-main h3 {
+  margin: 14px 0 0;
+  font-size: clamp(24px, 3.2vw, 38px); font-weight: 600;
+  line-height: 1.08; letter-spacing: -.03em; text-wrap: balance; color: var(--chalk);
+}
+.verdict-main p { margin: 16px 0 0; max-width: 62ch; color: var(--fog); font-size: 16px; }
+
+.verdict-figures {
+  margin: 0; padding: 20px 22px;
+  border: 1px solid var(--line); border-left: 2px solid var(--iris);
+  background: var(--slab);
+  display: grid; gap: 14px; align-content: start;
+}
+.verdict-figures > div { display: grid; gap: 3px; }
+.verdict-figures dt {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--fog-dim);
+}
+.verdict-figures dd {
+  margin: 0; font-size: 15px; color: var(--chalk); overflow-wrap: anywhere;
+}
+.verdict-figures dd .unmeasured { color: var(--fog-dim); font-style: italic; }
+
+/* --------------------------------------------------------------- the table */
+.table-wrap { overflow-x: auto; }
+table.facts { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+table.facts th, table.facts td {
+  text-align: left; vertical-align: top;
+  padding: 11px 16px 11px 0; border-bottom: 1px solid var(--line-soft);
+}
+table.facts thead th {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--fog-dim);
+  border-bottom: 1px solid var(--line);
+}
+table.facts td:first-child { color: var(--fog); width: 28%; }
+table.facts td.value {
+  font-family: var(--mono); color: var(--chalk); overflow-wrap: anywhere;
+}
+table.facts td .note {
+  display: block; margin-top: 5px; color: var(--fog-dim);
+  font-size: 12.5px; font-family: var(--mono); line-height: 1.55;
+}
+table.facts td.source { width: 22%; white-space: nowrap; }
+
+.src {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--fog-dim);
+}
+.src::before { content: ""; width: 5px; height: 5px; flex: none; background: currentColor; }
+.src.handshake { color: var(--iris-text); }
+.src.certificate_transparency { color: var(--ember); }
+.src.model, .src.reference { color: var(--fog-dim); }
+
+/* ------------------------------------------------------------- algo + lists */
+.algo-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1px; background: var(--line);
+}
+.algo-card { padding: 16px 18px; background: var(--slab); }
+.algo-card b {
+  display: block; font-family: var(--mono); font-size: 14px; color: var(--chalk);
+  overflow-wrap: anywhere;
+}
+.algo-card .algo-role {
+  display: block; margin-top: 5px;
+  font-family: var(--mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--fog-dim);
+}
+.algo-card p { margin: 9px 0 0; font-size: 13px; line-height: 1.55; color: var(--fog); }
+.algo-card p.algo-action { color: var(--iris-text); }
+.algo-card .chip { margin-top: 11px; }
+.algo-card .algo-raw {
+  display: block; margin-top: 9px;
+  font-family: var(--mono); font-size: 11px; color: var(--fog-dim);
+  overflow-wrap: anywhere;
+}
+
+.deadline-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 1px; background: var(--line);
+}
+.deadline-card { padding: 18px 20px; background: var(--slab); }
+.deadline-card b { display: block; font-size: 15px; color: var(--chalk); }
+.deadline-card .dates {
+  margin: 12px 0 0; display: grid; gap: 6px;
+  font-family: var(--mono); font-size: 12.5px; color: var(--fog);
+}
+.deadline-card .dates strong { color: var(--chalk); }
+.deadline-card .who { margin: 12px 0 0; font-size: 13px; color: var(--fog-dim); }
+.deadline-card a.fine { display: inline-block; margin-top: 10px; color: var(--iris-text); }
+
+.ct-block .ct-head { margin: 0 0 14px; font-size: 15px; color: var(--fog); }
+.ct-block .ct-head a { color: var(--iris-text); }
+.ct-block .ct-unavailable {
+  padding: 15px 17px; border: 1px solid var(--line); border-left: 2px solid var(--ember);
+  background: var(--slab); font-size: 14.5px; color: var(--fog);
+}
+.ct-block .ct-unavailable strong { color: var(--ember); }
+.ct-block p.fine { margin: 16px 0 6px; }
+
+ul.limits { margin: 0; padding: 0; list-style: none; }
+ul.limits > li {
+  position: relative; padding: 11px 0 11px 22px;
+  border-bottom: 1px solid var(--line-soft); color: var(--fog); font-size: 15px;
+}
+ul.limits > li:last-child { border-bottom: 0; }
+ul.limits > li::before {
+  content: "\2014"; position: absolute; left: 0; top: 11px; color: var(--iris-text);
+}
+
+.notice.hndl p { margin: 0 0 10px; color: var(--fog); }
+.notice.hndl p:last-child { margin-bottom: 0; }
+
+.export-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 14px; }
+.cta-actions { display: flex; flex-wrap: wrap; gap: 10px; align-content: start; }
+
+/* ------------------------------------------------------------------- phone */
+@media (max-width: 760px) {
+  /* "quantum-vulnerable?" is one long word at this width; let it size down and
+     break rather than run off the side. */
+  .public-document .doc-hero h1 { font-size: clamp(1.9rem, 8.8vw, 2.6rem); overflow-wrap: break-word; }
+  .verdict { grid-template-columns: minmax(0, 1fr); gap: 22px; padding-top: 20px; }
+  .doc-hero { grid-template-columns: minmax(0, 1fr); }
+  /* The row stacks here, which turns the flex axis vertical -- and `flex: 1 1 260px` on the input
+     then means 260px of HEIGHT, not width. The box rendered as a 260px-tall slab on a phone. */
+  .check-row { flex-direction: column; align-items: stretch; }
+  .check-row input { flex: 0 0 auto; }
+  .check-row button { width: 100%; justify-content: center; }
+  .check-status .btn { margin: 10px 0 0; width: 100%; justify-content: center; }
+
+  /* The evidence table becomes a stack: the label is the row's own heading. */
+  table.facts, table.facts tbody, table.facts tr, table.facts td { display: block; width: 100%; }
+  table.facts thead { display: none; }
+  table.facts tr { padding: 14px 0; border-bottom: 1px solid var(--line-soft); }
+  table.facts tr:last-child { border-bottom: 0; }
+  table.facts td { border-bottom: 0; padding: 2px 0; width: auto; }
+  table.facts td:first-child {
+    width: auto; font-family: var(--mono); font-size: 10px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--fog-dim);
+  }
+  table.facts td.source { width: auto; white-space: normal; padding-top: 7px; }
+
+  .export-row .btn, .cta-actions .btn { width: 100%; justify-content: center; }
+}
+
+/* The model-basis sentence under the harvest-now block is prose, not a reading of a value, so
+   it is set in the body face. In the mono .fine style it read as a wall of small grey type. */
+.notice.hndl p.hndl-basis {
+  margin: 12px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--fog-dim); max-width: 78ch;
+}

@@ -1,0 +1,76 @@
+# Direct dependencies, pinned exactly.
+#
+# These are the versions the test suite passes against. Ranges (">=") were previously used for
+# almost every entry, which meant two builds of the same commit could install different versions
+# and a breaking major release would reach production without any change to this repository.
+#
+# To upgrade: relax the pin for one package, run the suite, then pin the new version.
+# Transitive dependencies are not pinned here; add a lock file if you need full closure.
+
+fastapi==0.141.1
+uvicorn[standard]==0.38.0
+bcrypt==5.0.0
+PyJWT==2.15.1
+cryptography==50.0.0
+pydantic==2.12.5
+celery==5.6.2
+redis==7.1.0
+python-multipart==0.0.32
+requests==2.34.2
+dnspython==2.8.0
+psycopg2-binary==2.9.11
+google-cloud-asset==4.4.0
+google-cloud-resource-manager==1.16.0
+PyGithub==2.9.1
+alembic==1.18.5
+SQLAlchemy==2.0.51
+sentry-sdk==2.64.0
+boto3==1.43.40
+
+# PQC Scout, the in-product AI analyst (services/ai_agent.py). Replaces a
+# hand-rolled urllib call with typed SDK responses. Automatic retries and provider
+# fallback are disabled at the mandatory customer-approved data gateway.
+anthropic==1.2.0
+google-cloud-storage==3.4.1
+azure-storage-blob==12.30.0
+slowapi==0.1.9
+
+# SAML SSO
+python3-saml==1.16.0
+
+# Azure Key Vault secret backend
+azure-keyvault-secrets==4.11.0
+azure-identity==1.25.3
+
+# OpenTelemetry distributed tracing.
+# Must track the FastAPI version: instrumentation 0.50b0 and earlier read scope["route"].path,
+# which raises AttributeError on FastAPI 0.141 ('_IncludedRouter' object has no attribute
+# 'path') and fails every instrumented request. Upgrade these together with fastapi.
+opentelemetry-sdk==1.44.0
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-exporter-otlp-proto-grpc==1.44.0
+
+# Transitive dependencies pinned for security only.
+#
+# The policy above is not to pin transitives, but pip-audit (see .github/workflows/security.yml)
+# reported known vulnerabilities in these, and each is reachable at runtime: urllib3 carries every
+# outbound HTTP request, protobuf backs the google-cloud clients and OTLP export, pyasn1 is used
+# through the SAML and RSA paths, pillow renders images in the PDF compliance export, and
+# python-dotenv arrives with uvicorn[standard]. Pinning them keeps a resolver from quietly
+# selecting a vulnerable version again.
+#
+# Raise these floors when a newer advisory lands; they are not held back by anything.
+urllib3==2.8.0
+protobuf==5.29.6
+pyasn1==0.6.4
+pillow==12.3.0
+# Imported by routers/evidence.py and services/invoicing.py to build the PDF compliance
+# report and PDF invoices. It was missing from this file, so a clean `pip install -r
+# requirements.txt` produced a venv where both of those exports raised ImportError at the
+# first request -- it only worked locally because an earlier install had left it behind.
+reportlab==4.5.1
+python-dotenv==1.2.2
+# Security pins from the installed-dependency audit, including transitives.
+aiohttp==3.14.3
+anyio==4.14.2
+click==8.3.3

@@ -1,0 +1,6 @@
+{
+  "min_tls": "1.2",
+  "banned_ciphers": ["RC4", "3DES"],
+  "allowed_keys": ["ECC", "RSA>=3072"],
+  "require_stapling": false
+}

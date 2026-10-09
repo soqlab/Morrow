@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pqc-webhook-event-v1",
+  "title": "PQC Webhook Event v1",
+  "type": "object",
+  "required": ["schema_version", "event_id", "delivery_id", "event_type", "ts", "data"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "event_id": { "type": "string" },
+    "delivery_id": { "type": ["string", "integer"] },
+    "event_type": { "type": "string" },
+    "ts": { "type": "string" },
+    "data": {
+      "type": "object",
+      "required": ["asset_key", "scan_id", "finding_summary"],
+      "properties": {
+        "asset_key": { "type": "string" },
+        "scan_id": { "type": ["string", "integer", "null"] },
+        "finding_summary": {
+          "type": "object",
+          "required": ["counts"],
+          "properties": {
+            "severity": { "type": "string" },
+            "counts": {
+              "type": "object",
+              "properties": {
+                "critical": { "type": "integer" },
+                "high": { "type": "integer" },
+                "medium": { "type": "integer" },
+                "low": { "type": "integer" }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

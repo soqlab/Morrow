@@ -1,0 +1,163 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pqc
+      POSTGRES_PASSWORD: pqc
+      POSTGRES_DB: pqc
+    ports:
+      - "5433:5432"
+    volumes:
+      - pqc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pqc -d pqc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  webhook_sink:
+    image: python:3.11-slim
+    working_dir: /app
+    command: python -u /app/webhook_sink.py
+    volumes:
+      - ./:/app
+    ports:
+      - "9001:9001"
+
+  api:
+    build:
+      context: .
+      args:
+        INSTALL_DEV_DEPS: "true"
+    working_dir: /app
+    # Keep reload disabled in Docker. On Windows/macOS bind mounts, WatchFiles can
+    # crash with low-level filesystem watcher errors after restarts or edits.
+    command: uvicorn app:app --host 0.0.0.0 --port 8000
+    environment:
+      - PYTHONPATH=/app
+      - PQC_MAIN_DB_BACKEND=postgres
+      - PQC_PRODUCT_DATABASE_URL=postgresql://pqc:pqc@postgres:5432/pqc
+      - DATABASE_URL=postgresql://pqc:pqc@postgres:5432/pqc
+      - PQC_VAULT_MASTER_KEY=${PQC_VAULT_MASTER_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - PQC_AUTH_MODE=${PQC_AUTH_MODE:-headers}
+      - PQC_AUTH_REQUIRED=${PQC_AUTH_REQUIRED:-1}
+      - PQC_DEFAULT_ROLE=${PQC_DEFAULT_ROLE:-viewer}
+      - PQC_AUTH_PROVIDER_NAME=${PQC_AUTH_PROVIDER_NAME:-Hosted JWT}
+      - PQC_AUTH_LOGIN_URL=${PQC_AUTH_LOGIN_URL:-}
+      - PQC_AUTH_LOGOUT_URL=${PQC_AUTH_LOGOUT_URL:-}
+      - PQC_AUTH_TOKEN_HELP=${PQC_AUTH_TOKEN_HELP:-}
+      - PQC_AUTH_JWT_ISSUER=${PQC_AUTH_JWT_ISSUER:-}
+      - PQC_AUTH_JWT_AUDIENCE=${PQC_AUTH_JWT_AUDIENCE:-}
+      - PQC_AUTH_JWT_JWKS_URL=${PQC_AUTH_JWT_JWKS_URL:-}
+      - PQC_AUTH_JWT_ALGORITHMS=${PQC_AUTH_JWT_ALGORITHMS:-RS256}
+      - PQC_AUTH_USER_ID_CLAIM=${PQC_AUTH_USER_ID_CLAIM:-sub}
+      - PQC_AUTH_ROLE_CLAIM=${PQC_AUTH_ROLE_CLAIM:-role}
+      - PQC_AUTH_ORG_ID_CLAIM=${PQC_AUTH_ORG_ID_CLAIM:-}
+      - PQC_PLATFORM_ADMIN_KEY=${PQC_PLATFORM_ADMIN_KEY:-}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - ENABLE_INPROCESS_SCHEDULER=0
+      - WORKER_ROLE=api
+      - PER_TARGET_TIMEOUT=20
+      - PQC_CORS_ALLOW_ALL=1
+    volumes:
+      - ./:/app
+      - pqc_data:/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      webhook_sink:
+        condition: service_started
+
+  worker:
+    build:
+      context: .
+      args:
+        INSTALL_DEV_DEPS: "true"
+    working_dir: /app
+    command: celery -A tasks.celery_app worker --loglevel=INFO --concurrency=4
+    environment:
+      - PYTHONPATH=/app
+      - PQC_MAIN_DB_BACKEND=postgres
+      - PQC_PRODUCT_DATABASE_URL=postgresql://pqc:pqc@postgres:5432/pqc
+      - DATABASE_URL=postgresql://pqc:pqc@postgres:5432/pqc
+      - PQC_VAULT_MASTER_KEY=${PQC_VAULT_MASTER_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - WORKER_ROLE=worker
+      - PER_TARGET_TIMEOUT=20
+    volumes:
+      - ./:/app
+      - pqc_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      webhook_sink:
+        condition: service_started
+
+  beat:
+    build:
+      context: .
+      args:
+        INSTALL_DEV_DEPS: "true"
+    working_dir: /app
+    # Keep the beat schedule DB inside the Linux volume to avoid host/OS dbm incompatibilities.
+    command: celery -A tasks.celery_app beat --loglevel=INFO --schedule /data/celerybeat-schedule
+    environment:
+      - PYTHONPATH=/app
+      - PQC_MAIN_DB_BACKEND=postgres
+      - PQC_PRODUCT_DATABASE_URL=postgresql://pqc:pqc@postgres:5432/pqc
+      - DATABASE_URL=postgresql://pqc:pqc@postgres:5432/pqc
+      - PQC_VAULT_MASTER_KEY=${PQC_VAULT_MASTER_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - WORKER_ROLE=beat
+    volumes:
+      - ./:/app
+      - pqc_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      webhook_sink:
+        condition: service_started
+
+volumes:
+  pqc_data:
+  pqc_pgdata:
+  redis_data:

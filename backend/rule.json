@@ -1,0 +1,9 @@
+{
+  "name": "route scan.completed to debug",
+  "enabled": true,
+  "event_types": ["scan.completed"],
+  "conditions": [],
+  "webhook_ids": [6],
+  "fire_mode": "always",
+  "cooldown_minutes": 0
+}

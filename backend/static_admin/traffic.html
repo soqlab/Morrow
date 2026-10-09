@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Traffic Lens | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor-admin/traffic.css?v=20260907" />
+<link rel="stylesheet" href="/ui/design.css?v=20260918-idle"><link rel="stylesheet" href="/vendor-admin/traffic-workspace.css?v=20260907"><link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><link rel="stylesheet" href="/vendor-admin/admin-shell.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script></head>
+<body class="traffic-experience traffic-console"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+
+  <header class="sh-bar" data-shell-bar>
+    <div class="sh-in">
+      <button class="sh-burger" type="button" data-shell-burger aria-expanded="false" aria-controls="shellNav"><i aria-hidden="true"></i><span class="srOnly">Open navigation</span></button>
+      <a class="sh-brand" href="/vendor-admin/#/dashboard"><span class="sh-mark" aria-hidden="true">A</span><span class="sh-word">Airlock Command<small>Operator console</small></span></a>
+      <nav class="sh-nav" id="shellNav" aria-label="Administration" data-shell-nav></nav>
+      <div class="sh-tools">
+        <button class="sh-search" type="button" data-shell-search aria-haspopup="dialog" aria-label="Search pages and records (Ctrl+K)"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.5"/></svg><span>Search or jump to&hellip;</span><kbd class="sh-kbd">Ctrl K</kbd></button>
+        <div class="sh-pop" data-shell-bell></div>
+      </div>
+    </div>
+  </header>
+  <div class="sh-crumbs">
+    <ol aria-label="Breadcrumb"><li><a href="/vendor-admin/#/dashboard">Console</a></li><li><a href="/vendor-admin/#/health">Operations</a></li><li><span aria-current="page">Traffic Lens</span></li></ol>
+    <div class="sh-crumbTools"><span class="pill" id="apiState">Waiting</span><a class="sh-crumbLink" href="#sources">Source IPs</a><a class="sh-crumbLink" href="#events">Events</a></div>
+  </div>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="statement">
+        <span class="eyebrow">Traffic Monitor / Metadata only</span>
+        <h1>Traffic intelligence</h1>
+        <p class="copy">Inspect recent requests or retained database history: source IP, route template, method, status and latency. Verified identity is shown only for authenticated requests. No request bodies, query strings, cookies or authorization headers. This is not click tracking or session replay.</p>
+        <div class="proofLine">
+          <span>No payload capture</span><span>No query capture</span><span>Platform-admin only</span><span>SIEM export ready</span>
+        </div>
+      </div>
+
+      <div class="control">
+        <label><span class="label">Platform admin key</span><input id="platformKey" type="password" placeholder="x-platform-key" autocomplete="off" /></label>
+        <label><span class="label">Admin role</span><select id="platformRole"><option value="owner">Owner</option><option value="operator">Operator</option><option value="support">Support</option><option value="auditor">Auditor read-only</option></select></label>
+        <div class="row">
+          <button class="btn" id="refreshBtn" type="button">Refresh</button>
+          <button class="btn secondary" id="saveBtn" type="button">Remember for this tab</button>
+          <button class="btn secondary" id="signOutBtn" type="button">Sign out</button><button class="btn secondary" id="liveBtn" type="button">Live Off</button>
+          <button class="btn secondary" id="exportNdjsonBtn" type="button">Export NDJSON</button>
+          <button class="btn secondary" id="exportOtelBtn" type="button">Export OTEL</button>
+          <button class="btn danger" id="clearTrafficBtn" type="button">Clear Buffer</button>
+        </div>
+        <div class="filterGrid">
+          <label><span class="label">Event history source</span><select id="historySource"><option value="recent">Recent process buffer</option><option value="archive">Retained database history</option></select></label>
+          <label><span class="label">Source IP filter</span><input id="ipFilter" placeholder="optional exact IP" /></label>
+          <label><span class="label">Path prefix filter</span><input id="pathFilter" placeholder="/platform, /scan, /auth" /></label>
+        </div>
+        <div class="status" id="status" role="status" aria-live="polite">Signed in to the operator console with SSO? This page uses that session. Otherwise enter a named operator key or the platform key.</div>
+        <p class="notice copy" id="retentionState" role="status">Storage not checked. Summary totals describe this process, not all retained history. Clearing the buffer does not erase the archive.</p>
+        <div class="notice">Production: keep this behind SSO/VPN. Set PQC_TRUST_PROXY_HEADERS=1 only behind a trusted reverse proxy. Export durable evidence to SIEM/OpenTelemetry.</div>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <div class="metric"><small>Events</small><strong id="mEvents">--</strong><span>ring buffer</span></div>
+      <div class="metric"><small>Unique IPs</small><strong id="mIps">--</strong><span>source addresses</span></div>
+      <div class="metric"><small>Blocked</small><strong id="mBlocked">--</strong><span>401/403</span></div>
+      <div class="metric"><small>Rate Limited</small><strong id="mRate">--</strong><span>429</span></div>
+      <div class="metric"><small>Errors</small><strong id="mErrors">--</strong><span>5xx</span></div>
+      <div class="metric"><small>Slow</small><strong id="mSlow">--</strong><span>&gt;= 1s</span></div>
+    </section>
+
+    <section class="grid">
+      <div class="mainCol">
+        <div class="widePanel" id="sources">
+          <div class="panelHead">
+            <div><h2>Top Source IPs</h2><p class="copy">Aggregated request pressure by source IP, with top paths and status families.</p></div>
+            <span class="pill" id="proxyState">proxy unknown</span>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <thead><tr><th>Source IP</th><th>Requests</th><th>Blocked</th><th>429</th><th>5xx</th><th>Slow</th><th>Top Paths</th><th>Last Seen</th></tr></thead>
+              <tbody id="ipsBody"><tr><td colspan="8" class="muted">No traffic loaded.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="widePanel" id="events">
+          <div class="panelHead">
+            <div><h2>Request history</h2><p class="copy">Latest 200 matching requests from the selected source. Exports include up to 5,000 matching requests, not the entire archive.</p></div>
+            <button class="btn secondary small" id="eventsBtn" type="button">Apply filters</button>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <thead><tr><th>Time</th><th>IP</th><th>Method</th><th>Path</th><th>Status</th><th>Latency</th><th>Org</th><th>Actor</th><th>User Agent</th></tr></thead>
+              <tbody id="eventsBody"><tr><td colspan="9" class="muted">No events loaded.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <aside class="stack">
+        <div class="panel"><div class="panelHead"><div><h2>Status Mix</h2><p class="copy">Recent event buffer distribution.</p></div></div><div id="statusBody" class="eventList"><div class="event"><span>No status data loaded.</span></div></div></div>
+        <div class="panel"><div class="panelHead"><div><h2>Top Paths</h2><p class="copy">Most requested paths in the current buffer.</p></div></div><div id="pathsBody" class="eventList"><div class="event"><span>No path data loaded.</span></div></div></div>
+        <div class="panel"><div class="panelHead"><div><h2>No-Login Boundary</h2><p class="copy">Public surfaces are deliberately narrow.</p></div></div><div id="policyBody" class="eventList"><div class="event"><span>Policy not loaded.</span></div></div></div>
+      </aside>
+    </section>
+
+    <footer class="portalFoot">
+      <span>Traffic Lens - metadata only. No bodies, query strings, cookies, or authorization headers are captured.</span>
+      <div class="footLinks"><a href="/vendor-admin/">Command</a><a href="/enterprise-admin">Admin Guide</a><a href="/security">Security</a><a href="/support">Support</a><a href="/launch">Launch</a></div>
+    </footer>
+  </main>
+
+  <script src="/vendor-admin/traffic.js?v=20260916-session" defer></script>
+  <script src="/vendor-admin/admin-shell.js?v=20260916-console2" defer></script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+/* Public registry record pages (/r/{domain}).
+ *
+ * Loaded after public.css, which supplies the shell: body, topbar, nav, footer, .btn, .notice,
+ * .eyebrow. Everything here is either a component public.css does not have or a component of this
+ * page. Every token read is written as var(--name, #literal): check.css once rendered black on
+ * black because a token it expected was defined by a sheet that was not loaded, and a literal
+ * fallback is the one fix that cannot regress.
+ *
+ * No animation, no ambient layer. A record is read, cached, crawled and unfurled; the first paint
+ * is the whole product.
+ */
+
+.registry-page {
+  --reg-line: var(--line, #27303a);
+  --reg-panel: var(--panel, #0d1115);
+  --reg-ink: var(--ink, #eeeeee);
+  --reg-ink-2: var(--ink-2, #b9b9b9);
+  --reg-ink-3: var(--ink-3, #7f7f7f);
+  --reg-blue: var(--blue, #7eb6ff);
+  --reg-ok: #4ec07a;
+  --reg-part: #8fd0a8;
+  --reg-warn: var(--amber, #d9a24b);
+  --reg-none: var(--ink-3, #7f7f7f);
+  --reg-bad: var(--bad, #ff6f6f);
+}
+
+/* ------------------------------------------------------------ bits public.css lacks */
+
+.registry-page .skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 10px 14px;
+  background: var(--reg-panel);
+  color: var(--reg-ink);
+  border: 1px solid var(--reg-line);
+}
+.registry-page .skip-link:focus { left: 8px; top: 8px; }
+
+.registry-page .fine {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--reg-ink-3);
+}
+
+.registry-page .empty {
+  color: var(--reg-ink-3);
+  font-size: 14.5px;
+}
+
+.registry-page .note {
+  display: block;
+  font-size: 12.5px;
+  color: var(--reg-ink-3);
+  margin-top: 3px;
+}
+
+.registry-page .pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.registry-page .pill-ok { color: var(--reg-ok); }
+.registry-page .pill-part { color: var(--reg-part); }
+.registry-page .pill-warn { color: var(--reg-warn); }
+.registry-page .pill-none { color: var(--reg-none); }
+
+/* ------------------------------------------------------------------------- the head */
+
+.registry-page .record-head {
+  position: relative;
+  z-index: 1;
+  margin: 30px 0 34px;
+  padding: 26px 26px 24px;
+  border: 1px solid var(--reg-line);
+  border-left-width: 3px;
+  background: var(--reg-panel);
+}
+.registry-page .accent-ok { border-left-color: var(--reg-ok); }
+.registry-page .accent-part { border-left-color: var(--reg-part); }
+.registry-page .accent-warn { border-left-color: var(--reg-warn); }
+.registry-page .accent-none { border-left-color: var(--reg-none); }
+
+.registry-page .record-head h1 {
+  margin: 4px 0 14px;
+  font-size: clamp(26px, 5vw, 40px);
+  line-height: 1.12;
+  letter-spacing: -.01em;
+  word-break: break-word;
+  text-wrap: balance;
+}
+
+.registry-page .posture-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  margin: 0 0 18px;
+  color: var(--reg-ink-2);
+  font-size: 15px;
+}
+
+.registry-page .headline {
+  margin: 0 0 8px;
+  font-size: 19px;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.registry-page .lede {
+  margin: 0 0 20px;
+  max-width: 66ch;
+  color: var(--reg-ink-2);
+}
+
+.registry-page .meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px 22px;
+  margin: 0 0 18px;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--reg-line);
+}
+.registry-page .meta dt {
+  font-size: 11.5px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--reg-ink-3);
+}
+.registry-page .meta dd {
+  margin: 3px 0 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
+.registry-page .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------- panels */
+
+.registry-page .panel {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 26px;
+  padding: 22px 24px;
+  border: 1px solid var(--reg-line);
+  background: var(--reg-panel);
+}
+.registry-page .panel > h2 {
+  margin: 0 0 16px;
+  font-size: 13px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--reg-ink-3);
+}
+.registry-page .panel > h2 ~ h2 { margin-top: 26px; }
+
+.registry-page .panel p { max-width: 70ch; }
+
+/* --------------------------------------------------------------------------- tables */
+
+.registry-page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+.registry-page th {
+  text-align: left;
+  padding: 0 14px 9px 0;
+  font-size: 11.5px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--reg-ink-3);
+  font-weight: 600;
+  border-bottom: 1px solid var(--reg-line);
+}
+.registry-page td {
+  padding: 10px 14px 10px 0;
+  border-bottom: 1px solid var(--reg-line);
+  vertical-align: top;
+}
+.registry-page tr:last-child td { border-bottom: 0; }
+.registry-page .facts td:first-child {
+  width: 34%;
+  color: var(--reg-ink-3);
+}
+.registry-page .facts .value,
+.registry-page .history td,
+.registry-page .deadlines td { font-variant-numeric: tabular-nums; }
+.registry-page .facts .value { color: var(--reg-ink); word-break: break-word; }
+
+/* A long certificate subject or issuer must not push the page sideways. */
+.registry-page .panel > table { display: table; }
+.registry-page .history,
+.registry-page .deadlines { min-width: 0; }
+
+/* ----------------------------------------------------------------------- algorithms */
+
+.registry-page .algo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.registry-page .algo {
+  padding: 16px 16px 14px;
+  border: 1px solid var(--reg-line);
+  border-top-width: 2px;
+  background: rgba(255, 255, 255, .015);
+}
+.registry-page .algo h3 {
+  margin: 0 0 2px;
+  font-size: 16px;
+  word-break: break-word;
+}
+.registry-page .algo p { margin: 0 0 8px; max-width: none; font-size: 13.5px; }
+.registry-page .algo .role {
+  font-size: 11px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--reg-ink-3);
+}
+.registry-page .algo .verdict-line {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.registry-page .algo .action {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--reg-line);
+  font-size: 13px;
+  color: var(--reg-blue);
+}
+
+.registry-page .algo-quantum_vulnerable { border-top-color: var(--reg-bad); }
+.registry-page .algo-quantum_vulnerable .verdict-line { color: var(--reg-bad); }
+.registry-page .algo-compliant { border-top-color: var(--reg-ok); }
+.registry-page .algo-compliant .verdict-line { color: var(--reg-ok); }
+.registry-page .algo-unknown { border-top-color: var(--reg-warn); }
+.registry-page .algo-unknown .verdict-line { color: var(--reg-warn); }
+
+/* ---------------------------------------------------------------------- lists, code */
+
+.registry-page .plain {
+  margin: 0 0 6px;
+  padding-left: 20px;
+  max-width: 70ch;
+}
+.registry-page .plain li { margin: 0 0 7px; color: var(--reg-ink-2); font-size: 14.5px; }
+
+.registry-page pre {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid var(--reg-line);
+  background: rgba(0, 0, 0, .28);
+}
+.registry-page pre code,
+.registry-page code {
+  font-family: var(--mono, Consolas, ui-monospace, monospace);
+  font-size: 13px;
+  color: var(--reg-ink-2);
+}
+
+.registry-page .limits h2 { margin-top: 0; }
+.registry-page .fine-print p { color: var(--reg-ink-3); font-size: 13.5px; }
+
+@media (max-width: 620px) {
+  .registry-page .record-head { padding: 20px 18px; }
+  .registry-page .panel { padding: 18px 16px; }
+  .registry-page .facts td:first-child { width: 42%; }
+  /* Four columns of history do not fit a phone; let the one wide table scroll in place
+     rather than the whole document. */
+  .registry-page .history { display: block; overflow-x: auto; white-space: nowrap; }
+}

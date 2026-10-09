@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Platform Administration | Airlock Command</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/design.css?v=20260918-idle"><link rel="stylesheet" href="/vendor-admin/admin-shell.css?v=20260918-idle"><link rel="stylesheet" href="/vendor-admin/index.css?v=20260920-nohint">
+<script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script>
+<script src="/ui/space3d.js?v=20260917-perf4" defer></script><script src="/ui/charts3d.js?v=20260920-nohint" defer></script>
+<script src="/vendor-admin/admin-charts.js?v=20260916-console" defer></script>
+<script src="/vendor-admin/index.js?v=20260917-deeplink" defer></script>
+<script src="/vendor-admin/admin-shell.js?v=20260916-console2" defer></script>
+<script src="/vendor-admin/admin-views.js?v=20260917-deeplink" defer></script>
+<script src="/vendor-admin/admin-support.js?v=20260925-consent" defer></script>
+<script src="/vendor-admin/admin-alerts.js?v=20260917-deeplink" defer></script>
+<link rel="stylesheet" href="/vendor-admin/admin-auth.css?v=20260916-auth1"><script src="/vendor-admin/admin-auth.js?v=20260916-auth1" defer></script>
+</head><body class="admin-console" data-auth="signed-out"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+<a class="skip-link" href="#adminMain">Skip to workspace</a>
+
+<!-- ───────────── Sign-in: the only thing shown until a credential connects ───────────── -->
+<section class="signin" id="signinScreen" aria-labelledby="signinTitle">
+  <div class="signinCard">
+    <a class="signinBrand" href="/"><span class="mark" aria-hidden="true">A</span><span>Airlock Command<small>Platform Administration</small></span></a>
+    <span class="eyebrow">Operator access</span>
+    <h1 id="signinTitle">Sign in to the operator console</h1>
+    <p class="copy">Use a named operator key or the shared platform key. The key stays in this tab only, and every change you make is written to the admin audit trail.</p>
+    <div class="ssoSlot" id="ssoSlot" hidden>
+      <a class="btn primary ssoBtn" id="ssoBtn" href="/vendor-admin/sso/start">Sign in with SSO</a>
+      <p class="accessNote" id="ssoNote">Your identity provider verifies who you are; the console then asks for your authenticator code when MFA is required.</p>
+    </div>
+    <div class="authError" id="authError" role="alert" hidden></div>
+    <details class="keyDisclosure" id="keyDisclosure" open>
+    <summary id="keyDisclosureSummary">Use an operator key</summary>
+    <div class="signinFields">
+      <label><span class="label">Platform admin key</span><input id="platformKey" type="password" placeholder="Enter your platform key" autocomplete="off"></label>
+      <div id="roleSlot"><label id="roleField"><span class="label">Operating role</span><select id="platformRole" aria-describedby="roleBindingNote"><option value="owner">Owner</option><option value="operator">Operator</option><option value="support">Support</option><option value="auditor">Auditor / read-only</option></select></label></div>
+      <label class="check"><input type="checkbox" id="rememberCheck"><span>Remember for this tab</span></label>
+      <button class="btn primary" id="loadBtn" type="button">Connect</button>
+    </div>
+    </details>
+    <form class="mfaStep" id="mfaStep" hidden novalidate>
+      <h2 id="mfaTitle">Enter your authenticator code</h2>
+      <p class="copy" id="mfaCopy">Open your authenticator app and enter the 6-digit code for Airlock Command.</p>
+      <div class="mfaEnrol" id="mfaEnrol" hidden>
+        <img id="mfaQr" alt="QR code for your authenticator app" width="196" height="196">
+        <div><span class="label">Or type this key</span><code class="mono" id="mfaSecret"></code></div>
+      </div>
+      <label id="mfaCodeField"><span class="label">Authenticator code</span><input id="mfaCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"></label>
+      <label id="mfaRecoveryField" hidden><span class="label">Recovery code</span><input id="mfaRecovery" autocomplete="off" spellcheck="false" maxlength="16"></label>
+      <div class="mfaCodes" id="mfaCodes" hidden><p class="copy">Save these recovery codes now. Each works once and they are not shown again.</p><ol id="mfaCodesList" class="mono"></ol></div>
+      <div class="row"><button class="btn primary" id="mfaSubmit" type="submit">Verify</button><button class="btn secondary" id="mfaUseRecovery" type="button">Use a recovery code</button><button class="btn secondary" id="mfaCancel" type="button">Cancel</button></div>
+    </form>
+    <div id="noteSlot"><p class="accessNote" id="roleBindingNote">Named operator keys carry their own role. The shared platform key is read-only unless you choose a higher role, and never above its configured ceiling. Put production access behind your approved gateway.</p></div>
+    <div id="statusSlot"><div class="status" id="status" role="status" aria-live="polite">Connect to load your platform data.</div></div>
+    <div class="signinFoot"><a href="/ui/">Customer console &#8599;</a><a href="/enterprise-admin">Administrator guide &#8599;</a><a href="/support">Support &#8599;</a><a href="/">Public website &#8599;</a></div>
+  </div>
+</section>
+
+<!-- ───────────── App shell ───────────── -->
+<div class="adminWorkspace" id="appShell" hidden>
+<header class="sh-bar" data-shell-bar>
+  <div class="sh-in">
+    <button class="sh-burger" type="button" data-shell-burger aria-expanded="false" aria-controls="shellNav"><i aria-hidden="true"></i><span class="srOnly">Open navigation</span></button>
+    <a class="sh-brand" href="#/dashboard"><span class="sh-mark" aria-hidden="true">A</span><span class="sh-word">Airlock Command<small>Operator console</small></span></a>
+    <nav class="sh-nav" id="shellNav" aria-label="Administration" data-shell-nav></nav>
+    <div class="sh-tools">
+      <button class="sh-search" type="button" data-shell-search aria-haspopup="dialog" aria-label="Search pages, actions and records (Ctrl+K)"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.5"/></svg><span>Search or jump to&hellip;</span><kbd class="sh-kbd">Ctrl K</kbd></button>
+      <div class="sh-pop" data-shell-bell></div>
+      <div class="sh-pop" id="operatorMenu">
+        <button class="sh-opBtn" id="operatorMenuBtn" type="button" aria-expanded="false" aria-controls="operatorPanel"><span class="sh-avatar" id="operatorAvatar" aria-hidden="true">?</span><span class="sh-opText"><b id="operatorIdentity">Not signed in</b><small id="operatorRoleText">No role</small></span><span class="srOnly">Operator menu</span></button>
+        <div class="sh-panel sh-opPanel" id="operatorPanel" hidden>
+          <div class="sh-section"><div class="opName" id="operatorName">Not signed in</div><div class="opMeta" id="operatorMeta">Connect with a platform credential.</div></div>
+          <div class="sh-section" id="roleMenuSlot"></div>
+          <div class="sh-section" id="authMenuSlot" hidden></div>
+          <div class="sh-section" id="noteMenuSlot"></div>
+          <div>
+            <button class="sh-menuItem" id="saveBtn" type="button" aria-pressed="false">Remember for this tab <small id="rememberState">off</small></button>
+            <a class="sh-menuItem" href="/ui/">Customer console <small>&#8599;</small></a>
+            <button class="sh-menuItem danger" id="clearBtn" type="button">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<div class="sh-crumbs">
+  <ol id="crumbs" aria-label="Breadcrumb"><li><span aria-current="page">Dashboard</span></li></ol>
+  <div class="sh-crumbTools"><span class="pill warn" id="maintenancePill" hidden>Maintenance on</span><span class="pill" id="apiState">Not connected</span><span class="refreshMeta" id="snapshotAt">No snapshot loaded</span><button class="btn secondary small" id="reloadAllBtn" type="button">Refresh &#8635;</button></div>
+</div>
+
+<main id="adminMain">
+<div class="pageHeading"><div><span class="eyebrow" id="adminViewEyebrow">Platform operations</span><h1 id="adminViewTitle" tabindex="-1">Dashboard</h1><p id="adminViewDescription">Customer activity, operational health, and the decisions that need your attention.</p></div><div class="pageActions" id="pageActions"></div></div>
+<div class="statusLine" id="statusLine"></div>
+
+<!-- Dashboard -->
+<section class="page" data-page="dashboard" aria-label="Dashboard">
+  <div class="dashBar">
+    <div class="rangePicker" id="rangePicker" role="radiogroup" aria-label="Time range">
+      <button type="button" role="radio" data-range="24h" aria-checked="false">24h</button><button type="button" role="radio" data-range="7d" aria-checked="true">7d</button><button type="button" role="radio" data-range="30d" aria-checked="false">30d</button><button type="button" role="radio" data-range="90d" aria-checked="false">90d</button>
+    </div>
+    <span class="refreshMeta" id="dashRefreshed">Not refreshed yet</span>
+    <button class="btn secondary small" id="dashRefreshBtn" type="button">Refresh</button>
+    <div class="quickActions" aria-label="Quick actions"><a class="btn small" href="#/customers?create=1">Create customer</a><a class="btn secondary small" href="#/announcements?new=1">New announcement</a><a class="btn secondary small" href="#/maintenance">Maintenance</a><a class="btn secondary small" href="#/launch">Check launch gate</a></div>
+  </div>
+  <div id="dashNotice"></div>
+  <div class="kpiGrid" id="kpiGrid" aria-live="polite"></div>
+  <div class="chartGrid">
+    <article class="card chartCard"><div class="cardHead"><div><h2>Signups</h2><div class="copy">New organizations and new users per bucket.</div></div></div><div class="chart" id="chartSignups"></div></article>
+    <article class="card chartCard"><div class="cardHead"><div><h2>Active users</h2><div class="copy">Distinct users with a verified sign-in or request.</div></div></div><div class="chart" id="chartActive"></div></article>
+    <article class="card chartCard"><div class="cardHead"><div><h2>API requests</h2><div class="copy">Requests per bucket, stacked by outcome.</div></div></div><div class="chart" id="chartRequests"></div></article>
+    <article class="card chartCard"><div class="cardHead"><div><h2>Latency</h2><div class="copy">Median and 95th percentile response time.</div></div></div><div class="chart" id="chartLatency"></div></article>
+    <article class="card chartCard"><div class="cardHead"><div><h2>Sign-ins</h2><div class="copy">Successful and failed authentication.</div></div></div><div class="chart" id="chartLogins"></div></article>
+    <article class="card chartCard"><div class="cardHead"><div><h2>Scans</h2><div class="copy">Scans started across every tenant.</div></div></div><div class="chart" id="chartScans"></div></article>
+  </div>
+  <div class="grid3">
+    <article class="card span2"><div class="cardHead"><div><h2>Top organizations by activity</h2><div class="copy">Requests, sign-ins and scans in the selected range. Open one for its Customer 360.</div></div></div><div class="tableWrap"><table class="dataTable"><thead><tr><th>Organization</th><th class="num">Requests</th><th class="num">Sign-ins</th><th class="num">Scans</th><th>Last seen</th></tr></thead><tbody id="topOrgsBody"></tbody></table></div></article>
+    <article class="card"><div class="cardHead"><div><h2>Needs attention</h2><div class="copy">Open notifications, most severe first.</div></div><a class="btn secondary small" href="#/notifications">All</a></div><div id="attentionBody"></div></article>
+    <article class="card span2"><div class="cardHead"><div><h2>Routes by errors</h2><div class="copy">Route templates with the most failed responses.</div></div></div><div class="tableWrap"><table class="dataTable"><thead><tr><th>Route</th><th class="num">Requests</th><th class="num">Errors</th><th class="num">Error rate</th></tr></thead><tbody id="routesBody"></tbody></table></div></article>
+    <article class="card"><div class="cardHead"><div><h2>Plans</h2><div class="copy">Organizations by commercial plan.</div></div></div><div id="plansBody"></div></article>
+  </div>
+
+  <div class="sectionLabel">Platform status <span id="snapshotSource">Latest requested snapshot</span></div>
+  <div class="missionState" aria-label="Mission state">
+    <div><small>Gate</small><strong id="mGateState">--</strong><span>go-live verdict</span></div>
+    <div><small>Health</small><strong id="mHealthState">--</strong><span>runtime checks</span></div>
+    <div><small>Alerts</small><strong id="mOpenAlerts">--</strong><span>active platform signals</span></div>
+    <div><small>At risk</small><strong id="mAtRisk">--</strong><span id="mNeverActive">activation risk customers</span></div>
+    <div><small>Traffic</small><strong id="mTrafficEvents">--</strong><span>metadata events</span></div>
+    <div><small>Capture policy</small><strong id="mDataBoundary">--</strong><span>reported configuration</span></div>
+  </div>
+  <div class="metrics" id="snapshotTotals" aria-label="All-time totals">
+    <div class="metric"><small>Customers</small><strong id="mCustomers">--</strong><span>tenant organizations</span></div>
+    <div class="metric"><small>Active 7d</small><strong id="mActive">--</strong><span>recent activity</span></div>
+    <div class="metric"><small>Scans</small><strong id="mScans">--</strong><span>all time</span></div>
+    <div class="metric"><small>Assets</small><strong id="mAssets">--</strong><span>tracked surfaces</span></div>
+    <div class="metric"><small>Remediations</small><strong id="mRems">--</strong><span>customer work</span></div>
+    <div class="metric"><small>Logins 24h</small><strong id="mLogins">--</strong><span id="mLoginsDetail">operator activity</span></div>
+  </div>
+  <div class="workspaceActions"><button class="btn secondary small" id="quickGateBtn" type="button">Check launch gate</button><button class="btn secondary small" id="quickTenantBtn" type="button" data-write>Verify tenant isolation</button></div>
+  <div class="grid3">
+    <article class="card"><div class="cardHead"><div><h2>Environment</h2><div class="copy">Admin mode and production guardrails.</div></div></div><div id="adminModeBody" class="healthItem"><b>Admin mode</b><span>Connect to inspect the environment and guardrails.</span></div></article>
+    <article class="card"><div class="cardHead"><div><h2>Maintenance &amp; announcements</h2><div class="copy">What customers see right now.</div></div><a class="btn secondary small" href="#/announcements">Manage</a></div><div id="maintenanceSummary"><div class="empty">Connect to load maintenance state.</div></div></article>
+    
+  </div>
+  <details class="unavail" id="unavailableBox"><summary>Unavailable metrics <span class="pill" id="unavailCount">0</span></summary><div id="unavailableBody"><p class="copy">Load the dashboard to see which metrics this server cannot track.</p></div></details>
+</section>
+
+<!-- Customers › Organizations -->
+<section class="page" data-page="customers" aria-label="Organizations" hidden>
+  <article class="card" id="customers">
+    <div class="cardHead">
+      <div><h2>Customer Fleet</h2><div class="copy">Every tenant organization. Open one for its Customer 360: activity, members, keys, flags, lifecycle and exports.</div></div>
+      <div class="cardTools"><span class="refreshMeta" id="orgRefreshed"></span><button class="btn secondary small" id="orgExportBtn" type="button">Export visible rows</button><button class="btn small" id="orgCreateToggle" type="button" data-write aria-controls="createCustomerCard" aria-expanded="false">New customer</button></div>
+    </div>
+    <div class="filterBar">
+      <input id="searchBox" type="search" aria-label="Search customers" placeholder="Search customer, org, or plan">
+      <select id="statusFilter" aria-label="Filter by status"><option value="">All status</option><option>active</option><option>trial</option><option>suspended</option><option>archived</option><option>past_due</option></select>
+      <select id="planFilter" aria-label="Filter by plan"><option value="">All plans</option></select>
+    </div>
+    <div class="tableWrap"><table class="dataTable sortable">
+      <thead><tr><th aria-sort="none"><button type="button" data-sort="name">Customer</button></th><th aria-sort="none"><button type="button" data-sort="status">Status</button></th><th aria-sort="none"><button type="button" data-sort="plan">Plan</button></th><th aria-sort="descending"><button type="button" data-sort="risk">Risk</button></th><th class="num" aria-sort="none"><button type="button" data-sort="scans">Scans</button></th><th class="num" aria-sort="none"><button type="button" data-sort="assets">Assets</button></th><th class="num" aria-sort="none"><button type="button" data-sort="users">Users</button></th><th aria-sort="none"><button type="button" data-sort="login">Last observed sign-in</button></th></tr></thead>
+      <tbody id="customersBody"><tr><td colspan="8" class="empty">Load the portal to see customers.</td></tr></tbody>
+    </table></div>
+    <div class="pager"><button class="btn secondary small" id="orgPrev" type="button" disabled>Previous</button><span class="muted mono" id="orgPageInfo">No results</span><button class="btn secondary small" id="orgNext" type="button" disabled>Next</button></div>
+  </article>
+  <article class="card" id="createCustomerCard" hidden>
+    <div class="cardHead"><div><h2>New customer</h2><div class="copy">Create a tenant organization. The reason is written to the admin audit trail with your operator name.</div></div></div>
+    <form id="createCustomerForm" class="formGrid" novalidate>
+      <label><span class="label">Organization id</span><input id="newOrgId" required maxlength="128" autocomplete="off" spellcheck="false" placeholder="acme-bank"></label>
+      <label><span class="label">Display name</span><input id="newOrgName" required maxlength="160" placeholder="Acme Bank"></label>
+      <label><span class="label">Plan</span><input id="newOrgPlan" maxlength="64" value="starter"></label>
+      <label><span class="label">Initial status</span><select id="newOrgStatus"><option value="active">active</option><option value="trial">trial</option></select></label>
+      <label class="wide"><span class="label">Reason</span><input id="newOrgReason" required maxlength="500" placeholder="Signed order form / pilot kickoff"></label>
+      <div class="wide row"><button class="btn" id="createCustomerBtn" type="submit" data-write>Create customer</button><span class="formNote" id="createCustomerStatus" role="status"></span></div>
+    </form>
+  </article>
+  <article class="card">
+    <div class="cardHead"><div><h2>Plan Breakdown</h2><div class="copy">Commercial packaging snapshot.</div></div><span class="pill" id="generatedAt">not loaded</span></div>
+    <div class="scroll" id="planBody"><div class="empty">No plan data loaded.</div></div>
+  </article>
+</section>
+
+<!-- Customers › Customer 360 -->
+<section class="page" data-page="customer360" aria-label="Customer 360" hidden>
+  <article class="card" id="c360Picker" hidden>
+    <div class="cardHead"><div><h2>Choose an organization</h2><div class="copy">Customer 360 opens from the organization list. Pick a tenant to see its full profile.</div></div><a class="btn secondary small" href="#/customers">Organization list</a></div>
+    <div class="filterBar"><input id="c360PickerSearch" type="search" aria-label="Filter organizations" placeholder="Filter organizations"></div>
+    <div id="c360PickerBody"></div>
+  </article>
+  <div id="c360" hidden>
+    <article class="card c360Head">
+      <div class="c360Id"><span class="avatar" id="c360Avatar" aria-hidden="true">?</span><div class="c360Title"><h2 id="c360Name">Customer</h2><div class="mono muted" id="c360OrgId"></div><div class="c360Meta" id="c360Meta"></div></div></div>
+      <div class="c360Actions">
+        <button class="btn small" id="c360SupportBtn" type="button" title="Opens the customer's console read-only in a new tab. Logged and visible to the customer.">View as customer (read-only)</button>
+        <button class="btn secondary small" id="c360EditBtn" type="button">Manage&hellip;</button>
+        <button class="btn secondary small" id="c360SuspendBtn" type="button" data-write>Suspend</button>
+        <button class="btn secondary small" id="c360ResumeBtn" type="button" data-write>Resume</button>
+        <button class="btn danger small" id="c360ArchiveBtn" type="button" data-write>Archive&hellip;</button>
+        <div class="menuWrap"><button class="btn secondary small" id="c360ExportBtn" type="button" aria-expanded="false" aria-controls="c360ExportMenu">Export &#9662;</button>
+          <div class="miniMenu" id="c360ExportMenu" hidden><button type="button" data-c360-export="gdpr" data-write>GDPR export (JSON)</button><button type="button" data-c360-export="package">Audit package (ZIP)</button><button type="button" data-c360-export="audit">Tenant audit log (CSV)</button></div></div>
+      </div>
+    </article>
+    <div id="c360Notice"></div>
+    <div class="kpiGrid compact" id="c360Kpis"></div>
+    <div class="chartGrid three">
+      <article class="card chartCard"><div class="cardHead"><div><h2>Sign-ins</h2><div class="copy">Successful and failed.</div></div></div><div class="chart" id="c360ChartLogins"></div></article>
+      <article class="card chartCard"><div class="cardHead"><div><h2>API requests</h2><div class="copy">Stacked by outcome.</div></div></div><div class="chart" id="c360ChartRequests"></div></article>
+      <article class="card chartCard"><div class="cardHead"><div><h2>Scans</h2><div class="copy">Scans started.</div></div></div><div class="chart" id="c360ChartScans"></div></article>
+    </div>
+    <div class="grid2">
+      
+      <article class="card"><div class="cardHead"><div><h2>Members</h2><div class="copy">Sign-in accounts and role assignments.</div></div><a class="btn secondary small" id="c360UsersLink" href="#/users">Manage users</a></div><div class="tableWrap"><table class="dataTable"><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody id="c360Members"></tbody></table></div></article>
+      <article class="card"><div class="cardHead"><div><h2>Feature adoption</h2><div class="copy">Which product capabilities this organization uses.</div></div></div><div id="c360Adoption"></div></article>
+      <article class="card"><div class="cardHead"><div><h2>Recent activity</h2><div class="copy">Sign-ins, admin changes and product events.</div></div></div><div id="c360Timeline"></div></article>
+      <article class="card"><div class="cardHead"><div><h2>Onboarding checklist</h2><div class="copy">Activation steps for this tenant.</div></div></div><div id="c360Onboarding"></div></article>
+      <article class="card"><div class="cardHead"><div><h2>API keys</h2><div class="copy">Organization credentials.</div></div><a class="btn secondary small" id="c360KeysLink" href="#/api-keys">Manage keys</a></div><div class="tableWrap"><table class="dataTable"><thead><tr><th>Key</th><th>Scopes</th><th>Last used</th><th>Status</th></tr></thead><tbody id="c360Keys"></tbody></table></div></article>
+      <article class="card"><div class="cardHead"><div><h2>Sessions</h2><div class="copy">Active refresh sessions.</div></div><a class="btn secondary small" id="c360SessionsLink" href="#/sessions">Manage sessions</a></div><div class="tableWrap"><table class="dataTable"><thead><tr><th>User</th><th>Role</th><th>Started</th><th>Expires</th></tr></thead><tbody id="c360Sessions"></tbody></table></div></article>
+      <article class="card"><div class="cardHead"><div><h2>Feature flags</h2><div class="copy">Per-customer overrides.</div></div><button class="btn secondary small" id="c360FlagsBtn" type="button">Manage flags</button></div><div id="c360Flags"></div></article>
+      <article class="card"><div class="cardHead"><div><h2>Account &amp; notes</h2><div class="copy">Vendor-only commercial context.</div></div><button class="btn secondary small" id="c360NotesBtn" type="button">Edit</button></div><div id="c360Notes"></div></article>
+    </div>
+    <article class="card" id="c360SupportCard"><div class="cardHead"><div><h2>Active support sessions</h2><div class="copy">Read-only view-as-customer sessions. Visible to the customer in their audit log.</div></div><a class="btn secondary small" href="#/support-sessions">All support sessions</a></div><div id="c360SupportLaunch" hidden></div><div class="tableWrap"><table class="dataTable"><thead><tr><th>Session</th><th>Operator</th><th>Reason</th><th>Started</th><th>Ends</th><th>Requests</th><th>Status</th><th><span class="srOnly">Actions</span></th></tr></thead><tbody id="c360SupportSessions"></tbody></table></div></article>
+  </div>
+</section>
+
+<!-- Customers › Support sessions -->
+<section class="page" data-page="support-sessions" aria-label="Support sessions" hidden>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Support sessions</h2><div class="copy" id="supportSessionsNote">Read-only view-as-customer sessions across every organization.</div></div>
+    <form class="filterBar" id="supportFilters"><select id="supportFilterOrg" aria-label="Organization" data-org-select data-org-all></select><select id="supportFilterStatus" aria-label="Status"><option value="">All statuses</option><option value="active">Active</option><option value="ended">Ended or revoked</option></select><input id="supportFilterOperator" type="search" aria-label="Operator or ticket" placeholder="Operator or ticket"><button class="btn secondary small" id="supportFiltersBtn" type="submit">Refresh</button></form></div>
+  <div class="tableWrap"><table class="dataTable"><thead><tr><th>Session</th><th>Organization</th><th>Operator</th><th>Reason</th><th>Started</th><th>Ends / ended</th><th>Requests</th><th>Status</th><th><span class="srOnly">Actions</span></th></tr></thead><tbody id="supportSessionsBody"><tr><td colspan="9" class="empty">Connect to load support sessions.</td></tr></tbody></table></div>
+</div>
+</section>
+
+<!-- Customers › Users -->
+<section class="page" data-page="users" aria-label="Users" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Tenant directory</h2><div class="copy">Sign-in accounts, organization role assignments, and accepted invitations across every tenant. Role changes and deactivation revoke the account's issued tokens.</div></div>
+    <form class="filterBar" id="accessFilters"><select id="accessOrg" aria-label="Organization" data-org-select data-org-all></select><input id="accessSearch" type="search" aria-label="Search users" placeholder="Email, name, or user id"><button class="btn secondary small" id="accessSearchBtn" type="submit">Search</button></form></div>
+  <div class="tableWrap"><table class="dataTable"><thead><tr><th>User</th><th>Organization</th><th>Role</th><th>Status</th><th>Source</th><th>Last sign-in</th><th><span class="srOnly">Actions</span></th></tr></thead><tbody id="accessBody"><tr><td colspan="7" class="empty">Connect to load tenant users.</td></tr></tbody></table></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Add organization member</h2><div class="copy">Assign a role to an SSO identity or sign-in account id (the token subject).</div></div></div>
+  <form id="addMemberForm" class="formGrid" novalidate>
+    <label><span class="label">Organization</span><select id="memberOrg" data-org-select required></select></label>
+    <label><span class="label">Role</span><select id="memberRole"><option value="viewer">viewer</option><option value="operator">operator</option><option value="admin">admin</option></select></label>
+    <label><span class="label">User id</span><input id="memberUserId" required maxlength="200" autocomplete="off" spellcheck="false"></label>
+    <label><span class="label">Email</span><input id="memberEmail" type="email" maxlength="320"></label>
+    <label class="wide"><span class="label">Display name</span><input id="memberName" maxlength="160"></label>
+    <label class="wide"><span class="label">Reason</span><input id="memberReason" required maxlength="500"></label>
+    <div class="wide row"><button class="btn" type="submit" id="addMemberBtn" data-write>Add member</button><span class="formNote" id="addMemberStatus" role="status"></span></div>
+  </form>
+</div>
+</section>
+
+<!-- Customers › Invitations -->
+<section class="page" data-page="invitations" aria-label="Invitations" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Invitations</h2><div class="copy">Single-use and expiring. Only a signed-in account with the invited email can accept.</div></div><button class="btn secondary small" id="invitesBtn" type="button">Refresh</button></div>
+  <form id="inviteForm" class="formGrid" novalidate>
+    <label><span class="label">Organization</span><select id="inviteOrg" data-org-select required></select></label>
+    <label><span class="label">Role</span><select id="inviteRole"><option value="viewer">viewer</option><option value="analyst">analyst (operator)</option><option value="org_admin">org admin (admin)</option></select></label>
+    <label><span class="label">Email</span><input id="inviteEmail" type="email" required maxlength="320"></label>
+    <label><span class="label">Expires after (hours)</span><input id="inviteHours" type="number" min="1" max="720" value="72"></label>
+    <label class="wide"><span class="label">Reason</span><input id="inviteReason" required maxlength="500"></label>
+    <div class="wide row"><button class="btn" type="submit" id="createInviteBtn" data-write>Create invitation</button><span class="formNote" id="inviteStatus" role="status"></span></div>
+  </form>
+  <div class="scroll" id="invitesBody"><div class="empty">Choose an organization to see pending invitations.</div></div>
+</div>
+</section>
+
+<!-- Customers › Onboarding -->
+<section class="page" data-page="onboarding" aria-label="Onboarding" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Activation Risk</h2><div class="copy">Tenants needing account or onboarding intervention.</div></div><span class="pill warn" id="riskCount">-- risk</span></div>
+  <div class="scroll" id="riskBody"><div class="empty">No risk data loaded.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Onboarding checklist</h2><div class="copy">Activation steps for one organization, checked against its real data.</div></div></div>
+  <div class="filterBar"><select id="onboardOrg" aria-label="Organization" data-org-select></select></div>
+  <div class="scroll" id="onboardBody"><div class="empty">Choose an organization to evaluate its checklist.</div></div>
+</div>
+</section>
+
+<!-- Customers › Trial requests -->
+<section class="page" data-page="trials" aria-label="Trial requests" hidden>
+<div class="card" id="trials">
+  <div class="cardHead"><div><h2>Trial Requests</h2><div class="copy">People asking for an account. Approving one creates the organization and issues a single-use invitation; nothing is automatic, because an account here can scan hosts.</div></div><div class="row"><span class="pill" id="trialCount">-- pending</span><button class="btn secondary small" id="trialBtn" type="button">Refresh</button></div></div>
+  <div class="filterBar">
+    <select id="trialStatus" aria-label="Request status"><option value="pending">Pending</option><option value="">All</option><option value="approved">Approved</option><option value="declined">Declined</option><option value="spam">Spam</option></select>
+  </div>
+  <div class="scroll tall" id="trialBody"><div class="empty">Load the portal to see trial requests.</div></div>
+</div>
+</section>
+
+<!-- Customers › Feedback -->
+<section class="page" data-page="feedback" aria-label="Customer feedback" hidden>
+<div class="card" id="feedback">
+  <div class="cardHead"><div><h2>Feedback Intake</h2><div class="copy">Customer-reported bugs, requests, questions, ratings, and triage state across every tenant.</div></div><div class="row"><span class="pill" id="feedbackCount">-- open</span><button class="btn secondary small" id="feedbackBtn" type="button">Refresh</button></div></div>
+  <div class="filterBar">
+    <select id="feedbackStatus" aria-label="Feedback status"><option value="">All status</option><option value="new">New</option><option value="triaged">Triaged</option><option value="resolved">Resolved</option><option value="declined">Declined</option></select>
+    <select id="feedbackCategory" aria-label="Feedback type"><option value="">All types</option><option value="bug">Bug</option><option value="idea">Idea</option><option value="question">Question</option><option value="praise">Praise</option><option value="other">Other</option></select>
+    <select id="feedbackOrg" aria-label="Organization" data-org-select data-org-all></select>
+  </div>
+  <div class="scroll tall" id="feedbackBody"><div class="empty">Load the portal to see feedback.</div></div>
+</div>
+</section>
+
+<!-- Product › Usage & adoption -->
+<section class="page" data-page="usage" aria-label="Usage and adoption" hidden>
+  <div class="dashBar"><div class="rangePicker" id="usageRange" role="radiogroup" aria-label="Time range"><button type="button" role="radio" data-range="24h" aria-checked="false">24h</button><button type="button" role="radio" data-range="7d" aria-checked="true">7d</button><button type="button" role="radio" data-range="30d" aria-checked="false">30d</button><button type="button" role="radio" data-range="90d" aria-checked="false">90d</button></div><span class="refreshMeta" id="usageRefreshed"></span><button class="btn secondary small" id="usageRefreshBtn" type="button">Refresh</button></div>
+  <div id="usageNotice"></div>
+  <article class="card" data-width="full"><div class="cardHead"><div><h2>Adoption</h2><div class="copy" id="usageAdoptionCopy">Share of organizations using each feature in the range.</div></div></div><div id="usageChart"></div></article>
+  <article class="card" data-width="full"><div class="cardHead"><div><h2>Features</h2><div class="copy">Organizations using each feature, event volume, change against the previous period and when it was last used.</div></div></div>
+    <div class="tableWrap"><table class="dataTable"><thead><tr><th>Feature</th><th class="num">Organizations</th><th class="num">Events</th><th class="num">Change</th><th>Trend</th><th>Last used</th></tr></thead><tbody id="usageBody"></tbody></table></div></article>
+</section>
+
+<!-- Product › Feature flags -->
+<section class="page" data-page="flags" aria-label="Feature flags" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Flag catalog</h2><div class="copy" id="flagsSemantics">Known flags and how an override behaves.</div></div><button class="btn secondary small" id="flagsCatalogBtn" type="button">Refresh</button></div>
+  <div class="scroll" id="flagsCatalogBody"><div class="empty">Connect to load the flag catalog.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Organization overrides</h2><div class="copy">Turn a feature on or off for one customer. Every change needs a reason and is audited.</div></div></div>
+  <form id="flagsForm" class="formGrid" novalidate>
+    <label class="wide"><span class="label">Organization</span><select id="flagsOrg" data-org-select required></select></label>
+    <label><span class="label">Flag key</span><input id="flagsKey" list="flagCatalogPage" placeholder="write_path" autocomplete="off"><datalist id="flagCatalogPage"></datalist></label>
+    <label><span class="label">Enabled</span><select id="flagsEnabled"><option value="true">true</option><option value="false">false</option></select></label>
+    <label class="wide"><span class="label">Reason</span><input id="flagsReason" maxlength="500" placeholder="Pilot rollout / disabled after issue / contract tier"></label>
+    <div class="wide row"><button class="btn" type="submit" id="flagsSaveBtn" data-write>Save override</button><span class="formNote" id="flagsStatus" role="status"></span></div>
+  </form>
+  <div class="scroll" id="flagsBody"><div class="empty">Choose an organization to see its overrides.</div></div>
+</div>
+</section>
+
+<!-- Product › Announcements -->
+<section class="page" data-page="announcements" aria-label="Announcements" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2 id="announcementFormTitle">New announcement</h2><div class="copy">Shown as a banner in the customer console for everyone or selected organizations, inside an optional window.</div></div></div>
+  <form id="announcementForm" class="formGrid" novalidate>
+    <input type="hidden" id="annId">
+    <label class="wide"><span class="label">Title</span><input id="annTitle" required maxlength="140"></label>
+    <label class="wide"><span class="label">Message</span><textarea id="annBody" maxlength="2000" rows="3"></textarea></label>
+    <label><span class="label">Severity</span><select id="annSeverity"><option value="info">info</option><option value="warn">warn</option><option value="critical">critical</option></select></label>
+    <label><span class="label">Audience</span><select id="annAudience"><option value="all">All customers</option><option value="orgs">Selected organizations</option></select></label>
+    <label class="wide" id="annOrgsField" hidden><span class="label">Organization ids (comma separated)</span><input id="annOrgs" placeholder="acme-bank, globex" spellcheck="false"></label>
+    <label><span class="label">Starts (local time, optional)</span><input id="annStarts" type="datetime-local"></label>
+    <label><span class="label">Ends (local time, optional)</span><input id="annEnds" type="datetime-local"></label>
+    <div class="wide row"><button class="btn" type="submit" id="saveAnnouncementBtn" data-write>Publish announcement</button><button class="btn secondary" type="button" id="resetAnnouncementBtn">Clear form</button><span class="formNote" id="announcementStatus" role="status"></span></div>
+  </form>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Announcements</h2><div class="copy">Active, scheduled and expired notices.</div></div><button class="btn secondary small" id="announcementsBtn" type="button">Refresh</button></div>
+  <div class="scroll tall" id="announcementsBody"><div class="empty">Connect to load announcements.</div></div>
+</div>
+</section>
+
+<!-- Access › API keys -->
+<section class="page" data-page="api-keys" aria-label="API keys" hidden>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Organization API keys</h2><div class="copy">Keys authenticate as <span class="mono">Authorization: Bearer pqc_&hellip;</span> inside exactly one organization. Only a salted hash is stored and the secret is shown once.</div></div>
+    <form class="filterBar" id="keysFilters"><select id="keysOrg" aria-label="Organization" data-org-select data-org-all></select><select id="keysStatus" aria-label="Key status"><option value="">All status</option><option value="active">active</option><option value="expired">expired</option><option value="revoked">revoked</option></select><button class="btn secondary small" id="keysBtn" type="submit">Refresh</button></form></div>
+  <div class="tableWrap"><table class="dataTable"><thead><tr><th>Key</th><th>Organization</th><th>Scopes</th><th>Created</th><th>Last used</th><th>Expires</th><th>Status</th><th><span class="srOnly">Actions</span></th></tr></thead><tbody id="keysBody"><tr><td colspan="8" class="empty">Connect to load API keys.</td></tr></tbody></table></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Create API key</h2><div class="copy">read = viewer (GET only), write = operator, admin = admin. Keys can never call platform, admin, or credential routes.</div></div></div>
+  <form id="keyForm" class="formGrid" novalidate>
+    <label><span class="label">Organization</span><select id="keyOrg" data-org-select required></select></label>
+    <label><span class="label">Name</span><input id="keyName" required maxlength="80" placeholder="CI pipeline"></label>
+    <label><span class="label">Scope</span><select id="keyScope"><option value="read">read</option><option value="write">write</option><option value="admin">admin</option></select></label>
+    <label><span class="label">Expires</span><select id="keyExpiry"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="180">180 days</option><option value="365">1 year</option><option value="">Never</option></select></label>
+    <label class="wide"><span class="label">Reason</span><input id="keyReason" required maxlength="500"></label>
+    <div class="wide row"><button class="btn" type="submit" id="createKeyBtn" data-write>Create key</button><span class="formNote" id="keyStatus" role="status"></span></div>
+  </form>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Key hygiene</h2><div class="copy">How keys behave once issued.</div></div></div>
+  <ul class="guide">
+    <li>Rotate with a grace period so deployments can switch before the old key stops working.</li>
+    <li>Revocation is immediate on this server and reaches other replicas within PQC_API_KEY_CACHE_SECONDS.</li>
+    <li>A read key is refused on any request that is not GET, HEAD, or OPTIONS.</li>
+    <li>The key's organization is authoritative; an x-org-id header cannot point it at another tenant.</li>
+  </ul>
+</div>
+</section>
+
+<!-- Access › Sessions -->
+<section class="page" data-page="sessions" aria-label="Sessions" hidden>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Active sessions</h2><div class="copy" id="sessionsNote">Refresh sessions from built-in password sign-in.</div></div>
+    <form class="filterBar" id="sessionsFilters"><select id="sessionsOrg" aria-label="Organization" data-org-select data-org-all></select><input id="sessionsUser" type="search" aria-label="User id" placeholder="User id"><button class="btn secondary small" id="sessionsBtn" type="submit">Refresh</button></form></div>
+  <div class="tableWrap"><table class="dataTable"><thead><tr><th>Session</th><th>User</th><th>Organization</th><th>Role</th><th>Started</th><th>Expires</th><th><span class="srOnly">Actions</span></th></tr></thead><tbody id="sessionsBody"><tr><td colspan="7" class="empty">Connect to load sessions.</td></tr></tbody></table></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Revoke access</h2><div class="copy">Deletes refresh sessions and rejects every access token issued before now for the user or the whole organization.</div></div></div>
+  <form id="revokeForm" class="formGrid" novalidate>
+    <label class="wide"><span class="label">Organization</span><select id="revokeOrg" data-org-select data-org-all></select></label>
+    <label class="wide"><span class="label">User id (blank revokes the whole organization)</span><input id="revokeUser" maxlength="200" autocomplete="off" spellcheck="false"></label>
+    <label class="wide"><span class="label">Reason</span><input id="revokeReason" required maxlength="500"></label>
+    <div class="wide row"><button class="btn danger" type="submit" id="revokeBtn" data-write>Revoke access&hellip;</button><span class="formNote" id="revokeStatus" role="status"></span></div>
+  </form>
+</div>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Operator console sessions</h2><div class="copy" id="operatorSessionsNote">Vendor staff signed in to this console with SSO. Revoking one signs that person out on their next request.</div></div><button class="btn secondary small" id="operatorSessionsBtn" type="button">Refresh</button></div>
+  <div class="tableWrap"><table class="dataTable"><thead><tr><th>Operator</th><th>Role</th><th>Method</th><th>MFA</th><th>Last active</th><th>Expires</th><th><span class="srOnly">Actions</span></th></tr></thead><tbody id="operatorSessionsBody"><tr><td colspan="7" class="empty">Connect to load operator sessions.</td></tr></tbody></table></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Access-token cut-offs</h2><div class="copy">Revocations currently enforced by the request middleware.</div></div></div>
+  <div class="scroll" id="revocationsBody"><div class="empty">No revocations loaded.</div></div>
+</div>
+</section>
+
+<!-- Access › Operators & roles -->
+<section class="page" data-page="operators" aria-label="Operators and roles" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Platform operators</h2><div class="copy">Named credentials from PQC_PLATFORM_OPERATORS. Keys are never stored or shown. Owners only.</div></div><button class="btn secondary small" id="operatorsBtn" type="button" data-owner>Refresh</button></div>
+  <div class="scroll" id="operatorsBody"><div class="empty">Owners can load the operator roster.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Your session</h2><div class="copy">The identity and role this console sends with every request.</div></div></div>
+  <div id="whoamiBody"><div class="empty">Connect to see your identity.</div></div>
+  <ul class="guide">
+    <li><b>Owner</b> can do everything, including purge, operator roster and state migration.</li>
+    <li><b>Operator</b> can change customers, keys, sessions, flags, maintenance and announcements.</li>
+    <li><b>Support</b> and <b>Auditor</b> are read-only: write controls are disabled.</li>
+  </ul>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Multi-factor authentication</h2><div class="copy">Authenticator-app (TOTP) codes for your SSO or named operator identity. Destructive actions ask for a fresh code.</div></div><button class="btn secondary small" id="mfaRefreshBtn" type="button">Refresh</button></div>
+  <div id="mfaStatusBody"><div class="empty">Connect to see your MFA status.</div></div>
+  <div class="row actionRow"><button class="btn" id="mfaEnrolBtn" type="button">Enrol authenticator</button><button class="btn secondary" id="mfaRegenBtn" type="button">Regenerate recovery codes</button></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Reset another operator's MFA</h2><div class="copy">Owners only. Removes the operator's authenticator and recovery codes and ends their console sessions; they enrol again at next sign-in. Recorded with your reason.</div></div><button class="btn secondary small" id="mfaOperatorsBtn" type="button" data-owner>Refresh</button></div>
+  <div class="scroll" id="mfaOperatorsBody"><div class="empty">Owners can load MFA enrolments.</div></div>
+</div>
+</section>
+
+<!-- Access › Rate limits -->
+<section class="page" data-page="rate-limits" aria-label="Rate limits" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Rate limit overrides</h2><div class="copy" id="rateNote">Per-organization limits, enforced for requests authenticated as the organization (HTTP 429 with Retry-After).</div></div></div>
+  <form id="rateForm" class="formGrid" novalidate>
+    <label class="wide"><span class="label">Organization</span><select id="rateOrg" data-org-select required></select></label>
+    <label><span class="label">Scans per hour</span><input id="rateScans" type="number" min="1" max="100000" required></label>
+    <label><span class="label">API calls per minute</span><input id="rateCalls" type="number" min="1" max="100000" required></label>
+    <label class="wide"><span class="label">Reason</span><input id="rateReason" required maxlength="500"></label>
+    <div class="wide row"><button class="btn" type="submit" id="saveRateBtn" data-write>Save overrides</button><span class="formNote" id="rateStatus" role="status"></span></div>
+  </form>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Rate-limit pressure</h2><div class="copy">Recent 429s grouped by organization and route.</div></div><a class="btn secondary small" href="#/incidents">Incidents</a></div>
+  <div class="scroll" id="rateTopBody"><div class="empty">Connect to see recent rate limiting.</div></div>
+</div>
+</section>
+
+<!-- Operations › Service health -->
+<section class="page" data-page="health" aria-label="Service health" hidden>
+<div class="card" id="readiness">
+  <div class="cardHead"><div><h2>Platform Health</h2><div class="copy">API, database, Redis, worker, beat, and runtime dependency status.</div></div><button class="btn secondary small" id="healthBtn" type="button">Refresh</button></div>
+  <div class="healthGrid" id="healthBody"><div class="empty">No health data loaded.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Telemetry &amp; Alerts</h2><div class="copy">Operational signals derived from health, readiness, usage, and write-path guardrails.</div></div><button class="btn secondary small" id="telemetryBtn" type="button">Refresh</button></div>
+  <div class="scroll" id="telemetryBody"><div class="empty">No telemetry loaded.</div></div>
+</div>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Request observability</h2><div class="copy">In-process request window: status mix, busiest routes, recent errors and slow requests.</div></div><button class="btn secondary small" id="observabilityBtn" type="button">Refresh</button></div>
+  <div class="scroll" id="observabilityBody"><div class="empty">No observability data loaded.</div></div>
+</div>
+<div class="card" id="traffic">
+  <div class="cardHead"><div><h2>Traffic Lens</h2><div class="copy">Source IPs, blocked requests, rate limits, route pressure, and latency from metadata only. No bodies or query strings.</div></div><div class="row"><a class="btn secondary small" href="/vendor-admin/traffic.html">Open workspace</a><button class="btn secondary small" id="trafficBtn" type="button">Refresh</button></div></div>
+  <div class="scroll" id="trafficBody"><div class="empty">Load the portal to see traffic.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Log storage</h2><div class="copy">Durable authentication and traffic history: backend, retention, and write failures.</div></div><button class="btn secondary small" id="logStorageBtn" type="button">Refresh</button></div>
+  <div class="scroll" id="logStorageBody"><div class="empty">Connect to check log storage.</div></div>
+</div>
+</section>
+
+<!-- Operations › Incidents & abuse -->
+<section class="page" data-page="incidents" aria-label="Incidents and abuse" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Incidents &amp; Abuse</h2><div class="copy">API errors, slow requests, rate limits, and suspicious traffic pressure.</div></div><button class="btn secondary small" id="incidentsBtn" type="button">Refresh</button></div>
+  <div class="scroll tall" id="incidentsBody"><div class="empty">No incident data loaded.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Rate-limit pressure</h2><div class="copy">Recent 429s grouped by organization and route.</div></div></div>
+  <div class="scroll tall" id="abuseBody"><div class="empty">No abuse data loaded.</div></div>
+</div>
+</section>
+
+<!-- Operations › Background jobs -->
+<section class="page" data-page="jobs" aria-label="Background jobs" hidden>
+  <article class="card" data-width="full"><div class="cardHead"><div><h2>Background jobs</h2><div class="copy">Scheduled and queued work: last and next run, the last error, and runs in the past 24 hours.</div></div><div class="cardTools"><span class="refreshMeta" id="jobsRefreshed"></span><button class="btn secondary small" id="jobsRefreshBtn" type="button">Refresh</button></div></div>
+    <div class="tableWrap"><table class="dataTable"><thead><tr><th>Job</th><th>Kind</th><th>Status</th><th>Last run</th><th>Next run</th><th class="num">Runs 24h</th><th>Last error</th></tr></thead><tbody id="jobsBody"></tbody></table></div></article>
+</section>
+
+<!-- Operations › Alert routing (view code: admin-alerts.js) -->
+<section class="page" data-page="alert-routing" aria-label="Alert routing" hidden>
+  <article class="card" data-width="full"><div class="cardHead"><div><h2>Alert channels</h2><div class="copy">Send operator notifications to Slack, email, PagerDuty or a webhook. Each open item is sent once, sent again if still open after the renotify window, and PagerDuty incidents resolve when the item clears.</div></div><div class="cardTools"><span class="refreshMeta" id="alertsRefreshed"></span><button class="btn secondary small" id="alertsRefreshBtn" type="button">Refresh</button><button class="btn small" id="alertAddBtn" type="button" data-write>Add channel</button></div></div>
+    <div id="alertsSettings"></div>
+    <div id="alertTestResult" role="status" aria-live="polite"></div>
+    <div class="tableWrap"><table class="dataTable"><thead><tr><th>Channel</th><th>Target</th><th>Enabled</th><th>Min severity</th><th>Kinds</th><th>Quiet hours</th><th>Actions</th></tr></thead><tbody id="alertChannelsBody"></tbody></table></div></article>
+  <article class="card" data-width="full"><div class="cardHead"><div><h2>Delivery log</h2><div class="copy">Every send attempt, including test messages, with HTTP status, error and latency.</div></div>
+    <div class="filterBar"><select id="alertLogChannel" aria-label="Channel"><option value="">All channels</option></select><select id="alertLogStatus" aria-label="Status"><option value="">Any status</option><option value="sent">Sent</option><option value="failed">Failed</option><option value="suppressed">Suppressed</option></select><select id="alertLogEvent" aria-label="Event"><option value="">Any event</option><option value="trigger">Trigger</option><option value="renotify">Renotify</option><option value="resolve">Resolve</option><option value="digest">Digest</option><option value="test">Test</option><option value="rate_limited">Rate limited</option><option value="config_error">Config error</option></select><button class="btn secondary small" id="alertLogRefreshBtn" type="button">Refresh</button></div></div>
+    <div class="tableWrap"><table class="dataTable"><thead><tr><th>Time</th><th>Channel</th><th>Event</th><th>Status</th><th>Notification</th><th class="num">HTTP</th><th class="num">Latency</th><th>Error</th></tr></thead><tbody id="alertDeliveriesBody"></tbody></table></div></article>
+</section>
+
+<!-- Operations › Maintenance -->
+<section class="page" data-page="maintenance" aria-label="Maintenance mode" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Maintenance mode</h2><div class="copy">While on, customer writes answer 503 with your message. Sign-in, reads, platform administration, health and status keep working.</div></div><span class="pill" id="maintenanceStateBadge">unknown</span></div>
+  <div id="maintenanceBody"><div class="empty">Connect to load maintenance state.</div></div>
+  <form id="maintenanceForm" class="formGrid" novalidate>
+    <label class="wide"><span class="label">Customer message</span><textarea id="maintenanceMessage" maxlength="500" rows="3" placeholder="Database upgrade in progress. Changes are paused until 10:00 UTC."></textarea></label>
+    <label><span class="label">Expected end (local time)</span><input id="maintenanceEnds" type="datetime-local"></label>
+    <label><span class="label">Reason</span><input id="maintenanceReason" required maxlength="500"></label>
+    <div class="wide row"><button class="btn danger" type="submit" id="maintenanceOnBtn" data-write>Turn maintenance on&hellip;</button><button class="btn secondary" type="button" id="maintenanceOffBtn" data-write>Turn maintenance off</button><span class="formNote" id="maintenanceStatus" role="status"></span></div>
+  </form>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>What maintenance changes</h2><div class="copy">Scope of the switch.</div></div></div>
+  <ul class="guide">
+    <li>Customer requests other than GET, HEAD and OPTIONS answer 503 with your message.</li>
+    <li>Sign-in, reads, health, status and every platform administration route keep working.</li>
+    <li>The expected end is informational: writes stay paused until an operator turns maintenance off.</li>
+    <li>Pair it with an announcement so customers see the notice before they try to write.</li>
+  </ul>
+</div>
+</section>
+
+<!-- Operations › Autopatch -->
+<section class="page" data-page="autopatch" aria-label="Autopatch" hidden>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Platform Autopatch</h2><div class="copy">Governed self-healing intake: diagnose, approve, and prepare draft PR metadata. No auto-merge.</div></div>
+    <div class="filterBar"><select id="autopatchStatus" aria-label="Autopatch status"><option value="">All status</option><option value="needs_review">needs review</option><option value="approved">approved</option><option value="pr_ready">PR ready</option><option value="rejected">rejected</option></select><button class="btn secondary small" id="autopatchBtn" type="button">Refresh</button></div></div>
+  <div class="scroll" id="autopatchBody"><div class="empty">No autopatch items loaded.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>New intake</h2><div class="copy">Describe the failure. Redact secrets from logs before pasting.</div></div></div>
+  <form id="autopatchForm" class="formGrid" novalidate>
+    <label class="wide"><span class="label">Title</span><input id="apTitle" required maxlength="220"></label>
+    <label><span class="label">Issue type</span><select id="apType"><option value="ci_failure">CI failure</option><option value="runtime_error">Runtime error</option><option value="dependency">Dependency</option><option value="security">Security</option><option value="performance">Performance</option></select></label>
+    <label><span class="label">Severity</span><select id="apSeverity"><option value="low">low</option><option value="medium" selected>medium</option><option value="high">high</option><option value="critical">critical</option></select></label>
+    <label><span class="label">Repository</span><input id="apRepo" maxlength="240" placeholder="owner/repo"></label>
+    <label><span class="label">Failing check</span><input id="apCheck" maxlength="180"></label>
+    <label class="wide"><span class="label">Affected files (one per line)</span><textarea id="apFiles" rows="3"></textarea></label>
+    <label class="wide"><span class="label">Logs</span><textarea id="apLogs" maxlength="12000"></textarea></label>
+    <div class="wide row"><button class="btn" type="submit" id="newAutopatchBtn" data-write>Create intake</button><span class="formNote" id="autopatchStatusText" role="status"></span></div>
+  </form>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Intake detail</h2><div class="copy">Diagnosis, patch plan, and prepared PR for the selected item.</div></div></div>
+  <div class="scroll" id="autopatchDetail"><div class="empty">Select an item to review it.</div></div>
+</div>
+</section>
+
+<!-- Security › Launch readiness -->
+<section class="page" data-page="launch" aria-label="Launch readiness" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Go-Live Gate</h2><div class="copy">Machine-checked verdict. Production claims stay blocked while blockers or warnings stand. Advisories are reported but do not block.</div></div><button class="btn secondary small" id="gateBtn" type="button">Refresh</button></div>
+  <div class="scroll tall" id="gateBody"><div class="empty">Load the portal to evaluate the gate.</div></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Production Readiness</h2><div class="copy">Enterprise launch checks for auth, RLS, secrets, queue, database role, and retention.</div></div><button class="btn secondary small" id="readinessBtn" type="button">Refresh</button></div>
+  <div class="scroll tall" id="readinessBody"><div class="empty">No readiness data loaded.</div></div>
+</div>
+</section>
+
+<!-- Security › Security truth -->
+<section class="page" data-page="security-truth" aria-label="Security truth" hidden>
+<div class="card" id="security" data-width="full">
+  <div class="cardHead"><div><h2>Security Truth</h2><div class="copy">External findings, AI guardrails, and write-path blocks from integrated tools.</div></div><button class="btn secondary small" id="securityTruthBtn" type="button">Refresh</button></div>
+  <div class="scroll tall" id="securityTruthBody"><div class="empty">No Security Truth data loaded.</div></div>
+</div>
+</section>
+
+<!-- Security › Tenant isolation & RLS -->
+<section class="page" data-page="isolation" aria-label="Tenant isolation and RLS" hidden>
+<div class="card">
+  <div class="cardHead"><div><h2>Tenant Isolation</h2><div class="copy">Cross-org visibility verification. Run before go-live and after schema changes.</div></div><button class="btn secondary small" id="tenantVerifyBtn" type="button" data-write>Run Probe</button></div>
+  <div class="scroll" id="tenantVerifyBody"><div class="empty">Run the probe before go-live and after schema changes.</div></div>
+</div>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Row-level security plan</h2><div class="copy">Generated Postgres RLS policies and operator steps. Apply with a migration role, then run the tenant isolation probe.</div></div><button class="btn secondary small" id="rlsBtn" type="button">Load plan</button></div>
+  <div class="scroll" id="rlsBody"><div class="empty">Load the plan to review the SQL.</div></div>
+</div>
+</section>
+
+<!-- Security › Audit log -->
+<section class="page" data-page="audit" aria-label="Audit log" hidden>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Tenant audit log</h2><div class="copy">A customer's own tamper-evident audit log: who did what inside their organization.</div></div><button class="btn secondary small" id="tenantAuditExportBtn" type="button">Export CSV</button></div>
+  <form class="filterBar" id="tenantAuditFilters"><select id="tenantAuditOrg" aria-label="Organization" data-org-select required></select><input id="tenantAuditActor" aria-label="Actor id" placeholder="Actor id" spellcheck="false"><input id="tenantAuditAction" aria-label="Action" placeholder="Exact action" spellcheck="false"><select id="tenantAuditDecision" aria-label="Decision"><option value="">Any decision</option><option value="allow">allow</option><option value="deny">deny</option></select><button class="btn secondary small" id="tenantAuditBtn" type="submit">Load</button></form>
+  <div class="tableWrap"><table class="dataTable"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Decision</th><th>Reason</th></tr></thead><tbody id="tenantAuditBody"><tr><td colspan="6" class="empty">Choose an organization to load its audit log.</td></tr></tbody></table></div>
+</div>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Admin Audit</h2><div class="copy">Every platform administration change with operator, role, organization, reason, and time.</div></div><button class="btn secondary small" id="eventsExportBtn" type="button">Export CSV</button></div>
+  <form class="filterBar" id="eventsFilters">
+    <input id="eventsQuery" type="search" aria-label="Search audit events" placeholder="Search action, reason, details">
+    <input id="eventsOrg" aria-label="Organization id" placeholder="Organization id" spellcheck="false">
+    <input id="eventsAction" aria-label="Action prefix" placeholder="Action prefix, e.g. platform.customer_" spellcheck="false">
+    <input id="eventsActor" aria-label="Operator" placeholder="Operator" spellcheck="false">
+    <label>From <input id="eventsSince" type="date"></label>
+    <label>To <input id="eventsUntil" type="date"></label>
+    <button class="btn secondary small" id="eventsBtn" type="submit">Search</button>
+  </form>
+  <div class="scroll tall" id="eventsBody"><div class="empty">No admin events loaded.</div></div>
+  <div class="pager"><button class="btn secondary small" id="eventsPrev" type="button" disabled>Previous</button><span class="muted mono" id="eventsPageInfo">No results</span><button class="btn secondary small" id="eventsNext" type="button" disabled>Next</button></div>
+</div>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Authentication events</h2><div class="copy">Actual outcomes, not page views. External identity-provider failures need separate IdP logs.</div></div><button class="btn secondary small" id="refreshLogsBtn" type="button">Refresh</button></div>
+  <div class="filterBar"><label>Event type <select id="authEventType"><option value="">All authentication events</option><option value="login.success">Password sign-in succeeded</option><option value="login.failure">Password sign-in rejected</option><option value="saml.success">SAML succeeded</option><option value="saml.failure">SAML rejected</option><option value="refresh.success">Token refreshed</option><option value="refresh.failure">Refresh rejected</option><option value="logout.revoked">Refresh token revoked</option><option value="token.rejected">Access token rejected</option><option value="auth.rate_limited">Authentication rate limited</option></select></label><label>User id <input id="authUserFilter" type="search" maxlength="160"></label><label>Since <input id="authSince" type="date"></label></div>
+  <p class="copy" id="loggingHealth" role="status">Log storage has not been checked.</p>
+  <div class="scroll tall" id="logsBody"><div class="empty">No logs loaded.</div></div>
+</div>
+</section>
+
+<!-- Security › Data & retention -->
+<section class="page" data-page="data" aria-label="Data and retention" hidden>
+<div class="card" data-width="full">
+  <div class="cardHead"><div><h2>Retention</h2><div class="copy">Delete aged operational records. Audit logs are immutable evidence and are never deleted. Preview before deleting.</div></div><button class="btn secondary small" id="retentionPolicyBtn" type="button">Refresh policy</button></div>
+  <div id="retentionPolicyBody"><div class="empty">Connect to load the retention policy.</div></div>
+  <form id="retentionForm" class="formGrid threeUp" novalidate>
+    <label><span class="label">Scans (days)</span><input id="retScans" type="number" min="1" max="3650" value="365"></label>
+    <label><span class="label">Scan results (days)</span><input id="retScanResults" type="number" min="1" max="3650" value="365"></label>
+    <label><span class="label">Validation jobs (days)</span><input id="retValidation" type="number" min="1" max="3650" value="365"></label>
+    <label><span class="label">Webhook events (days)</span><input id="retWebhooks" type="number" min="1" max="3650" value="180"></label>
+    <label><span class="label">Login events (days)</span><input id="retLogins" type="number" min="1" max="3650" value="365"></label>
+    <label><span class="label">Admin events (days)</span><input id="retAdminEvents" type="number" min="1" max="3650" value="365"></label>
+    <div class="wide row"><button class="btn secondary" type="submit" id="retentionDryRunBtn">Preview (dry run)</button><button class="btn danger" type="button" id="retentionRunBtn" data-write>Delete matching rows&hellip;</button></div>
+  </form>
+  <div class="scroll" id="retentionResult"></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>State coverage</h2><div class="copy">SQLite-only auxiliary tables that block multi-replica scale until migrated to Postgres.</div></div><button class="btn secondary small" id="stateCoverageBtn" type="button">Refresh</button></div>
+  <div class="scroll" id="stateCoverageBody"><div class="empty">Connect to load state coverage.</div></div>
+  <div class="row actionRow"><button class="btn secondary" id="migrateDryRunBtn" type="button" data-owner>Preview migration</button><button class="btn danger" id="migrateRunBtn" type="button" data-owner>Migrate to Postgres&hellip;</button></div>
+  <div class="scroll" id="migrateResult"></div>
+</div>
+<div class="card">
+  <div class="cardHead"><div><h2>Customer data export</h2><div class="copy">GDPR Article 15/20 export (JSON, owner or operator) or the customer audit package (ZIP). Every export is recorded.</div></div></div>
+  <form id="exportForm" class="formGrid" novalidate>
+    <label class="wide"><span class="label">Organization</span><select id="exportOrg" data-org-select required></select></label>
+    <div class="wide row"><button class="btn secondary" type="submit" id="gdprExportBtn" data-write>Download GDPR export</button><button class="btn secondary" type="button" id="exportAuditPackageBtn">Download audit package</button><span class="formNote" id="exportStatus" role="status"></span></div>
+  </form>
+</div>
+</section>
+
+
+
+
+<!-- Notifications -->
+<section class="page" data-page="notifications" aria-label="Notifications" hidden>
+  <article class="card" data-width="full"><div class="cardHead"><div><h2>All notifications</h2><div class="copy">Signals the platform raised for operators, grouped by severity.</div></div><div class="cardTools"><span class="refreshMeta" id="notesRefreshed"></span><button class="btn secondary small" id="notesMarkAllBtn" type="button">Mark all read</button><button class="btn secondary small" id="notesRefreshBtn" type="button">Refresh</button></div></div>
+    <div id="notificationsBody"></div></article>
+</section>
+
+<footer class="portalFoot"><span>Airlock Command / Platform administration</span><span class="footKeys"><kbd>Ctrl</kbd> <kbd>K</kbd> search</span><a href="/enterprise-admin">Operations guide &#8599;</a></footer>
+</main></div>
+
+<div class="drawer" id="drawer" aria-hidden="true" inert>
+  <div class="backdrop" id="closeDrawerBackdrop"></div>
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="detailName">
+    <div class="panelHead">
+      <div><span class="eyebrow">Manage customer</span><h3 id="detailName">Customer</h3><div class="copy mono" id="detailOrgId"></div></div>
+      <button class="btn secondary small" id="closeDrawer" type="button">Close</button>
+    </div>
+    <div class="detailGrid">
+      <div class="detailCard"><small>Risk</small><b id="detailRisk">--</b></div>
+      <div class="detailCard"><small>Scans</small><b id="detailScans">--</b></div>
+      <div class="detailCard"><small>Assets</small><b id="detailAssets">--</b></div>
+    </div>
+    <div class="drawerNav" role="navigation" aria-label="Customer sections"><button class="btn secondary small" type="button" data-scroll-to="drawerControls">Controls</button><button class="btn secondary small" type="button" data-scroll-to="drawerLifecycle">Lifecycle</button><button class="btn secondary small" type="button" data-scroll-to="drawerAccess">Access</button><button class="btn secondary small" type="button" data-scroll-to="drawerFlags">Flags</button><button class="btn secondary small" type="button" data-scroll-to="drawerActivity">Activity</button></div>
+    <div class="sectionTitle" id="drawerControls">Customer Controls</div>
+    <div class="formGrid">
+      <label><span class="label">Plan</span><input id="detailPlan" /></label>
+      <label><span class="label">Status</span><select id="detailStatus"><option>active</option><option>suspended</option><option>archived</option><option>past_due</option><option>trial</option></select></label>
+      <label><span class="label">Lifecycle stage</span><input id="detailStage" placeholder="trial, onboarding, live, renewal" /></label>
+      <label><span class="label">Renewal date</span><input id="detailRenewal" placeholder="2026-12-31" /></label>
+      <label class="wide"><span class="label">Account owner</span><input id="detailOwner" placeholder="Internal owner" /></label>
+      <label class="wide"><span class="label">Internal notes</span><textarea id="detailNotes" placeholder="Vendor-only notes"></textarea></label>
+    </div>
+    <div class="row actionRow"><button class="btn" id="saveCustomerBtn" type="button" data-write>Save Customer</button><button class="btn secondary" id="auditPackageBtn" type="button">Audit Package</button><button class="btn secondary" id="gdprBtn" type="button" data-write>GDPR export</button></div>
+    <div class="status" id="detailStatusText" role="status" aria-live="polite"></div>
+    <div class="sectionTitle" id="drawerLifecycle">Lifecycle</div>
+    <div class="formGrid">
+      <label class="wide"><span class="label">Display name</span><input id="detailNameInput" maxlength="160" /></label>
+      <label class="wide"><span class="label">Reason (required for rename, suspend, resume, archive, purge)</span><input id="detailReason" maxlength="500" placeholder="Non-payment / contract ended / customer request" /></label>
+    </div>
+    <div class="row actionRow"><button class="btn secondary" id="renameCustomerBtn" type="button" data-write>Rename</button><button class="btn danger" id="suspendBtn" type="button" data-write>Suspend</button><button class="btn secondary" id="resumeBtn" type="button" data-write>Resume</button><button class="btn danger" id="archiveBtn" type="button" data-write>Archive&hellip;</button><button class="btn danger" id="purgeBtn" type="button" data-owner>Purge&hellip;</button></div>
+    <div class="sectionTitle">Onboarding Checklist</div><div class="scroll" id="detailOnboarding"></div>
+    <div class="sectionTitle" id="drawerAccess">Users &amp; access</div>
+    <div class="row"><button class="btn secondary small" type="button" data-jump="users">Manage users</button><button class="btn secondary small" type="button" data-jump="api-keys">Manage API keys</button><button class="btn secondary small" type="button" data-jump="sessions">Manage sessions</button></div>
+    <div class="scroll" id="detailUsers"></div>
+    <div class="scroll" id="detailKeys"></div>
+    <div id="detailRate"></div>
+    <div class="sectionTitle" id="drawerFlags">Feature Flags</div>
+    <p class="copy" id="flagSemantics"></p>
+    <div class="formGrid">
+      <label><span class="label">Flag key</span><input id="featureFlagKey" list="flagCatalog" placeholder="write_path, remediation_candidates, demo_lab" /><datalist id="flagCatalog"></datalist></label>
+      <label><span class="label">Enabled</span><select id="featureFlagEnabled"><option value="true">true</option><option value="false">false</option></select></label>
+      <label class="wide"><span class="label">Reason</span><input id="featureFlagReason" placeholder="Pilot rollout / disabled after issue / contract tier" /></label>
+    </div>
+    <div class="row actionRow"><button class="btn secondary" id="saveFeatureFlagBtn" type="button" data-write>Save Flag</button></div>
+    <div class="scroll" id="detailFeatureFlags"></div>
+    <div class="sectionTitle" id="drawerActivity">Remediation Status</div><div class="scroll" id="detailRemediations"></div>
+    <div class="sectionTitle">Recent Scans</div><div class="scroll" id="detailScansList"></div>
+    <div class="sectionTitle">Sign-in history</div>
+    <div class="filterBar"><label>Since <input id="detailLoginsSince" type="date"></label><button class="btn secondary small" id="detailLoginsBtn" type="button">Load full history</button></div>
+    <div class="scroll" id="detailLogins"></div>
+    <div class="sectionTitle">Customer Admin Events</div><div class="scroll" id="detailEvents"></div>
+  </section>
+</div>
+
+<div class="dialogLayer" id="actionDialog" hidden>
+  <div class="backdrop" id="actionDialogBackdrop"></div>
+  <form class="dialogPanel" id="actionDialogForm" role="dialog" aria-modal="true" aria-labelledby="actionDialogTitle" aria-describedby="actionDialogBody" novalidate>
+    <h3 id="actionDialogTitle">Confirm</h3>
+    <p class="copy" id="actionDialogBody"></p>
+    <div class="dialogFields" id="actionDialogFields"></div>
+    <label id="actionDialogReasonField"><span class="label">Reason (recorded in the audit trail)</span><textarea id="actionDialogReason" rows="3" maxlength="500"></textarea></label>
+    <label id="actionDialogConfirmField"><span class="label" id="actionDialogConfirmLabel">Type to confirm</span><input id="actionDialogConfirm" autocomplete="off" spellcheck="false"></label>
+    <div class="secretBox" id="actionDialogSecret" hidden><code class="secretValue" id="actionDialogSecretValue"></code><button class="btn secondary small" id="actionDialogCopy" type="button">Copy</button></div>
+    <p class="dialogError" id="actionDialogError" role="alert"></p>
+    <div class="row dialogActions"><button class="btn secondary" id="actionDialogCancel" type="button">Cancel</button><button class="btn" id="actionDialogSubmit" type="submit">Confirm</button></div>
+  </form>
+</div>
+<div class="dialogLayer" id="alertDialog" hidden>
+  <div class="backdrop" id="alertDialogBackdrop"></div>
+  <form class="dialogPanel" id="alertDialogForm" role="dialog" aria-modal="true" aria-labelledby="alertDialogTitle" aria-describedby="alertDialogIntro" novalidate>
+    <h3 id="alertDialogTitle">Add alert channel</h3>
+    <p class="copy" id="alertDialogIntro">Secrets are encrypted at rest and never shown again; leave the target empty when editing to keep the stored one.</p>
+    <div class="dialogFields">
+      <label><span class="label">Type</span><select id="alertKind"><option value="slack_webhook">Slack incoming webhook</option><option value="email">Email</option><option value="pagerduty">PagerDuty Events API v2</option><option value="generic_webhook">Generic webhook (JSON)</option></select></label>
+      <label><span class="label">Name</span><input id="alertName" maxlength="80" autocomplete="off" placeholder="On-call Slack"></label>
+      <label><span class="label" id="alertTargetLabel">Webhook URL</span><input id="alertTarget" autocomplete="off" spellcheck="false"><span class="formNote" id="alertTargetHelp"></span></label>
+      <label><span class="label">Minimum severity</span><select id="alertSeverity"><option value="critical">Critical only</option><option value="warn">Warn and critical</option><option value="info">Everything (info, warn, critical)</option></select></label>
+      <div><span class="label">Only these kinds (leave all unchecked for every kind)</span><div class="row" id="alertKinds"></div></div>
+      <label class="check"><input type="checkbox" id="alertEnabled"><span>Enabled</span></label>
+      <label class="check"><input type="checkbox" id="alertQuietOn"><span>Quiet hours: hold alerts during a daily window</span></label>
+      <div class="formGrid" id="alertQuietFields" hidden>
+        <label><span class="label">From</span><input id="alertQuietStart" type="time" value="22:00"></label>
+        <label><span class="label">Until</span><input id="alertQuietEnd" type="time" value="07:00"></label>
+        <label><span class="label">Time zone (IANA)</span><input id="alertQuietTz" value="UTC" autocomplete="off" spellcheck="false"></label>
+        <label class="check"><input type="checkbox" id="alertQuietCritical"><span>Still send critical</span></label>
+      </div>
+      <label><span class="label">Reason (recorded in the audit trail)</span><textarea id="alertReason" rows="2" maxlength="500"></textarea></label>
+    </div>
+    <p class="dialogError" id="alertDialogError" role="alert"></p>
+    <div class="row dialogActions"><button class="btn secondary" id="alertDialogCancel" type="button">Cancel</button><button class="btn" id="alertDialogSubmit" type="submit">Save channel</button></div>
+  </form>
+</div>
+</body></html>

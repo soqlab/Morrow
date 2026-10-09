@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scanner identity | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="What the Airlock Command free readiness checker is, what it connects to, how often, and how to make it stop. For an operator who found a TLS handshake from us in their logs.">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/experience.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/check.css?v=20261005">
+  <script src="/ui/fabric.js?v=20260915-perf2" defer></script>
+  <script src="/ui/motion.js?v=20260918-idle" defer></script>
+  <script src="/ui/check-pages.js?v=20261005" defer></script>
+</head>
+<body class="public-document">
+<div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+<a class="skip-link" href="#content">Skip to content</a>
+<main class="doc-shell" id="content">
+  <header class="topbar">
+    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+  </header>
+
+  <section class="doc-hero">
+    <div>
+      <span class="eyebrow">Free checker / Scanner identity</span>
+      <h1>You found us in your logs.</h1>
+      <p class="lead">Somebody used the free post-quantum readiness check at <a href="/check">/check</a> and typed your hostname. That produced one, or at most two, TLS handshakes to your server on port 443 and nothing else. This page says exactly what we do, so you can identify the traffic and decide what to do about it. The <a href="/abuse">opt-out</a> is unconditional and takes effect before DNS.</p>
+    </div>
+    <aside class="doc-meta">
+      <b>Make it stop</b>
+      <p><a href="/abuse">Ask never to be checked</a>. No reason needed. Write to <span data-abuse-contact>the address on the <a href="/abuse">opt-out page</a> &mdash; no abuse address is configured on this deployment yet</span>.</p>
+    </aside>
+  </section>
+
+  <section class="doc-section">
+    <h2>What You Will Have Seen</h2>
+    <p>One TCP connection to port 443, a complete TLS handshake with your hostname in the SNI, and then the socket closing with no request sent. Usually a second connection within a second or two, which sends one ClientHello and reads your ServerHello without completing the handshake &mdash; some stacks log that as a handshake failure or an incomplete connection, and that is what it is.</p>
+    <p>Your web server's access log probably holds nothing at all, because <strong>no HTTP request is ever sent to your host</strong>. If you were looking for a User-Agent in those logs, that is why there is none.</p>
+    <p class="notice">The facts in the table below are read from the code that runs this service, not from intention. The policy pages this links to (<a href="/public-check/terms">terms</a>, <a href="/public-check/acceptable-use">acceptable use</a>, <a href="/public-check/privacy">privacy</a>, <a href="/abuse">abuse and opt-out</a>) are drafts awaiting review by a qualified lawyer, and the egress address list below has not yet been filled in by the operator.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Identification</h2>
+    <div class="table-wrap">
+      <table class="facts">
+        <thead><tr><th scope="col">Property</th><th scope="col">Value</th></tr></thead>
+        <tbody>
+          <tr><td>Service</td><td class="value">Airlock Command free post-quantum readiness check<span class="note">A free, no-account web page. A visitor types one hostname; this is the result of that.</span></td></tr>
+          <tr><td>Page</td><td class="value">/check<span class="note">The guardrails and their live values are published at /api/public-check/config.</span></td></tr>
+          <tr><td>User-Agent</td><td class="value">airlock-public-check/1.0<span class="note">Sent on our outbound HTTP requests to the Certificate Transparency search service, not to you. We send your host no HTTP request, and a TLS handshake carries no User-Agent, so this string will not appear in your logs.</span></td></tr>
+          <tr><td>Egress addresses</td><td class="value">PLACEHOLDER &mdash; not yet published<span class="note">The operator must list the addresses this service connects from here. Until then, identify the traffic by the behaviour described on this page, and use the opt-out rather than a firewall rule if you want it to stop.</span></td></tr>
+          <tr><td>Reverse DNS</td><td class="value">PLACEHOLDER &mdash; not yet published<span class="note">To be stated by the operator alongside the egress addresses.</span></td></tr>
+          <tr><td>Abuse and opt-out</td><td class="value"><a href="/abuse">/abuse</a><span class="note">Honoured before DNS resolution. Covers the domain and every name under it, and deletes the cached result.</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="doc-section">
+    <h2>What We Connect To</h2>
+    <div class="table-wrap">
+      <table class="facts">
+        <thead><tr><th scope="col">Behaviour</th><th scope="col">What the code does</th></tr></thead>
+        <tbody>
+          <tr><td>Ports</td><td class="value">TCP 443 only<span class="note">The port is not a setting. A configurable port would make this a port prober, which is the thing the guardrails exist to prevent, and a test asserts no such setting exists.</span></td></tr>
+          <tr><td>Connections per check</td><td class="value">At most 2, to one hostname<span class="note">The result published to the visitor states how many were actually made.</span></td></tr>
+          <tr><td>First connection</td><td class="value">An ordinary verified TLS handshake<span class="note">Certificate verification on, hostname checking on, ALPN offering h2 and http/1.1 exactly as a browser does. We read the negotiated version, cipher, ALPN and your leaf certificate, then close. Nothing is sent after the handshake.</span></td></tr>
+          <tr><td>Second connection</td><td class="value">One ClientHello, offering post-quantum key-exchange groups<span class="note">We read the ServerHello to see which group you chose, then close. The handshake is never completed and no application data is ever sent. It is attempted only if something answered on 443, and only if the check has time left.</span></td></tr>
+          <tr><td>HTTP requests to you</td><td class="value">None, ever<span class="note">No GET, no HEAD, no robots.txt fetch, no crawl.</span></td></tr>
+          <tr><td>Redirects</td><td class="value">Never followed<span class="note">There is no HTTP request to you to redirect. Our own requests to the Certificate Transparency service are made with redirects disabled.</span></td></tr>
+          <tr><td>Address pinning</td><td class="value">The address we checked is the address we connect to<span class="note">The hostname is resolved once, every answer must be a globally routable address, and both connections go to that one address while SNI and certificate verification still use the hostname. A second DNS answer cannot redirect us.</span></td></tr>
+          <tr><td>Never contacted</td><td class="value">Anything that is not a public host<span class="note">IP literals, wildcards, credentials before the host, single-label names, any port other than 443, and names that resolve to private, loopback, link-local (including 169.254.169.254), carrier-grade NAT, reserved, multicast or unspecified addresses, in IPv4 and IPv6, with IPv4-mapped and 6to4 forms unwrapped first. A name that resolves to one public and one private address is refused outright.</span></td></tr>
+          <tr><td>Not done at all</td><td class="value">No port scanning, no subdomain discovery, no vulnerability probing, no authentication attempts, no crawling, no OCSP or CRL fetch, no TLS-version or cipher enumeration<span class="note">The platform's full scanner does several of those. This service deliberately never calls it.</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="doc-section">
+    <h2>How Often</h2>
+    <div class="table-wrap">
+      <table class="facts">
+        <thead><tr><th scope="col">Limit</th><th scope="col">Default on this deployment</th></tr></thead>
+        <tbody>
+          <tr><td>Per target domain</td><td class="value">4 checks an hour, whoever asks<span class="note">This is the limit that protects you. It is per domain, not per requester, so the service cannot be pointed at one host repeatedly even from many addresses.</span></td></tr>
+          <tr><td>Cache</td><td class="value">About <span data-config="cache_minutes">60</span> minutes per domain<span class="note">A result is served from storage. A popular domain is checked once per window, not once per visitor, and reading a shared permalink never causes a connection to you.</span></td></tr>
+          <tr><td>Per requesting address</td><td class="value">3 checks a minute, 10 an hour</td></tr>
+          <tr><td>Whole service</td><td class="value">240 checks an hour, and 4 running at once</td></tr>
+          <tr><td>Timeouts</td><td class="value">6 seconds on the socket, 15 seconds for the whole check<span class="note">A slow or silent host costs us the timeout and is then reported as a failed check.</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine">These are the shipped defaults. The values this deployment is actually running are published, live, at <code>GET /api/public-check/config</code> and shown in the guardrail table on <a href="/check#guardrails">/check</a>.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Making It Stop</h2>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Opt out (preferred)</strong><p>Write to the abuse address and name your domain. It is then refused before its name is resolved, for every name under it, and the cached result is deleted. Nothing reaches your network at all. See <a href="/abuse">abuse and opt-out</a>.</p></div>
+      <div class="matrix-row"><strong>Block us</strong><p>You can, and nobody here objects. Once the egress list above is published it will be there for exactly this purpose. A blocked connection produces a result reported as <em>failed</em>, with no verdict and no score &mdash; a failed check never reads as a clean one.</p></div>
+      <div class="matrix-row"><strong>Ask what happened</strong><p>The operator can look up every check attempted against your domain: the times, the outcomes including refusals, and a salted hash per requester. The requester's IP address is not stored and cannot be recovered from the hash.</p></div>
+    </div>
+  </section>
+
+  <section class="doc-section">
+    <h2>Why This Traffic Exists</h2>
+    <p>Post-quantum migration deadlines are published and dated, and most people have no idea what their own TLS endpoint negotiates. The free check answers that in a few seconds with every figure sourced, and it is the shop window for the paid platform. Reading a public TLS handshake is the same thing a browser and SSL Labs do; that does not entitle us to your traffic if you would rather we left you alone, which is why the opt-out needs no reason and takes effect before DNS.</p>
+    <p>The rules the people using it are held to are on the <a href="/public-check/acceptable-use">acceptable-use policy</a>: no automation, no enumeration, no using it to map someone else's attack surface. What is recorded about you, and published, is in the <a href="/public-check/privacy">privacy notice</a>.</p>
+  </section>
+
+  <footer>
+    <span>Airlock Command / Free checker</span>
+    <nav><a href="/check">Free check</a> / <a href="/public-check/terms">Terms of use</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/abuse">Abuse &amp; opt-out</a> / <a href="/public-check/privacy">Checker privacy</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
+  </footer>
+</main>
+</body>
+</html>

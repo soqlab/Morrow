@@ -1,0 +1,175 @@
+/* ==========================================================================
+   Penumbra — the shared design system.
+
+   Every surface on this site loads this file: the public pages, the customer
+   console and the operator workspaces. Tokens and primitives live here; each
+   surface layers only what is specific to it on top.
+
+   Type is self-hosted. The public pages assert that they make no third-party
+   requests at all, so nothing here may reach a font CDN.
+   ========================================================================== */
+@font-face {
+  font-family: "Archivo";
+  src: url("/ui/fonts/archivo.woff2") format("woff2");
+  font-style: normal; font-weight: 500 800; font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/ui/fonts/plex-sans.woff2") format("woff2");
+  font-style: normal; font-weight: 400 600; font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/ui/fonts/plex-mono-400.woff2") format("woff2");
+  font-style: normal; font-weight: 400; font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/ui/fonts/plex-mono-500.woff2") format("woff2");
+  font-style: normal; font-weight: 500; font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/ui/fonts/plex-mono-600.woff2") format("woff2");
+  font-style: normal; font-weight: 600; font-display: swap;
+}
+
+:root {
+  /* Ground, from deepest to the panels that sit on it. */
+  --ink: #05070B;
+  --slab: #0A0E15;
+  --slab-2: #0D131C;
+  --line: #1A2130;
+  --line-soft: #131925;
+
+  /* Text, from loudest to quietest. --fog-dim is lifted from the reference's
+     #5E6878, which measured 2.86:1 on --line: it carries eyebrows, table heads
+     and fine print, so it has to clear AA on every ground it lands on. */
+  --chalk: #E9EDF4;
+  --fog: #8A94A6;
+  --fog-dim: #828C9E;      /* 4.75:1 on --line */
+
+  /* One accent, three states. --iris is the mark colour: rules, dots, borders,
+     fills. --iris-text is the same hue lifted to AA for words, since #7B6BFF as
+     text measured 4.13:1. --iris-solid is dark enough to carry white on top. */
+  --iris: #7B6BFF;
+  --iris-text: #9D90FF;    /* 6.03:1 on --line */
+  --iris-solid: #5A4BD6;   /* white on it: 6.15:1 */
+  --iris-dim: #4B3FA8;
+  --ember: #D4913F;
+  --jade: #4FB58B;
+  --rose: #E46E62;         /* 5.14:1 on --line; the reference's #D9594C was 4.20 */
+
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --gut: clamp(20px,5vw,72px);
+  --maxw: 1280px;
+
+  /* Kept so older rules still referencing the previous names resolve. */
+  --air-font: var(--body);
+  --air-paper: var(--ink);
+  --air-ink: var(--chalk);
+  --air-muted: var(--fog);
+  --air-line: var(--line);
+  --air-accent: var(--iris);
+}
+
+[hidden] { display: none !important; }
+
+/* ---------- primitives ---------- */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--fog-dim);
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 24px;
+}
+.eyebrow::before { content: ""; width: 26px; height: 1px; background: var(--iris); flex: none; }
+
+.fine { font-family: var(--mono); font-size: 11.5px; color: var(--fog-dim); letter-spacing: .03em; }
+.lede { font-size: clamp(1rem,1.25vw,1.16rem); color: var(--fog); max-width: 62ch; }
+
+.btn {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase;
+  padding: 11px 20px; border: 1px solid var(--line); color: var(--chalk);
+  display: inline-flex; align-items: center; gap: 9px; background: transparent;
+  border-radius: 0; box-shadow: none; cursor: pointer;
+  transition: border-color .25s ease, background .25s ease, color .25s ease;
+}
+.btn:hover { border-color: var(--iris); background: rgba(123,107,255,.09); color: var(--chalk); }
+.btn.primary, .btn.pri, .btn-solid {
+  background: var(--chalk); color: var(--ink); border-color: var(--chalk); font-weight: 600;
+}
+.btn.primary:hover, .btn.pri:hover, .btn-solid:hover { background: var(--iris-solid); border-color: var(--iris-solid); color: #fff; }
+
+/* A chip states a condition: a dot, a word, nothing else. */
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 3px 9px;
+  border: 1px solid var(--line); border-radius: 0;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em;
+  text-transform: uppercase; white-space: nowrap; color: var(--fog);
+}
+.chip::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+.chip.crit, .chip.bad { color: var(--rose); border-color: rgba(228,110,98,.42); background: rgba(228,110,98,.09); }
+.chip.warn { color: var(--ember); border-color: rgba(212,145,63,.4); background: rgba(212,145,63,.08); }
+.chip.ok { color: var(--jade); border-color: rgba(79,181,139,.4); background: rgba(79,181,139,.08); }
+.chip.info { color: var(--iris-text); border-color: rgba(123,107,255,.4); background: rgba(123,107,255,.08); }
+
+.skip-link {
+  position: fixed; top: -100px; left: 16px; padding: 12px 20px; z-index: 1000;
+  background: var(--chalk); color: var(--ink); font-family: var(--mono); font-size: 11.5px;
+}
+.skip-link:focus { top: 12px; }
+
+:focus-visible { outline: 2px solid var(--iris); outline-offset: 3px; border-radius: 2px; }
+
+/* ---------- live motion shared by every surface ---------- */
+@keyframes pnPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
+@keyframes pnSlide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes pnRowIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* Anything claiming to be observing something carries a steady pulse. */
+.live {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--jade); display: inline-flex; align-items: center; gap: 7px;
+}
+.live i { width: 6px; height: 6px; border-radius: 50%; background: var(--jade); animation: pnPulse 1.9s ease-in-out infinite; }
+
+/* A marquee of standards and deadlines. Pauses when pointed at. */
+.ticker { overflow: hidden; border-block: 1px solid var(--line); background: var(--slab); padding: 13px 0; }
+.ticker-track { display: flex; width: max-content; animation: pnSlide 46s linear infinite; }
+.ticker:hover .ticker-track { animation-play-state: paused; }
+.ticker span {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .1em; color: var(--fog-dim);
+  padding: 0 26px; white-space: nowrap; text-transform: uppercase;
+}
+.ticker span b { color: var(--chalk); font-weight: 500; }
+
+/* ---------- the generative field ---------- */
+/* fabric.js mounts a canvas into .page-fabric; motion.js decides when it may
+   move. Decorative and inert: fixed, unclickable, hidden from assistive tech. */
+.page-fabric {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  opacity: 0; transition: opacity 1.4s ease;
+}
+.page-fabric.scene-ready { opacity: .5; }
+body[data-motion="paused"] .page-fabric.scene-ready { opacity: .22; }
+.page-fabric canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  -webkit-mask-image: linear-gradient(180deg,transparent 0,#000 16%,#000 84%,transparent 100%);
+  mask-image: linear-gradient(180deg,transparent 0,#000 16%,#000 84%,transparent 100%);
+}
+
+/* Held still on a page nobody has touched for a while: a pulse and a marquee
+   that never end keep the compositor drawing at display rate for no reader. */
+body[data-idle] .live i, body[data-idle] .ticker-track { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  .page-fabric { transition: none; }
+  .live i, .ticker-track { animation: none; }
+}

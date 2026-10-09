@@ -1,0 +1,29 @@
+{
+  "base_url": "https://staging.your-company.com",
+  "allowed_origins": [],
+  "tests": [
+    {"kind": "login", "steps": [
+      {"action": "visit", "path": "/login"},
+      {"action": "fill", "selector": "[name=email]", "value_env": "GATEWAY_TEST_EMAIL"},
+      {"action": "fill", "selector": "[name=password]", "value_env": "GATEWAY_TEST_PASSWORD"},
+      {"action": "click", "selector": "button[type=submit]"},
+      {"action": "expect_path", "path": "/account"}
+    ]},
+    {"kind": "forms", "steps": [
+      {"action": "visit", "path": "/contact"},
+      {"action": "fill", "selector": "[name=message]", "value": "Approved staging gateway test"},
+      {"action": "click", "selector": "button[type=submit]"},
+      {"action": "expect_text", "text": "Message received"}
+    ]},
+    {"kind": "uploads", "steps": [
+      {"action": "visit", "path": "/upload"},
+      {"action": "upload", "selector": "input[type=file]", "file_env": "GATEWAY_TEST_UPLOAD"},
+      {"action": "click", "selector": "button[type=submit]"},
+      {"action": "expect_text", "text": "Upload complete"}
+    ]},
+    {"kind": "websocket", "steps": [
+      {"action": "visit", "path": "/"},
+      {"action": "websocket", "path": "/ws", "send": "gateway-test-ping", "expect": "gateway-test-pong"}
+    ]}
+  ]
+}

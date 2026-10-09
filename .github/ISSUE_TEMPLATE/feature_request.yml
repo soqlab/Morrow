@@ -1,0 +1,80 @@
+name: Feature request
+description: Suggest a capability, a scanner check, or a change in behaviour.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the problem before the solution. The most useful requests explain
+        what you were trying to do and why the current behaviour got in the way — that
+        often leads somewhere better than the first idea either of us has.
+
+        If you are planning to implement it yourself, say so and read
+        [CONTRIBUTING.md](https://github.com/yasseennandally/pqc_scanner/blob/main/CONTRIBUTING.md)
+        first. For anything substantial it is worth agreeing the shape here before you
+        write the code.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to accomplish, and what stops you today?
+      placeholder: >
+        I need to report PQC readiness to an auditor who wants evidence per business unit,
+        but assets only carry a team, so I cannot group the estate the way they ask for.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+      description: >
+        Your suggested behaviour. Be concrete where you can — an endpoint, a field, a
+        screen, a rule.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this touch?
+      options:
+        - Scanner / discovery (new check, new probe, accuracy)
+        - Quantum risk modelling and scoring
+        - Remediation workflow
+        - CBOM / evidence / reporting
+        - Customer console (/ui/)
+        - Operator portal (/vendor-admin/)
+        - API
+        - AI provider layer
+        - Gateway (Go WAF / reverse proxy)
+        - Deployment, Docker, infrastructure
+        - Documentation
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: >
+        Including any workaround you are using now, and why it is not enough. If you
+        checked whether an existing endpoint already does this, say what you found.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >
+        Standards or regulations that require it, how many assets you are dealing with,
+        screenshots or mockups. **No real customer names, hostnames or credentials** —
+        this issue is public.
+
+  - type: checkboxes
+    id: contributing
+    attributes:
+      label: Would you like to implement it?
+      options:
+        - label: I would be willing to open a pull request for this.

@@ -1,0 +1,287 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, Sprint*]
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pqc
+          POSTGRES_PASSWORD: pqc
+          POSTGRES_DB: pqc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pqc -d pqc"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      PYTHONPATH: .
+      PQC_MAIN_DB_BACKEND: postgres
+      DATABASE_URL: postgresql://pqc:pqc@localhost:5432/pqc
+      PQC_PRODUCT_DATABASE_URL: postgresql://pqc:pqc@localhost:5432/pqc
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/1
+      # Must be a valid Fernet key: 32 raw bytes, url-safe base64 encoded. The previous value
+      # ("ci-test-master-key-32-bytes-long!!") is 34 characters of non-base64 text, so
+      # Fernet() rejected it with "Fernet key must be 32 url-safe base64-encoded bytes" — and
+      # because backend/conftest.py sets its key with os.environ.setdefault, this invalid value
+      # won over the valid one, failing vault-backed tests in CI while they passed locally.
+      # This is base64url of b"pqc-scanner-test-only-key-32byte" — a throwaway, never a real key.
+      PQC_VAULT_MASTER_KEY: cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=
+      PQC_AUTH_REQUIRED: "0"
+      PQC_DEFAULT_ROLE: admin
+      # Runs the dual-backend feature-store tests against the postgres service
+      # above instead of skipping them. Without this the tests that prove a
+      # migrated module behaves identically on both engines skip silently, and CI
+      # goes green on exactly the bug they exist to catch (a constraint failure
+      # aborts the transaction on Postgres but not on SQLite).
+      # See docs/FEATURE_STORE_POSTGRES_MIGRATION.md.
+      PQC_TEST_PG_DSN: postgresql://pqc:pqc@localhost:5432/pqc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reject generated runtime artifacts
+        run: |
+          tracked="$(git -C .. ls-files 'backend/*.db' 'backend/*.db-shm' 'backend/*.db-wal' 'backend/celerybeat-schedule' 'demo/video/*.mp4')"
+          if [ -n "$tracked" ]; then
+            echo "Generated runtime artifacts must not be tracked:"
+            echo "$tracked"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Validate Python syntax
+        run: |
+          python - <<'PY'
+          import subprocess
+          import pathlib
+          files = subprocess.check_output(["git", "-C", "..", "ls-files", "backend/*.py"], text=True).splitlines()
+          for rel in files:
+              path = pathlib.Path("..") / rel
+              compile(path.read_text(encoding="utf-8-sig"), str(path), "exec")
+          PY
+
+      - name: Check whitespace and conflict markers
+        working-directory: .
+        run: git diff --check
+
+      - name: Run Alembic migrations
+        run: |
+          # The baseline revision is a stamp; later revisions require core tables.
+          python -c "import db; db.init_db()"
+          alembic upgrade head
+
+      - name: Run tests
+        run: pytest -x -q --tb=short
+
+      - name: Run platform admin readiness tests
+        run: pytest -q test_platform_admin_readiness.py -o "filterwarnings=default"
+
+      - name: Exercise real vault storage and Redis rate limits
+        env:
+          PQC_MAIN_DB_BACKEND: sqlite
+          PQC_FEATURE_STORE_BACKEND: sqlite
+          PQC_TEST_REDIS_URL: redis://localhost:6379/1
+        run: |
+          pytest -q test_integration_secrets.py test_redis_integration.py --junitxml=service-tests.xml
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          cases = ET.parse("service-tests.xml").findall(".//testcase")
+          assert cases and all(case.find("skipped") is None for case in cases), "Service integrations must run, not skip"
+          PY
+
+  browser-smoke:
+    name: Browser smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+
+    env:
+      PQC_PLATFORM_ADMIN_KEY: ci-platform-admin-key-32-chars-min
+      PQC_E2E_PLATFORM_KEY: ci-platform-admin-key-32-chars-min
+      PQC_ALLOW_PLATFORM_KEY_QUERY: "0"
+      PQC_ENVIRONMENT: local
+      PQC_AUTH_REQUIRED: "0"
+      PQC_DEFAULT_ROLE: admin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Install Playwright
+        run: |
+          mkdir -p .tools/video
+          npm install --prefix .tools/video playwright@1.60.0
+          npx --prefix .tools/video playwright install --with-deps chromium
+
+      - name: Start local API
+        working-directory: backend
+        run: |
+          python -m uvicorn app:app --host 127.0.0.1 --port 8001 > ../uvicorn.log 2>&1 &
+          echo $! > ../uvicorn.pid
+          for i in {1..45}; do
+            if curl -fsS http://127.0.0.1:8001/status >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat ../uvicorn.log
+          exit 1
+
+      - name: Run E2E browser smoke
+        env:
+          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+        run: node scripts/e2e-smoke.js
+
+      - name: Verify landing motion and public status
+        env:
+          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+        run: node scripts/landing-motion-smoke.js
+
+      - name: Verify console workspace and public experience
+        env:
+          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+        run: node scripts/console-workspace-smoke.js
+
+      - name: Verify customer AI data controls
+        env:
+          PQC_TEST_PYTHON: python
+        run: node scripts/test-data-control-ui.cjs
+
+      - name: Verify admin workspace behavior
+        env:
+          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+        run: node scripts/admin-workspace-smoke.js
+
+      - name: Verify gateway workspace and customer journey runner
+        env:
+          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+        run: |
+          node scripts/gateway-workspace-smoke.js
+          node scripts/gateway-journeys-smoke.js
+
+      - name: Verify the generative fabric on every surface
+        env:
+          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+        run: node scripts/fabric-smoke.js
+
+      - name: Verify local launch guardrails
+        shell: pwsh
+        run: ./scripts/verify-cloud-deployment.ps1 -BaseUrl http://127.0.0.1:8001 -PlatformKey $env:PQC_PLATFORM_ADMIN_KEY -ExpectLocalNoGo
+
+      - name: Upload API log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-smoke-uvicorn-log
+          path: uvicorn.log
+
+  gateway:
+    name: Real gateway WAF and reverse proxy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gateway/go.mod
+          cache-dependency-path: gateway/go.sum
+      - name: Verify formatting and module checksums
+        run: |
+          test -z "$(gofmt -l *.go)"
+          go mod verify
+      - name: Exercise actual Coraza, TLS proxy, expiry, rollback, and failure modes
+        run: go test -race -p 2 -timeout 180s ./...
+      - name: Validate deployment manifest and build hardened image
+        run: |
+          docker compose config --quiet
+          docker build -t airlock-website-gateway:ci .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify the built image, signed protocol, and HAProxy failover
+        working-directory: .
+        run: |
+          python -m pip install cryptography
+          python scripts/gateway-runtime-smoke.py --image airlock-website-gateway:ci
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install lint tools
+        run: pip install ruff
+
+      # Rules and exclusions live in backend/ruff.toml so the same command runs locally and in CI.
+      # Passing --select/--ignore here overrode that file, and the resulting ruleset reported 441
+      # violations, so this job failed on every commit and signalled nothing.
+      - name: Ruff check
+        run: ruff check .

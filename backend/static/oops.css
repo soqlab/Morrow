@@ -1,0 +1,132 @@
+/* ==========================================================================
+   Oops (oops.js): the page for an address that leads nowhere.
+   Defaults are the Penumbra dark set, so the standalone 404 page needs no
+   theme; inside the console the component takes the console's own tokens.
+   ========================================================================== */
+.oops {
+  --oops-ground: #0A0E15; --oops-line: #1A2130; --oops-text: #E9EDF4; --oops-dim: #8A94A6;
+  --oops-a: #9D90FF; --oops-b: #E46E62;
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  min-height: 460px; overflow: hidden;
+  border: 1px solid var(--oops-line); background: var(--oops-ground); color: var(--oops-text);
+}
+html[data-theme] .oops {
+  --oops-ground: var(--surface); --oops-line: var(--line); --oops-text: var(--ink);
+  --oops-dim: var(--ink3); --oops-a: var(--brand); --oops-b: var(--bad);
+}
+
+.oopsStage {
+  position: relative; min-height: 360px; border-right: 1px solid var(--oops-line);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--oops-line) 60%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--oops-line) 60%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.oopsStage canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.oopsSignal {
+  position: absolute; left: 18px; bottom: 14px;
+  font: 500 10.5px var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--oops-dim);
+}
+
+.oopsCopy { display: flex; flex-direction: column; justify-content: center; gap: 16px; min-width: 0; padding: 38px 40px; }
+.oopsEyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  font: 500 11px var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--oops-b);
+}
+.oopsEyebrow::before { content: ""; width: 26px; height: 1px; background: var(--oops-b); }
+.oopsCopy h1 {
+  margin: 0; font-family: var(--display, "Archivo"), "Helvetica Neue", Arial, sans-serif; font-weight: 800;
+  font-size: clamp(1.9rem, 3.4vw, 2.9rem); line-height: 1.04; letter-spacing: -.035em; text-wrap: balance;
+  color: var(--oops-text);
+}
+.oopsWord { position: relative; display: inline-block; }
+.oopsWord::before, .oopsWord::after { content: attr(data-text); position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.oopsWord::before { color: var(--oops-b); animation: oopsGlitchA 3.6s steps(1) infinite; }
+.oopsWord::after { color: var(--oops-a); animation: oopsGlitchB 3.6s steps(1) infinite; }
+@keyframes oopsGlitchA {
+  0%, 85%, 100% { opacity: 0; transform: none; }
+  86% { opacity: .9; transform: translate(-3px, 1px); clip-path: inset(12% 0 52% 0); }
+  88% { opacity: .9; transform: translate(4px, -1px); clip-path: inset(58% 0 10% 0); }
+  90% { opacity: 0; }
+}
+@keyframes oopsGlitchB {
+  0%, 86%, 100% { opacity: 0; transform: none; }
+  87% { opacity: .85; transform: translate(3px, 0); clip-path: inset(34% 0 30% 0); }
+  89% { opacity: .85; transform: translate(-3px, 1px); clip-path: inset(4% 0 70% 0); }
+  91% { opacity: 0; }
+}
+.oopsCopy p { margin: 0; max-width: 46ch; font-size: 14px; line-height: 1.6; color: var(--oops-dim); }
+.oopsCopy code {
+  padding: 1px 6px; word-break: break-all; color: var(--oops-text);
+  font-family: var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace; font-size: .92em;
+  background: color-mix(in srgb, var(--oops-line) 75%, transparent);
+}
+
+.oopsSuggest { display: grid; gap: 1px; background: var(--oops-line); border: 1px solid var(--oops-line); }
+.oopsSuggest > span {
+  padding: 8px 12px; background: var(--oops-ground);
+  font: 10.5px var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--oops-dim);
+}
+.oopsSuggest a {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--oops-ground);
+  font-size: 13.5px; font-weight: 500; color: var(--oops-text); text-decoration: none;
+}
+.oopsSuggest a small { margin-left: auto; font: 10.5px var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace; color: var(--oops-dim); }
+.oopsSuggest a::after { content: "\2192"; color: var(--oops-a); transition: transform .2s; }
+.oopsSuggest a:not(:has(small))::after { margin-left: auto; }
+.oopsSuggest a:hover { background: color-mix(in srgb, var(--oops-a) 10%, var(--oops-ground)); }
+.oopsSuggest a:hover::after { transform: translateX(3px); }
+
+.oopsActions { display: flex; flex-wrap: wrap; gap: 10px; }
+.oopsBtn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; cursor: pointer;
+  border: 1px solid var(--oops-line); background: transparent; color: var(--oops-text); text-decoration: none;
+  font: 500 12px var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase;
+}
+.oopsBtn:hover { border-color: var(--oops-dim); }
+.oopsBtn.pri { background: var(--oops-text); border-color: var(--oops-text); color: var(--oops-ground); }
+.oopsBtn:focus-visible, .oopsSuggest a:focus-visible { outline: 2px solid var(--oops-a); outline-offset: 2px; }
+
+.oopsTerm {
+  min-height: 7em; padding-top: 12px; border-top: 1px dashed var(--oops-line);
+  font: 11.5px/1.75 var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace; color: var(--oops-dim);
+}
+.oopsTerm .c { color: var(--oops-text); }
+.oopsTerm .c::before { content: "$ "; color: var(--oops-a); }
+.oopsTerm .i::before { content: "\2192  "; }
+.oopsTerm .x { color: var(--oops-b); }
+.oopsTerm .x::before { content: "\2717  "; }
+.oopsTerm .cur { display: inline-block; width: 7px; height: 12px; margin-left: 2px; vertical-align: -2px; background: var(--oops-text); animation: oopsBlink 1s steps(1) infinite; }
+@keyframes oopsBlink { 50% { opacity: 0; } }
+
+body[data-motion="paused"] .oopsWord::before, body[data-motion="paused"] .oopsWord::after,
+body[data-motion="paused"] .oopsTerm .cur { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .oopsWord::before, .oopsWord::after, .oopsTerm .cur { animation: none; }
+}
+@media (max-width: 860px) {
+  .oops { grid-template-columns: 1fr; }
+  .oopsStage { min-height: 250px; border-right: 0; border-bottom: 1px solid var(--oops-line); }
+  .oopsCopy { padding: 26px 22px; }
+}
+
+/* ---------- the standalone site-wide 404 ---------- */
+body.oopsPage {
+  display: flex; flex-direction: column; min-height: 100vh; margin: 0;
+  padding: 0 clamp(16px, 4vw, 56px) 48px; background: #05070B; color: #E9EDF4;
+  font-family: var(--body, "IBM Plex Sans"), system-ui, sans-serif;
+}
+.oopsTop { display: flex; justify-content: space-between; align-items: center; gap: 16px; height: 64px; margin-bottom: clamp(24px, 6vh, 64px); border-bottom: 1px solid #1A2130; }
+.oopsBrand {
+  display: inline-flex; align-items: center; gap: 10px; color: #E9EDF4; text-decoration: none;
+  font-family: var(--display, "Archivo"), Arial, sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase;
+}
+.oopsBrand span { width: 14px; height: 14px; border: 1.5px solid #9D90FF; }
+.oopsTopLink {
+  padding: 9px 12px; border: 1px solid #1A2130; color: #E9EDF4; text-decoration: none;
+  font: 500 11px var(--mono, "IBM Plex Mono"), ui-monospace, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase;
+}
+.oopsTopLink:hover { border-color: #8A94A6; }
+#oopsRoot { flex: 1; width: 100%; max-width: 1180px; margin: 0 auto; }

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Try Airlock Command free | Airlock Command</title>
+  <meta name="description" content="Ask for a free trial organization: your own workspace, your own scans, your own evidence. A person reviews every request, because an account here can scan hosts.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+</head>
+<body class="public-document">
+<a class="skip-link" href="#trial">Skip to the form</a>
+<main class="doc-shell" id="content">
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Airlock Command</a>
+    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/check">Free check</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+  </header>
+
+  <section class="doc-hero">
+    <div>
+      <span class="eyebrow">Free trial</span>
+      <h1>Try it on your own estate.</h1>
+      <p class="lead">A workspace of your own: run scans, build a cryptographic inventory, see your harvest&#8209;now&#8209;decrypt&#8209;later exposure and generate the evidence your auditor asks for. Free, like everything else here &mdash; no card, no call, and nothing to upgrade to.</p>
+    </div>
+  </section>
+
+  <section class="doc-section">
+    <h2>Before you fill anything in</h2>
+    <p>If you only want to know what your public endpoint negotiates today, you do not need an account at all. The <a href="/check">free readiness check</a> answers that in about fifteen seconds, keeps a permanent record you can link to, and gives you a badge for your README. Start there; come back here when you want your whole estate rather than one endpoint.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>What a trial includes</h2>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Your own organization</strong><p>A workspace nobody else can see, with your own users, API keys and retention settings. Tenant isolation is enforced by the database itself, not only by the application &mdash; see <a href="/security">security</a>.</p></div>
+      <div class="matrix-row"><strong>Real scanning, not a sandbox</strong><p>Repository, TLS endpoint, certificate and configuration scanning against targets you authorize, producing the full inventory and a CycloneDX CBOM. There is no reduced version of the product: this is the product.</p></div>
+      <div class="matrix-row"><strong>The evidence, not just a score</strong><p>Findings carry what was observed, how it was classified, and against which standard &mdash; FIPS 203/204/205, NIST and CNSA 2.0 deadlines. A model is labelled as a model.</p></div>
+      <div class="matrix-row"><strong>Capped, and honest about why</strong><p>Your workspace has API and scan rate limits. They exist because this is a free service run on finite capacity &mdash; not because a larger plan is being withheld, since there is no paid tier. Every API response carries <code>X&#8209;RateLimit&#8209;Limit</code> and <code>X&#8209;RateLimit&#8209;Remaining</code> so you can see where you stand without guessing, and a refusal says what the limit was and when it resets. If you need more for a genuine evaluation, ask &mdash; it is a conversation, not an upsell.</p></div>
+    </div>
+  </section>
+
+  <section class="doc-section">
+    <h2>Why a person reads this</h2>
+    <p>Approval is not automatic, and that is a deliberate choice rather than a missing feature. An account here can scan hosts, and none of the free checker's guardrails &mdash; one endpoint, port 443, an opt&#8209;out honoured before DNS &mdash; apply to the full scanner. Letting anyone with an email address have that would make this a reconnaissance service, which is the opposite of what it is for.</p>
+    <p>So a request is recorded and waits. Expect a reply within two working days. You will get a single&#8209;use invitation link that creates your organization when you accept it; nothing exists until then.</p>
+    <p class="fine">Scanning targets you do not own or have written permission to test is prohibited, and the same rule applies inside a trial as outside it. See the <a href="/terms">terms</a> and the <a href="/public-check/acceptable-use">acceptable&#8209;use policy</a>.</p>
+  </section>
+
+  <section class="doc-section" id="trial">
+    <h2>Ask for a trial</h2>
+    <form class="signup-form" method="post" action="/trial-request">
+      <div class="signup-row">
+        <label for="trial-email">Work email<span class="req" aria-hidden="true">*</span></label>
+        <input id="trial-email" name="email" type="email" autocomplete="email" required maxlength="254" spellcheck="false">
+        <span class="hint">Where the invitation goes. An address at the organization you are asking for makes the decision quicker.</span>
+      </div>
+      <div class="signup-row">
+        <label for="trial-name">Your name</label>
+        <input id="trial-name" name="name" type="text" autocomplete="name" maxlength="120">
+      </div>
+      <div class="signup-row">
+        <label for="trial-company">Organization</label>
+        <input id="trial-company" name="company" type="text" autocomplete="organization" maxlength="160">
+        <span class="hint">Used to name your workspace. Leave it blank and your email domain is used.</span>
+      </div>
+      <div class="signup-row">
+        <label for="trial-domain">A domain you want to assess</label>
+        <input id="trial-domain" name="domain" type="text" autocomplete="url" maxlength="253" spellcheck="false" placeholder="example.com">
+        <span class="hint">Optional, and it helps: a domain you plainly operate is the single strongest signal on a request.</span>
+      </div>
+      <div class="signup-row">
+        <label for="trial-use-case">What are you trying to find out?</label>
+        <textarea id="trial-use-case" name="use_case" rows="4" maxlength="2000"></textarea>
+        <span class="hint">A sentence is enough. A deadline you are working to, an auditor's question, or a migration you are scoping all help.</span>
+      </div>
+      <!-- A honeypot. It is hidden from people by public.css and left attractive to scripts; a
+           filled one is discarded silently. There is no captcha here on purpose: every public page
+           on this site makes no third-party request, and a captcha is a third-party request. -->
+      <div class="signup-trap" aria-hidden="true">
+        <label for="trial-website">Website</label>
+        <input id="trial-website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
+      <p class="fine">Submitting this records your email address, what you typed, and a salted hash of your IP address &mdash; never the address itself. It is kept until the request is decided and for a year after, so a second request can be read in context. What happens to it is in the <a href="/privacy">privacy policy</a>.</p>
+      <button class="btn primary" type="submit">Request a trial</button>
+    </form>
+  </section>
+
+  <footer>
+    <span>Airlock Command</span>
+    <nav><a href="/check">Free check</a> / <a href="/pricing">Pricing</a> / <a href="/pilot">Controlled pilot</a> / <a href="/terms">Terms</a> / <a href="/privacy">Privacy</a> / <a href="/support">Support</a></nav>
+  </footer>
+</main>
+</body>
+</html>

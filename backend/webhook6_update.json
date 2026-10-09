@@ -1,0 +1,8 @@
+{
+  "id": 6,
+  "name": "debug",
+  "url": "http://host.docker.internal:9999/",
+  "secret": "",
+  "events": [],
+  "enabled": true
+}

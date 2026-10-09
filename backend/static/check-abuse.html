@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Abuse reports and opt-out | Airlock Command</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="How a domain owner asks never to be checked by the free post-quantum readiness checker, what the opt-out does, and how to report misuse of the service. Draft for legal review.">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/experience.css?v=20260918-idle">
+  <link rel="stylesheet" href="/ui/check.css?v=20261005">
+  <script src="/ui/fabric.js?v=20260915-perf2" defer></script>
+  <script src="/ui/motion.js?v=20260918-idle" defer></script>
+  <script src="/ui/check-pages.js?v=20261005" defer></script>
+</head>
+<body class="public-document">
+<div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+<a class="skip-link" href="#content">Skip to content</a>
+<main class="doc-shell" id="content">
+  <header class="topbar">
+    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>
+  </header>
+
+  <section class="doc-hero">
+    <div>
+      <span class="eyebrow">Free checker / Abuse and opt-out</span>
+      <h1>Never check my domain again.</h1>
+      <p class="lead">Last updated 2026-10-04. If you operate a domain and do not want the free checker at <a href="/check">/check</a> to contact it, ask and it will be refused. You do not need to give a reason, and you do not have to wait for an investigation. This page is also where misuse of the service is reported.</p>
+    </div>
+    <aside class="doc-meta">
+      <b>Where to write</b>
+      <p data-abuse-contact>No abuse address is configured on this deployment. Until the operator publishes one, the only route is the <a href="/support">contact page</a>.</p>
+    </aside>
+  </section>
+
+  <section class="doc-section">
+    <h2>Before Anything Else</h2>
+    <p class="notice">This page is a draft for a qualified lawyer to review before the free checker is switched on for the public, alongside the <a href="/public-check/terms">terms of use</a>, the <a href="/public-check/acceptable-use">acceptable-use policy</a> and the <a href="/public-check/privacy">privacy notice</a>. The technical behaviour described below is what the code does; the policy wording around it has not been reviewed.</p>
+    <p>If you arrived here from a TLS connection in your logs and want to know what it was, the <a href="/scanner">scanner identity page</a> answers that: the port, the number of connections, the handshake, and the fact that no HTTP request is ever sent to your host.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Asking Never To Be Checked</h2>
+    <p>Write to the address above and say which domain to add. Include:</p>
+    <ul>
+      <li><strong>The domain.</strong> One or more hostnames or registrable names. An entry covers that name and everything under it: <code>example.com</code> also covers <code>www.example.com</code> and every other subdomain.</li>
+      <li><strong>Something that shows you speak for it.</strong> An email from an address at that domain is usually enough. If you cannot send from it, say so and the operator will ask for something else that fits &mdash; for example a DNS TXT record you add, or a file served from the domain. There is no automated verification procedure, because an opt-out is added by hand.</li>
+      <li><strong>Nothing else is needed.</strong> No reason, no justification, no account.</li>
+    </ul>
+    <p class="notice"><strong>Response time: placeholder.</strong> No acknowledgement or completion time has been committed to for this service yet. The operator must state one here before the checker is switched on publicly. Until then, do not read anything on this page as a service-level commitment.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>What The Opt-Out Does</h2>
+    <p>These are statements about the code, not intentions.</p>
+    <div class="matrix">
+      <div class="matrix-row"><strong>Checked before DNS</strong><p>The opt-out is the first thing tested after the hostname is validated &mdash; before the name is resolved, before the cache is read, and before any budget is spent. An opted-out domain is not resolved, let alone connected to. The request is refused with a message saying the domain asked not to be checked and that nothing was contacted.</p></div>
+      <div class="matrix-row"><strong>Covers everything under the name</strong><p>An entry for <code>example.com</code> refuses <code>example.com</code> and every subdomain of it, however deep.</p></div>
+      <div class="matrix-row"><strong>The cached result is deleted and the record is hidden</strong><p>Adding the opt-out deletes the cached result for that domain and for its subdomains in the same operation, and hides the permanent record at <code>/r/{domain}</code> along with its history. The record page, every past observation, the JSON and the CBOM all answer with the refusal instead, and the domain drops out of anything that lists records. Hidden rather than erased: see what the opt-out does not do, below.</p></div>
+      <div class="matrix-row"><strong>The badge is the one exception</strong><p>The badge at <code>/r/{domain}/badge.svg</code> keeps answering, with the same neutral grey image a domain nobody has ever checked gets. Two reasons, both practical: a refusal would break any README the badge was already embedded in, and an image that refused only for opted-out domains would itself announce that you opted out.</p></div>
+      <div class="matrix-row"><strong>Two sources, both consulted</strong><p>The opt-out list is held in the service's own table and in a configured list. If the table cannot be read, the configured list still applies and the failure is logged loudly: a storage error must never silently un-opt-out a domain.</p></div>
+      <div class="matrix-row"><strong>It is a commitment, not a setting</strong><p>An honoured opt-out is not removed unless the domain owner asks for it to be removed.</p></div>
+    </div>
+  </section>
+
+  <section class="doc-section">
+    <h2>What The Opt-Out Does Not Do</h2>
+    <ul>
+      <li>It does not erase the check log. The log rows for your domain &mdash; the domain, the time, the outcome and a salted hash of each requester's address &mdash; stay until the retention window prunes them, because they are what makes an abuse report investigable. The window is <span data-config="log_retention_days">30</span> days by default on this deployment.</li>
+      <li>It does not erase the record, it hides it. The observations &mdash; what this service measured about your endpoint, and when &mdash; stay in the operator's database and become unreachable through every public route. They are kept for the same reason as the check log: they are the evidence of what was checked and what was seen, which is what makes a complaint about this service answerable. If you want them erased rather than hidden, say so in your request; that is a decision for the operator rather than an automatic outcome, and the answer should tell you which one you got.</li>
+      <li>It does not reach copies of a result someone already downloaded, shared or cached in their own browser &mdash; including a search engine's cached copy of a record page, which is out of this service's hands once it has been crawled.</li>
+      <li>It does not change Certificate Transparency. Your certificates are published in public, append-only logs run by other organisations. This service reads them; it cannot add to them or remove anything from them. If you want to know what is published about your domain there, the logs are searchable directly.</li>
+      <li>It does not affect the paid platform, which only ever scans targets a customer has approved in their own workspace.</li>
+    </ul>
+  </section>
+
+  <section class="doc-section">
+    <h2>Reporting Misuse</h2>
+    <p>If you believe the service has been pointed at something it should not have been, or used as part of something worse, write to the same address. Useful information, roughly in order of usefulness:</p>
+    <ul>
+      <li><strong>The hostname</strong> that was contacted, exactly as it appears in your records.</li>
+      <li><strong>A time window in UTC</strong>, with the timezone stated. The check log is per domain and per timestamp, so a window turns a report into a list of rows.</li>
+      <li><strong>What you saw</strong>: the relevant log lines, connection records or alert, and the address the connection came from.</li>
+      <li><strong>What you want done</strong>: an opt-out, an explanation, or both.</li>
+      <li><strong>How to reach you.</strong></li>
+    </ul>
+    <p>What the operator can tell you: for your domain, the times a check was attempted, the outcome of each &mdash; including refusals &mdash; and a salted hash per requester, where two rows with the same hash came from the same address. What the operator cannot tell you: the requester's IP address. It is never stored, only a salted hash of it, and the hash cannot be reversed. That is deliberate, and if a request requires more than that, the honest answer is that the data does not exist.</p>
+    <p>If the complaint is about a particular domain, the operator's first step is to add the opt-out, before investigating anything.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>If You Would Rather Block Us</h2>
+    <p>You can, and nothing here objects to it. Two things worth knowing: the <a href="/scanner">scanner identity page</a> is where the egress addresses will be published for exactly this purpose, and a blocked connection produces a result that is reported as <em>failed</em>, with no verdict and no score. A failed check never reads as a clean one.</p>
+    <p>An opt-out is the better route if what you want is for the contact not to happen at all, because it stops before DNS rather than at your firewall.</p>
+  </section>
+
+  <section class="doc-section">
+    <h2>Related</h2>
+    <p><a href="/public-check/terms">Terms of use</a>, <a href="/public-check/acceptable-use">acceptable-use policy</a>, <a href="/public-check/privacy">privacy notice for the checker</a>, <a href="/scanner">scanner identity</a>, and the live guardrails on <a href="/check#guardrails">/check</a>. For anything to do with the paid platform rather than the free check, use <a href="/support">support</a>.</p>
+  </section>
+
+  <footer>
+    <span>Airlock Command / Free checker</span>
+    <nav><a href="/check">Free check</a> / <a href="/public-check/terms">Terms of use</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/public-check/privacy">Checker privacy</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
+  </footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,105 @@
+name: Bug report
+description: Something behaves differently from how it is documented or intended.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this.
+
+        **If this is a security vulnerability, please do not file it here.** Follow
+        [SECURITY.md](https://github.com/yasseennandally/pqc_scanner/blob/main/SECURITY.md)
+        and report it privately instead.
+
+        Please also check the [out-of-scope list](https://github.com/yasseennandally/pqc_scanner/blob/main/SECURITY.md#out-of-scope)
+        before filing: the default local configuration is deliberately permissive and is not a bug.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+      placeholder: |
+        I ran a scan against an endpoint using X25519MLKEM768 and the key exchange
+        group was reported as "unobserved". I expected it to be classified as hybrid.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: >
+        The smallest sequence that shows the problem. A failing request, a `curl`
+        command or a test case is ideal. If it only happens with particular data,
+        say what shape that data has — do not paste anything real or sensitive.
+      placeholder: |
+        1. docker compose up --build
+        2. docker compose run --rm seed
+        3. POST /scans with {"targets": ["..."]}
+        4. GET /scans/{id} -> key_exchange_group is ""
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output or error
+      description: >
+        Paste the traceback or log lines. **Redact credentials, tokens, hostnames and
+        anything else you would not publish** — this issue is public.
+      render: text
+
+  - type: dropdown
+    id: how-running
+    attributes:
+      label: How are you running it?
+      options:
+        - docker compose up (quick start)
+        - Local uvicorn, no configuration
+        - Local uvicorn, with backend/.env
+        - docker-compose.prod.yml
+        - Cloud Run / other managed deployment
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Output of `git rev-parse --short HEAD`, or the release tag.
+      placeholder: a1b2c3d
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database back end
+      options:
+        - SQLite (default)
+        - Postgres
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: OS and Python version
+      placeholder: "Windows 11, Python 3.11.9 / Ubuntu 24.04, Python 3.11.9"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: This is not a security vulnerability (those go to SECURITY.md).
+          required: true
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: I have redacted any credentials, real hostnames or customer data from this report.
+          required: true

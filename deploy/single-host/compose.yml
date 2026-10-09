@@ -1,0 +1,86 @@
+# Single-host overlay: adds the two things docker-compose.prod.yml deliberately leaves out.
+#
+# That file is written for a managed Postgres and a proxy you already run, which is right for a
+# cloud deployment. On one VPS neither exists, so this overlay adds Postgres and Caddy (automatic
+# TLS) without changing the base file.
+#
+#   docker compose -f docker-compose.prod.yml -f deploy/single-host/compose.yml \
+#       --env-file .env.prod up -d
+#
+# Set DATABASE_URL in .env.prod to the in-compose Postgres:
+#   DATABASE_URL=postgresql://pqc:<password>@db:5432/pqc
+#
+# See deploy/single-host/README.md for the whole sequence, including the go-live gate.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-pqc}"
+      POSTGRES_USER: "${POSTGRES_USER:-pqc}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}"
+      # C.UTF-8 rather than the C locale the image defaults to: changing collation later means a
+      # dump and restore, and it decides how non-ASCII organization and domain names sort.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pqc} -d ${POSTGRES_DB:-pqc}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Never published. The app reaches it over the compose network; nothing outside the host has
+    # any business talking to it.
+    expose:
+      - "5432"
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "5" }
+
+  api:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  beat:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    environment:
+      SITE_DOMAIN: "${SITE_DOMAIN:?set SITE_DOMAIN in .env.prod, e.g. airlockcommand.com}"
+      ACME_EMAIL: "${ACME_EMAIL:?set ACME_EMAIL in .env.prod}"
+      API_PORT: "${PORT:-8000}"
+    volumes:
+      - ./deploy/single-host/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data      # the issued certificates; losing this means re-issuing
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "5" }
+
+volumes:
+  pg-data:
+  caddy-data:
+  caddy-config:
