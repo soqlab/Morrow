@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import os
+
+# Public demo mode must lock the network before any other module can open a connection.
+from services import demo_mode as _demo_mode
+_demo_mode.install_network_guard()
+
 import asyncio
 import sqlite3
 import sys
@@ -3538,7 +3543,7 @@ def _security_warnings() -> list[str]:
         # database and, critically, on whether the connected role can bypass RLS. Reporting it here
         # is the difference between an operator who believes isolation is enforced and one who knows.
         warnings.extend(_rls_posture_warnings())
-    if not str(os.getenv("SENTRY_DSN") or "").strip():
+    if not str(os.getenv("SENTRY_DSN") or "").strip() and not _demo_mode.ENABLED:
         warnings.append(
             "SENTRY_DSN is not set: runtime exceptions will not be reported to Sentry. "
             "Set SENTRY_DSN for production error tracking."
@@ -24983,3 +24988,6 @@ try:
     register_deferred_schema("llm_org_provider", _llm_org_config.init_tables)
 except Exception:  # pragma: no cover - the provider layer must not break startup
     pass
+
+# Public demo mode (PQC_DEMO_MODE=1): throwaway workspaces and the write allowlist. Last, so it runs first.
+_demo_mode.attach(app)

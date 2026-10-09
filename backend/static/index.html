@@ -1593,8 +1593,10 @@ function onAuthLost() {
   window.clearDataControlStrip?.();
   if (Date.now() - authLostAt < 5000) return;   // don't stack prompts on a burst of 401s
   authLostAt = Date.now();
+  const hadSession = !!S.token;   // a first visit has nothing that could have expired
   S.token = ""; saveAuth();
-  toast("Your session expired or is not valid. Sign in again to continue.", "bad", "Authentication required");
+  if (hadSession && S.demo) toast("Your demo workspace has ended and was deleted. Start a new one to keep exploring.", "info", "Demo ended");
+  else if (hadSession) toast("Your session expired or is not valid. Sign in again to continue.", "bad", "Authentication required");
   showAuthGate();
 }
 /** Never-throws fetch — panels degrade instead of killing the view. */
@@ -2568,7 +2570,57 @@ const signedIn = () => !!(S.token || S.key || S.ctx?.authenticated);
 
 /* ---- full-screen gate: shown when the server refuses unauthenticated reads.
         Better than a modal over an app full of red error panels. ---- */
+/** Public demo: one button instead of sign-in. Each visitor gets a private, throwaway workspace. */
+function demoGateHtml() {
+  const mins = Math.round((S.demo.ttl_seconds || 3600) / 60);
+  return `<div class="gate" id="gate">
+    <div class="gateCard" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+      <div class="gateBrand">
+        <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 2 3 6.5v5.8c0 5 3.8 9.1 9 9.7 5.2-.6 9-4.7 9-9.7V6.5L12 2Z"/>
+          <path d="M12 8.2v7.6M8.5 10.2l7 3.6M15.5 10.2l-7 3.6" opacity=".85"/></svg></div>
+        <div><b>Airlock Command</b><small>Live demo</small></div>
+      </div>
+      <h2 id="gateTitle">Try Airlock Command</h2>
+      <p class="gsub">You get your own private workspace, filled with the cryptography estate of
+        <b>Example Financial Group</b>, a fictional bank: 38 endpoints, eight scans of history,
+        owners, risk scores and fixes in progress.</p>
+      <ul class="gsub" style="margin:0 0 16px;padding-left:18px;line-height:1.7">
+        <li>No sign-up and no email. Nobody else can see your workspace.</li>
+        <li>It is deleted, with everything you change, after ${mins} minutes.</li>
+        <li>Scanning and integrations are switched off in the demo.</li>
+      </ul>
+      <div id="gateErr" role="alert" aria-live="assertive"></div>
+      <button class="btn pri block" data-act="demoStart" type="button" style="height:42px" data-autofocus>${I.shield}Start demo workspace</button>
+      <div class="gateFoot">
+        <span>Open source, MIT licensed</span>
+        <span><a href="${H(S.demo.source || "https://github.com/soqlab/airlock-command")}" target="_blank" rel="noopener">Self-host it ↗</a></span>
+      </div>
+    </div></div>`;
+}
+ACTIONS.demoStart = async (b) => {
+  b.disabled = true;
+  const label = b.innerHTML;
+  b.textContent = "Preparing your workspace…";
+  const r = await safe("/demo/start", { method: "POST" });
+  if (!r.ok || !r.data?.access_token) {
+    b.disabled = false; b.innerHTML = label;
+    return showLoginError("Demo unavailable", r.data?.detail || "Could not create a workspace. Try again in a moment.");
+  }
+  S.token = r.data.access_token; S.refresh = ""; S.key = ""; S.org = r.data.org_id;
+  saveAuth();
+  await afterGateAuth();
+  await loadNotices();
+};
+/** Seconds left before this demo workspace is deleted, or null outside the demo. */
+function demoSecondsLeft() {
+  if (!S.demo) return null;
+  const m = /^demo-(\d{10})-/.exec(S.ctx?.organization_id || S.org || "");
+  return m ? Number(m[1]) + (S.demo.ttl_seconds || 3600) - Date.now() / 1000 : null;
+}
+
 function authGateHtml() {
+  if (S.demo) return demoGateHtml();
   const c = authCfg();
   const pw    = c.password_login_enabled !== false && c.bearer_token_supported !== false && c.mode === "jwt";
   const saml  = !!c.saml_enabled;
@@ -2996,10 +3048,22 @@ async function health() {
     Info and warning notices can be dismissed until they are edited; critical ones and maintenance stay. */
 async function loadNotices() {
   const box = $("#notices"); if (!box) return;
-  const r = await safe("/announcements/active");
-  if (!r.ok || !r.data) return;
-  const hidden = new Set(LS.get("pqc_dismissed_notices", "").split("|").filter(Boolean));
   const out = [];
+  const left = demoSecondsLeft();
+  if (left !== null) {
+    if (left <= 0) {
+      S.token = ""; S.org = ""; saveAuth();
+      return showAuthGate();
+    }
+    const at = new Date(Date.now() + left * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    out.push(`<div class="banner info" role="status">${I.info}<div><b>Demo workspace</b>
+      <span class="bx">Example Financial Group is fictional sample data. This workspace and everything you change in it
+      is deleted at ${H(at)} (in ${Math.max(1, Math.round(left / 60))} min). Scanning and integrations are off.
+      <a href="${H(S.demo.source)}" target="_blank" rel="noopener">Self-host Airlock Command ↗</a></span></div></div>`);
+  }
+  const r = await safe("/announcements/active");
+  if (!r.ok || !r.data) { box.innerHTML = out.join(""); box.hidden = !out.length; return; }
+  const hidden = new Set(LS.get("pqc_dismissed_notices", "").split("|").filter(Boolean));
   const m = r.data.maintenance || {};
   if (m.enabled) {
     const until = m.ends_at ? ` Expected back ${H(fmtNoticeTime(m.ends_at))}.` : "";
@@ -3033,7 +3097,8 @@ ACTIONS.dismissNotice = async (b) => {
 };
 /** Fetch the server's auth capability descriptor + current context. */
 async function loadAuth() {
-  const [cfg, ctx] = await all(["/auth/config", "/auth/context"]);
+  const [cfg, ctx, demo] = await all(["/auth/config", "/auth/context", "/demo/status"]);
+  S.demo = demo.ok && demo.data && demo.data.demo === true ? demo.data : null;
   if (cfg.ok) S.authCfg = cfg.data;
   if (ctx.ok) {
     S.ctx = ctx.data;
