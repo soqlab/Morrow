@@ -656,6 +656,56 @@ pre.out{
 .orDiv i{flex:1;height:1px;background:var(--line)}
 .orDiv span{font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--ink3);font-weight:700}
 
+/* ---------- public demo entry: the estate radar beside the start card ---------- */
+.gate.demo{place-items:stretch;padding:0;background:
+  linear-gradient(var(--grid-line) 1px,transparent 1px) 0 0/44px 44px,
+  linear-gradient(90deg,var(--grid-line) 1px,transparent 1px) 0 0/44px 44px,var(--bg)}
+.gate.demo::before{background:radial-gradient(1000px 520px at 30% 45%,color-mix(in srgb,var(--brand) 9%,transparent),transparent 70%)}
+.dg{position:relative;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,420px);
+  gap:clamp(28px,5vw,72px);align-items:center;width:min(1240px,100%);margin:0 auto;
+  padding:clamp(28px,5vh,56px) clamp(16px,4vw,48px);min-height:100%}
+.dgTop{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.dgTop .gateBrand{margin:0}
+.dgTop nav{display:flex;gap:18px;font-size:12px;font-weight:600}
+.dgTop nav a{color:var(--ink2);text-decoration:none}
+.dgTop nav a:hover,.dgTop nav a:focus-visible{color:var(--brand)}
+.dgEyebrow{font:700 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--brand);
+  display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.dgEyebrow::before{content:"";width:22px;height:1px;background:currentColor}
+.dgTitle{font-size:clamp(30px,4.1vw,50px);line-height:1.04;letter-spacing:-.035em;font-weight:720;
+  margin:0 0 16px;max-width:15ch;text-wrap:balance}
+.dgTitle em{font-style:normal;color:var(--brand)}
+.dgLede{font-size:15px;line-height:1.6;color:var(--ink2);max-width:52ch;margin:0 0 26px}
+.dgRadar{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:22px;align-items:center;
+  border:1px solid var(--line);background:color-mix(in srgb,var(--surface) 70%,transparent);padding:18px}
+.dgRadar canvas{width:100%;aspect-ratio:1;display:block;max-height:340px}
+.dgLegend{display:grid;gap:14px;font-size:12px}
+.dgLegend div{display:grid;grid-template-columns:10px 1fr auto;gap:8px 10px;align-items:baseline}
+.dgLegend i{width:10px;height:10px;align-self:center}
+.dgLegend b{font:700 20px/1 var(--mono);font-variant-numeric:tabular-nums}
+.dgLegend small{grid-column:2/-1;color:var(--ink3);font-size:11px;line-height:1.4}
+.dgReadout{grid-column:1/-1;font:11px/1.5 var(--mono);color:var(--ink3);border-top:1px solid var(--line);padding-top:12px;min-height:3em}
+.dgReadout b{color:var(--ink);font:600 12px/1.5 var(--mono)}
+.dgLegend span,.dgReadout{min-width:0;overflow-wrap:anywhere}
+.gate.demo .gateCard{width:100%;padding:28px}
+.gate.demo .gateCard h2{font-size:21px;letter-spacing:-.02em}
+.dgFacts{list-style:none;margin:0 0 20px;padding:0;display:grid;gap:10px;font-size:12.5px;color:var(--ink2);line-height:1.45}
+.dgFacts li{display:grid;grid-template-columns:16px 1fr;gap:10px}
+.dgFacts svg{width:16px;height:16px;color:var(--brand);margin-top:1px}
+.dgStats{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);margin:0 0 20px}
+.dgStats div{padding:10px 12px;border-left:1px solid var(--line)}
+.dgStats div:first-child{border-left:0}
+.dgStats b{display:block;font:700 17px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.dgStats span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);font-weight:700}
+@media(max-width:980px){
+  .dg{grid-template-columns:1fr}
+  .dgRadar{grid-template-columns:1fr}
+  .dgRadar canvas{max-height:300px}
+  .dgLegend{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .dgLegend small{display:none}
+}
+@media(max-width:520px){.dgTop nav{display:none}.dgLegend b{font-size:16px}}
+
 /* ---------- tutorial ---------- */
 .tocGrid{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;align-items:start}
 .toc{position:sticky;top:calc(var(--top) + 16px);display:grid;gap:2px;max-height:calc(100vh - var(--top) - 40px);overflow-y:auto}
@@ -2573,30 +2623,154 @@ const signedIn = () => !!(S.token || S.key || S.ctx?.authenticated);
 /** Public demo: one button instead of sign-in. Each visitor gets a private, throwaway workspace. */
 function demoGateHtml() {
   const mins = Math.round((S.demo.ttl_seconds || 3600) / 60);
-  return `<div class="gate" id="gate">
-    <div class="gateCard" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
-      <div class="gateBrand">
-        <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M12 2 3 6.5v5.8c0 5 3.8 9.1 9 9.7 5.2-.6 9-4.7 9-9.7V6.5L12 2Z"/>
-          <path d="M12 8.2v7.6M8.5 10.2l7 3.6M15.5 10.2l-7 3.6" opacity=".85"/></svg></div>
-        <div><b>Airlock Command</b><small>Live demo</small></div>
+  const src = H(S.demo.source || "https://github.com/soqlab/airlock-command");
+  const n = (k) => DEMO_ESTATE.filter((e) => e[2] === k).length;
+  return `<main class="gate demo" id="gate">
+    <div class="dg">
+      <header class="dgTop">
+        <div class="gateBrand">
+          <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 2 3 6.5v5.8c0 5 3.8 9.1 9 9.7 5.2-.6 9-4.7 9-9.7V6.5L12 2Z"/>
+            <path d="M12 8.2v7.6M8.5 10.2l7 3.6M15.5 10.2l-7 3.6" opacity=".85"/></svg></div>
+          <div><b>Airlock Command</b><small>by SOQLAB</small></div>
+        </div>
+        <nav aria-label="Project links">
+          <a href="${src}" target="_blank" rel="noopener">Source code ↗</a>
+          <a href="https://soqlab.com" rel="noopener">soqlab.com ↗</a>
+        </nav>
+      </header>
+
+      <section aria-labelledby="dgTitle">
+        <div class="dgEyebrow">Post-quantum readiness · open source</div>
+        <h1 class="dgTitle" id="dgTitle">Find the keys a <em>quantum computer</em> will break.</h1>
+        <p class="dgLede">Airlock Command maps the RSA and elliptic-curve cryptography across your endpoints,
+          certificates and code, ranks it by what it protects and for how long, and tracks every
+          fix through to post-quantum algorithms.</p>
+        <figure class="dgRadar" style="margin:0">
+          <canvas id="dgCanvas" role="img" aria-label="Radar of the sample bank's ${DEMO_ESTATE.length} endpoints, coloured by cryptographic status"></canvas>
+          <figcaption class="dgLegend">
+            <div><i style="background:var(--bad)"></i><span>Below policy</span><b>${n("w")}</b><small>RSA-2048 or TLS 1.2 on data that must stay secret for years</small></div>
+            <div><i style="background:var(--warn)"></i><span>Quantum-vulnerable</span><b>${n("v")}</b><small>Compliant today, broken by a large quantum computer</small></div>
+            <div><i style="background:var(--ok)"></i><span>Hybrid post-quantum</span><b>${n("p")}</b><small>Already negotiating a hybrid key exchange</small></div>
+            <div class="dgReadout" id="dgReadout" aria-hidden="true" style="display:block"></div>
+          </figcaption>
+        </figure>
+      </section>
+
+      <div class="gateCard" aria-labelledby="gateTitle">
+        <h2 id="gateTitle">Explore a bank's estate</h2>
+        <p class="gsub">Your own private copy of <b>Example Financial Group</b>, a fictional bank, ready in a few seconds.</p>
+        <div class="dgStats">
+          <div><b>${DEMO_ESTATE.length}</b><span>Endpoints</span></div>
+          <div><b>8</b><span>Scans</span></div>
+          <div><b>${mins}m</b><span>Workspace</span></div>
+        </div>
+        <ul class="dgFacts">
+          <li>${I.lock}<span>No sign-up or email. Nobody else can see your workspace.</span></li>
+          <li>${I.clock}<span>Deleted after ${mins} minutes, with everything you changed.</span></li>
+          <li>${I.zap}<span>Scanning and integrations are off; run it yourself for real scans.</span></li>
+        </ul>
+        <div id="gateErr" role="alert" aria-live="assertive"></div>
+        <button class="btn pri block" data-act="demoStart" type="button" style="height:44px" data-autofocus>${I.shield}Start demo workspace</button>
+        <div class="gateFoot">
+          <span>Open source, MIT licensed. <a href="${src}" target="_blank" rel="noopener">Self-host it ↗</a></span>
+        </div>
       </div>
-      <h2 id="gateTitle">Try Airlock Command</h2>
-      <p class="gsub">You get your own private workspace, filled with the cryptography estate of
-        <b>Example Financial Group</b>, a fictional bank: 38 endpoints, eight scans of history,
-        owners, risk scores and fixes in progress.</p>
-      <ul class="gsub" style="margin:0 0 16px;padding-left:18px;line-height:1.7">
-        <li>No sign-up and no email. Nobody else can see your workspace.</li>
-        <li>It is deleted, with everything you change, after ${mins} minutes.</li>
-        <li>Scanning and integrations are switched off in the demo.</li>
-      </ul>
-      <div id="gateErr" role="alert" aria-live="assertive"></div>
-      <button class="btn pri block" data-act="demoStart" type="button" style="height:42px" data-autofocus>${I.shield}Start demo workspace</button>
-      <div class="gateFoot">
-        <span>Open source, MIT licensed</span>
-        <span><a href="${H(S.demo.source || "https://github.com/soqlab/airlock-command")}" target="_blank" rel="noopener">Self-host it ↗</a></span>
-      </div>
-    </div></div>`;
+    </div></main>`;
+}
+/* The demo bank's endpoints as they stand after the last seeded scan (services/demo_estate.py):
+   [host, environment p/s/d, status w=below policy · v=quantum-vulnerable · p=hybrid PQ, key]. */
+const DEMO_ESTATE = [["www.example.com","p","v","EC-256"],["secure.example.com","p","v","EC-384"],["payments.example.com","p","v","RSA-3072"],["api.example.com","p","v","EC-256"],["openbanking.example.com","p","v","EC-384"],["mobile-gw.example.com","p","p","EC-256"],["auth.example.com","p","v","RSA-3072"],["statements.example.com","p","w","RSA-2048"],["treasury.example.com","p","v","RSA-3072"],["cards.example.com","p","v","EC-256"],["fx.example.com","p","w","RSA-2048"],["docs.example.com","p","v","EC-256"],["partner.example.com","p","w","RSA-2048"],["payments-hub.internal.example","p","v","RSA-3072"],["ledger.internal.example","p","v","RSA-3072"],["kyc.internal.example","p","v","EC-256"],["reporting.internal.example","p","v","RSA-3072"],["ldap.internal.example","p","w","RSA-2048"],["mq.internal.example","p","w","RSA-2048"],["vault.internal.example","p","v","EC-256"],["staging-www.example.com","s","v","EC-256"],["staging-api.example.com","s","v","EC-256"],["staging-payments.example.com","s","w","RSA-2048"],["staging-auth.example.com","s","w","RSA-2048"],["staging-mobile-gw.example.com","s","v","EC-256"],["staging-cards.example.com","s","v","EC-256"],["staging-partner.example.com","s","w","RSA-2048"],["staging-ledger.internal.example","s","w","RSA-2048"],["staging-kyc.internal.example","s","v","EC-256"],["staging-reporting.internal.example","s","w","RSA-2048"],["dev-api.example.com","d","v","EC-256"],["dev-payments.example.com","d","w","RSA-2048"],["dev-auth.example.com","d","w","RSA-2048"],["dev-mobile-gw.example.com","d","v","EC-256"],["dev-portal.example.com","d","w","RSA-2048"],["sandbox-api.example.com","d","v","EC-256"],["sandbox-partner.example.com","d","w","RSA-2048"],["lab-ledger.internal.example","d","w","RSA-2048"]];
+let demoRadarStop = null;
+/** Rings are environments (production innermost); a sweep lights each endpoint in its status colour. */
+function startDemoRadar() {
+  const cv = $("#dgCanvas");
+  if (!cv) return;
+  const ctx2 = cv.getContext("2d");
+  const out = $("#dgReadout");
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const ring = { p: 0.42, s: 0.68, d: 0.9 };
+  const envName = { p: "production", s: "staging", d: "development" };
+  const pts = [], GAP = 0.8;
+  for (const env of ["p", "s", "d"]) {
+    const list = DEMO_ESTATE.filter((e) => e[1] === env);
+    list.forEach((e, i) => {
+      // Spread round the ring but leave a gap at 12 o'clock for the ring labels.
+      const a = -Math.PI / 2 + GAP / 2 + ((i + (env === "s" ? 0.5 : env === "d" ? 0.25 : 0)) / list.length) * (Math.PI * 2 - GAP);
+      const jitter = ((e[0].length * 37) % 11 - 5) / 220;   // stable, so nodes never jump between frames
+      pts.push({ e, a, r: ring[env] + jitter, lit: -1e9 });
+    });
+  }
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let raf = 0, t0 = performance.now(), lastShown = null;
+  const draw = (now) => {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) { raf = requestAnimationFrame(draw); return; }
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const c = ctx2, R = Math.min(w, h) / 2 - 6, cx = w / 2, cy = h / 2;
+    const col = { w: css("--bad"), v: css("--warn"), p: css("--ok") }, line = css("--line2"), brand = css("--brand"), ink3 = css("--ink3");
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, h);
+    c.lineWidth = 1;
+    c.strokeStyle = line;
+    for (const k of ["p", "s", "d"]) { c.beginPath(); c.arc(cx, cy, ring[k] * R, 0, Math.PI * 2); c.stroke(); }
+    c.setLineDash([2, 4]);
+    for (const i of [0, 1, 3]) { const a = i * Math.PI / 4; /* no vertical axis: the ring labels sit there */ c.beginPath(); c.moveTo(cx - Math.cos(a) * R, cy - Math.sin(a) * R); c.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); c.stroke(); }
+    c.setLineDash([]);
+    c.fillStyle = ink3;
+    c.font = `600 9px ${css("--mono") || "monospace"}`;
+    c.textAlign = "center";
+    for (const k of ["p", "s", "d"]) c.fillText(envName[k].toUpperCase(), cx, cy - ring[k] * R + 12);
+
+    const sweep = still ? null : (((now - t0) / 5200) * Math.PI * 2) % (Math.PI * 2);
+    if (sweep !== null) {
+      const g = c.createConicGradient ? c.createConicGradient(sweep - 0.9, cx, cy) : null;
+      if (g) {
+        g.addColorStop(0, "transparent");
+        g.addColorStop(0.9 / (Math.PI * 2), brand + "38");
+        g.addColorStop(0.9 / (Math.PI * 2) + 0.0001, "transparent");
+        c.fillStyle = g;
+        c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sweep - 0.9, sweep); c.closePath(); c.fill();
+      }
+      c.strokeStyle = brand; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sweep) * R, cy + Math.sin(sweep) * R); c.stroke();
+    }
+    let newest = null;
+    for (const p of pts) {
+      const ang = ((p.a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      if (sweep !== null) {
+        const d = (sweep - ang + Math.PI * 2) % (Math.PI * 2);
+        if (d < 0.05 && now - p.lit > 1000) { p.lit = now; newest = p; }
+      }
+      const age = still ? 0 : (now - p.lit) / 1000;
+      const glow = still ? 1 : Math.max(0, 1 - age / 4.5);
+      const x = cx + Math.cos(p.a) * p.r * R, y = cy + Math.sin(p.a) * p.r * R;
+      const k = col[p.e[2]];
+      c.globalAlpha = 0.28 + 0.72 * glow;
+      c.fillStyle = k;
+      const s = p.e[2] === "p" ? 7 : 5;
+      c.fillRect(x - s / 2, y - s / 2, s, s);
+      if (!still && age < 1.2) {
+        c.globalAlpha = 1 - age / 1.2;
+        c.strokeStyle = k; c.lineWidth = 1;
+        const rr = s + age * 14;
+        c.strokeRect(x - rr / 2, y - rr / 2, rr, rr);
+      }
+    }
+    c.globalAlpha = 1;
+    if (newest && out && newest !== lastShown) {
+      lastShown = newest;
+      const label = { w: "below policy", v: "quantum-vulnerable", p: "hybrid post-quantum" }[newest.e[2]];
+      out.innerHTML = `<b>${H(newest.e[0])}</b><br>${H(newest.e[3])} · ${label}`;
+    }
+    if (!still) raf = requestAnimationFrame(draw);
+  };
+  if (still && out) out.innerHTML = `<b>${DEMO_ESTATE.length} endpoints</b><br>across three environments`;
+  raf = requestAnimationFrame(draw);
+  const onResize = () => { if (still) requestAnimationFrame(draw); };
+  addEventListener("resize", onResize);
+  demoRadarStop = () => { cancelAnimationFrame(raf); removeEventListener("resize", onResize); demoRadarStop = null; };
 }
 ACTIONS.demoStart = async (b) => {
   b.disabled = true;
@@ -2679,6 +2853,7 @@ async function showAuthGate() {
   if (!S.authCfg) await loadAuth();
   $("#overlay").innerHTML = authGateHtml();
   wire($("#overlay"));
+  if (S.demo) startDemoRadar();
   const submit = (e) => { if (e.key === "Enter") { e.preventDefault(); ACTIONS.gateLogin(e.target); } };
   $("#gEmail")?.addEventListener("keydown", submit);
   $("#gPass")?.addEventListener("keydown", submit);
@@ -2687,6 +2862,7 @@ async function showAuthGate() {
 function hideAuthGate() {
   if (!gateOpen) return;
   gateOpen = false;
+  demoRadarStop?.();
   $("#overlay").innerHTML = "";
   $("#app").style.display = "";
 }
