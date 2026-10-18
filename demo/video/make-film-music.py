@@ -1,4 +1,4 @@
-"""Generate the score for the Airlock Command three-minute film.
+"""Generate the score for the Morrow three-minute film.
 
 Standard library only (`wave`, `math`, `array`). The promo's track is the wrong
 shape for three minutes — a kick on every beat from bar four is insistent over a
@@ -132,7 +132,7 @@ def riser(seconds: float) -> list[float]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bars", type=int, default=BARS)
-    ap.add_argument("--out", default=str(pathlib.Path(__file__).with_name("airlock-command-3min-music.wav")))
+    ap.add_argument("--out", default=str(pathlib.Path(__file__).with_name("morrow-3min-music.wav")))
     args = ap.parse_args()
 
     total = int(args.bars * BAR * SR) + int(3.0 * SR)

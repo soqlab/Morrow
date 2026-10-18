@@ -172,7 +172,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seconds", type=float, default=660.0)
     ap.add_argument("--out", default=str(pathlib.Path(__file__).with_name(
-        "airlock-command-walkthrough-music.wav")))
+        "morrow-walkthrough-music.wav")))
     args = ap.parse_args()
 
     samples = render(args.seconds)

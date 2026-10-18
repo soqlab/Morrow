@@ -1,6 +1,6 @@
-# Airlock Command tour — narration script
+# Morrow tour — narration script
 
-The words burned into `airlock-command-tour.mp4`, in order. Timings are
+The words burned into `morrow-tour.mp4`, in order. Timings are
 for the delivered cut. There is no voice-over in the delivered file;
 these are the words to read if you want one.
 
@@ -33,7 +33,7 @@ drift from the picture.
 
 ## 2. Discovery
 
-**1:31**  Airlock Command scans TLS endpoints and records what each one really negotiated.
+**1:31**  Morrow scans TLS endpoints and records what each one really negotiated.
 
 **1:38**  Protocol version, cipher suite, key algorithm, key size, and the certificate chain behind it.
 

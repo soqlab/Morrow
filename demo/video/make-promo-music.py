@@ -1,4 +1,4 @@
-"""Generate the rhythmic music bed for the Airlock Command promo.
+"""Generate the rhythmic music bed for the Morrow promo.
 
 Standard library only (`wave`, `math`, `array`) — numpy is not installed here,
 and the long film's ambient bed (make-music.py) is the wrong shape for a
@@ -149,7 +149,7 @@ def riser(seconds: float) -> list[float]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=str(pathlib.Path(__file__).with_name("airlock-command-promo-music.wav")))
+    ap.add_argument("--out", default=str(pathlib.Path(__file__).with_name("morrow-promo-music.wav")))
     ap.add_argument("--bars", type=int, default=BARS)
     args = ap.parse_args()
 

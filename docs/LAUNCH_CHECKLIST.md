@@ -86,7 +86,7 @@ Certificate Transparency seeding is safe at any scale and active measurement is 
 - [ ] **Stand up the forge** — `../quantum-forge/docs/FORGE_SETUP.md`. Gitea, Postgres, Caddy,
       nightly backups.
 - [ ] **Publish from a clean history**: `./scripts/publish-clean-repo.sh ~/Desktop/pqc-scanner
-      Sprint35 git@git.yourdomain.com:you/airlock-command.git`. It exports only tracked files,
+      Sprint35 git@git.yourdomain.com:you/morrow.git`. It exports only tracked files,
       compares every real value in your local `backend/.env` against the export, and refuses if
       one appears.
 - [ ] **Mirror to GitHub** for discovery: `./scripts/mirror-to-github.sh`, or the forge's own push

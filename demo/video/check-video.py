@@ -1,4 +1,4 @@
-"""Read a finished Airlock Command film back before it ships.
+"""Read a finished Morrow film back before it ships.
 
 Three things, in order:
 
@@ -15,7 +15,7 @@ Three things, in order:
   3. a contact sheet, one frame every N seconds, for a person to read.
 
     backend\\.venv\\Scripts\\python.exe demo\\video\\check-video.py \\
-        demo\\video\\airlock-command-tour.mp4 --frames OUTDIR --every 5
+        demo\\video\\morrow-tour.mp4 --frames OUTDIR --every 5
 
 Standard library plus Pillow. numpy is not installed here.
 """

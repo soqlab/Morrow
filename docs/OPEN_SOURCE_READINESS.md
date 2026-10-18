@@ -1,6 +1,6 @@
 # Open-Source Readiness Review
 
-**Repository:** Airlock Command / PQC Scanner
+**Repository:** Morrow / PQC Scanner
 **Owner:** Yasseen Nandally
 **Target licence:** MIT
 **Review date:** 3 October 2026

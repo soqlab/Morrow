@@ -1,5 +1,5 @@
 /**
- * Renders the Airlock Command product tour.
+ * Renders the Morrow product tour.
  *
  *   set NODE_PATH=.tools\video\node_modules
  *   node demo\video\render-tour.js [--work DIR] [--only 12-18]
@@ -71,7 +71,7 @@ const SHOTS = [
   /* ---------------------------------------------------------- 0. opening -- */
   {
     sec: "Opening", pre: async (c) => { await c.nav("overview"); },
-    card: { kick: "Airlock Command", big: "Cryptographic\ngovernance.", sub: "For the post-quantum migration.", ruleW: 420 },
+    card: { kick: "Morrow", big: "Cryptographic\ngovernance.", sub: "For the post-quantum migration.", ruleW: 420 },
     secs: 7.2, motion: { kind: "push", amount: 0.03 }, chapter: false, trans: null,
   },
   {
@@ -145,7 +145,7 @@ const SHOTS = [
     secs: 6.4, trans: "bars", motion: { kind: "push", amount: 0.026 },
   },
   {
-    cap: ["Airlock Command scans TLS endpoints and records", "what each one <em>really negotiated</em>."],
+    cap: ["Morrow scans TLS endpoints and records", "what each one <em>really negotiated</em>."],
     pos: "bl", eyebrow: "TLS Scanner", secs: 6.6, trans: "fade",
     calls: [{ sel: ".card.lift", text: "New scan", shape: "box", label: "EXTERNAL POSTURE CHECK", side: "right", at: [1.2, 6.0] }],
   },
@@ -483,7 +483,7 @@ const SHOTS = [
     pos: "bl", secs: 6.6, trans: "wipedown",
   },
   {
-    card: { kick: "Airlock Command", big: "Cryptographic\ngovernance.", sub: "For the post-quantum migration.", ruleW: 420, scrim: 0.97, hold: true },
+    card: { kick: "Morrow", big: "Cryptographic\ngovernance.", sub: "For the post-quantum migration.", ruleW: 420, scrim: 0.97, hold: true },
     secs: 8.5, trans: "iris", chapter: false, motion: { kind: "push", amount: 0.024 },
   },
 ];

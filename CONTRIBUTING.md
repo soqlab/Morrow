@@ -1,4 +1,4 @@
-# Contributing to Airlock Command
+# Contributing to Morrow
 
 Thanks for considering a contribution. This document covers how to get set up, the conventions this
 codebase holds to, how to extend the two most commonly extended parts, and what makes a pull request
@@ -10,8 +10,8 @@ vulnerability, follow [SECURITY.md](SECURITY.md) instead of opening an issue.
 ## Setup
 
 ```bash
-git clone https://github.com/yasseennandally/pqc_scanner.git
-cd pqc_scanner/backend
+git clone https://github.com/soqlab/morrow.git
+cd morrow/backend
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt -r requirements-dev.txt   # .venv\Scripts\pip on Windows
 .venv/bin/python -m uvicorn app:app --port 8001

@@ -1,5 +1,5 @@
 /**
- * Renders the Airlock Command sixty-second film.
+ * Renders the Morrow sixty-second film.
  *
  *   set NODE_PATH=.tools\video\node_modules
  *   node demo\video\render-60s.js [--work DIR] [--only 8-11] [--setup-from 8]
@@ -226,7 +226,7 @@ const SHOTS = [
     // the card leaves it alone (scrim: null) rather than easing it from zero,
     // which showed as a flash of bright UI in the middle of the wipe.
     scrim: { level: 0.76 },
-    card: { kick: "Airlock Command", big: "Cryptographic\ngovernance.", ruleW: 470,
+    card: { kick: "Morrow", big: "Cryptographic\ngovernance.", ruleW: 470,
       sub: "For the post-quantum migration.", scrim: null },
   },
   {

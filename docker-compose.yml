@@ -16,7 +16,7 @@ services:
   app:
     build:
       context: ./backend
-    image: airlock-command:local
+    image: morrow:local
     ports:
       - "8001:8000"
     environment:
@@ -66,7 +66,7 @@ services:
   # Not a default service -- `docker compose up` leaves you an empty workspace
   # with honest empty states, which is the real first-run experience.
   seed:
-    image: airlock-command:local
+    image: morrow:local
     profiles: ["seed"]
     depends_on:
       app:

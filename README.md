@@ -1,13 +1,13 @@
-# Airlock Command
+# Morrow
 
 **Find the cryptography in your estate that a quantum computer will break, prove who owns it, and track it to replacement.**
 
-Airlock Command is a post-quantum cryptography (PQC) governance platform. It discovers the
+Morrow is a post-quantum cryptography (PQC) governance platform. It discovers the
 cryptography actually in use across TLS endpoints, certificates, source repositories and cloud
 configuration; scores what is exposed; assigns each finding an owner; and follows it through
 remediation to verified closure with an audit trail.
 
-[![CI](https://github.com/yasseennandally/pqc_scanner/actions/workflows/tests.yml/badge.svg)](https://github.com/yasseennandally/pqc_scanner/actions/workflows/tests.yml)
+[![CI](https://github.com/soqlab/morrow/actions/workflows/tests.yml/badge.svg)](https://github.com/soqlab/morrow/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ![The console's estate overview](demo/tour/overview.jpg)
@@ -78,7 +78,7 @@ See [docs/AI_PROVIDERS.md](docs/AI_PROVIDERS.md).
 Needs Docker. Nothing else — no `.env` to write, no database to install.
 
 ```bash
-git clone https://github.com/yasseennandally/pqc_scanner.git
+git clone https://github.com/soqlab/morrow.git
 cd pqc_scanner
 docker compose up --build
 ```

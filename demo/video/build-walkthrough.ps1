@@ -37,7 +37,7 @@ param(
   # setpts). Check the join with ffmpeg and pre-compensate if you use this.
   [double]$CutStart = 0,
   [double]$CutEnd = 0,
-  [string]$Output = "airlock-command-walkthrough.mp4"
+  [string]$Output = "morrow-walkthrough.mp4"
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,7 +48,7 @@ $ffprobe = Join-Path $repo ".tools\ffmpeg\ffprobe.exe"
 
 $webm = Get-ChildItem (Join-Path $here "raw") -Filter *.webm | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if (-not $webm) { throw "No recording in demo\video\raw. Run record-walkthrough.js first." }
-$music = Join-Path $here "airlock-command-walkthrough-music.wav"
+$music = Join-Path $here "morrow-walkthrough-music.wav"
 if (-not (Test-Path $music)) { throw "No music. Run make-music.py first." }
 $timings = Join-Path $here "walkthrough-timings.json"
 if (-not (Test-Path $timings)) { throw "No walkthrough-timings.json beside the recording." }

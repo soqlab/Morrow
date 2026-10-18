@@ -12,8 +12,8 @@ import pytest
 from services import qr_svg as q
 
 OTP = (
-    "otpauth://totp/Airlock%20Command:alice%40corp.example?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
-    "&issuer=Airlock%20Command&algorithm=SHA1&digits=6&period=30"
+    "otpauth://totp/Morrow:alice%40corp.example?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+    "&issuer=Morrow&algorithm=SHA1&digits=6&period=30"
 )
 
 

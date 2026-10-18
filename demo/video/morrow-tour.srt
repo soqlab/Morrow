@@ -1,0 +1,305 @@
+1
+00:00:07,900 --> 00:00:16,567
+Everything here is a live build reading a seeded database.
+The customer is Example Financial Group — an invented bank.
+
+2
+00:00:24,117 --> 00:00:29,233
+Traffic your organisation encrypts today
+can be recorded today.
+
+3
+00:00:30,183 --> 00:00:37,483
+It becomes readable later, once a quantum computer
+can break RSA and elliptic-curve cryptography.
+
+4
+00:00:38,433 --> 00:00:45,683
+So data with a long secrecy requirement is already exposed —
+though nothing has been broken yet.
+
+5
+00:00:46,633 --> 00:00:53,483
+The console opens on posture: inventory, open fixes,
+modelled exposure and crypto-agility.
+
+6
+00:00:54,433 --> 00:01:01,733
+And the deadlines are not hypothetical.
+CNSA 2.0, NSM-10 and NIST guidance carry published dates.
+
+7
+00:01:02,683 --> 00:01:08,317
+Optimistic, median and conservative scenarios —
+not one confident date.
+
+8
+00:01:09,267 --> 00:01:15,917
+Some target dates have already passed.
+Others land in 2030 and 2033.
+
+9
+00:01:16,867 --> 00:01:24,167
+The platform models when a relevant quantum computer becomes credible —
+and labels it as a model.
+
+10
+00:01:31,517 --> 00:01:37,733
+Morrow scans TLS endpoints and records
+what each one really negotiated.
+
+11
+00:01:38,683 --> 00:01:45,733
+Protocol version, cipher suite, key algorithm,
+key size, and the certificate chain behind it.
+
+12
+00:01:46,683 --> 00:01:53,533
+Eight scan runs over five months, so the history
+has shape rather than being one snapshot.
+
+13
+00:01:54,483 --> 00:02:00,883
+The inventory it builds.
+Thirty-eight endpoints, every one with an owner beside it.
+
+14
+00:02:01,833 --> 00:02:08,750
+Each endpoint carries an owner, a team, an environment
+and a data-confidentiality lifetime.
+
+15
+00:02:09,700 --> 00:02:17,517
+RSA 2048 and 3072. Elliptic curve P-256 and P-384.
+One gateway already negotiating a hybrid key exchange.
+
+16
+00:02:18,467 --> 00:02:25,717
+Confidentiality lifetime is the field that matters most —
+how long this data has to stay secret.
+
+17
+00:02:26,667 --> 00:02:33,517
+Ownership is what turns a cryptographic finding
+into work a named team can be asked to do.
+
+18
+00:02:40,667 --> 00:02:45,783
+It is what an adversary could store today
+and read after Q-Day.
+
+19
+00:02:46,733 --> 00:02:54,750
+So each asset is priced: what the traffic is worth,
+how long it stays secret, the odds it is broken by then.
+
+20
+00:02:55,700 --> 00:03:01,150
+Exposure grouped by algorithm class.
+RSA-2048 carries most of it.
+
+21
+00:03:02,100 --> 00:03:08,150
+The priority queue is ranked by modelled exposure,
+not by a severity label.
+
+22
+00:03:09,100 --> 00:03:16,800
+Owner, environment, algorithm, probability broken,
+data category, and how long it has been harvestable.
+
+23
+00:03:17,750 --> 00:03:22,000
+Then the exposure timeline.
+
+24
+00:03:22,950 --> 00:03:28,200
+It is a real three-dimensional chart.
+You can turn it.
+
+25
+00:03:29,150 --> 00:03:33,200
+Amber is traffic captured but still sealed.
+
+26
+00:03:34,150 --> 00:03:39,967
+Red is the same traffic, readable,
+once the model's Q-Day wall is crossed.
+
+27
+00:03:40,917 --> 00:03:49,200
+Beside it, the probability ribbons: one curve per algorithm,
+with the year each reaches a fifty per cent chance.
+
+28
+00:03:50,150 --> 00:03:58,100
+Every modelled figure carries a badge saying it is a model,
+with the date, the sources and the assumptions.
+
+29
+00:03:59,050 --> 00:04:04,233
+Nothing here is presented as measurement
+when it is an estimate.
+
+30
+00:04:11,783 --> 00:04:18,833
+The cryptographic bill of materials is generated
+from the scans themselves, in CycloneDX 1.6.
+
+31
+00:04:19,783 --> 00:04:25,867
+Every protocol, certificate and algorithm found,
+each with its quantum status.
+
+32
+00:04:26,817 --> 00:04:32,833
+Eighty-seven components in this estate.
+Two of them are already post-quantum.
+
+33
+00:04:33,783 --> 00:04:40,117
+Downloadable as JSON or CSV, so it can leave
+the product and still mean something.
+
+34
+00:04:41,067 --> 00:04:48,250
+Then the mapping to control frameworks.
+It is honest: this estate scores badly, and it says so.
+
+35
+00:04:49,200 --> 00:04:55,283
+Evidence packs collect the control artefacts
+with timestamps and a hash chain.
+
+36
+00:05:02,833 --> 00:05:09,283
+Every fix moves through suggested, approved,
+pull request, and verified closed.
+
+37
+00:05:10,233 --> 00:05:15,883
+Two are closed and verified against a later scan.
+Seven are still open.
+
+38
+00:05:16,833 --> 00:05:23,883
+Open one and it carries the file,
+the current configuration, and the proposed change.
+
+39
+00:05:24,833 --> 00:05:32,533
+Approve, reject, validate, open a pull request, mark merged —
+every step is recorded against the asset.
+
+40
+00:05:33,483 --> 00:05:39,633
+Before you change a certificate authority,
+you want to know what depends on it.
+
+41
+00:05:40,583 --> 00:05:46,233
+Assets, repositories and fixes
+in one graph you can interrogate.
+
+42
+00:05:47,183 --> 00:05:53,650
+Two roots and two issuing authorities sit
+under thirty-eight leaf certificates here.
+
+43
+00:05:54,600 --> 00:06:02,300
+If that public root failed, the dependent nodes beneath it
+would be affected — and the model prices it.
+
+44
+00:06:03,250 --> 00:06:10,817
+And a tripwire ladder: five canary keys at five strengths.
+Each only breaks if that algorithm breaks.
+
+45
+00:06:11,767 --> 00:06:18,167
+So the first one to trip tells you
+how far quantum capability has actually reached.
+
+46
+00:06:25,517 --> 00:06:30,767
+For the board, one number — with its working.
+
+47
+00:06:31,717 --> 00:06:37,733
+Inventory coverage, open exposure reduction,
+crypto-agility, blocker control.
+
+48
+00:06:38,683 --> 00:06:45,983
+Components with no evidence behind them are marked
+not measured, rather than scored from nothing.
+
+49
+00:06:46,933 --> 00:06:53,667
+Regulatory exposure is listed by regime,
+with the alignment state the evidence supports.
+
+50
+00:06:54,617 --> 00:07:01,667
+The executive view is the same view the engineers work in.
+There is no second set of numbers.
+
+51
+00:07:09,417 --> 00:07:15,667
+One: tenant isolation is enforced in the database,
+not only in application code.
+
+52
+00:07:16,617 --> 00:07:23,600
+Row-level security, scoped per organisation,
+with a cross-tenant probe you can run yourself.
+
+53
+00:07:24,550 --> 00:07:32,433
+Two: vendor support cannot look at your workspace silently.
+Read-only, time-limited, with a stated reason.
+
+54
+00:07:33,383 --> 00:07:39,633
+Three: the audit trail is hash-chained,
+so a removed entry is detectable.
+
+55
+00:07:40,583 --> 00:07:48,217
+Four: the operators who run the platform sign in
+through an identity provider, with authenticator MFA.
+
+56
+00:07:49,167 --> 00:07:55,967
+Destructive actions ask for a fresh code.
+The shared key is an emergency credential only.
+
+57
+00:07:56,917 --> 00:08:03,250
+And the data boundary is explicit about what
+is allowed to leave your environment.
+
+58
+00:08:04,200 --> 00:08:12,533
+Cryptographic metadata, fingerprints and workflow records may cross.
+Source code, private keys and tokens do not.
+
+59
+00:08:20,083 --> 00:08:25,933
+Six to eight weeks. One organisation.
+Three to five critical applications.
+
+60
+00:08:26,883 --> 00:08:33,483
+One approved cryptographic inventory.
+One fix carried all the way to verified closure.
+
+61
+00:08:34,433 --> 00:08:38,683
+One evidence pack an auditor can read.
+
+62
+00:08:39,633 --> 00:08:45,283
+Start with the endpoints whose data
+has to stay secret the longest.

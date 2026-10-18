@@ -11,7 +11,7 @@ It also lays out contact sheets -- one frame every few seconds, plus a dense
 strip across each moving shot -- for a person (or a model) to read.
 
     backend\\.venv\\Scripts\\python.exe demo\\video\\check-walkthrough.py \\
-        demo\\video\\airlock-command-walkthrough-v2.mp4 \\
+        demo\\video\\morrow-walkthrough-v2.mp4 \\
         --work %TEMP%\\airlock-walkthrough --frames OUTDIR
 """
 from __future__ import annotations

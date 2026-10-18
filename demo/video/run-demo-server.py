@@ -1,4 +1,4 @@
-"""Start an isolated Airlock Command server for demo-video recording.
+"""Start an isolated Morrow server for demo-video recording.
 
 Runs on port 8049 against a throwaway SQLite database so the real local
 server on 8001 and backend/pqc_scanner.db are never touched.

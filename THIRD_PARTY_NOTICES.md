@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Airlock Command is licensed under the MIT License — see [LICENSE](LICENSE). This file records the
+Morrow is licensed under the MIT License — see [LICENSE](LICENSE). This file records the
 licences of the third-party software it depends on, bundles or redistributes, and the attribution
 those licences require.
 

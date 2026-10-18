@@ -73,7 +73,7 @@ MFA_MAX_ATTEMPTS = 5
 MFA_ATTEMPT_WINDOW = 300
 RECOVERY_CODE_COUNT = 10
 STATE_TTL_SECONDS = 600
-ISSUER_LABEL = "Airlock Command"
+ISSUER_LABEL = "Morrow"
 
 #: Paths an authenticated but not yet MFA-elevated caller may still use.
 MFA_EXEMPT_PATHS = frozenset({

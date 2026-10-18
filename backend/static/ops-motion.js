@@ -263,7 +263,7 @@
 
   /* ---------- hybrid rollout ---------- */
   SCENES.rollout = {
-    title: "fleet · hybrid rollout", term: "airlock — rollout", period: 13,
+    title: "fleet · hybrid rollout", term: "morrow — rollout", period: 13,
     label: "Animated illustration: a hybrid post-quantum key exchange policy rolls out from a canary gateway, region by region, then switches atomically",
     setup() {
       const regions = [{ name: "region 1", cx: .2, off: 0 }, { name: "region 2", cx: .5, off: 1.5 }, { name: "region 3", cx: .8, off: 3 }];
@@ -287,7 +287,7 @@
       regions[2].nodes[4].from = regions[1].nodes[7];
       regions[0].nodes[0].from = { x: .5, y: .13 };
       const log = [
-        { at: 0, kind: "cmd", text: "airlock rollout --profile x25519mlkem768" },
+        { at: 0, kind: "cmd", text: "morrow rollout --profile x25519mlkem768" },
         { at: .8, kind: "ok", text: "policy compiled  [[hybrid key exchange]]" },
         { at: 1.4, kind: "info", text: "canary  [[one gateway]] takes a small share of traffic" },
         { at: 2.8, kind: "ok", text: "canary checked against [[your latency and failure limits]]" },
@@ -345,7 +345,7 @@
 
   /* ---------- airlock boundary ---------- */
   SCENES.evidence = {
-    title: "boundary · evidence chain", term: "airlock — evidence", period: 13,
+    title: "boundary · evidence chain", term: "morrow — evidence", period: 13,
     label: "Animated illustration: inventory reaches the policy gate, secrets are refused, and the rest is redacted, hash-chained and signed into a Trust Passport",
     setup() {
       const random = rng(7);
@@ -366,7 +366,7 @@
       const firstSecret = parts.find(p => p.secret && p.src === 2) || parts.find(p => p.secret) || parts[0];
       const signAt = seals[seals.length - 1] + .6;
       const log = [
-        { at: 0, kind: "cmd", text: "airlock evidence build --sign" },
+        { at: 0, kind: "cmd", text: "morrow evidence build --sign" },
         { at: .4, kind: "ok", text: "collect [[tls-scans · cmdb · kms-inventory]]" },
         { at: 1.1, kind: "info", text: "policy gate  deny [[secrets, private keys, tokens]]" },
         { at: firstSecret.gate, kind: "warn", text: "refused  [[private key material]] never crosses the boundary" },
@@ -444,7 +444,7 @@
 
   /* ---------- harvest now, decrypt later ---------- */
   SCENES.hndl = {
-    title: "archive · q-day exposure", term: "airlock — hndl", period: 12,
+    title: "archive · q-day exposure", term: "morrow — hndl", period: 12,
     label: "Animated illustration: encrypted traffic captured today stays sealed until a Q-Day sweep shows which flows classical key exchange leaves readable",
     setup(data) {
       const random = rng(21);
@@ -458,7 +458,7 @@
       const pqc = cells.filter(c => c.pqc).length, readable = 72 - pqc;
       const horizon = qday - start;
       const log = [
-        { at: 0, kind: "cmd", text: "airlock hndl --secrecy-life <years your data must stay secret>" },
+        { at: 0, kind: "cmd", text: "morrow hndl --secrecy-life <years your data must stay secret>" },
         { at: .4, kind: "info", text: `capture  [[${start}]] · encrypted traffic recorded today` },
         { at: 5.3, kind: "info", text: "recorded traffic  [[stays sealed today]]" },
         { at: 5.7, kind: "warn", text: `secrecy lifetime compared with  [[${qday}]]` },
@@ -533,7 +533,7 @@
   /* ---------- the latest scan ---------- */
   const SCAN_GROUPS = [["classical", "classical"], ["error", "probe errors"], ["unknown", "unclassified"], ["hybrid", "hybrid / pqc"], ["unscanned", "not scanned"]];
   SCENES.scanLive = {
-    title: "estate · latest scan", term: "airlock — scans",
+    title: "estate · latest scan", term: "morrow — scans",
     label: "Animated view of this workspace's latest TLS scan: each endpoint and how its key exchange was classified",
     setup(data) {
       const eps = Array.isArray(data.endpoints) ? data.endpoints : [];
@@ -616,7 +616,7 @@
 
   /* ---------- the certificate chain ---------- */
   SCENES.blastLive = {
-    title: "pki · certificate chain", term: "airlock — pki",
+    title: "pki · certificate chain", term: "morrow — pki",
     label: "Animated view of this workspace's certificate graph: impact moving from each root down to everything that trusts it",
     setup(data) {
       const nodes = (data.nodes || []).slice(0, 36).map(n => ({ ...n }));
@@ -684,7 +684,7 @@
 
   /* ---------- the HNDL archive ---------- */
   SCENES.hndlLive = {
-    title: "archive · harvest exposure", term: "airlock — hndl",
+    title: "archive · harvest exposure", term: "morrow — hndl",
     label: "Animated view of this workspace's HNDL model: each asset's captured traffic, and what becomes readable at the model's Q-Day",
     setup(data) {
       const assets = (data.assets || []).filter(a => Number(a.usd) > 0).slice(0, 12);
@@ -763,7 +763,7 @@
   /* ---------- the remediation pipeline ---------- */
   const PIPE_STAGES = [["open", "open"], ["progress", "in progress"], ["merged", "merged"], ["done", "verified"]];
   SCENES.pipeline = {
-    title: "remediation · pipeline", term: "airlock — remediation",
+    title: "remediation · pipeline", term: "morrow — remediation",
     label: "Animated view of this workspace's remediation work: every migration task and fix moving into its current status",
     setup(data) {
       const all = Array.isArray(data.items) ? data.items : [];

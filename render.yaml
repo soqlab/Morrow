@@ -1,4 +1,4 @@
-# Public demo of Airlock Command (airlock.soqlab.com), on Render's free tier.
+# Public demo of Morrow (airlock.soqlab.com), on Render's free tier.
 #
 # Each visitor gets a private, throwaway workspace with fictional sample data. Nothing is kept:
 # workspaces are deleted after an hour, and the SQLite file lives on the container's ephemeral disk,

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Airlock Command - Quantum Readiness Console</title>
+<title>Morrow - Quantum Readiness Console</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
 /* ============================================================
@@ -816,7 +816,7 @@ pre.out{
 .fbRate input:focus-visible + label{outline:2px solid var(--accent);outline-offset:2px}
 .fbHint{margin:0;font-size:11px;color:var(--ink3);line-height:1.5}
 /* ============================================================
-   AIRLOCK COMMAND - main console visual refresh
+   MORROW - main console visual refresh
    ============================================================ */
 html[data-theme="dark"]{
   /* Aligned to the site palette (landing, doc pages, operator surfaces).
@@ -1176,7 +1176,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
           <path d="M12 8.2v7.6M8.5 10.2l7 3.6M15.5 10.2l-7 3.6" opacity=".85"/>
         </svg>
       </div>
-      <div class="brandTxt"><b>Airlock Command</b><small>Intelligence workspace</small></div>
+      <div class="brandTxt"><b>Morrow</b><small>Intelligence workspace</small></div>
       <button class="sideClose" id="navClose" type="button" aria-label="Close navigation">&#215;</button>
     </div>
     <div class="workspaceSwitch"><label for="orgSel">Active workspace</label><select class="orgSel" id="orgSel" title="Active organization" aria-label="Active organization"></select><span>Organization-scoped evidence</span></div>
@@ -2105,7 +2105,7 @@ const NAV = [
       customer or clearly marked as demo data.</p>` },
     // operator: shown only once the server accepts this tab's platform key.
     { id: "g-admin-page", n: "Administrator Guide", i: I.shield, operator: true, body: `
-      <p>For vendor operators: the staff who run Airlock Command for customers. Customers never see this console or this guide.</p>
+      <p>For vendor operators: the staff who run Morrow for customers. Customers never see this console or this guide.</p>
       <p>The operator console lives at <code>/vendor-admin/</code>. It is deliberately not linked from the public website. Your deployment team publishes its address behind your SSO or VPN gateway.</p>
       <p>What this guide does not claim: SSO was tested against a mocked identity provider and has not been run end to end against a real Okta, Entra ID or Google Workspace account. Section 21 lists what to configure and test before you rely on it.</p>
       <details class="faq"><summary>1. Signing in</summary>
@@ -2348,7 +2348,7 @@ function showOops(requested, { push = true } = {}) {
   S.route = requested;
   $("#vTitle").textContent = "Page not found";
   $("#vSub").textContent = "This address does not match a page in the console";
-  document.title = "Page not found - Airlock Command";
+  document.title = "Page not found - Morrow";
   $$(".nav[data-go]").forEach(b => b.classList.remove("on"));
   setConsoleNav(false);
   if (push && location.hash.slice(1) !== requested) history.pushState({}, "", "#" + requested);
@@ -2385,7 +2385,7 @@ async function go(id, { push = true } = {}) {
   const m = META[id];
   $("#vTitle").textContent = m.n;
   $("#vSub").textContent = m.d;
-  document.title = `${m.n} - Airlock Command`;
+  document.title = `${m.n} - Morrow`;
   $$(".nav[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === id));
   setConsoleNav(false);
   $("#view").dataset.route = id;
@@ -2623,7 +2623,7 @@ const signedIn = () => !!(S.token || S.key || S.ctx?.authenticated);
 /** Public demo: one button instead of sign-in. Each visitor gets a private, throwaway workspace. */
 function demoGateHtml() {
   const mins = Math.round((S.demo.ttl_seconds || 3600) / 60);
-  const src = H(S.demo.source || "https://github.com/soqlab/airlock-command");
+  const src = H(S.demo.source || "https://github.com/soqlab/morrow");
   const n = (k) => DEMO_ESTATE.filter((e) => e[2] === k).length;
   return `<main class="gate demo" id="gate">
     <div class="dg">
@@ -2632,7 +2632,7 @@ function demoGateHtml() {
           <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M12 2 3 6.5v5.8c0 5 3.8 9.1 9 9.7 5.2-.6 9-4.7 9-9.7V6.5L12 2Z"/>
             <path d="M12 8.2v7.6M8.5 10.2l7 3.6M15.5 10.2l-7 3.6" opacity=".85"/></svg></div>
-          <div><b>Airlock Command</b><small>by SOQLAB</small></div>
+          <div><b>Morrow</b><small>by SOQLAB</small></div>
         </div>
         <nav aria-label="Project links">
           <a href="${src}" target="_blank" rel="noopener">Source code ↗</a>
@@ -2643,7 +2643,7 @@ function demoGateHtml() {
       <section aria-labelledby="dgTitle">
         <div class="dgEyebrow">Post-quantum readiness · open source</div>
         <h1 class="dgTitle" id="dgTitle">Find the keys a <em>quantum computer</em> will break.</h1>
-        <p class="dgLede">Airlock Command maps the RSA and elliptic-curve cryptography across your endpoints,
+        <p class="dgLede">Morrow maps the RSA and elliptic-curve cryptography across your endpoints,
           certificates and code, ranks it by what it protects and for how long, and tracks every
           fix through to post-quantum algorithms.</p>
         <figure class="dgRadar" style="margin:0">
@@ -2806,7 +2806,7 @@ function authGateHtml() {
         <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M12 2 3 6.5v5.8c0 5 3.8 9.1 9 9.7 5.2-.6 9-4.7 9-9.7V6.5L12 2Z"/>
           <path d="M12 8.2v7.6M8.5 10.2l7 3.6M15.5 10.2l-7 3.6" opacity=".85"/></svg></div>
-        <div><b>Airlock Command</b><small>Quantum Mesh</small></div>
+        <div><b>Morrow</b><small>Quantum Mesh</small></div>
       </div>
       <h2 id="gateTitle">Sign in</h2>
       <p class="gsub">This server requires authentication. Signing in with
@@ -3068,7 +3068,7 @@ const FEEDBACK_KINDS = [
   ["other",    "Other"],
 ];
 ACTIONS.openFeedback = () => modal("Send feedback", `<div class="col">
-  <p class="fbHint">Goes to the Airlock Command team with the view you are on. Do not include secrets,
+  <p class="fbHint">Goes to the Morrow team with the view you are on. Do not include secrets,
     keys, or customer data &mdash; the message is stored as written.</p>
   <div class="field"><label for="fbKind">Kind</label>
     <select class="inp" id="fbKind">${FEEDBACK_KINDS.map(([v, t]) => `<option value="${v}">${H(t)}</option>`).join("")}</select></div>
@@ -3235,7 +3235,7 @@ async function loadNotices() {
     out.push(`<div class="banner info" role="status">${I.info}<div><b>Demo workspace</b>
       <span class="bx">Example Financial Group is fictional sample data. This workspace and everything you change in it
       is deleted at ${H(at)} (in ${Math.max(1, Math.round(left / 60))} min). Scanning and integrations are off.
-      <a href="${H(S.demo.source)}" target="_blank" rel="noopener">Self-host Airlock Command ↗</a></span></div></div>`);
+      <a href="${H(S.demo.source)}" target="_blank" rel="noopener">Self-host Morrow ↗</a></span></div></div>`);
   }
   const r = await safe("/announcements/active");
   if (!r.ok || !r.data) { box.innerHTML = out.join(""); box.hidden = !out.length; return; }
@@ -4143,7 +4143,7 @@ function executiveStoryFrames(ctx) {
 }
 function buildExecutiveStory(ctx) {
   const f = executiveStoryFrames(ctx);
-  return `Executive story for Airlock Command
+  return `Executive story for Morrow
 
 ${f.map(x => `${x[0]}: ${x[1]}
 ${x[2]}`).join("\n\n")}
@@ -7390,7 +7390,7 @@ ACTIONS.schedRun = async (b) => { const r = await safe(`/${b.dataset.k}/${encode
 ACTIONS.schedDel = async (b) => { const r = await safe(`/${b.dataset.k}/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" }); r.ok ? (ok("Schedule deleted"), retry()) : err(r.err); };
 ACTIONS.alertOp = async (b) => {
   const box = $("#alertOut");
-  const r = await safe(`/alerting/${b.dataset.p}`, { method: "POST", body: { summary: "Airlock Command console test", severity: "info" } });
+  const r = await safe(`/alerting/${b.dataset.p}`, { method: "POST", body: { summary: "Morrow console test", severity: "info" } });
   if (box) { box.innerHTML = bind(r, (d) => card(`/alerting/${b.dataset.p}`, autoKV(d, { limit: 20 }), { icon: I.bell }), `/alerting/${b.dataset.p}`); wire(box); }
   r.ok ? ok(`${TITLE(b.dataset.p.replace("/", " "))} dispatched`) : err(r.err);
 };

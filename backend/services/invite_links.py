@@ -186,9 +186,9 @@ def pending_token(organization_id: str, invite_id: str) -> Optional[Dict[str, An
 
 
 def email_body(link: str, org_name: str, role: str, expires_at: str) -> Dict[str, str]:
-    subject = f"You're invited to {org_name} on Airlock Command"
+    subject = f"You're invited to {org_name} on Morrow"
     text = (
-        f"You have been invited to join {org_name} on Airlock Command as {ROLE_LABELS.get(role, role)}.\n\n"
+        f"You have been invited to join {org_name} on Morrow as {ROLE_LABELS.get(role, role)}.\n\n"
         f"Open this link to review and accept the invitation:\n{link}\n\n"
         f"The link works once and expires {expires_at}. Sign in with this email address to accept it.\n"
         "If you did not expect this invitation, you can ignore this message.\n"

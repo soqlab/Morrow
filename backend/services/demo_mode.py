@@ -59,7 +59,7 @@ BLOCKED_READ_PREFIXES = ("/vendor-admin", "/platform", "/admin", "/dev", "/suppo
 OWN_PATHS = {"/demo/start", "/demo/status"}
 
 NOT_IN_DEMO = ("Not available in the demo. Scanning, integrations and administration are switched "
-               "off here; self-host Airlock Command to use them: https://github.com/soqlab/airlock-command")
+               "off here; self-host Morrow to use them: https://github.com/soqlab/morrow")
 
 
 # ---------------------------------------------------------------- network lock
@@ -434,7 +434,7 @@ def attach(app) -> None:
         if path == "/demo/status":
             return JSONResponse({"demo": True, "ttl_seconds": TTL_SECONDS,
                                  "max_workspaces": MAX_WORKSPACES,
-                                 "source": "https://github.com/soqlab/airlock-command"},
+                                 "source": "https://github.com/soqlab/morrow"},
                                 headers={"Cache-Control": "no-store"})
 
         if path == "/demo/start":

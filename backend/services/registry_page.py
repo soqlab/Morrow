@@ -211,7 +211,7 @@ def _chrome_open() -> str:
         '<main class="doc-shell">\n'
         '  <header class="topbar">\n'
         '    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span>'
-        "<span>Airlock Command</span></a>\n"
+        "<span>Morrow</span></a>\n"
         f'    <nav class="nav" aria-label="Public navigation">{nav}'
         '<a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>\n'
         "  </header>\n"
@@ -222,7 +222,7 @@ def _chrome_close() -> str:
     links = " / ".join(f'<a href="{href}">{label}</a>' for href, label in _FOOTER_LINKS)
     return (
         '  <footer>\n'
-        "    <span>Airlock Command / Public registry</span>\n"
+        "    <span>Morrow / Public registry</span>\n"
         f"    <nav>{links}</nav>\n"
         "  </footer>\n"
         "</main>\n</body>\n</html>\n"
@@ -341,7 +341,7 @@ def _json_ld(domain: str, canonical: str, entry: Dict[str, Any]) -> Dict[str, An
         "datePublished": str(entry.get("first_seen_at") or ""),
         "isAccessibleForFree": True,
         "license": "https://opensource.org/licenses/MIT",
-        "creator": {"@type": "Organization", "name": "Airlock Command"},
+        "creator": {"@type": "Organization", "name": "Morrow"},
         "about": {"@type": "WebSite", "url": f"https://{domain}/"},
         "measurementTechnique": "TLS handshake observation and Certificate Transparency",
         "variableMeasured": _check.POSTURE_LABEL.get(str(entry.get("posture") or ""), "unknown"),
@@ -366,7 +366,7 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
     base = origin.rstrip("/")
     canonical = (f"{base}/r/{domain}/at/{int(shown.get('observation_id') or 0)}"
                  if is_historical else f"{base}/r/{domain}")
-    title = f"{domain} -- post-quantum readiness | Airlock Command"
+    title = f"{domain} -- post-quantum readiness | Morrow"
     description = (str(verdict.get("headline") or "") + ". "
                    + str(verdict.get("explanation") or ""))[:300]
 
@@ -506,7 +506,7 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
 def render_missing(domain: str, origin: str) -> str:
     """For a domain with no record. Returned with 404 and noindex, never as a blank record."""
     base = origin.rstrip("/")
-    title = f"No record yet for {domain} | Airlock Command"
+    title = f"No record yet for {domain} | Morrow"
     description = (f"{domain} has not been checked by the public post-quantum readiness "
                    "checker, so there is no record to show.")
     return "\n".join([
@@ -538,7 +538,7 @@ def render_refused(domain: str, covered: str, origin: str) -> str:
     the one exception, for the reason given in badge_svg.
     """
     base = origin.rstrip("/")
-    title = f"{domain} has opted out | Airlock Command"
+    title = f"{domain} has opted out | Morrow"
     description = f"{domain} has asked not to be checked by this service."
     return "\n".join([
         _head(title, description, f"{base}/r/{domain}", noindex=True),

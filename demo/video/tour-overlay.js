@@ -1,5 +1,5 @@
 /**
- * The presentation layer for the Airlock Command tour and promo.
+ * The presentation layer for the Morrow tour and promo.
  *
  * Injected into the console page as an init script. It draws everything that
  * is *about* the product rather than part of it: scene cards, kinetic

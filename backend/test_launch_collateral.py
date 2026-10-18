@@ -32,7 +32,7 @@ def test_public_launch_pages_are_served():
         # The service is free, so the page that used to list editions now says there is nothing to
         # pay and what that does and does not mean. The caveat is load-bearing: free with no SLA is
         # only honest if the page says there is no SLA.
-        "/pricing": "Airlock Command is free",
+        "/pricing": "Morrow is free",
         "/pilot": "6-8 week",
         "/data-boundary": "Platform traffic metadata",
         "/airlock-deployment": "Validate one collection",

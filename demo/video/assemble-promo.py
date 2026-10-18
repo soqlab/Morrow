@@ -1,6 +1,6 @@
-"""Assemble the Airlock Command promo from the rendered segments.
+"""Assemble the Morrow promo from the rendered segments.
 
-render-promo.js cuts on the beat of airlock-command-promo-music.wav — every
+render-promo.js cuts on the beat of morrow-promo-music.wav — every
 shot is a whole number of 0.5 s beats at 120 BPM — so this is a plain concat
 against the track from its first sample. Nothing is stretched to fit.
 
@@ -38,8 +38,8 @@ def probe_frames(path: pathlib.Path) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--work", required=True)
-    ap.add_argument("--out", default=str(HERE / "airlock-command-promo.mp4"))
-    ap.add_argument("--music", default=str(HERE / "airlock-command-promo-music.wav"))
+    ap.add_argument("--out", default=str(HERE / "morrow-promo.mp4"))
+    ap.add_argument("--music", default=str(HERE / "morrow-promo-music.wav"))
     ap.add_argument("--crf", type=int, default=17)
     ap.add_argument("--preset", default="slow")
     args = ap.parse_args()

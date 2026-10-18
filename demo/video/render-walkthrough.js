@@ -1,5 +1,5 @@
 /**
- * Renders the Airlock Command product walkthrough, deterministically.
+ * Renders the Morrow product walkthrough, deterministically.
  *
  * Nothing here is captured in real time. The page is driven to a known state,
  * the product's ambient motion is switched off, and every frame of every
@@ -193,7 +193,7 @@ const park = (p) => p.mouse.move(1905, 1058, { steps: 4 });
 // Scroll ceilings on two views are deliberate; see the note above each.
 const SHOTS = [
   // --- 0. opening -------------------------------------------------------
-  { cap: ["Airlock Command"], pad: 2, fade: true,
+  { cap: ["Morrow"], pad: 2, fade: true,
     pre: async (p) => { await nav(p, "overview"); }, push: 0.028 },
   { cap: ["A cryptographic governance platform", "for the post-quantum migration."] },
   { cap: ["Recorded against a live build", "and a fictional customer estate."], pad: 1 },
@@ -222,7 +222,7 @@ const SHOTS = [
   { cap: ["Discovery."], pad: 1, fade: true, push: 0.026,
     pre: async (p) => { await nav(p, "scans"); } },
   { cap: ["Everything downstream starts with what you actually run,", "not what the documentation says you run."], pad: 1 },
-  { cap: ["Airlock Command scans TLS endpoints and records", "what each one really negotiated."],
+  { cap: ["Morrow scans TLS endpoints and records", "what each one really negotiated."],
     motion: { kind: "scroll", to: 440, secs: 3.6 } },
   { cap: ["Protocol version, cipher suite, key algorithm,", "key size, and the certificate chain behind it."],
     motion: { kind: "scroll", to: 680, secs: 4.0 } },
@@ -373,7 +373,7 @@ const SHOTS = [
   { cap: ["One evidence pack an auditor can read."], pad: 1 },
   { cap: ["Start with the endpoints whose data", "has to stay secret the longest."], pad: 1.5, fade: true,
     pre: async (p) => { await nav(p, "overview"); } },
-  { cap: ["Airlock Command.", "Cryptographic governance for the post-quantum migration."], pad: 3, push: 0.024 },
+  { cap: ["Morrow.", "Cryptographic governance for the post-quantum migration."], pad: 3, push: 0.024 },
   { cap: [], pad: 3.5 },
 ];
 

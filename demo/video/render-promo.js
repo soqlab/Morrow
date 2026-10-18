@@ -1,5 +1,5 @@
 /**
- * Renders the Airlock Command promo — 76 seconds, cut to its own music.
+ * Renders the Morrow promo — 76 seconds, cut to its own music.
  *
  *   set NODE_PATH=.tools\video\node_modules
  *   node demo\video\render-promo.js [--work DIR] [--only 4-9]
@@ -185,7 +185,7 @@ const SHOTS = [
   {
     beats: 14, trans: "iris", pre: async (c) => { await c.nav("overview"); await c.scroll(0); },
     motion: { kind: "push", amount: 0.022 },
-    card: { kick: "Airlock Command", big: "Cryptographic\ngovernance.", ruleW: 460,
+    card: { kick: "Morrow", big: "Cryptographic\ngovernance.", ruleW: 460,
       sub: "For the post-quantum migration." },
   },
   {

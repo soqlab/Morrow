@@ -1,6 +1,6 @@
 1
 00:00:00,000 --> 00:00:05,200
-Airlock Command
+Morrow
 
 2
 00:00:05,550 --> 00:00:12,433
@@ -68,7 +68,7 @@ not what the documentation says you run.
 
 15
 00:01:55,567 --> 00:02:03,133
-Airlock Command scans TLS endpoints and records
+Morrow scans TLS endpoints and records
 what each one really negotiated.
 
 16
@@ -373,5 +373,5 @@ has to stay secret the longest.
 
 78
 00:10:25,933 --> 00:10:35,933
-Airlock Command.
+Morrow.
 Cryptographic governance for the post-quantum migration.

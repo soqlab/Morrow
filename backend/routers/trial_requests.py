@@ -77,7 +77,7 @@ def _page(title: str, heading: str, body: str, *, status_code: int = 200) -> HTM
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{_esc(title)} | Airlock Command</title>
+<title>{_esc(title)} | Morrow</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="robots" content="noindex, follow">
 <link rel="stylesheet" href="/ui/public.css?v=7">
@@ -85,7 +85,7 @@ def _page(title: str, heading: str, body: str, *, status_code: int = 200) -> HTM
 <body class="public-document">
 <main class="doc-shell">
   <header class="topbar">
-    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Airlock Command</span></a>
+    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
     <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/check">Free check</a><a href="/pricing">Pricing</a><a href="/support">Contact</a></nav>
   </header>
   <section class="doc-section">
@@ -93,7 +93,7 @@ def _page(title: str, heading: str, body: str, *, status_code: int = 200) -> HTM
     {body}
   </section>
   <footer>
-    <span>Airlock Command</span>
+    <span>Morrow</span>
     <nav><a href="/terms">Terms</a> / <a href="/privacy">Privacy</a> / <a href="/support">Support</a></nav>
   </footer>
 </main>

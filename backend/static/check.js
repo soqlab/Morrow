@@ -318,7 +318,7 @@
     list("adds-list", data.what_a_full_assessment_adds);
     renderExports(data);
     result.hidden = false;
-    document.title = data.domain + " — post-quantum readiness check | Airlock Command";
+    document.title = data.domain + " — post-quantum readiness check | Morrow";
     if (window.history && window.history.replaceState) {
       // The record URL, not the tool URL: reloading should land on the permanent page, and one
       // record must have exactly one address.

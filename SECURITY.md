@@ -7,7 +7,7 @@
 Report it privately in one of two ways:
 
 1. **GitHub private vulnerability reporting** — preferred. Go to the
-   [Security tab](https://github.com/yasseennandally/pqc_scanner/security/advisories/new) and open a
+   [Security tab](https://github.com/soqlab/morrow/security/advisories/new) and open a
    draft advisory. This keeps the report, the discussion and the eventual CVE in one place.
 2. **Email** — **contact@soqlab.com**, with `SECURITY` in the subject line.
 

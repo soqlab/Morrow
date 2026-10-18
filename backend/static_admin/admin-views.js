@@ -122,7 +122,7 @@
     text("adminViewDescription", def.desc);
     renderCrumbs(def, parsed);
     S.setCurrent(parsed.path);
-    document.title = `${def.title} | Airlock Command administration`;
+    document.title = `${def.title} | Morrow administration`;
     if (changed) {
       document.querySelectorAll(".deepLinkNote").forEach(n => n.remove());
       document.querySelectorAll("[data-deep-link-selected]").forEach(el => { el.removeAttribute("data-deep-link-selected"); el.classList.remove("deepLinkHit"); });
@@ -686,7 +686,7 @@
     const name = c.name || an?.organization?.name || org;
     text("c360Name", name); text("c360OrgId", org); text("c360Avatar", initials(name));
     renderCrumbs(ROUTES["customer-360"], current, name);
-    document.title = `${name} | Customer 360 | Airlock Command administration`;
+    document.title = `${name} | Customer 360 | Morrow administration`;
     text("adminViewTitle", "Customer 360");
     const status = String(c.subscription_status || an?.organization?.subscription_status || an?.organization?.status || "unknown");
     const lastActivity = an?.last_activity?.at || c.last_login_at;

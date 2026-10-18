@@ -1,4 +1,4 @@
-"""Assemble the Airlock Command three-minute film, and its 30 fps fallback.
+"""Assemble the Morrow three-minute film, and its 30 fps fallback.
 
 render-3min.js writes one silent 60 fps segment per shot plus film.json. Every
 transition is already inside the segments, so this is a plain concat: the
@@ -60,9 +60,9 @@ def probe_frames(path: pathlib.Path) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--work", required=True)
-    ap.add_argument("--out", default=str(HERE / "airlock-command-3min.mp4"))
-    ap.add_argument("--out30", default=str(HERE / "airlock-command-3min-30fps.mp4"))
-    ap.add_argument("--music", default=str(HERE / "airlock-command-3min-music.wav"))
+    ap.add_argument("--out", default=str(HERE / "morrow-3min.mp4"))
+    ap.add_argument("--out30", default=str(HERE / "morrow-3min-30fps.mp4"))
+    ap.add_argument("--music", default=str(HERE / "morrow-3min-music.wav"))
     ap.add_argument("--crf", type=int, default=18)
     ap.add_argument("--preset", default="slow")
     args = ap.parse_args()

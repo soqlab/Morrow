@@ -5,7 +5,7 @@
       "t0": 10.22,
       "t1": 15.302,
       "lines": [
-        "Airlock Command"
+        "Morrow"
       ]
     },
     {
@@ -115,7 +115,7 @@
       "t0": 125.301,
       "t1": 132.785,
       "lines": [
-        "Airlock Command scans TLS endpoints and records",
+        "Morrow scans TLS endpoints and records",
         "what each one really negotiated."
       ]
     },
@@ -609,7 +609,7 @@
       "t0": 651.656,
       "t1": 661.38,
       "lines": [
-        "Airlock Command.",
+        "Morrow.",
         "Cryptographic governance for the post-quantum migration."
       ]
     }

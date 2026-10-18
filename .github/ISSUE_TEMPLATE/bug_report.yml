@@ -8,10 +8,10 @@ body:
         Thanks for reporting this.
 
         **If this is a security vulnerability, please do not file it here.** Follow
-        [SECURITY.md](https://github.com/yasseennandally/pqc_scanner/blob/main/SECURITY.md)
+        [SECURITY.md](https://github.com/soqlab/morrow/blob/main/SECURITY.md)
         and report it privately instead.
 
-        Please also check the [out-of-scope list](https://github.com/yasseennandally/pqc_scanner/blob/main/SECURITY.md#out-of-scope)
+        Please also check the [out-of-scope list](https://github.com/soqlab/morrow/blob/main/SECURITY.md#out-of-scope)
         before filing: the default local configuration is deliberately permissive and is not a bug.
 
   - type: textarea

@@ -1,5 +1,5 @@
 /**
- * Renders the Airlock Command three-minute film.
+ * Renders the Morrow three-minute film.
  *
  *   set NODE_PATH=.tools\video\node_modules
  *   node demo\video\render-3min.js [--work DIR] [--only 8-11] [--setup-from 8]
@@ -393,7 +393,7 @@ const SHOTS = [
   {
     beats: 12, trans: "fade", pre: async (c) => { await c.nav("overview"); await c.scroll(0); },
     dolly: [1.0, 1.03], scrim: { level: 0.76, blur: [5, 5] },
-    card: { kick: "Airlock Command", big: "Cryptographic\ngovernance.", ruleW: 470,
+    card: { kick: "Morrow", big: "Cryptographic\ngovernance.", ruleW: 470,
       sub: "For the post-quantum migration.", scrim: null },
   },
   {

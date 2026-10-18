@@ -1,6 +1,6 @@
 # Operator Console Guide
 
-For vendor operators: the staff who run Airlock Command for customers. Customers never see this console or this guide.
+For vendor operators: the staff who run Morrow for customers. Customers never see this console or this guide.
 
 The operator console lives at `/vendor-admin/`. It is deliberately not linked from the public website. Your deployment team publishes its address behind your SSO or VPN gateway. The same guide is shown in the customer console as the operator-only **Administrator Guide**, which only appears when the tab carries an accepted platform key.
 

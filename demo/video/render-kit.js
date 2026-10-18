@@ -1,5 +1,5 @@
 /**
- * The shared rendering kit for both Airlock Command films.
+ * The shared rendering kit for both Morrow films.
  *
  * The whole point of this file is the clock. Chrome is driven over CDP with
  * `Emulation.setVirtualTimePolicy`, so the page's idea of time is ours: every

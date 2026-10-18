@@ -1,6 +1,6 @@
-# Airlock Command walkthrough — narration script
+# Morrow walkthrough — narration script
 
-The caption text burned into `airlock-command-walkthrough-v2.mp4`, in order.
+The caption text burned into `morrow-walkthrough-v2.mp4`, in order.
 Timings are for the delivered cut. There is no voice-over in the delivered
 file; these are the words to read if you want one.
 
@@ -9,7 +9,7 @@ drift from the picture.
 
 ## Opening
 
-**0:00**  Airlock Command
+**0:00**  Morrow
 
 **0:05**  A cryptographic governance platform for the post-quantum migration.
 
@@ -43,7 +43,7 @@ drift from the picture.
 
 **1:45**  Everything downstream starts with what you actually run, not what the documentation says you run.
 
-**1:55**  Airlock Command scans TLS endpoints and records what each one really negotiated.
+**1:55**  Morrow scans TLS endpoints and records what each one really negotiated.
 
 **2:03**  Protocol version, cipher suite, key algorithm, key size, and the certificate chain behind it.
 
@@ -187,4 +187,4 @@ drift from the picture.
 
 **10:17**  Start with the endpoints whose data has to stay secret the longest.
 
-**10:25**  Airlock Command. Cryptographic governance for the post-quantum migration.
+**10:25**  Morrow. Cryptographic governance for the post-quantum migration.

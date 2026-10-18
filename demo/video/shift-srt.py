@@ -23,7 +23,7 @@ import pathlib
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
-SRT = HERE / "airlock-command-walkthrough.srt"
+SRT = HERE / "morrow-walkthrough.srt"
 TIMINGS = HERE / "walkthrough-timings.json"
 
 

@@ -424,7 +424,7 @@ def test_enrolment_encrypts_the_secret_and_verification_rejects_replay(api):
     client, app, idp = api
     sso_login(client, idp)
     secret, started, codes = enrol(client, csrf(client))
-    assert started["otpauth_uri"].startswith("otpauth://totp/") and "issuer=Airlock%20Command" in started["otpauth_uri"]
+    assert started["otpauth_uri"].startswith("otpauth://totp/") and "issuer=Morrow" in started["otpauth_uri"]
     assert started["qr_svg_data_uri"].startswith("data:image/svg+xml;base64,")
     assert len(codes) == 10 and len(set(codes)) == 10
     with app._db() as conn:

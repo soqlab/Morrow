@@ -1,5 +1,5 @@
 /**
- * Records the Airlock Command product walkthrough.
+ * Records the Morrow product walkthrough.
  *
  * Drives a real Chrome through Playwright against the demo server on 8049,
  * burns a caption bar into the page, records 1920x1080 video, and writes the
@@ -8,7 +8,7 @@
  *   set NODE_PATH=.tools\video\node_modules
  *   node demo\video\record-walkthrough.js
  *
- * Output: demo/video/raw/<uuid>.webm  and  demo/video/airlock-command-walkthrough.srt
+ * Output: demo/video/raw/<uuid>.webm  and  demo/video/morrow-walkthrough.srt
  * ffmpeg then turns the webm into the delivered MP4 (see build-walkthrough.ps1).
  */
 const fs = require("fs");
@@ -143,7 +143,7 @@ const park = (p) => p.mouse.move(1890, 1040, { steps: 6 });
 // second, plus a beat to settle); `pad` adds deliberate silence on top.
 const BEATS = [
   // --- 0. opening -------------------------------------------------------
-  { cap: ["Airlock Command"], pad: 2 },
+  { cap: ["Morrow"], pad: 2 },
   { cap: ["A cryptographic governance platform", "for the post-quantum migration."] },
   { cap: ["Recorded against a live build", "and a fictional customer estate."], pad: 1 },
 
@@ -169,7 +169,7 @@ const BEATS = [
   // --- 2. discovery -----------------------------------------------------
   { cap: ["Discovery."], act: async (p) => { await go(p, "scans"); }, pad: 1 },
   { cap: ["Everything downstream starts with what you actually run,", "not what the documentation says you run."], pad: 1 },
-  { cap: ["Airlock Command scans TLS endpoints and records", "what each one really negotiated."],
+  { cap: ["Morrow scans TLS endpoints and records", "what each one really negotiated."],
     act: async (p) => { await smoothScroll(p, 430, 2600); } },
   { cap: ["Protocol version, cipher suite, key algorithm,", "key size, and the certificate chain behind it."],
     act: async (p) => { await smoothScroll(p, 980, 2800); } },
@@ -300,7 +300,7 @@ const BEATS = [
   { cap: ["One approved cryptographic inventory.", "One fix carried all the way to verified closure."], pad: 1 },
   { cap: ["One evidence pack an auditor can read."], pad: 1 },
   { cap: ["Start with the endpoints whose data", "has to stay secret the longest."], pad: 1.5 },
-  { cap: ["Airlock Command.", "Cryptographic governance for the post-quantum migration."], pad: 3 },
+  { cap: ["Morrow.", "Cryptographic governance for the post-quantum migration."], pad: 3 },
   { cap: [], pad: 3.5 },
 ];
 
@@ -430,7 +430,7 @@ const stamp = (s) => {
 
   const srt = cues.map((c, i) =>
     `${i + 1}\n${stamp(c.t0)} --> ${stamp(Math.min(c.t1 - 0.12, c.t1))}\n${c.lines.join("\n")}\n`).join("\n");
-  fs.writeFileSync(path.join(OUT, "airlock-command-walkthrough.srt"), srt, "utf8");
+  fs.writeFileSync(path.join(OUT, "morrow-walkthrough.srt"), srt, "utf8");
   fs.writeFileSync(path.join(OUT, "walkthrough-timings.json"),
     JSON.stringify({ total_seconds: total, cues }, null, 2), "utf8");
 
