@@ -365,15 +365,10 @@ const SHOTS = [
   }
 
   const { browser, page, cdp, external } = await K.open();
-  /* Reduced motion, so the console's own animations land on their final state.
-     Its KPI count-up (static/console-motion.js) times itself by comparing the
-     animation frame's timestamp with performance.now(); under the renderer's
-     virtual clock those disagree, and frames caught "-2 assets", "$-0.19M" and on
-     the board "-1.1e+21". The console already shows the final number when reduced
-     motion is set, which is also what this film wants: nothing in the product
-     moving behind the words. The overlay is driven by frame number and is not
-     affected. */
-  await page.emulateMedia({ reducedMotion: "reduce" });
+  /* Not reduced motion, unlike render-stills.js. Under reduced motion the page asks
+     for no animation frames, and the paused virtual clock then waits forever for one:
+     the first screenshot stalls. PROMO_REDUCED_MOTION=1 turns it back on to test. */
+  if (process.env.PROMO_REDUCED_MOTION) await page.emulateMedia({ reducedMotion: "reduce" });
   const clock = K.makeClock(cdp);
 
   /* The constellation field is stopped through the product's own control. It is
