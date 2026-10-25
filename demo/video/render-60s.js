@@ -158,7 +158,7 @@ const SHOTS = [
     pos: "low",
     counts: [{ sel: ".vendSummary", at: [0.2, 2.0] }],
     calls: [{ sel: ".vendSummary", shape: "bracket", tone: "good",
-      label: "87 COMPONENTS · 2 ALREADY POST-QUANTUM", side: "below", at: [1.8, 2.9] }],
+      label: "87 COMPONENTS · 2 ALREADY post-quantum", side: "below", at: [1.8, 2.9] }],
     verify: [{ sel: ".vendSummary", has: "87 components" }],
   },
   {

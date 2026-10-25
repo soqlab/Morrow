@@ -10,9 +10,9 @@ const keyInput = document.getElementById("platformKey");
     const historySource = () => document.getElementById("historySource").value;
     const filterQuery = () => new URLSearchParams({ source: historySource(), source_ip: document.getElementById("ipFilter").value.trim(), path_prefix: document.getElementById("pathFilter").value.trim() }).toString();
 
-    ["pqc_platform_admin_key", "pqc_platform_key", "pqc_platform_admin_role"].forEach(name => localStorage.removeItem(name));
-    keyInput.value = sessionStorage.getItem("pqc_platform_admin_key") || "";
-    roleInput.value = sessionStorage.getItem("pqc_platform_admin_role") || "owner";
+    ["morrow_platform_admin_key", "morrow_platform_key", "morrow_platform_admin_role"].forEach(name => localStorage.removeItem(name));
+    keyInput.value = sessionStorage.getItem("morrow_platform_admin_key") || "";
+    roleInput.value = sessionStorage.getItem("morrow_platform_admin_role") || "owner";
     function applyRoleControls() {
       const clear = document.getElementById("clearTrafficBtn");
       clear.disabled = !["owner", "operator"].includes(roleInput.value);
@@ -25,7 +25,7 @@ const keyInput = document.getElementById("platformKey");
     // cookie. When that session exists, Traffic Lens uses it: no key is sent or stored, writes carry the
     // CSRF token from /platform/whoami, and a session still waiting for MFA goes back to the console.
     const sessionAuth = { active: false, csrf: "", who: null };
-    const csrfCookie = () => document.cookie.split("; ").some(c => c.startsWith("pqc_admin_csrf="));
+    const csrfCookie = () => document.cookie.split("; ").some(c => c.startsWith("morrow_admin_csrf="));
     function lockRoles(who){
       const allowed = Array.isArray(who.allowed_roles) && who.allowed_roles.length ? who.allowed_roles : ["owner", "operator", "support", "auditor"];
       [...roleInput.options].forEach(option => { option.disabled = !allowed.includes(option.value); });
@@ -231,8 +231,8 @@ const keyInput = document.getElementById("platformKey");
     document.getElementById("saveBtn").addEventListener("click", async () => {
       try {
       await api("/platform/admin-mode");
-      sessionStorage.setItem("pqc_platform_admin_key", keyInput.value.trim());
-      sessionStorage.setItem("pqc_platform_admin_role", roleInput.value || "owner");
+      sessionStorage.setItem("morrow_platform_admin_key", keyInput.value.trim());
+      sessionStorage.setItem("morrow_platform_admin_role", roleInput.value || "owner");
       setStatus("Credential remembered for this tab. Sign out to remove it.", "ok");
       } catch (err) { setStatus(err.message, "bad"); }
     });
@@ -244,7 +244,7 @@ const keyInput = document.getElementById("platformKey");
         location.replace("/vendor-admin/");
         return;
       }
-      for (const storage of [sessionStorage, localStorage]) ["pqc_platform_admin_key", "pqc_platform_key", "pqc_platform_admin_role"].forEach(name => storage.removeItem(name));
+      for (const storage of [sessionStorage, localStorage]) ["morrow_platform_admin_key", "morrow_platform_key", "morrow_platform_admin_role"].forEach(name => storage.removeItem(name));
       location.reload();
     });
     ["ipFilter", "pathFilter"].forEach(id => document.getElementById(id).addEventListener("keydown", event => {
@@ -253,8 +253,8 @@ const keyInput = document.getElementById("platformKey");
     document.getElementById("refreshBtn").addEventListener("click", () => loadTraffic().catch(err => setStatus(err.message, "bad")));
     document.getElementById("eventsBtn").addEventListener("click", () => loadEvents().catch(err => setStatus(err.message, "bad")));
     document.getElementById("historySource").addEventListener("change", () => loadEvents().catch(err => setStatus(err.message, "bad")));
-    document.getElementById("exportNdjsonBtn").addEventListener("click", () => downloadExport(`/platform/traffic/export.ndjson?limit=5000&${filterQuery()}`, "pqc-traffic-events.ndjson").catch(err => setStatus(err.message, "bad")));
-    document.getElementById("exportOtelBtn").addEventListener("click", () => downloadExport(`/platform/traffic/otel?limit=5000&${filterQuery()}`, "pqc-traffic-otel.json").catch(err => setStatus(err.message, "bad")));
+    document.getElementById("exportNdjsonBtn").addEventListener("click", () => downloadExport(`/platform/traffic/export.ndjson?limit=5000&${filterQuery()}`, "pq-traffic-events.ndjson").catch(err => setStatus(err.message, "bad")));
+    document.getElementById("exportOtelBtn").addEventListener("click", () => downloadExport(`/platform/traffic/otel?limit=5000&${filterQuery()}`, "pq-traffic-otel.json").catch(err => setStatus(err.message, "bad")));
     document.getElementById("clearTrafficBtn").addEventListener("click", async () => {
       if(!confirm("Clear the in-memory traffic buffer?")) return;
       try{

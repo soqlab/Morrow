@@ -21,15 +21,15 @@ def registry(tmp_path, monkeypatch):
     """A fresh feature store per test, so one test's records cannot be another's.
 
     Same shape as test_public_checker.isolated_store: the feature store is the SQLite file named
-    by PQC_SCANNER_DB, and _TABLES_READY is keyed by database, so it has to be cleared when the
+    by MORROW_SCANNER_DB, and _TABLES_READY is keyed by database, so it has to be cleared when the
     file changes or init_tables() believes it has already run.
     """
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "registry.db"))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_ENABLED", "1")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_OPTOUT_DOMAINS", "")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_SALT", "test-salt")
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "registry.db"))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_ENABLED", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_SALT", "test-salt")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     from services import public_check
 
     public_check._TABLES_READY.clear()
@@ -151,7 +151,7 @@ def test_a_failed_check_is_recorded_and_is_not_called_clean(registry):
     registry.store_result("down.test", _result("down.test", status="not_assessed", reachable=False))
     entry = registry.registry_entry("down.test")
     assert entry["posture"] == registry.POSTURE_UNREACHABLE
-    assert entry["posture"] != registry.POSTURE_PQC_READY
+    assert entry["posture"] != registry.POSTURE_MORROW_READY
     meaning = registry.POSTURE_MEANING[registry.POSTURE_UNREACHABLE]
     assert "not a clean result" in meaning
 
@@ -197,12 +197,12 @@ def test_badge_is_valid_svg_and_scales_with_its_label(registry):
     from services import registry_page
 
     widths = {}
-    for posture in (registry.POSTURE_PQC_READY, registry.POSTURE_CLASSICAL,
+    for posture in (registry.POSTURE_MORROW_READY, registry.POSTURE_CLASSICAL,
                     registry.POSTURE_UNREACHABLE, None):
         svg = registry_page.badge_svg(posture)
         xml.dom.minidom.parseString(svg)  # raises if malformed
         widths[posture] = int(re.search(r'width="(\d+)"', svg).group(1))
-    assert widths[registry.POSTURE_UNREACHABLE] > widths[registry.POSTURE_PQC_READY], \
+    assert widths[registry.POSTURE_UNREACHABLE] > widths[registry.POSTURE_MORROW_READY], \
         "a longer word needs a wider badge or the text clips"
     assert registry_page.badge_size(registry.POSTURE_CLASSICAL)[0] == \
         widths[registry.POSTURE_CLASSICAL], "the declared size matches the drawing"
@@ -220,7 +220,7 @@ def test_badge_for_an_optout_is_identical_to_a_never_checked_one(registry):
 
 @pytest.fixture()
 def client(registry, monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_BASE_URL", "https://airlock.test")
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://airlock.test")
     import app as app_module
 
     return TestClient(app_module.app, raise_server_exceptions=False)

@@ -15,7 +15,7 @@ def _no_provider(monkeypatch):
 
     monkeypatch.setattr(ai_agent, "_USE_CLAUDE", False)
     monkeypatch.setattr(ai_agent, "_OPENAI_KEY", "")
-    for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PQC_AI_LOCAL_URL"):
+    for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MORROW_AI_LOCAL_URL"):
         monkeypatch.delenv(key, raising=False)
     assert ai_agent.provider_configured() is False
 

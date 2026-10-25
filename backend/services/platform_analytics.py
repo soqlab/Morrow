@@ -8,7 +8,7 @@ Every number is an aggregate over real rows. Nothing here seeds, estimates or pa
   * empty time buckets are zero only when the source could have recorded rows for them.
 
 Storage layout. Tables live in one of three homes, mirroring the code that writes them:
-  core     db_postgres schema and the platform admin tables  -> Postgres when PQC_MAIN_DB_BACKEND=postgres
+  core     db_postgres schema and the platform admin tables  -> Postgres when MORROW_MAIN_DB_BACKEND=postgres
   feature  db_feature_store tables (security journal, feedback, api keys, announcements)
                                                               -> Postgres when the feature store is
   sqlite   service-owned tables that only have a SQLite implementation
@@ -18,7 +18,7 @@ Timestamps come in four storage formats, handled per column rather than by norma
 (which would defeat the indexes):
   iso    TEXT 'YYYY-MM-DDTHH:MM:SS[.ffffff](Z|+00:00)'   - most tables
   space  TEXT 'YYYY-MM-DD HH:MM:SS'                        - digest_snapshots.taken_at
-  epoch  INTEGER seconds                                   - pqc_users, pqc_refresh_tokens, cbom ingests
+  epoch  INTEGER seconds                                   - morrow_users, morrow_refresh_tokens, cbom ingests
   tstz   Postgres TIMESTAMPTZ                              - core tables on Postgres
 """
 
@@ -163,7 +163,7 @@ def backend_for(table: str) -> str:
 
 def sqlite_path() -> str:
     import db
-    return os.environ.get("PQC_SCANNER_DB", db.DB_PATH)
+    return os.environ.get("MORROW_SCANNER_DB", db.DB_PATH)
 
 
 def db_identity() -> str:
@@ -982,16 +982,16 @@ ANALYTICS_INDEXES: Tuple[Tuple[str, str, Tuple[str, ...]], ...] = (
     ("idx_pa_organizations_created", "organizations", ("created_at",)),
     ("idx_pa_remediations_created", "remediations", ("created_at",)),
     ("idx_pa_feedback_created", "feedback", ("created_at",)),
-    ("idx_pa_pqc_users_created", "pqc_users", ("created_at",)),
-    ("idx_pa_pqc_users_org", "pqc_users", ("org_id",)),
-    ("idx_pa_refresh_tokens_user", "pqc_refresh_tokens", ("user_id", "expires_at")),
+    ("idx_pa_pq_users_created", "morrow_users", ("created_at",)),
+    ("idx_pa_pq_users_org", "morrow_users", ("org_id",)),
+    ("idx_pa_refresh_tokens_user", "morrow_refresh_tokens", ("user_id", "expires_at")),
     ("idx_pa_cbom_ingests_org_created", "cbom_webhook_ingests", ("org_id", "created_at")),
     ("idx_pa_mobile_iot_org_created", "mobile_iot_scans", ("organization_id", "created_at")),
     ("idx_pa_hndl_tokens_created", "hndl_canary_tokens", ("created_at",)),
     ("idx_pa_vendor_invites_created", "vendor_attestation_invites", ("created_at",)),
     ("idx_pa_github_pr_events_created", "github_pr_events", ("created_at",)),
     ("idx_pa_sbom_imports_imported", "sbom_imports", ("imported_at",)),
-    ("idx_pa_webhook_deliveries_created", "pqc_webhook_deliveries", ("created_at",)),
+    ("idx_pa_webhook_deliveries_created", "morrow_webhook_deliveries", ("created_at",)),
     ("idx_pa_sla_breaches_status", "sla_breaches", ("status",)),
     ("idx_pa_digest_snapshots_taken", "digest_snapshots", ("taken_at",)),
     ("idx_pa_api_keys_expires", "platform_api_keys", ("expires_at",)),
@@ -1015,7 +1015,7 @@ SEARCH_TRIGRAM_COLUMNS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     ("platform_announcements", ("title", "body")),
     ("platform_autopatches", ("title", "repo_full_name", "issue_type")),
     ("feedback", ("message", "email", "category")),
-    ("pqc_users", ("email", "full_name", "id")),
+    ("morrow_users", ("email", "full_name", "id")),
 )
 
 _INDEXES_READY: set = set()
@@ -1178,20 +1178,20 @@ def overview(range_key: str) -> Dict[str, Any]:
         c.run("organizations", orgs)
 
         def users():
-            total = count_all(r, "pqc_users")
-            prev = count_before(r, "pqc_users", "created_at", win.start)
-            new = period_agg(r, "pqc_users", "created_at", win.start, win.end, {"n": "COUNT(*)"})
-            new_prev = period_agg(r, "pqc_users", "created_at", win.prev_start, win.prev_end, {"n": "COUNT(*)"})
-            k["users"] = kpi("Users", "pqc_users.id", total, prev)
-            k["new_users"] = kpi("New users", "pqc_users.created_at", _num(new.get("n")), _num(new_prev.get("n")))
-            c.sources["users"] = "pqc_users.id (sign-in accounts; previous = created_at before range start)"
-            c.sources["new_users"] = "pqc_users.created_at"
+            total = count_all(r, "morrow_users")
+            prev = count_before(r, "morrow_users", "created_at", win.start)
+            new = period_agg(r, "morrow_users", "created_at", win.start, win.end, {"n": "COUNT(*)"})
+            new_prev = period_agg(r, "morrow_users", "created_at", win.prev_start, win.prev_end, {"n": "COUNT(*)"})
+            k["users"] = kpi("Users", "morrow_users.id", total, prev)
+            k["new_users"] = kpi("New users", "morrow_users.created_at", _num(new.get("n")), _num(new_prev.get("n")))
+            c.sources["users"] = "morrow_users.id (sign-in accounts; previous = created_at before range start)"
+            c.sources["new_users"] = "morrow_users.created_at"
         c.run("users", users)
 
         def signups():
             org_b = c.run("signups.organizations",
                           lambda: bucket_agg(r, "organizations", "created_at", win, {"organizations": "COUNT(*)"}), None)
-            usr_b = c.run("signups.users", lambda: bucket_agg(r, "pqc_users", "created_at", win, {"users": "COUNT(*)"}), None)
+            usr_b = c.run("signups.users", lambda: bucket_agg(r, "morrow_users", "created_at", win, {"users": "COUNT(*)"}), None)
             merged: Dict[str, Dict[str, Any]] = {}
             for data in (org_b or {}, usr_b or {}):
                 for label, row in data.items():
@@ -1204,7 +1204,7 @@ def overview(range_key: str) -> Dict[str, Any]:
                     if usr_b is None:
                         p["users"] = None
             series["signups"] = points
-            c.sources["signups"] = "organizations.created_at, pqc_users.created_at"
+            c.sources["signups"] = "organizations.created_at, morrow_users.created_at"
         signups()
 
         jv = JournalView(r, win, c)
@@ -1323,7 +1323,7 @@ def overview(range_key: str) -> Dict[str, Any]:
             prev = prev or {}
             if not prev_known:
                 c.missing("api_requests.previous", "The previous period predates the request journal retention window "
-                                                   "(PQC_TRAFFIC_RETENTION_DAYS) and is not covered by daily usage rollups, "
+                                                   "(MORROW_TRAFFIC_RETENTION_DAYS) and is not covered by daily usage rollups, "
                                                    "so previous request metrics are unknown.")
             total, ptotal = _num(cur.get("total")), (_num(prev.get("total")) if prev_known else None)
             err = (round(_num(cur.get("server_errors")) * 100.0 / total, 2) if total else None)
@@ -1402,10 +1402,10 @@ def overview(range_key: str) -> Dict[str, Any]:
         c.run("active_api_keys", api_keys)
 
         def sessions():
-            r.require("pqc_refresh_tokens", "expires_at")
-            n = count_all(r, "pqc_refresh_tokens", "expires_at > ?", [int(win.now.timestamp())])
-            k["active_sessions"] = kpi("Active sessions", "pqc_refresh_tokens.expires_at", n, None)
-            c.sources["active_sessions"] = "pqc_refresh_tokens with expires_at in the future (built-in issuer sessions)"
+            r.require("morrow_refresh_tokens", "expires_at")
+            n = count_all(r, "morrow_refresh_tokens", "expires_at > ?", [int(win.now.timestamp())])
+            k["active_sessions"] = kpi("Active sessions", "morrow_refresh_tokens.expires_at", n, None)
+            c.sources["active_sessions"] = "morrow_refresh_tokens with expires_at in the future (built-in issuer sessions)"
             c.missing("active_sessions.previous", "Revoked and expired refresh sessions are deleted, so the count at the start of the range cannot be reconstructed.")
         c.run("active_sessions", sessions)
 
@@ -1700,7 +1700,7 @@ FEATURES: Tuple[Tuple[str, str, Tuple[Tuple[str, str, str, str, bool], ...]], ..
     ("hndl_canaries", "HNDL canaries", (("hndl_canary_tokens", "created_at", "organization_id", "", True),)),
     ("quantum_canaries", "Quantum canaries", (("quantum_canaries", "deployed_at", "org_id", "", True),)),
     ("scan_schedules", "Scheduled scans", (("scan_schedules", "last_run_at", "org_id", "", False),)),
-    ("webhooks", "Webhook deliveries", (("pqc_webhook_deliveries", "created_at", "organization_id", "", True),
+    ("webhooks", "Webhook deliveries", (("morrow_webhook_deliveries", "created_at", "organization_id", "", True),
                                         ("webhook_events", "created_at", "organization_id", "", True))),
     ("ai_assistant", "AI assistant", (("audit_logs", "created_at", "organization_id",
                                        "action IN ('agent.chat','assistant.chat','assistant.intent')", True),)),
@@ -1932,7 +1932,7 @@ def customer(organization_id: str, range_key: str) -> Optional[Dict[str, Any]]:
                     if jv.rolled else {})
             series["requests"] = jv.series(points, roll, traffic_cut, req_fields)
             c.sources["api_requests"] = ("platform_request_events.organization_id (requests authenticated as this organization: "
-                                         "JWT org claim, organization API key, or header identity in PQC_AUTH_MODE=headers)" + ROLLUP_NOTE)
+                                         "JWT org claim, organization API key, or header identity in MORROW_AUTH_MODE=headers)" + ROLLUP_NOTE)
             c.sources["error_rate_pct"] = "platform_request_events.status_code >= 500 / all requests"
             if not prev_known:
                 c.missing("api_requests.previous", "The previous period predates the request journal retention window "
@@ -1950,12 +1950,12 @@ def customer(organization_id: str, range_key: str) -> Optional[Dict[str, Any]]:
         c.run("active_api_keys", api_keys)
 
         def sessions():
-            r.require("pqc_refresh_tokens", "user_id", "expires_at")
-            r.require("pqc_users", "id", "org_id")
-            row2 = r.one("pqc_refresh_tokens", "SELECT COUNT(*) AS n FROM pqc_refresh_tokens t JOIN pqc_users u ON u.id = t.user_id "
+            r.require("morrow_refresh_tokens", "user_id", "expires_at")
+            r.require("morrow_users", "id", "org_id")
+            row2 = r.one("morrow_refresh_tokens", "SELECT COUNT(*) AS n FROM morrow_refresh_tokens t JOIN morrow_users u ON u.id = t.user_id "
                                                "WHERE u.org_id = ? AND t.expires_at > ?", [oid, int(win.now.timestamp())])
-            k["active_sessions"] = kpi("Active sessions", "pqc_refresh_tokens.expires_at", _num(row2.get("n")), None)
-            c.sources["active_sessions"] = "pqc_refresh_tokens joined to pqc_users.org_id, expires_at in the future"
+            k["active_sessions"] = kpi("Active sessions", "morrow_refresh_tokens.expires_at", _num(row2.get("n")), None)
+            c.sources["active_sessions"] = "morrow_refresh_tokens joined to morrow_users.org_id, expires_at in the future"
         c.run("active_sessions", sessions)
 
         def flags():
@@ -2012,9 +2012,9 @@ def customer_members(r: Reader, oid: str, win: Window, k: Dict[str, Any], c: Col
                            "status": "disabled" if str(row.get("status") or "") == "disabled" else "active",
                            "last_login_at": None}
             created[uid] = parse_ts(row.get("created_at"))
-    if r.has("pqc_users", "id", "org_id"):
+    if r.has("morrow_users", "id", "org_id"):
         found_source = True
-        for row in r.rows("pqc_users", "SELECT id, email, role, is_active, created_at, last_login_at FROM pqc_users WHERE org_id = ?", [oid]):
+        for row in r.rows("morrow_users", "SELECT id, email, role, is_active, created_at, last_login_at FROM morrow_users WHERE org_id = ?", [oid]):
             uid = str(row["id"])
             entry = people.setdefault(uid, {"user_id": uid, "email": "", "role": "", "status": "active", "last_login_at": None})
             entry["email"] = entry["email"] or row.get("email") or ""
@@ -2024,7 +2024,7 @@ def customer_members(r: Reader, oid: str, win: Window, k: Dict[str, Any], c: Col
             entry["last_login_at"] = ts_iso(row.get("last_login_at")) if row.get("last_login_at") else None
             created[uid] = created.get(uid) or parse_ts(row.get("created_at"))
     if not found_source:
-        raise SourceMissing("Neither organization_memberships nor pqc_users exists.")
+        raise SourceMissing("Neither organization_memberships nor morrow_users exists.")
     if r.has("platform_auth_events", "organization_id", "user_id"):
         for row in r.rows("platform_auth_events", "SELECT user_id, MAX(created_at) AS last FROM platform_auth_events "
                                                   f"WHERE organization_id = ? AND event_type IN {_IN_SUCCESS} AND user_id <> '' "
@@ -2037,9 +2037,9 @@ def customer_members(r: Reader, oid: str, win: Window, k: Dict[str, Any], c: Col
     total = len(people)
     previous = sum(1 for uid in people if created.get(uid) and created[uid] < win.start)
     unknown_created = any(created.get(uid) is None for uid in people)
-    k["members"] = kpi("Members", "organization_memberships.user_id + pqc_users.id", total, None if unknown_created else previous)
-    c.sources["members"] = ("organization_memberships (role assignments) merged with pqc_users.org_id (sign-in accounts) by user id; "
-                            "last_login_at = newest of pqc_users.last_login_at and platform_auth_events login.success")
+    k["members"] = kpi("Members", "organization_memberships.user_id + morrow_users.id", total, None if unknown_created else previous)
+    c.sources["members"] = ("organization_memberships (role assignments) merged with morrow_users.org_id (sign-in accounts) by user id; "
+                            "last_login_at = newest of morrow_users.last_login_at and platform_auth_events login.success")
     ordered = sorted(people.values(), key=lambda p: (p["last_login_at"] or "", (p["email"] or p["user_id"]).lower()), reverse=True)
     return ordered[:50]
 
@@ -2163,9 +2163,9 @@ def search(q: str, limit: int, include_operators: bool, operators: Callable[[], 
                     "subtitle": " · ".join(p for p in (name if email else "", role, org) if p),
                     "organization_id": org or None, "route": "#/users?q=" + quote(email or uid, safe="@")}
 
-        if r.has("pqc_users", "id", "email", "full_name"):
+        if r.has("morrow_users", "id", "email", "full_name"):
             try:
-                for x in r.rows("pqc_users", f"SELECT id, email, full_name, role, org_id FROM pqc_users WHERE "
+                for x in r.rows("morrow_users", f"SELECT id, email, full_name, role, org_id FROM morrow_users WHERE "
                                              f"{_like_where(('email', 'full_name', 'id'))} LIMIT ?", [pattern] * 3 + [limit]):
                     seen_users.add((str(x.get("org_id") or ""), str(x["id"])))
                     results.append((_rank(ql, x.get("email"), x.get("full_name"), x.get("id")), 1,
@@ -2191,7 +2191,7 @@ def search(q: str, limit: int, include_operators: bool, operators: Callable[[], 
         # Only public identifiers: never salt or key_hash.
         run("api_key", "platform_api_keys", ("name", "prefix", "id"), "id, organization_id, name, prefix, expires_at, revoked_at",
             lambda x: {"id": str(x["id"]), "title": x.get("name") or str(x["id"]),
-                       "subtitle": " · ".join(p for p in (f"pqc_{x.get('prefix')}_…" if x.get("prefix") else "",
+                       "subtitle": " · ".join(p for p in (f"pq_{x.get('prefix')}_…" if x.get("prefix") else "",
                                                           "revoked" if x.get("revoked_at") else "", str(x.get("organization_id") or "")) if p),
                        "organization_id": str(x.get("organization_id") or "") or None,
                        "route": "#/api-keys?id=" + quote(str(x["id"]), safe="")},
@@ -2355,7 +2355,7 @@ def notifications(hooks: Dict[str, Callable[[], Any]], now: Optional[datetime] =
                 details = details if isinstance(details, dict) else {}
                 item(f"break_glass:{x['id']}", "critical", "break_glass", "Break-glass platform key used",
                      f"{details.get('method') or ''} {details.get('path') or ''} in {details.get('environment') or 'production'}"
-                     f" from {details.get('ip') or 'unknown address'}. Disable PQC_ALLOW_BREAK_GLASS_KEY when the emergency is over.",
+                     f" from {details.get('ip') or 'unknown address'}. Disable MORROW_ALLOW_BREAK_GLASS_KEY when the emergency is over.",
                      x.get("created_at"), "#/audit")
         c.run("break_glass", break_glass)
 
@@ -2580,19 +2580,19 @@ def jobs(hooks: Dict[str, Callable[[], Any]], now: Optional[datetime] = None) ->
 
         def webhooks():
             parts, failures, deliveries, last, last_err = [], 0, 0, None, None
-            if r.has("pqc_webhook_deliveries", "status", "created_at"):
-                kind = r.ts_kind("pqc_webhook_deliveries", "created_at")
-                agg = r.one("pqc_webhook_deliveries", "SELECT COUNT(*) AS n, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS f, "
-                                                      "MAX(created_at) AS last FROM pqc_webhook_deliveries WHERE created_at >= ?",
+            if r.has("morrow_webhook_deliveries", "status", "created_at"):
+                kind = r.ts_kind("morrow_webhook_deliveries", "created_at")
+                agg = r.one("morrow_webhook_deliveries", "SELECT COUNT(*) AS n, SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS f, "
+                                                      "MAX(created_at) AS last FROM morrow_webhook_deliveries WHERE created_at >= ?",
                             [ts_bound(kind, day_ago)])
                 failures += _num(agg.get("f"))
                 deliveries += _num(agg.get("n"))
                 last = max(filter(None, [parse_ts(agg.get("last")), last]), default=None)
-                err = r.rows("pqc_webhook_deliveries", "SELECT response_body FROM pqc_webhook_deliveries WHERE status = 'failed' "
+                err = r.rows("morrow_webhook_deliveries", "SELECT response_body FROM morrow_webhook_deliveries WHERE status = 'failed' "
                                                        "ORDER BY created_at DESC LIMIT 1")
                 if err:
                     last_err = str(err[0].get("response_body") or "")[:300] or None
-                parts.append("pqc_webhook_deliveries.status")
+                parts.append("morrow_webhook_deliveries.status")
             if r.has("webhook_events", "status", "created_at", "error_text"):
                 kind = r.ts_kind("webhook_events", "created_at")
                 agg = r.one("webhook_events", "SELECT COUNT(*) AS n, SUM(CASE WHEN status IN ('failed','dead','dead_letter') THEN 1 ELSE 0 END) AS f, "
@@ -2608,11 +2608,11 @@ def jobs(hooks: Dict[str, Callable[[], Any]], now: Optional[datetime] = None) ->
                         last_err = str(err[0].get("error_text") or "")[:300] or None
                 parts.append("webhook_events.status")
             if not parts:
-                raise SourceMissing("Neither pqc_webhook_deliveries nor webhook_events exists.")
+                raise SourceMissing("Neither morrow_webhook_deliveries nor webhook_events exists.")
             status = "error" if failures else ("ok" if deliveries else "idle")
             job("webhook_deliveries", "Webhook deliveries", "webhook", status, last, None, last_err if failures else None, deliveries,
                 ", ".join(parts), f"{failures} failed of {deliveries} deliveries in the last 24h.")
-        guarded("webhook_deliveries", "Webhook deliveries", "webhook", "pqc_webhook_deliveries, webhook_events", webhooks)
+        guarded("webhook_deliveries", "Webhook deliveries", "webhook", "morrow_webhook_deliveries, webhook_events", webhooks)
 
         def usage_rollups():
             from services import usage_rollups as ur
@@ -2629,7 +2629,7 @@ def jobs(hooks: Dict[str, Callable[[], Any]], now: Optional[datetime] = None) ->
                 f"Last run failed: {error}" if error else None, None, "platform_usage_rollup_state, platform_usage_rollup_days",
                 f"{extent['days']} day(s) rolled up ({extent['first_day'] or 'none'} to {extent['last_day'] or 'none'}); "
                 f"last pass rolled {state.get('last_days_rolled', '0')} day(s). Runs at start-up and every "
-                f"{int(ur.interval_seconds())} s in each API process" + ("" if ur.enabled() else " (disabled: PQC_USAGE_ROLLUPS_ENABLED=0)")
+                f"{int(ur.interval_seconds())} s in each API process" + ("" if ur.enabled() else " (disabled: MORROW_USAGE_ROLLUPS_ENABLED=0)")
                 + ". runs_24h is not tracked.")
         guarded("usage_rollups", "Daily usage rollups", "rollup", "platform_usage_rollup_state", usage_rollups)
 
@@ -2655,7 +2655,7 @@ def jobs(hooks: Dict[str, Callable[[], Any]], now: Optional[datetime] = None) ->
                 f"{len(built)} of {len(ranges)} range(s) built ({', '.join(sorted(built)) or 'none'}); "
                 f"oldest {int(max(ages)) if ages else 0} s old; slowest computation {int(slowest)} ms. "
                 f"Refreshed every {int(interval)} s"
-                + ("" if state.get("enabled") else " (disabled: PQC_ANALYTICS_SNAPSHOTS_ENABLED=0)")
+                + ("" if state.get("enabled") else " (disabled: MORROW_ANALYTICS_SNAPSHOTS_ENABLED=0)")
                 + f". A range with no snapshot is computed on the request only while the journal holds at most "
                   f"{state.get('inline_max_rows')} rows.")
         guarded("analytics_snapshots", "Operator analytics snapshots", "rollup", "platform_analytics_snapshots",

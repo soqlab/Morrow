@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 from fastapi.testclient import TestClient
 
-# Do NOT set PQC_SCANNER_DB at import time. pytest imports every test module during collection,
+# Do NOT set MORROW_SCANNER_DB at import time. pytest imports every test module during collection,
 # before any test runs, so an import-time write here hijacks the database for the entire session
 # and unrelated suites end up reading from this module's throwaway file. Scope it to the test class
 # instead and restore it afterwards.
@@ -15,16 +15,16 @@ import app as app_module
 class TestSprint98ExecutionPaths(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._tmpdir = tempfile.mkdtemp(prefix="pqc_scanner_test_")
-        cls._prev_db = os.environ.get("PQC_SCANNER_DB")
-        os.environ["PQC_SCANNER_DB"] = os.path.join(cls._tmpdir, "pqc_scanner_test.db")
+        cls._tmpdir = tempfile.mkdtemp(prefix="morrow_test_")
+        cls._prev_db = os.environ.get("MORROW_SCANNER_DB")
+        os.environ["MORROW_SCANNER_DB"] = os.path.join(cls._tmpdir, "morrow_test.db")
 
     @classmethod
     def tearDownClass(cls):
         if cls._prev_db is None:
-            os.environ.pop("PQC_SCANNER_DB", None)
+            os.environ.pop("MORROW_SCANNER_DB", None)
         else:
-            os.environ["PQC_SCANNER_DB"] = cls._prev_db
+            os.environ["MORROW_SCANNER_DB"] = cls._prev_db
         import shutil
         shutil.rmtree(cls._tmpdir, ignore_errors=True)
 

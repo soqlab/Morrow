@@ -47,9 +47,9 @@ def send(proposal, approved_sha256):
     digest = hashlib.sha256(canonical(proposal).encode()).hexdigest()
     if not approved_sha256 or not __import__("hmac").compare_digest(digest, approved_sha256):
         raise ValueError("Approval does not match this exact destination, policy version and minimized payload")
-    token = os.getenv("PQC_CUSTOMER_GATE_TOKEN", "")
+    token = os.getenv("MORROW_CUSTOMER_GATE_TOKEN", "")
     if not token:
-        raise ValueError("Set PQC_CUSTOMER_GATE_TOKEN to a scoped customer credential")
+        raise ValueError("Set MORROW_CUSTOMER_GATE_TOKEN to a scoped customer credential")
     req = urllib.request.Request(proposal["destination"], data=canonical(proposal["payload"]).encode(),
                                  headers={"Content-Type": "application/json", "Authorization": "Bearer " + token}, method="POST")
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())

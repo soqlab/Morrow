@@ -6,7 +6,7 @@ This exercises:
   - escalation: re-fire inside cooldown if severity worsens
 
 Run with (PowerShell):
-  $env:PQC_SCANNER_DB = ".\\pqc_scanner_test.db"
+  $env:MORROW_SCANNER_DB = ".\\morrow_test.db"
   python test_noise_control.py
 
 Optional: run the webhook listener in another terminal to see delivered payloads:
@@ -33,10 +33,10 @@ def _utc(dt: datetime) -> datetime:
 
 def fresh_db() -> None:
     """Delete the SQLite file (if it exists) so tests are deterministic."""
-    db_path = os.environ.get("PQC_SCANNER_DB")
+    db_path = os.environ.get("MORROW_SCANNER_DB")
     if not db_path:
         # default used by db.py
-        db_path = str(Path(__file__).resolve().parent / "pqc_scanner.db")
+        db_path = str(Path(__file__).resolve().parent / "morrow.db")
 
     # skip special sqlite paths
     if db_path == ":memory:" or str(db_path).startswith("file:"):

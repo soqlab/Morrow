@@ -26,13 +26,13 @@ This is **not everything a visitor does**. It does not record keystrokes, field 
 
 ## Storage and retention
 
-The new `platform_auth_events` and `platform_request_events` tables use `PQC_FEATURE_STORE_BACKEND`: local SQLite, or PostgreSQL after migrating that feature store. They are deliberately cross-tenant platform-admin tables, not customer-readable tenant tables. Migration owners create the tables/indexes; runtime accounts need SELECT/INSERT/DELETE, not DDL permission after migration.
+The new `platform_auth_events` and `platform_request_events` tables use `MORROW_FEATURE_STORE_BACKEND`: local SQLite, or PostgreSQL after migrating that feature store. They are deliberately cross-tenant platform-admin tables, not customer-readable tenant tables. Migration owners create the tables/indexes; runtime accounts need SELECT/INSERT/DELETE, not DDL permission after migration.
 
 | Setting | Default | Enforced range |
 | --- | --- | --- |
-| `PQC_TRAFFIC_PERSIST_TO_DB` | `1` | Boolean; explicitly disabled archives return an error, not a misleading empty history |
-| `PQC_AUTH_LOG_RETENTION_DAYS` | `90` | 1-365 days |
-| `PQC_TRAFFIC_RETENTION_DAYS` | `7` | 1-30 days |
+| `MORROW_TRAFFIC_PERSIST_TO_DB` | `1` | Boolean; explicitly disabled archives return an error, not a misleading empty history |
+| `MORROW_AUTH_LOG_RETENTION_DAYS` | `90` | 1-365 days |
+| `MORROW_TRAFFIC_RETENTION_DAYS` | `7` | 1-30 days |
 
 All journal reads enforce expiry immediately. The lifespan task removes up to 5,000 expired rows per table every minute. If the service is stopped or deletion capacity is exceeded, physical cleanup lags; monitor storage growth. Clearing the recent traffic buffer does not erase the database archive. Backups, exported SIEM copies, historical `login_events`, and existing action-audit tables have their own retention policies; this task does not retroactively sanitize or delete them.
 
@@ -40,7 +40,7 @@ Traffic persistence is awaited off the event loop, without an unbounded delivery
 
 ## Credential and failure behavior
 
-- No bootstrap user is silently generated. On an empty built-in auth database, supply `PQC_ADMIN_PASSWORD` through a secret manager, or configure an external IdP. Bootstrap credentials are never printed. Existing accounts are not reset by changing that setting.
+- No bootstrap user is silently generated. On an empty built-in auth database, supply `MORROW_ADMIN_PASSWORD` through a secret manager, or configure an external IdP. Bootstrap credentials are never printed. Existing accounts are not reset by changing that setting.
 - Built-in passwords use bcrypt with the same cost for absent and known accounts. Passwords over 72 UTF-8 bytes are rejected rather than truncated. This reduces one enumeration signal; it is not a proof of constant-time end-to-end HTTP behavior.
 - Password login and refresh return no credentials if the required success audit cannot be committed. An unreturned new refresh token is revoked. Logout still revokes the supplied refresh token if logging fails and reports `audit_recorded=false`.
 - **Logout does not revoke already-issued access JWTs.** They remain valid until expiry. Built-in refresh tokens remain reusable until revoked/expired; built-in MFA and session-wide JWT revocation are not implemented by this change. Use your enterprise IdP/session policy for those requirements.

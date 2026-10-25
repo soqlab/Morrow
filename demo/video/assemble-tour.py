@@ -14,7 +14,7 @@ wants to re-voice or re-cut.
     backend\\.venv\\Scripts\\python.exe demo\\video\\assemble-tour.py \\
         --work %TEMP%\\airlock-tour
 
-Nothing here touches port 8001, backend/pqc_scanner.db or backend/.env.
+Nothing here touches port 8001, backend/morrow.db or backend/.env.
 """
 from __future__ import annotations
 

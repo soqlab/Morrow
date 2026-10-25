@@ -14,7 +14,7 @@ shots.json. This turns that into the delivered file:
         --work %TEMP%\\airlock-walkthrough \\
         --out demo\\video\\morrow-walkthrough-v2.mp4
 
-Nothing here touches port 8001, backend/pqc_scanner.db or backend/.env.
+Nothing here touches port 8001, backend/morrow.db or backend/.env.
 """
 from __future__ import annotations
 

@@ -46,9 +46,9 @@ CANARY_TIERS: Dict[str, Dict[str, Any]] = {
         "color": "#fbbf24",
         "severity": "high",
         "description": "Small-scale quantum computers operational.",
-        "urgency": "Accelerate PQC migration — small quantum computers can now break RSA-1024.",
+        "urgency": "Accelerate post-quantum migration — small quantum computers can now break RSA-1024.",
         "playbook": [
-            "Activate your PQC migration runbook immediately.",
+            "Activate your post-quantum migration runbook immediately.",
             "Prioritise RSA-1024 endpoints — rotate keys to ML-KEM-768 or hybrid X25519+ML-KEM.",
             "Notify your CISO and security team within 1 hour.",
             "Assume any RSA-1024-encrypted traffic recorded before this date is readable.",
@@ -65,7 +65,7 @@ CANARY_TIERS: Dict[str, Dict[str, Any]] = {
         "playbook": [
             "Declare a security incident. Convene your incident response team immediately.",
             "Assume ALL RSA-2048 and ECC-256 encrypted traffic recorded in the past 5 years is compromised.",
-            "Rotate ALL TLS certificates to ML-KEM-768 hybrid or pure PQC — start with customer-facing endpoints.",
+            "Rotate ALL TLS certificates to ML-KEM-768 hybrid or pure post-quantum — start with customer-facing endpoints.",
             "Rotate ALL internal service credentials, API keys, and tokens.",
             "Notify affected customers per your breach notification obligation (GDPR: 72 hours).",
             "Engage your cyber insurance provider.",
@@ -99,16 +99,16 @@ CANARY_TIERS: Dict[str, Dict[str, Any]] = {
             "Engage national cybersecurity authority immediately (CISA, NCSC, BSI).",
             "Assume all historical encrypted data, including data stored with RSA-4096, is exposed.",
             "Activate your catastrophic breach response plan.",
-            "Verify PQC (ML-KEM, SLH-DSA) systems are still intact — check Omega canary status.",
+            "Verify post-quantum (ML-KEM, SLH-DSA) systems are still intact — check Omega canary status.",
         ],
     },
     "omega": {
-        "algo": "ML-KEM-768 (PQC)",
+        "algo": "ML-KEM-768 (post-quantum)",
         "label": "Omega — ML-KEM-768",
         "color": "#a855f7",
         "severity": "critical",
         "description": "Control canary — this MUST NOT trigger.",
-        "urgency": "CATASTROPHIC: A NIST-standardised PQC algorithm has been broken. Contact NIST immediately.",
+        "urgency": "CATASTROPHIC: A NIST-standardised post-quantum algorithm has been broken. Contact NIST immediately.",
         "playbook": [
             "This canary should never trigger. If it has, treat it as a potential system compromise first.",
             "Verify the trigger is not a false positive (check trigger IP, UA, and timing).",
@@ -144,7 +144,7 @@ def _geoip(ip: str) -> Dict[str, str]:
         return {}
     try:
         url = f"http://ip-api.com/json/{ip}?fields=country,countryCode,org,isp,query"
-        req = urllib.request.Request(url, headers={"User-Agent": "PQC-Scanner/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Morrow/1.0"})
         with urllib.request.urlopen(req, timeout=4) as resp:
             data = json.loads(resp.read().decode())
         if data.get("status") == "fail":

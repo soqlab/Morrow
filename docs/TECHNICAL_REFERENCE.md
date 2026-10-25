@@ -34,7 +34,7 @@ Morrow is an end-to-end remediation loop, not only a TLS scanner.
 
 It does all of the following:
 
-- scans public endpoints for TLS, certificate, and PQC-readiness posture
+- scans public endpoints for TLS, certificate, and post-quantum-readiness posture
 - stores current and historical scan results
 - tracks asset ownership and business metadata
 - links assets to repositories
@@ -160,7 +160,7 @@ Behavior:
 
 - validates target list
 - creates a durable scan row
-- enqueues Celery task `pqc.run_scan_task`
+- enqueues Celery task `pq.run_scan_task`
 - worker updates progress and stores results
 - results are fetched later via `/scans/{scan_id}` and `/scans/{scan_id}/results`
 
@@ -220,8 +220,8 @@ Important output fields include:
 - `risk_level`
 - `quantum_risk_level`
 - `quantum_risk_score`
-- `pqc_relevance`
-- `pqc_recommendation`
+- `pq_relevance`
+- `pq_recommendation`
 
 ### 4.2 Policy engine
 
@@ -235,7 +235,7 @@ The policy layer turns scanner facts into:
 - severity
 - risk level
 - risk score
-- PQC relevance
+- post-quantum relevance
 - aggregate summaries
 
 Rule areas include:
@@ -459,7 +459,7 @@ Purpose:
 
 Implemented as Celery task:
 
-- `pqc.correlate_assets`
+- `pq.correlate_assets`
 
 Purpose:
 
@@ -524,7 +524,7 @@ Security boundary note:
 
 - default mode is an ephemeral validation workspace inside the API/worker container
 - optional Docker mode runs Terraform validation in a separate per-job container with `--network none`, dropped Linux capabilities, no-new-privileges, CPU/memory limits, and a scrubbed environment
-- Docker mode is enabled with `PQC_VALIDATION_ISOLATION_MODE=docker` and requires Docker access plus `PQC_VALIDATION_DOCKER_IMAGE`
+- Docker mode is enabled with `MORROW_VALIDATION_ISOLATION_MODE=docker` and requires Docker access plus `MORROW_VALIDATION_DOCKER_IMAGE`
 - Docker mode is stronger than the default workspace mode, but it is still not a micro-VM or kernel-level hostile-code boundary
 
 Current validator types:
@@ -555,7 +555,7 @@ Behavior:
 - PR is opened
 - remediation moves to `pr_created`
 - branch, base branch, and GitHub credential metadata are stored for later branch cleanup
-- PR body can include a link back to the remediation dashboard when `PQC_APP_BASE_URL` or `PQC_PUBLIC_APP_URL` is set
+- PR body can include a link back to the remediation dashboard when `MORROW_APP_BASE_URL` or `MORROW_PUBLIC_APP_URL` is set
 
 Current branch naming pattern:
 
@@ -563,7 +563,7 @@ Current branch naming pattern:
 
 The timestamp and suffix make normal PR retries collision-resistant while preserving readable branch names.
 
-After a remediation reaches `verified_closed`, `pqc.cleanup_remediation_branches` can delete the remediation branch from GitHub. The cleanup skips protected/default branches and records cleanup status, timestamp, error text, and attempt count on the remediation.
+After a remediation reaches `verified_closed`, `pq.cleanup_remediation_branches` can delete the remediation branch from GitHub. The cleanup skips protected/default branches and records cleanup status, timestamp, error text, and attempt count on the remediation.
 
 ### 4.19 Merge tracking and verified closure
 
@@ -632,7 +632,7 @@ Built-in event types include:
 - `scan.failed`
 - `cert.expired`
 - `cert.expiring_soon`
-- `pqc.not_ready`
+- `pq.not_ready`
 - `scan.regression`
 - `validation.failed`
 - `remediation.merged`
@@ -690,7 +690,7 @@ Current prototype rules:
 - `IAC_AWS_S3_PUBLIC_ACCESS_BLOCK_DISABLED`
   - detects incomplete S3 public access block controls
 
-The remediation validation sandbox includes this policy check after generic/Terraform validation. This demonstrates that the same golden loop can validate non-crypto infrastructure fixes, not only PQC/TLS migrations.
+The remediation validation sandbox includes this policy check after generic/Terraform validation. This demonstrates that the same golden loop can validate non-crypto infrastructure fixes, not only post-quantum/TLS migrations.
 
 ### 4.23.2 MCP interface
 
@@ -729,7 +729,7 @@ Runtime observability includes:
 - optional Sentry exception capture through `SENTRY_DSN`
 - Cloud Logging-compatible exception logs when Sentry is not configured
 - `/health/deep` for Postgres and Redis connectivity checks
-- optional deep `/health` behavior with `PQC_HEALTH_DEEP=1`
+- optional deep `/health` behavior with `MORROW_HEALTH_DEEP=1`
 
 ### 4.26 Organization lifecycle
 

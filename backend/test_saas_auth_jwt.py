@@ -23,37 +23,37 @@ def _hs256_jwt(payload: dict, secret: str) -> str:
 @pytest.fixture()
 def client(tmp_path):
     old_env = {k: os.environ.get(k) for k in (
-        "PQC_SCANNER_DB",
-        "PQC_AUTH_MODE",
-        "PQC_AUTH_REQUIRED",
-        "PQC_AUTH_PROVIDER_NAME",
-        "PQC_AUTH_LOGIN_URL",
-        "PQC_AUTH_LOGOUT_URL",
-        "PQC_AUTH_TOKEN_HELP",
-        "PQC_AUTH_ISSUER_ENABLED",
-        "PQC_AUTH_JWT_SECRET",
-        "PQC_AUTH_JWT_ISSUER",
-        "PQC_AUTH_JWT_AUDIENCE",
-        "PQC_AUTH_JWT_ALGORITHMS",
-        "PQC_AUTH_USER_ID_CLAIM",
-        "PQC_AUTH_ROLE_CLAIM",
-        "PQC_AUTH_ORG_ID_CLAIM",
+        "MORROW_SCANNER_DB",
+        "MORROW_AUTH_MODE",
+        "MORROW_AUTH_REQUIRED",
+        "MORROW_AUTH_PROVIDER_NAME",
+        "MORROW_AUTH_LOGIN_URL",
+        "MORROW_AUTH_LOGOUT_URL",
+        "MORROW_AUTH_TOKEN_HELP",
+        "MORROW_AUTH_ISSUER_ENABLED",
+        "MORROW_AUTH_JWT_SECRET",
+        "MORROW_AUTH_JWT_ISSUER",
+        "MORROW_AUTH_JWT_AUDIENCE",
+        "MORROW_AUTH_JWT_ALGORITHMS",
+        "MORROW_AUTH_USER_ID_CLAIM",
+        "MORROW_AUTH_ROLE_CLAIM",
+        "MORROW_AUTH_ORG_ID_CLAIM",
     )}
-    os.environ["PQC_SCANNER_DB"] = str(tmp_path / "auth.db")
-    os.environ["PQC_AUTH_MODE"] = "jwt"
-    os.environ["PQC_AUTH_REQUIRED"] = "1"
-    os.environ["PQC_AUTH_PROVIDER_NAME"] = "Acme OIDC"
-    os.environ["PQC_AUTH_LOGIN_URL"] = "https://login.example/start"
-    os.environ["PQC_AUTH_LOGOUT_URL"] = "https://login.example/logout"
-    os.environ["PQC_AUTH_TOKEN_HELP"] = "Paste an OIDC access token for local smoke tests."
-    os.environ["PQC_AUTH_ISSUER_ENABLED"] = "1"
-    os.environ["PQC_AUTH_JWT_SECRET"] = "test-secret"
-    os.environ["PQC_AUTH_JWT_ISSUER"] = "https://issuer.example"
-    os.environ["PQC_AUTH_JWT_AUDIENCE"] = "pqc-ui"
-    os.environ["PQC_AUTH_JWT_ALGORITHMS"] = "HS256"
-    os.environ["PQC_AUTH_USER_ID_CLAIM"] = "sub"
-    os.environ["PQC_AUTH_ROLE_CLAIM"] = "role"
-    os.environ["PQC_AUTH_ORG_ID_CLAIM"] = "org_id"
+    os.environ["MORROW_SCANNER_DB"] = str(tmp_path / "auth.db")
+    os.environ["MORROW_AUTH_MODE"] = "jwt"
+    os.environ["MORROW_AUTH_REQUIRED"] = "1"
+    os.environ["MORROW_AUTH_PROVIDER_NAME"] = "Acme OIDC"
+    os.environ["MORROW_AUTH_LOGIN_URL"] = "https://login.example/start"
+    os.environ["MORROW_AUTH_LOGOUT_URL"] = "https://login.example/logout"
+    os.environ["MORROW_AUTH_TOKEN_HELP"] = "Paste an OIDC access token for local smoke tests."
+    os.environ["MORROW_AUTH_ISSUER_ENABLED"] = "1"
+    os.environ["MORROW_AUTH_JWT_SECRET"] = "test-secret"
+    os.environ["MORROW_AUTH_JWT_ISSUER"] = "https://issuer.example"
+    os.environ["MORROW_AUTH_JWT_AUDIENCE"] = "pq-ui"
+    os.environ["MORROW_AUTH_JWT_ALGORITHMS"] = "HS256"
+    os.environ["MORROW_AUTH_USER_ID_CLAIM"] = "sub"
+    os.environ["MORROW_AUTH_ROLE_CLAIM"] = "role"
+    os.environ["MORROW_AUTH_ORG_ID_CLAIM"] = "org_id"
 
     import app as fastapi_app
 
@@ -80,7 +80,7 @@ def test_auth_context_uses_verified_jwt_claims(client):
             "role": "operator",
             "org_id": "org-alpha",
             "iss": "https://issuer.example",
-            "aud": "pqc-ui",
+            "aud": "pq-ui",
             "exp": 4102444800,
         },
         "test-secret",
@@ -138,7 +138,7 @@ def test_auth_required_rejects_missing_or_invalid_token(client):
             "role": "admin",
             "org_id": "org-alpha",
             "iss": "https://issuer.example",
-            "aud": "pqc-ui",
+            "aud": "pq-ui",
             "exp": 4102444800,
         },
         "wrong-secret",

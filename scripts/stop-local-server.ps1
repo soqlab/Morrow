@@ -2,10 +2,10 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $BackendDir = Join-Path $RepoRoot "backend"
-$PidFile = Join-Path $BackendDir ".pqc-server.pid"
+$PidFile = Join-Path $BackendDir ".pq-server.pid"
 
 if (-not (Test-Path $PidFile)) {
-  Write-Host "No local PQC server pid file found."
+  Write-Host "No local post-quantum server pid file found."
   exit 0
 }
 
@@ -24,5 +24,5 @@ if (-not $proc) {
 }
 
 Stop-Process -Id $proc.Id -Force
-Write-Host "Stopped PQC server process $($proc.Id)."
+Write-Host "Stopped post-quantum server process $($proc.Id)."
 exit 0

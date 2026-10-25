@@ -1,8 +1,8 @@
 """Environment-file parsing that tolerates a UTF-8 byte order mark, and log redaction for secrets.
 
 Windows editors (Notepad, PowerShell's `Out-File -Encoding utf8`) write a UTF-8 BOM at the start of a
-file. python-dotenv keeps it, so `uvicorn --env-file backend/.env` defines "\\ufeffPQC_VAULT_MASTER_KEY"
-instead of PQC_VAULT_MASTER_KEY: the first variable in the file silently goes missing, and a
+file. python-dotenv keeps it, so `uvicorn --env-file backend/.env` defines "\\ufeffMORROW_VAULT_MASTER_KEY"
+instead of MORROW_VAULT_MASTER_KEY: the first variable in the file silently goes missing, and a
 naive "NAME=value" error message then echoes the whole line, value included.
 
 Three pieces:

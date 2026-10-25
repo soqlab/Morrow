@@ -21,27 +21,27 @@ PASSWORD = "invite-landing-password-8841"
 def api(tmp_path, monkeypatch):
     import app
 
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "invite.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", SECRET)
-    monkeypatch.delenv("PQC_PLATFORM_OPERATORS", raising=False)
-    monkeypatch.delenv("PQC_PLATFORM_ADMIN_KEY_ROLE", raising=False)
-    monkeypatch.delenv("PQC_PUBLIC_BASE_URL", raising=False)
-    monkeypatch.delenv("PQC_SMTP_HOST", raising=False)
-    monkeypatch.delenv("PQC_PLATFORM_SMTP_ORG_ID", raising=False)
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "invite.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", SECRET)
+    monkeypatch.delenv("MORROW_PLATFORM_OPERATORS", raising=False)
+    monkeypatch.delenv("MORROW_PLATFORM_ADMIN_KEY_ROLE", raising=False)
+    monkeypatch.delenv("MORROW_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("MORROW_SMTP_HOST", raising=False)
+    monkeypatch.delenv("MORROW_PLATFORM_SMTP_ORG_ID", raising=False)
     for name, value in {
         "AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_ISSUER_ENABLED": True,
         "AUTH_JWT_ALGORITHMS": ["HS256"], "AUTH_JWT_SECRET": SECRET,
-        "AUTH_JWT_ISSUER": "pqc-scanner", "AUTH_JWT_AUDIENCE": "pqc-scanner",
+        "AUTH_JWT_ISSUER": "morrow", "AUTH_JWT_AUDIENCE": "morrow",
         "AUTH_USER_ID_CLAIM": "sub", "AUTH_ROLE_CLAIM": "role", "AUTH_ORG_ID_CLAIM": "org_id",
         "_PLATFORM_ADMIN_KEY": LEGACY, "API_KEY": "", "PRODUCTION_ENVIRONMENT": False,
         "RATE_LIMIT_MAX_REQUESTS": 100000,
     }.items():
         monkeypatch.setattr(app, name, value)
     monkeypatch.setattr(auth_issuer, "_SECRET", SECRET)
-    monkeypatch.setattr(auth_issuer, "_ISSUER", "pqc-scanner")
-    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "pqc-scanner")
+    monkeypatch.setattr(auth_issuer, "_ISSUER", "morrow")
+    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "morrow")
     monkeypatch.setattr(auth_issuer, "_ENABLED", True)
     monkeypatch.setattr(app.limiter, "enabled", False)
 
@@ -118,7 +118,7 @@ def test_invitation_create_returns_a_landing_link_and_preview_masks_the_email(ap
 
 def test_public_base_url_is_used_for_links(api, monkeypatch):
     client, _ = api
-    monkeypatch.setenv("PQC_PUBLIC_BASE_URL", "https://app.airlock.example/")
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://app.airlock.example/")
     make_org(client, "org-acme", "Acme")
     token = invite(client)["invitation"]["token"]
     assert invite(client, email="second@corp.example")["invitation"]["invite_link"].startswith("https://app.airlock.example/invite#token=")
@@ -254,15 +254,15 @@ def test_email_the_invite_uses_smtp_only_when_configured(api, monkeypatch):
 
     import smtplib
     monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
-    monkeypatch.setenv("PQC_SMTP_HOST", "smtp.example.test")
-    monkeypatch.setenv("PQC_SMTP_FROM", "no-reply@airlock.example")
+    monkeypatch.setenv("MORROW_SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("MORROW_SMTP_FROM", "no-reply@airlock.example")
 
     # A link that leaves the process must not take its origin from the request Host header:
-    # TrustedHostMiddleware is only installed when PQC_ALLOWED_HOSTS is not '*', so without this
+    # TrustedHostMiddleware is only installed when MORROW_ALLOWED_HOSTS is not '*', so without this
     # an attacker could have the server email a real invitee a real token on an origin they own.
     refused = client.post(url, headers=op(), json={"reason": "send it"})
-    assert refused.status_code == 503 and "PQC_PUBLIC_BASE_URL" in refused.json()["detail"]
-    monkeypatch.setenv("PQC_PUBLIC_BASE_URL", "https://app.airlock.example")
+    assert refused.status_code == 503 and "MORROW_PUBLIC_BASE_URL" in refused.json()["detail"]
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://app.airlock.example")
 
     assert client.post(url, headers=op("auditor"), json={"reason": "send it"}).status_code == 403
     assert client.post(url, headers=op(), json={}).status_code == 422

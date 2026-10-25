@@ -9,7 +9,7 @@ from db import append_flight_recorder_event, init_db, list_flight_recorder_event
 
 def test_flight_recorder_persists_and_filters_intent_events():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     try:
         init_db()
         append_flight_recorder_event(
@@ -41,7 +41,7 @@ def test_flight_recorder_persists_and_filters_intent_events():
 
 def test_flight_recorder_api_records_and_lists_events():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     try:

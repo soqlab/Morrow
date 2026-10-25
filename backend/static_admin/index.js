@@ -17,7 +17,7 @@
     workspace: document.querySelector(".adminWorkspace"), signin: $("signinScreen")
   };
   const fmt = new Intl.NumberFormat();
-  const STORAGE_KEYS = ["pqc_platform_admin_key", "pqc_platform_key", "pqc_platform_admin_role"];
+  const STORAGE_KEYS = ["morrow_platform_admin_key", "morrow_platform_key", "morrow_platform_admin_role"];
   let customers = [];
   let selectedOrg = "";
   let loading = false;
@@ -169,7 +169,7 @@
     if (roleField) roleField.hidden = !!(connected && identity?.role_bound);
     renderRemember();
   }
-  function remembered() { try { return !!sessionStorage.getItem("pqc_platform_admin_key"); } catch { return false; } }
+  function remembered() { try { return !!sessionStorage.getItem("morrow_platform_admin_key"); } catch { return false; } }
   function renderRemember() {
     const on = remembered();
     els.save?.setAttribute("aria-pressed", String(on));
@@ -426,7 +426,7 @@
     const lines = [head.join(",")].concat(visible.map(c => [c.organization_id, c.name, c.subscription_status, c.plan_type || "starter", c.risk_score, c.scan_count, c.asset_count, c.user_count, c.last_login_at].map(cell).join(",")));
     const url = URL.createObjectURL(new Blob([lines.join("\r\n") + "\r\n"], { type: "text/csv" }));
     const link = document.createElement("a");
-    link.href = url; link.download = "pqc-organizations.csv";
+    link.href = url; link.download = "pq-organizations.csv";
     document.body.appendChild(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     setStatus(`Exported ${fmt.format(visible.length)} visible organization row(s).`, "ok");
@@ -881,9 +881,9 @@
     try {
       const d = await api("/platform/operators");
       const errors = (d.configuration_errors || []).map(e => `<div class="notice bad">${esc(e)}</div>`).join("");
-      const legacy = `<div class="notice ${d.legacy_key?.enabled ? "warn" : "ok"}"><b>Shared key</b> ${d.legacy_key?.enabled ? `enabled with a ${esc(d.legacy_key.role)} ceiling. Lower PQC_PLATFORM_ADMIN_KEY_ROLE or remove the key once every administrator has a named credential.` : "disabled."}</div>`;
+      const legacy = `<div class="notice ${d.legacy_key?.enabled ? "warn" : "ok"}"><b>Shared key</b> ${d.legacy_key?.enabled ? `enabled with a ${esc(d.legacy_key.role)} ceiling. Lower MORROW_PLATFORM_ADMIN_KEY_ROLE or remove the key once every administrator has a named credential.` : "disabled."}</div>`;
       const items = (d.items || []).map(o => `<div class="event"><b>${esc(o.name)} <span class="pill">${esc(o.role)}</span></b></div>`).join("");
-      body.innerHTML = errors + legacy + (items || empty("No named operators configured. Add entries to PQC_PLATFORM_OPERATORS."));
+      body.innerHTML = errors + legacy + (items || empty("No named operators configured. Add entries to MORROW_PLATFORM_OPERATORS."));
     } catch (err) { body.innerHTML = failBox(`Operator roster unavailable: ${err.message}`, "operators"); throw err; }
   }
   $("operatorsBtn")?.addEventListener("click", run(loadOperators));
@@ -1058,14 +1058,14 @@
     const org = $("exportOrg").value;
     if (!org) { note("exportStatus", "Choose an organization.", "bad"); return; }
     note("exportStatus", "Preparing export...");
-    await download(`/platform/customers/${enc(org)}/export`, `pqc-gdpr-export-${org}.json`);
+    await download(`/platform/customers/${enc(org)}/export`, `pq-gdpr-export-${org}.json`);
     note("exportStatus", `GDPR export for ${org} downloaded.`, "ok");
   }));
   $("exportAuditPackageBtn")?.addEventListener("click", run(async () => {
     const org = $("exportOrg").value;
     if (!org) { note("exportStatus", "Choose an organization.", "bad"); return; }
     note("exportStatus", "Building audit package...");
-    await download(`/platform/customers/${enc(org)}/audit-package`, `pqc-audit-package-${org}.zip`);
+    await download(`/platform/customers/${enc(org)}/audit-package`, `pq-audit-package-${org}.zip`);
     note("exportStatus", `Audit package for ${org} downloaded.`, "ok");
   }));
 
@@ -1212,7 +1212,7 @@
   $("eventsFilters")?.addEventListener("submit", run(() => loadEvents(0)));
   $("eventsPrev")?.addEventListener("click", run(() => loadEvents(Number($("eventsPrev").dataset.offset || 0))));
   $("eventsNext")?.addEventListener("click", run(() => loadEvents(Number($("eventsNext").dataset.offset || 0))));
-  $("eventsExportBtn")?.addEventListener("click", run(async () => { await download(`/platform/admin-events/export.csv?${eventsQuery(null)}`, "pqc-platform-admin-events.csv"); setStatus("Admin audit export downloaded.", "ok"); }));
+  $("eventsExportBtn")?.addEventListener("click", run(async () => { await download(`/platform/admin-events/export.csv?${eventsQuery(null)}`, "morrow-platform-admin-events.csv"); setStatus("Admin audit export downloaded.", "ok"); }));
   function tenantAuditQuery() {
     const query = new URLSearchParams();
     [["actor_id", "tenantAuditActor"], ["action", "tenantAuditAction"], ["decision", "tenantAuditDecision"]].forEach(([name, id]) => { const value = ($(id)?.value || "").trim(); if (value) query.set(name, value); });
@@ -1233,7 +1233,7 @@
   $("tenantAuditExportBtn")?.addEventListener("click", run(async () => {
     const org = $("tenantAuditOrg").value;
     if (!org) { setStatus("Choose an organization in the tenant audit log first.", "bad"); return; }
-    await download(`/platform/customers/${enc(org)}/audit-logs/export.csv?${tenantAuditQuery()}`, `pqc-audit-${org}.csv`);
+    await download(`/platform/customers/${enc(org)}/audit-logs/export.csv?${tenantAuditQuery()}`, `pq-audit-${org}.csv`);
     setStatus(`Audit log for ${org} downloaded.`, "ok");
   }));
 
@@ -1345,7 +1345,7 @@
   }
   // limit_source from services/org_rate_limits.describe: override | default | none.
   function rateEnforcement(d) {
-    if (d.enforced === false && d.limit_source && d.limit_source !== "none") return `off (PQC_ORG_RATE_LIMITS_ENABLED=0); would be ${d.limit_source_label || d.limit_source}`;
+    if (d.enforced === false && d.limit_source && d.limit_source !== "none") return `off (MORROW_ORG_RATE_LIMITS_ENABLED=0); would be ${d.limit_source_label || d.limit_source}`;
     if (!d.enforced) return "not limited per organization (no override and no platform default)";
     const source = d.limit_source || (d.override ? "override" : "default");
     const label = d.limit_source_label || { override: "operator override", default: "platform default" }[source] || source;
@@ -1464,7 +1464,7 @@
     await loadPortal();
     return true;
   }
-  $("gdprBtn")?.addEventListener("click", run(async () => { if (!selectedOrg) return; text("detailStatusText", "Preparing GDPR export..."); await download(`/platform/customers/${enc(selectedOrg)}/export`, `pqc-gdpr-export-${selectedOrg}.json`); text("detailStatusText", "GDPR export downloaded."); }));
+  $("gdprBtn")?.addEventListener("click", run(async () => { if (!selectedOrg) return; text("detailStatusText", "Preparing GDPR export..."); await download(`/platform/customers/${enc(selectedOrg)}/export`, `pq-gdpr-export-${selectedOrg}.json`); text("detailStatusText", "GDPR export downloaded."); }));
   $("detailLoginsBtn")?.addEventListener("click", run(async () => {
     if (!selectedOrg) return;
     const query = new URLSearchParams({ limit: "1000" });
@@ -1540,8 +1540,8 @@
   els.statusFilter?.addEventListener("change", () => { orgTable.page = 0; renderCustomers(); });
   function rememberCredential() {
     if (sessionAuth.active) return; // SSO: the HttpOnly cookie is the credential; never copy anything into storage
-    sessionStorage.setItem("pqc_platform_admin_key", key());
-    sessionStorage.setItem("pqc_platform_admin_role", els.role.value);
+    sessionStorage.setItem("morrow_platform_admin_key", key());
+    sessionStorage.setItem("morrow_platform_admin_role", els.role.value);
     renderRemember();
   }
   els.save?.addEventListener("click", run(async () => {
@@ -1562,7 +1562,7 @@
   els.saveCustomer?.addEventListener("click", () => saveSelected().catch(err => text("detailStatusText", err.message || String(err))));
   els.suspend?.addEventListener("click", () => actionSelected("suspend").catch(err => text("detailStatusText", err.message || String(err))));
   els.resume?.addEventListener("click", () => actionSelected("resume").catch(err => text("detailStatusText", err.message || String(err))));
-  els.auditPackage?.addEventListener("click", run(async () => { if (!selectedOrg) return; await download(`/platform/customers/${enc(selectedOrg)}/audit-package`, `pqc-audit-package-${selectedOrg}.zip`); }));
+  els.auditPackage?.addEventListener("click", run(async () => { if (!selectedOrg) return; await download(`/platform/customers/${enc(selectedOrg)}/audit-package`, `pq-audit-package-${selectedOrg}.zip`); }));
   els.saveFeatureFlag?.addEventListener("click", run(async () => {
     if (!selectedOrg) return;
     const org = selectedOrg, version = detailVersion;
@@ -1594,9 +1594,9 @@
   });
 
   els.rememberCheck = $("rememberCheck");
-  ["pqc_platform_admin_key", "pqc_platform_key", "pqc_platform_admin_role"].forEach(name => localStorage.removeItem(name));
-  if (els.key) els.key.value = sessionStorage.getItem("pqc_platform_admin_key") || "";
-  if (els.role) els.role.value = sessionStorage.getItem("pqc_platform_admin_role") || "owner";
+  ["morrow_platform_admin_key", "morrow_platform_key", "morrow_platform_admin_role"].forEach(name => localStorage.removeItem(name));
+  if (els.key) els.key.value = sessionStorage.getItem("morrow_platform_admin_key") || "";
+  if (els.role) els.role.value = sessionStorage.getItem("morrow_platform_admin_role") || "owner";
   if (els.rememberCheck) els.rememberCheck.checked = remembered();
   els.role.addEventListener("change", () => { applyRoleControls(); document.dispatchEvent(new CustomEvent("admin:role")); });
   applyRoleControls();
@@ -1734,7 +1734,7 @@
     if (caps.error) return `Caps: ${esc(caps.error)}.`;
     const api = asNum(caps.api_calls_per_min);
     const scans = asNum(caps.scans_per_hour);
-    if (!api && !scans) return "No per-organization caps were applied (PQC_TRIAL_* are unset), so it runs on the platform defaults.";
+    if (!api && !scans) return "No per-organization caps were applied (MORROW_TRIAL_* are unset), so it runs on the platform defaults.";
     return `Capped at ${api ? `${fmt.format(api)} API calls/min` : "the platform default for API calls"} and ${scans ? `${fmt.format(scans)} scans/hour` : "the platform default for scans"}.`;
   }
 

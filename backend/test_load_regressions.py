@@ -5,7 +5,7 @@ functional suite runs one request at a time against a near-empty database, so a 
 quadratic in tenant size, a connection pool with no queue, and an error path that reports "no
 findings" instead of "busy" all pass it.
 
-The Postgres-only cases are skipped unless PQC_TEST_PG_DSN names a disposable server, following
+The Postgres-only cases are skipped unless MORROW_TEST_PG_DSN names a disposable server, following
 test_postgres_integration.py. The rest run on SQLite and always execute.
 """
 
@@ -26,7 +26,7 @@ BACKEND = os.path.dirname(os.path.abspath(__file__))
 if BACKEND not in sys.path:
     sys.path.insert(0, BACKEND)
 
-PG_DSN = os.getenv("PQC_TEST_PG_DSN", "").strip()
+PG_DSN = os.getenv("MORROW_TEST_PG_DSN", "").strip()
 UTC = timezone.utc
 
 
@@ -197,7 +197,7 @@ def _sqlite_fixture(path):
         """CREATE TABLE scan_results (
                id INTEGER PRIMARY KEY AUTOINCREMENT, organization_id TEXT, asset_key TEXT,
                scan_id TEXT, scanned_at TEXT, risk_level TEXT, quantum_score REAL,
-               findings_count INTEGER, pqc_relevance TEXT, tls_version TEXT,
+               findings_count INTEGER, pq_relevance TEXT, tls_version TEXT,
                key_type TEXT, sig_algorithm TEXT)"""
     )
     conn.execute("CREATE TABLE scans (id TEXT PRIMARY KEY, organization_id TEXT, status TEXT, created_at TEXT)")
@@ -208,10 +208,10 @@ def _sqlite_fixture(path):
                          "2026-09-0%dT00:00:00Z" % day, risk, 10.0 * day, day,
                          "vulnerable", "TLSv1.2", "RSA-2048", "sha256WithRSAEncryption"))
     rows.append(("org-b", "host0:443", "scan-9", "2026-09-09T00:00:00Z", "low", 1.0, 0,
-                 "pqc-ready", "TLSv1.3", "Ed25519", "ed25519"))
+                 "pq-ready", "TLSv1.3", "Ed25519", "ed25519"))
     conn.executemany(
         "INSERT INTO scan_results (organization_id, asset_key, scan_id, scanned_at, risk_level,"
-        " quantum_score, findings_count, pqc_relevance, tls_version, key_type, sig_algorithm)"
+        " quantum_score, findings_count, pq_relevance, tls_version, key_type, sig_algorithm)"
         " VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.executemany("INSERT INTO scans (id, organization_id, status, created_at) VALUES (?,?,?,?)",
                      [("s%d" % i, "org-a", "completed", "2026-09-0%dT00:00:00Z" % (i + 1)) for i in range(4)]
@@ -232,8 +232,8 @@ class TestBatchedLatestScanResults(unittest.TestCase):
         self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.tmp.close()
         _sqlite_fixture(self.tmp.name)
-        os.environ["PQC_SCANNER_DB"] = self.tmp.name
-        os.environ.pop("PQC_MAIN_DB_BACKEND", None)
+        os.environ["MORROW_SCANNER_DB"] = self.tmp.name
+        os.environ.pop("MORROW_MAIN_DB_BACKEND", None)
         import importlib
 
         import db as db_module
@@ -242,7 +242,7 @@ class TestBatchedLatestScanResults(unittest.TestCase):
 
     def tearDown(self):
         self.db.reset_current_organization_id(self.token)
-        os.environ.pop("PQC_SCANNER_DB", None)
+        os.environ.pop("MORROW_SCANNER_DB", None)
         try:
             os.unlink(self.tmp.name)
         except OSError:
@@ -284,7 +284,7 @@ class TestBatchedLatestScanResults(unittest.TestCase):
 
 # ── 5. The same batching, against a real Postgres ────────────────────────────
 
-@pytest.mark.skipif(not PG_DSN, reason="set PQC_TEST_PG_DSN to run against a real Postgres")
+@pytest.mark.skipif(not PG_DSN, reason="set MORROW_TEST_PG_DSN to run against a real Postgres")
 class TestBatchedLatestScanResultsPostgres(unittest.TestCase):
     """DISTINCT ON has to pick the same row the per-asset ORDER BY ... LIMIT 1 picks."""
 
@@ -292,7 +292,7 @@ class TestBatchedLatestScanResultsPostgres(unittest.TestCase):
     def setUpClass(cls):
         import psycopg2
 
-        cls.dbname = "pqc_loadreg_%s" % uuid.uuid4().hex[:8]
+        cls.dbname = "pq_loadreg_%s" % uuid.uuid4().hex[:8]
         admin = psycopg2.connect(PG_DSN)
         admin.autocommit = True
         with admin.cursor() as cur:
@@ -300,8 +300,8 @@ class TestBatchedLatestScanResultsPostgres(unittest.TestCase):
         admin.close()
         base = PG_DSN.rsplit("/", 1)[0]
         cls.dsn = "%s/%s" % (base, cls.dbname)
-        os.environ["PQC_PRODUCT_DATABASE_URL"] = cls.dsn
-        os.environ["PQC_MAIN_DB_BACKEND"] = "postgres"
+        os.environ["MORROW_PRODUCT_DATABASE_URL"] = cls.dsn
+        os.environ["MORROW_MAIN_DB_BACKEND"] = "postgres"
 
         import db_postgres
         db_postgres.close_pools()
@@ -330,8 +330,8 @@ class TestBatchedLatestScanResultsPostgres(unittest.TestCase):
         import psycopg2
 
         cls.db_postgres.close_pools()
-        os.environ.pop("PQC_PRODUCT_DATABASE_URL", None)
-        os.environ.pop("PQC_MAIN_DB_BACKEND", None)
+        os.environ.pop("MORROW_PRODUCT_DATABASE_URL", None)
+        os.environ.pop("MORROW_MAIN_DB_BACKEND", None)
         admin = psycopg2.connect(PG_DSN)
         admin.autocommit = True
         with admin.cursor() as cur:
@@ -370,8 +370,8 @@ class TestBatchedLatestScanResultsPostgres(unittest.TestCase):
 
 def _full_sqlite_db(path, orgs=("org-a", "org-b"), assets=5, scans_per_asset=6):
     """A real database with the production schema and several scans per asset."""
-    os.environ["PQC_SCANNER_DB"] = path
-    os.environ.pop("PQC_MAIN_DB_BACKEND", None)
+    os.environ["MORROW_SCANNER_DB"] = path
+    os.environ.pop("MORROW_MAIN_DB_BACKEND", None)
     import importlib
 
     import db as db_module
@@ -411,16 +411,16 @@ class TestLatestScanFactsIsOneQuery(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.tmp.close()
-        self.previous = os.environ.get("PQC_SCANNER_DB")
+        self.previous = os.environ.get("MORROW_SCANNER_DB")
         self.db = _full_sqlite_db(self.tmp.name, assets=self.ASSETS, scans_per_asset=self.SCANS)
         self.token = self.db.set_current_organization_id("org-a")
 
     def tearDown(self):
         self.db.reset_current_organization_id(self.token)
         if self.previous is None:
-            os.environ.pop("PQC_SCANNER_DB", None)
+            os.environ.pop("MORROW_SCANNER_DB", None)
         else:
-            os.environ["PQC_SCANNER_DB"] = self.previous
+            os.environ["MORROW_SCANNER_DB"] = self.previous
         try:
             os.unlink(self.tmp.name)
         except OSError:
@@ -623,13 +623,13 @@ class _SnapshotFixture:
     """A throwaway SQLite feature store with the journal and snapshot tables."""
 
     def __enter__(self):
-        self.tmp = tempfile.mkdtemp(prefix="pqc-snap-")
+        self.tmp = tempfile.mkdtemp(prefix="pq-snap-")
         self.previous = {k: os.environ.get(k) for k in
-                         ("PQC_SCANNER_DB", "PQC_MAIN_DB_BACKEND", "PQC_FEATURE_STORE_BACKEND",
-                          "PQC_ANALYTICS_INLINE_MAX_ROWS", "PQC_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS")}
-        os.environ["PQC_SCANNER_DB"] = os.path.join(self.tmp, "snap.db")
-        os.environ["PQC_MAIN_DB_BACKEND"] = "sqlite"
-        os.environ["PQC_FEATURE_STORE_BACKEND"] = "sqlite"
+                         ("MORROW_SCANNER_DB", "MORROW_MAIN_DB_BACKEND", "MORROW_FEATURE_STORE_BACKEND",
+                          "MORROW_ANALYTICS_INLINE_MAX_ROWS", "MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS")}
+        os.environ["MORROW_SCANNER_DB"] = os.path.join(self.tmp, "snap.db")
+        os.environ["MORROW_MAIN_DB_BACKEND"] = "sqlite"
+        os.environ["MORROW_FEATURE_STORE_BACKEND"] = "sqlite"
         import importlib
 
         import db as db_module
@@ -704,7 +704,7 @@ class TestAnalyticsOverviewSnapshots(unittest.TestCase):
     def test_a_cold_read_on_a_large_journal_answers_without_computing(self):
         """The load test's finding: a cold call must be cheap, not a multi-minute aggregation."""
         with _SnapshotFixture() as fix:
-            os.environ["PQC_ANALYTICS_INLINE_MAX_ROWS"] = "0"  # "this journal is too big to do inline"
+            os.environ["MORROW_ANALYTICS_INLINE_MAX_ROWS"] = "0"  # "this journal is too big to do inline"
             fix.snapshots._inline_probe.clear()
             calls = {"n": 0}
             original = fix.pa.overview
@@ -763,17 +763,17 @@ class _JournalFixture:
         self.rows, self.age_days = rows, age_days
 
     def __enter__(self):
-        self.tmp = tempfile.mkdtemp(prefix="pqc-journal-")
+        self.tmp = tempfile.mkdtemp(prefix="pq-journal-")
         self.previous = {k: os.environ.get(k) for k in
-                         ("PQC_SCANNER_DB", "PQC_MAIN_DB_BACKEND", "PQC_FEATURE_STORE_BACKEND",
-                          "PQC_TRAFFIC_RETENTION_DAYS", "PQC_TRAFFIC_ROLLUP_HOLDBACK_DAYS",
-                          "PQC_USAGE_ROLLUPS_ENABLED")}
-        os.environ["PQC_SCANNER_DB"] = os.path.join(self.tmp, "journal.db")
-        os.environ["PQC_MAIN_DB_BACKEND"] = "sqlite"
-        os.environ["PQC_FEATURE_STORE_BACKEND"] = "sqlite"
-        os.environ["PQC_TRAFFIC_RETENTION_DAYS"] = "7"
-        os.environ["PQC_TRAFFIC_ROLLUP_HOLDBACK_DAYS"] = "0"
-        os.environ["PQC_USAGE_ROLLUPS_ENABLED"] = "0"
+                         ("MORROW_SCANNER_DB", "MORROW_MAIN_DB_BACKEND", "MORROW_FEATURE_STORE_BACKEND",
+                          "MORROW_TRAFFIC_RETENTION_DAYS", "MORROW_TRAFFIC_ROLLUP_HOLDBACK_DAYS",
+                          "MORROW_USAGE_ROLLUPS_ENABLED")}
+        os.environ["MORROW_SCANNER_DB"] = os.path.join(self.tmp, "journal.db")
+        os.environ["MORROW_MAIN_DB_BACKEND"] = "sqlite"
+        os.environ["MORROW_FEATURE_STORE_BACKEND"] = "sqlite"
+        os.environ["MORROW_TRAFFIC_RETENTION_DAYS"] = "7"
+        os.environ["MORROW_TRAFFIC_ROLLUP_HOLDBACK_DAYS"] = "0"
+        os.environ["MORROW_USAGE_ROLLUPS_ENABLED"] = "0"
         import importlib
 
         import db as db_module
@@ -873,26 +873,26 @@ class TestRetentionAndRollupWindowsAgree(unittest.TestCase):
     def test_the_configured_value_is_still_clamped(self):
         from services import security_journal
 
-        previous = os.environ.get("PQC_TRAFFIC_RETENTION_DAYS")
+        previous = os.environ.get("MORROW_TRAFFIC_RETENTION_DAYS")
         try:
-            os.environ["PQC_TRAFFIC_RETENTION_DAYS"] = "9999"
+            os.environ["MORROW_TRAFFIC_RETENTION_DAYS"] = "9999"
             self.assertEqual(security_journal._days("traffic"),
                              security_journal.RETENTION_LIMITS["traffic"][1])
-            os.environ["PQC_TRAFFIC_RETENTION_DAYS"] = "0"
+            os.environ["MORROW_TRAFFIC_RETENTION_DAYS"] = "0"
             self.assertEqual(security_journal._days("traffic"), 1)
         finally:
             if previous is None:
-                os.environ.pop("PQC_TRAFFIC_RETENTION_DAYS", None)
+                os.environ.pop("MORROW_TRAFFIC_RETENTION_DAYS", None)
             else:
-                os.environ["PQC_TRAFFIC_RETENTION_DAYS"] = previous
+                os.environ["MORROW_TRAFFIC_RETENTION_DAYS"] = previous
 
     def test_a_day_the_rollup_has_not_aggregated_is_not_deleted_yet(self):
         """Retention used to delete a day's raw rows before the rollup could aggregate them, so
         days past raw retention were permanently unrollable *and* permanently unanswerable -- the
         reason the 90-day analytics range reported "unknown" for two thirds of its span."""
         with _JournalFixture(rows=0) as fix:
-            os.environ["PQC_USAGE_ROLLUPS_ENABLED"] = "1"
-            os.environ["PQC_TRAFFIC_ROLLUP_HOLDBACK_DAYS"] = "30"
+            os.environ["MORROW_USAGE_ROLLUPS_ENABLED"] = "1"
+            os.environ["MORROW_TRAFFIC_ROLLUP_HOLDBACK_DAYS"] = "30"
             from services import usage_rollups
             # Two whole days past retention. The day the oldest surviving row falls in may have
             # been partly pruned already, so only the days after it are known to be complete.
@@ -913,8 +913,8 @@ class TestRetentionAndRollupWindowsAgree(unittest.TestCase):
 
     def test_the_holdback_is_capped_so_a_broken_rollup_cannot_grow_the_journal(self):
         with _JournalFixture(rows=100, age_days=60) as fix:
-            os.environ["PQC_USAGE_ROLLUPS_ENABLED"] = "1"
-            os.environ["PQC_TRAFFIC_ROLLUP_HOLDBACK_DAYS"] = "3"
+            os.environ["MORROW_USAGE_ROLLUPS_ENABLED"] = "1"
+            os.environ["MORROW_TRAFFIC_ROLLUP_HOLDBACK_DAYS"] = "3"
             from services import usage_rollups
             usage_rollups.init_tables()
             # The rollup has aggregated nothing, so every day is "waiting"; the cap still applies.
@@ -932,7 +932,7 @@ class TestRetentionAndRollupWindowsAgree(unittest.TestCase):
         re-read before every day.
         """
         with _JournalFixture(rows=0) as fix:
-            os.environ["PQC_USAGE_ROLLUPS_ENABLED"] = "1"
+            os.environ["MORROW_USAGE_ROLLUPS_ENABLED"] = "1"
             from services import usage_rollups
             fix.seed(30, 9)
             fix.seed(30, 8)
@@ -979,7 +979,7 @@ class TestRetentionAndRollupWindowsAgree(unittest.TestCase):
 
     def test_the_rollup_starts_from_the_oldest_raw_row_not_the_retention_cutoff(self):
         with _JournalFixture(rows=50, age_days=40):
-            os.environ["PQC_USAGE_ROLLUPS_ENABLED"] = "1"
+            os.environ["MORROW_USAGE_ROLLUPS_ENABLED"] = "1"
             from services import usage_rollups
             usage_rollups.init_tables()
             start = usage_rollups.rollup_start()
@@ -998,10 +998,10 @@ class TestAuditQueue(unittest.TestCase):
     by one background writer, in order; everything else is still written on the request."""
 
     def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="pqc-audit-")
-        self.previous = os.environ.get("PQC_SCANNER_DB")
-        os.environ["PQC_SCANNER_DB"] = os.path.join(self.tmp, "audit.db")
-        os.environ.pop("PQC_MAIN_DB_BACKEND", None)
+        self.tmp = tempfile.mkdtemp(prefix="pq-audit-")
+        self.previous = os.environ.get("MORROW_SCANNER_DB")
+        os.environ["MORROW_SCANNER_DB"] = os.path.join(self.tmp, "audit.db")
+        os.environ.pop("MORROW_MAIN_DB_BACKEND", None)
         import importlib
 
         import db as db_module
@@ -1016,9 +1016,9 @@ class TestAuditQueue(unittest.TestCase):
         import shutil
         self.db.reset_current_organization_id(self.token)
         if self.previous is None:
-            os.environ.pop("PQC_SCANNER_DB", None)
+            os.environ.pop("MORROW_SCANNER_DB", None)
         else:
-            os.environ["PQC_SCANNER_DB"] = self.previous
+            os.environ["MORROW_SCANNER_DB"] = self.previous
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _entry(self, n):
@@ -1077,15 +1077,15 @@ class TestAuditQueue(unittest.TestCase):
         self.assertEqual(len(self.db.list_audit_logs(limit=50)), 3)
 
     def test_disabling_deferred_writes_makes_every_caller_synchronous(self):
-        previous = os.environ.get("PQC_AUDIT_DEFERRED_WRITES")
-        os.environ["PQC_AUDIT_DEFERRED_WRITES"] = "0"
+        previous = os.environ.get("MORROW_AUDIT_DEFERRED_WRITES")
+        os.environ["MORROW_AUDIT_DEFERRED_WRITES"] = "0"
         try:
             self.assertFalse(self.queue.submit("org-a", self._entry(1)))
         finally:
             if previous is None:
-                os.environ.pop("PQC_AUDIT_DEFERRED_WRITES", None)
+                os.environ.pop("MORROW_AUDIT_DEFERRED_WRITES", None)
             else:
-                os.environ["PQC_AUDIT_DEFERRED_WRITES"] = previous
+                os.environ["MORROW_AUDIT_DEFERRED_WRITES"] = previous
 
     def test_concurrent_appends_do_not_fork_the_chain(self):
         errors = []
@@ -1213,7 +1213,7 @@ class TestSearchIsIndexedAndCached(unittest.TestCase):
         src = inspect.getsource(pa.search)
         declared = {(table, column) for table, columns in pa.SEARCH_TRIGRAM_COLUMNS for column in columns}
         for table, columns in (("organizations", ("id", "name")),
-                               ("pqc_users", ("email", "full_name", "id")),
+                               ("morrow_users", ("email", "full_name", "id")),
                                ("organization_memberships", ("email", "display_name", "user_id")),
                                ("platform_api_keys", ("name", "prefix", "id")),
                                ("platform_announcements", ("title", "body")),
@@ -1330,9 +1330,9 @@ class TestCheapPathsSkipPerRequestAccounting(unittest.TestCase):
 
 
 class TestDatabaseSelectionDoesNotLeakBetweenModules(unittest.TestCase):
-    """test_wave17.py failed with "no such table: pqc_users" depending only on what ran before it.
+    """test_wave17.py failed with "no such table: morrow_users" depending only on what ran before it.
 
-    Several module-scoped fixtures point PQC_SCANNER_DB at a temporary file, run against it, then
+    Several module-scoped fixtures point MORROW_SCANNER_DB at a temporary file, run against it, then
     delete the file without putting the variable back. A module-scoped fixture is finalized after
     the last test's function-scoped fixtures, so conftest's per-test restore never saw it: the next
     module inherited a database the copy isolation had never seeded -- and, because db's
@@ -1354,7 +1354,7 @@ class TestDatabaseSelectionDoesNotLeakBetweenModules(unittest.TestCase):
                          "cause this, so it cannot be the backstop")
         self.assertTrue(marker.autouse)
         src = inspect.getsource(getattr(fixture, "_fixture_function", fixture))
-        for key in ("PQC_SCANNER_DB", "PQC_MAIN_DB_BACKEND", "PQC_FEATURE_STORE_BACKEND"):
+        for key in ("MORROW_SCANNER_DB", "MORROW_MAIN_DB_BACKEND", "MORROW_FEATURE_STORE_BACKEND"):
             self.assertIn(key, inspect.getsource(conftest))
         self.assertIn("_schema_initialized_db_path", src,
                       "the schema memo is keyed by path and has to be dropped with it")
@@ -1380,14 +1380,14 @@ class TestDatabaseSelectionDoesNotLeakBetweenModules(unittest.TestCase):
                         and "scope='session'" not in decorators and 'scope="session"' not in decorators:
                     continue
                 body = ast.unparse(node)
-                if "os.environ['PQC_SCANNER_DB'] =" not in body and 'os.environ["PQC_SCANNER_DB"] =' not in body:
+                if "os.environ['MORROW_SCANNER_DB'] =" not in body and 'os.environ["MORROW_SCANNER_DB"] =' not in body:
                     continue
                 if "monkeypatch" in decorators or "monkeypatch" in body:
                     continue  # monkeypatch undoes its own changes
                 after = body.split("yield", 1)[-1]
-                if "PQC_SCANNER_DB" not in after:
+                if "MORROW_SCANNER_DB" not in after:
                     offenders.append("%s::%s" % (os.path.basename(path), node.name))
-        self.assertEqual(offenders, [], "these module-scoped fixtures set PQC_SCANNER_DB and never "
+        self.assertEqual(offenders, [], "these module-scoped fixtures set MORROW_SCANNER_DB and never "
                                         "put it back, so the next test module inherits their "
                                         "private database: %s" % offenders)
 

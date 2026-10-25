@@ -1,7 +1,7 @@
 """Bring your own provider, in code.
 
-    PQC_LLM_PROVIDER=custom
-    PQC_LLM_CUSTOM_MODULE=my_package.my_module
+    MORROW_LLM_PROVIDER=custom
+    MORROW_LLM_CUSTOM_MODULE=my_package.my_module
 
 The module is imported by dotted path and must expose a provider. Three forms
 are accepted, checked in this order:
@@ -45,18 +45,18 @@ def load(settings: Settings) -> Provider:
     """Import and validate the operator's provider. Raises LLMError on any problem."""
     path = (settings.custom_module or "").strip()
     if not path:
-        raise _fail("PQC_LLM_PROVIDER=custom needs a module to load.",
-                    "Set PQC_LLM_CUSTOM_MODULE=my_package.my_module and see docs/AI_PROVIDERS.md.")
+        raise _fail("MORROW_LLM_PROVIDER=custom needs a module to load.",
+                    "Set MORROW_LLM_CUSTOM_MODULE=my_package.my_module and see docs/AI_PROVIDERS.md.")
     if not _MODULE_PATH.match(path):
-        raise _fail(f"PQC_LLM_CUSTOM_MODULE is not a dotted import path: {path!r}.",
+        raise _fail(f"MORROW_LLM_CUSTOM_MODULE is not a dotted import path: {path!r}.",
                     "Use a module path such as my_package.my_module -- not a file name or a URL.")
     try:
         module = importlib.import_module(path)
     except ImportError as exc:
-        raise _fail(f"Could not import PQC_LLM_CUSTOM_MODULE {path!r}: {exc.__class__.__name__}.",
+        raise _fail(f"Could not import MORROW_LLM_CUSTOM_MODULE {path!r}: {exc.__class__.__name__}.",
                     "Make sure the module is on PYTHONPATH and imports cleanly on its own.") from None
     except Exception as exc:
-        raise _fail(f"PQC_LLM_CUSTOM_MODULE {path!r} raised {exc.__class__.__name__} while importing.",
+        raise _fail(f"MORROW_LLM_CUSTOM_MODULE {path!r} raised {exc.__class__.__name__} while importing.",
                     "Fix the error in your module; it must import without side effects that can fail.") from None
 
     instance = _instantiate(module, path, settings)
@@ -133,7 +133,7 @@ def validate(instance: Any, path: str = "the custom module") -> None:
 def describe_contract() -> Dict[str, Any]:
     """The contract, as data, for the console and the docs."""
     return {
-        "env": {"PQC_LLM_PROVIDER": "custom", "PQC_LLM_CUSTOM_MODULE": "my_package.my_module"},
+        "env": {"MORROW_LLM_PROVIDER": "custom", "MORROW_LLM_CUSTOM_MODULE": "my_package.my_module"},
         "accepted_forms": ["get_provider(settings)", "class Provider", "one Provider subclass"],
         "required_methods": list(REQUIRED),
         "example": "examples/custom_llm_provider.py",

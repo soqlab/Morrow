@@ -25,7 +25,7 @@ def test_fastapi_instrumentation_is_attached():
 
     assert getattr(app.app, "_is_instrumented_by_opentelemetry", False), (
         "OpenTelemetry FastAPI instrumentation did not attach, so per-request tracing is disabled. "
-        "Check the pqc.otel warning at import time — most likely the "
+        "Check the pq.otel warning at import time — most likely the "
         "opentelemetry-instrumentation-fastapi dependency failed to import."
     )
 

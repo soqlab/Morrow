@@ -159,7 +159,7 @@ def flag(name: str) -> Optional[bool]:
 
 
 def environment_name() -> str:
-    return env("PQC_ENVIRONMENT", "local").lower() or "local"
+    return env("MORROW_ENVIRONMENT", "local").lower() or "local"
 
 
 def strict_environment() -> bool:
@@ -297,24 +297,24 @@ def alert_test_send(channel_id: str) -> Dict[str, Any]:
 def check_deployment(report: Report, offline: bool) -> None:
     area = "deployment"
     name = environment_name()
-    report.add(area, "PQC_ENVIRONMENT", CONFIGURED if env("PQC_ENVIRONMENT") else MISSING,
-               f"environment is {name}" + ("" if env("PQC_ENVIRONMENT") else " (defaulted)"),
-               "Set PQC_ENVIRONMENT=production so the strict defaults (MFA, break-glass) switch on.",
+    report.add(area, "MORROW_ENVIRONMENT", CONFIGURED if env("MORROW_ENVIRONMENT") else MISSING,
+               f"environment is {name}" + ("" if env("MORROW_ENVIRONMENT") else " (defaulted)"),
+               "Set MORROW_ENVIRONMENT=production so the strict defaults (MFA, break-glass) switch on.",
                required=True)
 
-    base = env("PQC_PUBLIC_BASE_URL").rstrip("/")
+    base = env("MORROW_PUBLIC_BASE_URL").rstrip("/")
     if not base:
-        report.add(area, "PQC_PUBLIC_BASE_URL", MISSING,
+        report.add(area, "MORROW_PUBLIC_BASE_URL", MISSING,
                    "no public base URL, so generated links and the SSO redirect have nowhere to point",
-                   "Set PQC_PUBLIC_BASE_URL=https://app.your-domain.com.", required=True)
+                   "Set MORROW_PUBLIC_BASE_URL=https://app.your-domain.com.", required=True)
     elif not base.startswith("https://") and "localhost" not in base and "127.0.0.1" not in base:
-        report.add(area, "PQC_PUBLIC_BASE_URL", ERROR, f"{base} is not https",
+        report.add(area, "MORROW_PUBLIC_BASE_URL", ERROR, f"{base} is not https",
                    "Use an https URL; cookies are issued Secure everywhere but localhost.")
     else:
-        report.add(area, "PQC_PUBLIC_BASE_URL", CONFIGURED, base)
+        report.add(area, "MORROW_PUBLIC_BASE_URL", CONFIGURED, base)
 
-    status = env("PQC_STATUS_PAGE_URL")
-    sender = env("PQC_SMTP_FROM")
+    status = env("MORROW_STATUS_PAGE_URL")
+    sender = env("MORROW_SMTP_FROM")
     if status or sender:
         report.add(area, "public contact", CONFIGURED,
                    "; ".join(filter(None, [f"status page {status}" if status else "",
@@ -322,39 +322,39 @@ def check_deployment(report: Report, offline: bool) -> None:
     else:
         report.add(area, "public contact", MISSING,
                    "incident templates and platform email carry no address customers can reach",
-                   "Set PQC_STATUS_PAGE_URL and PQC_SMTP_FROM to the addresses you actually watch.")
+                   "Set MORROW_STATUS_PAGE_URL and MORROW_SMTP_FROM to the addresses you actually watch.")
 
 
 def check_auth_secret(report: Report) -> None:
     area = "auth"
-    secret = env("PQC_AUTH_JWT_SECRET")
+    secret = env("MORROW_AUTH_JWT_SECRET")
     if not secret:
-        report.add(area, "PQC_AUTH_JWT_SECRET", MISSING,
+        report.add(area, "MORROW_AUTH_JWT_SECRET", MISSING,
                    "support sessions and issued tokens cannot be signed or verified",
                    "Generate 32+ random bytes: python -c \"import secrets;print(secrets.token_hex(32))\".",
                    required=True)
     elif len(secret) < 32:
-        report.add(area, "PQC_AUTH_JWT_SECRET", ERROR,
+        report.add(area, "MORROW_AUTH_JWT_SECRET", ERROR,
                    f"only {len(secret)} characters; tokens are signed with a guessable key",
                    "Replace it with 32+ random characters and restart every replica.")
     else:
-        report.add(area, "PQC_AUTH_JWT_SECRET", CONFIGURED,
+        report.add(area, "MORROW_AUTH_JWT_SECRET", CONFIGURED,
                    f"{len(secret)} characters; support sessions and issued tokens can be signed")
 
-    issuer_on = flag("PQC_AUTH_ISSUER_ENABLED")
-    if issuer_on and strict_environment() and not flag("PQC_ALLOW_HS256_IN_PRODUCTION"):
+    issuer_on = flag("MORROW_AUTH_ISSUER_ENABLED")
+    if issuer_on and strict_environment() and not flag("MORROW_ALLOW_HS256_IN_PRODUCTION"):
         report.add(area, "built-in issuer", ERROR,
-                   "PQC_AUTH_ISSUER_ENABLED=1 needs HS256, which production does not allow",
-                   "Prefer PQC_AUTH_ISSUER_ENABLED=0 with your IdP's RS256/JWKS.")
+                   "MORROW_AUTH_ISSUER_ENABLED=1 needs HS256, which production does not allow",
+                   "Prefer MORROW_AUTH_ISSUER_ENABLED=0 with your IdP's RS256/JWKS.")
 
 
 def check_vault(report: Report) -> None:
     area = "vault"
     stores = ("customer scanner credentials (vault_credentials), operator MFA secrets and recovery "
               "codes, alert channel targets, website gateway site secrets")
-    key = env("PQC_VAULT_MASTER_KEY")
+    key = env("MORROW_VAULT_MASTER_KEY")
     if not key:
-        report.add(area, "PQC_VAULT_MASTER_KEY", MISSING,
+        report.add(area, "MORROW_VAULT_MASTER_KEY", MISSING,
                    f"nothing can be sealed or unsealed: {stores}",
                    "python -c \"from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())\".",
                    required=True)
@@ -362,20 +362,20 @@ def check_vault(report: Report) -> None:
     try:
         from cryptography.fernet import Fernet  # noqa: PLC0415
     except Exception as exc:
-        report.add(area, "PQC_VAULT_MASTER_KEY", ERROR, f"the cryptography package is unavailable ({exc.__class__.__name__})",
+        report.add(area, "MORROW_VAULT_MASTER_KEY", ERROR, f"the cryptography package is unavailable ({exc.__class__.__name__})",
                    "pip install -r backend/requirements.txt.")
         return
     try:
         fernet = Fernet(key.encode("utf-8"))
-        probe = "pqc-integration-self-test"
+        probe = "pq-integration-self-test"
         if fernet.decrypt(fernet.encrypt(probe.encode("utf-8"))).decode("utf-8") != probe:
             raise ValueError("round trip did not return the probe value")
     except Exception as exc:
-        report.add(area, "PQC_VAULT_MASTER_KEY", ERROR,
+        report.add(area, "MORROW_VAULT_MASTER_KEY", ERROR,
                    f"not a usable Fernet key ({exc.__class__.__name__}); these stores are unreadable: {stores}",
                    "It must be a 32-byte urlsafe-base64 key. Rotating it needs scripts/rotate-vault-master-key.py.")
         return
-    report.add(area, "PQC_VAULT_MASTER_KEY", CONFIGURED,
+    report.add(area, "MORROW_VAULT_MASTER_KEY", CONFIGURED,
                f"valid Fernet key, probe encrypted and decrypted; it protects {stores}")
 
 
@@ -389,36 +389,36 @@ def check_vault(report: Report) -> None:
 
 def check_sso(report: Report, offline: bool) -> None:
     area = "sso"
-    issuer = env("PQC_ADMIN_OIDC_ISSUER").rstrip("/")
-    client_id = env("PQC_ADMIN_OIDC_CLIENT_ID")
-    base = env("PQC_PUBLIC_BASE_URL").rstrip("/")
-    redirect = env("PQC_ADMIN_OIDC_REDIRECT_URI") or (f"{base}{SSO_CALLBACK_PATH}" if base else "")
+    issuer = env("MORROW_ADMIN_OIDC_ISSUER").rstrip("/")
+    client_id = env("MORROW_ADMIN_OIDC_CLIENT_ID")
+    base = env("MORROW_PUBLIC_BASE_URL").rstrip("/")
+    redirect = env("MORROW_ADMIN_OIDC_REDIRECT_URI") or (f"{base}{SSO_CALLBACK_PATH}" if base else "")
 
     if not issuer and not client_id:
-        report.add(area, "PQC_ADMIN_OIDC_ISSUER", MISSING,
+        report.add(area, "MORROW_ADMIN_OIDC_ISSUER", MISSING,
                    "operators sign in with the shared platform key only; there is no per-person identity",
-                   "Register the console with your IdP and set PQC_ADMIN_OIDC_ISSUER / _CLIENT_ID / _CLIENT_SECRET.",
+                   "Register the console with your IdP and set MORROW_ADMIN_OIDC_ISSUER / _CLIENT_ID / _CLIENT_SECRET.",
                    required=True)
     else:
         if not issuer:
-            report.add(area, "PQC_ADMIN_OIDC_ISSUER", MISSING, "a client id is set but no issuer",
-                       "Set PQC_ADMIN_OIDC_ISSUER to the IdP's issuer URL.", required=True)
+            report.add(area, "MORROW_ADMIN_OIDC_ISSUER", MISSING, "a client id is set but no issuer",
+                       "Set MORROW_ADMIN_OIDC_ISSUER to the IdP's issuer URL.", required=True)
         if not client_id:
-            report.add(area, "PQC_ADMIN_OIDC_CLIENT_ID", MISSING, "no client id, so the sign-in flow cannot start",
+            report.add(area, "MORROW_ADMIN_OIDC_CLIENT_ID", MISSING, "no client id, so the sign-in flow cannot start",
                        "Copy the application (client) id from the IdP.", required=True)
         else:
-            report.add(area, "PQC_ADMIN_OIDC_CLIENT_ID", CONFIGURED, client_id)
-        if not env("PQC_ADMIN_OIDC_CLIENT_SECRET"):
-            report.add(area, "PQC_ADMIN_OIDC_CLIENT_SECRET", MISSING, "the token exchange cannot be authenticated",
+            report.add(area, "MORROW_ADMIN_OIDC_CLIENT_ID", CONFIGURED, client_id)
+        if not env("MORROW_ADMIN_OIDC_CLIENT_SECRET"):
+            report.add(area, "MORROW_ADMIN_OIDC_CLIENT_SECRET", MISSING, "the token exchange cannot be authenticated",
                        "Copy the client secret from the IdP.", required=True)
 
         if not redirect:
             report.add(area, "redirect URI", MISSING, "nothing to register with the IdP",
-                       f"Set PQC_PUBLIC_BASE_URL (the callback is {SSO_CALLBACK_PATH}).", required=True)
+                       f"Set MORROW_PUBLIC_BASE_URL (the callback is {SSO_CALLBACK_PATH}).", required=True)
         elif base and not redirect.startswith(base + "/"):
             report.add(area, "redirect URI", ERROR,
-                       f"{redirect} is not under PQC_PUBLIC_BASE_URL ({base}); the IdP will refuse the callback",
-                       f"Set PQC_ADMIN_OIDC_REDIRECT_URI={base}{SSO_CALLBACK_PATH} or clear it to use the default.")
+                       f"{redirect} is not under MORROW_PUBLIC_BASE_URL ({base}); the IdP will refuse the callback",
+                       f"Set MORROW_ADMIN_OIDC_REDIRECT_URI={base}{SSO_CALLBACK_PATH} or clear it to use the default.")
         elif not redirect.endswith(SSO_CALLBACK_PATH):
             report.add(area, "redirect URI", ERROR, f"{redirect} does not end in {SSO_CALLBACK_PATH}",
                        f"The console only serves the callback at {SSO_CALLBACK_PATH}.")
@@ -433,17 +433,17 @@ def check_sso(report: Report, offline: bool) -> None:
 
     _check_roster(report, area)
 
-    required = flag("PQC_ADMIN_REQUIRE_MFA")
+    required = flag("MORROW_ADMIN_REQUIRE_MFA")
     effective = strict_environment() if required is None else required
     report.add(area, "MFA policy", CONFIGURED if effective else MISSING,
                "operators must pass TOTP" if effective else f"MFA is off in this {environment_name()} environment",
-               "" if effective else "Set PQC_ADMIN_REQUIRE_MFA=1 before go-live.",
+               "" if effective else "Set MORROW_ADMIN_REQUIRE_MFA=1 before go-live.",
                required=not effective)
 
     if not strict_environment():
         detail = f"the shared platform key is accepted (this is a {environment_name()} environment, not production)"
-    elif flag("PQC_ALLOW_BREAK_GLASS_KEY"):
-        detail = "PQC_ALLOW_BREAK_GLASS_KEY=1: the shared platform key still works, and every use is audited at severity high"
+    elif flag("MORROW_ALLOW_BREAK_GLASS_KEY"):
+        detail = "MORROW_ALLOW_BREAK_GLASS_KEY=1: the shared platform key still works, and every use is audited at severity high"
     else:
         detail = "the shared platform key is refused; SSO or a named operator key only"
     report.add(area, "break-glass key", CONFIGURED, detail)
@@ -467,7 +467,7 @@ def _check_discovery(report: Report, area: str, issuer: str) -> None:
     if str(doc.get("issuer") or "").rstrip("/") != issuer:
         report.add(area, "discovery", ERROR,
                    f"the document names issuer {doc.get('issuer')!r}, not {issuer}",
-                   "Set PQC_ADMIN_OIDC_ISSUER to exactly the issuer value the document returns.")
+                   "Set MORROW_ADMIN_OIDC_ISSUER to exactly the issuer value the document returns.")
         return
     missing = [f for f in ("authorization_endpoint", "token_endpoint", "jwks_uri") if not doc.get(f)]
     if missing:
@@ -478,17 +478,17 @@ def _check_discovery(report: Report, area: str, issuer: str) -> None:
 
 
 def _check_roster(report: Report, area: str) -> None:
-    raw = env("PQC_ADMIN_OPERATOR_ROLES")
-    domains = [d.strip().lower().lstrip("@") for d in env("PQC_ADMIN_OIDC_ALLOWED_DOMAINS").split(",") if d.strip()]
+    raw = env("MORROW_ADMIN_OPERATOR_ROLES")
+    domains = [d.strip().lower().lstrip("@") for d in env("MORROW_ADMIN_OIDC_ALLOWED_DOMAINS").split(",") if d.strip()]
     if not raw:
         if domains:
-            role = env("PQC_ADMIN_OIDC_DOMAIN_ROLE", "auditor")
+            role = env("MORROW_ADMIN_OIDC_DOMAIN_ROLE", "auditor")
             report.add(area, "operator roster", CONFIGURED,
                        f"no roster; anyone at {', '.join(domains)} signs in as {role}")
         else:
             report.add(area, "operator roster", MISSING,
                        "no operator is allowed in by SSO, so a successful sign-in would still be denied",
-                       'Set PQC_ADMIN_OPERATOR_ROLES="you@corp.com=owner,colleague@corp.com=operator".',
+                       'Set MORROW_ADMIN_OPERATOR_ROLES="you@corp.com=owner,colleague@corp.com=operator".',
                        required=True)
         return
     try:
@@ -512,7 +512,7 @@ def _check_roster(report: Report, area: str) -> None:
                    "Each entry is email=role with role one of owner, operator, support, auditor.")
     elif not good:
         report.add(area, "operator roster", ERROR, "the roster is set but no entry parsed",
-                   'Use PQC_ADMIN_OPERATOR_ROLES="you@corp.com=owner".')
+                   'Use MORROW_ADMIN_OPERATOR_ROLES="you@corp.com=owner".')
     else:
         counts: Dict[str, int] = {}
         for role in good.values():
@@ -546,7 +546,7 @@ def check_alerts(report: Report, offline: bool, send_test: bool) -> None:
         if channel.get("encrypted") and not channel.get("decrypts"):
             report.add(area, f"channel:{channel.get('id')}", ERROR,
                        f"{label}: the stored target does not decrypt ({channel.get('reason')})",
-                       "PQC_VAULT_MASTER_KEY has changed. Re-enter the target, or restore the key it was sealed with.")
+                       "MORROW_VAULT_MASTER_KEY has changed. Re-enter the target, or restore the key it was sealed with.")
         else:
             report.add(area, f"channel:{channel.get('id')}", CONFIGURED,
                        f"{label}: {'enabled' if channel.get('enabled') else 'DISABLED'}"
@@ -601,17 +601,17 @@ def check_redis(report: Report, offline: bool) -> None:
 
 def check_postgres(report: Report, offline: bool) -> None:
     area = "postgres"
-    dsn = env("PQC_PRODUCT_DATABASE_URL") or env("DATABASE_URL")
+    dsn = env("MORROW_PRODUCT_DATABASE_URL") or env("DATABASE_URL")
     if not dsn:
-        report.add(area, "PQC_PRODUCT_DATABASE_URL", MISSING,
+        report.add(area, "MORROW_PRODUCT_DATABASE_URL", MISSING,
                    "the product database is SQLite, which one process may hold and no replica may share",
-                   "Point PQC_PRODUCT_DATABASE_URL at managed Postgres before go-live.", required=True)
+                   "Point MORROW_PRODUCT_DATABASE_URL at managed Postgres before go-live.", required=True)
         return
     if not dsn.startswith(("postgres://", "postgresql://")):
-        report.add(area, "PQC_PRODUCT_DATABASE_URL", ERROR, "the DSN is not a Postgres URL",
+        report.add(area, "MORROW_PRODUCT_DATABASE_URL", ERROR, "the DSN is not a Postgres URL",
                    "Use postgresql://user:password@host:5432/database.")
         return
-    report.add(area, "PQC_PRODUCT_DATABASE_URL", CONFIGURED, "Postgres DSN is set (value withheld)")
+    report.add(area, "MORROW_PRODUCT_DATABASE_URL", CONFIGURED, "Postgres DSN is set (value withheld)")
     if offline:
         report.add(area, "connection", SKIPPED, "--offline: Postgres was not contacted",
                    "Re-run without --offline before go-live.")
@@ -653,12 +653,12 @@ def check_postgres(report: Report, offline: bool) -> None:
 _AI_KEY_VARS = {
     "anthropic": ("ANTHROPIC_API_KEY", True),
     "openai": ("OPENAI_API_KEY", True),
-    "azure-openai": ("PQC_LLM_API_KEY", True),
-    "gemini": ("PQC_LLM_API_KEY", True),
-    "openai-compatible": ("PQC_LLM_API_KEY", False),
-    "ollama": ("PQC_LLM_API_KEY", False),
+    "azure-openai": ("MORROW_LLM_API_KEY", True),
+    "gemini": ("MORROW_LLM_API_KEY", True),
+    "openai-compatible": ("MORROW_LLM_API_KEY", False),
+    "ollama": ("MORROW_LLM_API_KEY", False),
     "builtin": ("", False),
-    "custom": ("PQC_LLM_API_KEY", False),
+    "custom": ("MORROW_LLM_API_KEY", False),
 }
 
 _AI_ALIASES = {
@@ -679,11 +679,11 @@ def _ai_provider() -> Tuple[str, str]:
     Mirrors services/llm/config.py's precedence so the self-test tells the
     operator what the running platform would actually do.
     """
-    if env("PQC_LLM_DISABLED") in ("1", "true", "yes", "on"):
-        return "builtin", "PQC_LLM_DISABLED=1"
-    chosen = env("PQC_LLM_PROVIDER").lower().replace(" ", "")
+    if env("MORROW_LLM_DISABLED") in ("1", "true", "yes", "on"):
+        return "builtin", "MORROW_LLM_DISABLED=1"
+    chosen = env("MORROW_LLM_PROVIDER").lower().replace(" ", "")
     if chosen:
-        return _AI_ALIASES.get(chosen, chosen), "PQC_LLM_PROVIDER"
+        return _AI_ALIASES.get(chosen, chosen), "MORROW_LLM_PROVIDER"
     if env("ANTHROPIC_API_KEY"):
         return "anthropic", "ANTHROPIC_API_KEY is set"
     if env("OPENAI_API_KEY"):
@@ -693,7 +693,7 @@ def _ai_provider() -> Tuple[str, str]:
 
 def _ai_reachability_probe(provider: str, key: str) -> Tuple[str, Dict[str, str]]:
     """A cheap read that proves the credential and the endpoint, per provider."""
-    base = env("PQC_LLM_BASE_URL").rstrip("/")
+    base = env("MORROW_LLM_BASE_URL").rstrip("/")
     if provider == "anthropic":
         return "https://api.anthropic.com/v1/models?limit=1", {
             "x-api-key": key, "anthropic-version": "2023-06-01"}
@@ -703,7 +703,7 @@ def _ai_reachability_probe(provider: str, key: str) -> Tuple[str, Dict[str, str]
         return ((base or "https://generativelanguage.googleapis.com/v1beta") + "/models",
                 {"x-goog-api-key": key})
     if provider == "azure-openai":
-        version = env("PQC_LLM_API_VERSION") or "2024-10-21"
+        version = env("MORROW_LLM_API_VERSION") or "2024-10-21"
         return f"{base}/openai/models?api-version={version}", {"api-key": key}
     if provider == "ollama":
         return ((base or "http://127.0.0.1:11434").removesuffix("/v1") + "/api/tags", {})
@@ -714,28 +714,28 @@ def _ai_reachability_probe(provider: str, key: str) -> Tuple[str, Dict[str, str]
 def check_ai(report: Report, offline: bool, check_ai_call: bool) -> None:
     area = "ai"
     provider, why = _ai_provider()
-    model = env("PQC_LLM_MODEL") or env("ANTHROPIC_AGENT_MODEL") or env("OPENAI_AGENT_MODEL") or env("OPENAI_MODEL")
-    base = env("PQC_LLM_BASE_URL")
-    key_var, key_required = _AI_KEY_VARS.get(provider, ("PQC_LLM_API_KEY", False))
+    model = env("MORROW_LLM_MODEL") or env("ANTHROPIC_AGENT_MODEL") or env("OPENAI_AGENT_MODEL") or env("OPENAI_MODEL")
+    base = env("MORROW_LLM_BASE_URL")
+    key_var, key_required = _AI_KEY_VARS.get(provider, ("MORROW_LLM_API_KEY", False))
     key = env(key_var) if key_var else ""
     if provider in ("azure-openai", "gemini", "openai-compatible", "ollama", "custom") and not key:
-        key = env("PQC_LLM_API_KEY") or env("PQC_AI_LOCAL_API_KEY")
+        key = env("MORROW_LLM_API_KEY") or env("MORROW_AI_LOCAL_API_KEY")
 
     if provider == "builtin":
-        status = CONFIGURED if why == "PQC_LLM_DISABLED=1" else MISSING
+        status = CONFIGURED if why == "MORROW_LLM_DISABLED=1" else MISSING
         report.add(area, "provider", status,
                    "CipherLens answers from built-in rules; no model call leaves this deployment"
-                   + (" (deliberately disabled)" if why == "PQC_LLM_DISABLED=1" else f" ({why})"),
-                   "" if why == "PQC_LLM_DISABLED=1" else
-                   "Set PQC_LLM_PROVIDER and its settings, or ANTHROPIC_API_KEY / OPENAI_API_KEY. "
+                   + (" (deliberately disabled)" if why == "MORROW_LLM_DISABLED=1" else f" ({why})"),
+                   "" if why == "MORROW_LLM_DISABLED=1" else
+                   "Set MORROW_LLM_PROVIDER and its settings, or ANTHROPIC_API_KEY / OPENAI_API_KEY. "
                    "See docs/AI_PROVIDERS.md.",
-                   required=why != "PQC_LLM_DISABLED=1")
+                   required=why != "MORROW_LLM_DISABLED=1")
         report.add(area, "reachability", SKIPPED, "nothing to reach: the built-in answerer is local")
         return
 
     known = set(_AI_KEY_VARS)
     if provider not in known:
-        report.add(area, "provider", ERROR, f"PQC_LLM_PROVIDER={provider!r} is not a provider this build ships",
+        report.add(area, "provider", ERROR, f"MORROW_LLM_PROVIDER={provider!r} is not a provider this build ships",
                    "Choose one of: " + ", ".join(sorted(known)) + ". See docs/AI_PROVIDERS.md.", required=True)
         return
 
@@ -744,13 +744,13 @@ def check_ai(report: Report, offline: bool, check_ai_call: bool) -> None:
     if key_required and not key:
         missing.append(key_var)
     if provider in ("azure-openai", "openai-compatible") and not base:
-        missing.append("PQC_LLM_BASE_URL")
-    if provider == "azure-openai" and not (env("PQC_LLM_AZURE_DEPLOYMENT") or model):
-        missing.append("PQC_LLM_AZURE_DEPLOYMENT")
+        missing.append("MORROW_LLM_BASE_URL")
+    if provider == "azure-openai" and not (env("MORROW_LLM_AZURE_DEPLOYMENT") or model):
+        missing.append("MORROW_LLM_AZURE_DEPLOYMENT")
     if provider == "openai-compatible" and not model:
-        missing.append("PQC_LLM_MODEL")
-    if provider == "custom" and not env("PQC_LLM_CUSTOM_MODULE"):
-        missing.append("PQC_LLM_CUSTOM_MODULE")
+        missing.append("MORROW_LLM_MODEL")
+    if provider == "custom" and not env("MORROW_LLM_CUSTOM_MODULE"):
+        missing.append("MORROW_LLM_CUSTOM_MODULE")
 
     detail = f"CipherLens will use {provider}" + (f" / {model}" if model else "")
     if base:
@@ -790,7 +790,7 @@ def check_ai(report: Report, offline: bool, check_ai_call: bool) -> None:
                    f"Issue a new key in {key_var} and make sure the account has credit.")
     elif int(result.get("status") or 0) == 404:
         report.add(area, "reachability", ERROR, f"{provider} answered HTTP 404 for the model listing",
-                   "Check PQC_LLM_BASE_URL: it should be the API root, for example .../v1.")
+                   "Check MORROW_LLM_BASE_URL: it should be the API root, for example .../v1.")
     elif int(result.get("status") or 0) >= 400:
         report.add(area, "reachability", ERROR, f"{provider} answered HTTP {result.get('status')}",
                    "Check the provider's status page, then re-run.")

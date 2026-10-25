@@ -10,7 +10,7 @@ From the repository root:
 
 ```bash
 export OPENAI_API_KEY="..."
-scripts/setup-enterprise.sh --project CUSTOMER_PROJECT_ID --region europe-west1 --prefix pqc-ent
+scripts/setup-enterprise.sh --project CUSTOMER_PROJECT_ID --region europe-west1 --prefix pq-ent
 ```
 
 The script performs the two-phase deployment:
@@ -31,10 +31,10 @@ terraform apply -var="deploy_runtime=false"
 
 gcloud auth configure-docker europe-west1-docker.pkg.dev
 gcloud builds submit ../../../backend \
-  --tag europe-west1-docker.pkg.dev/PROJECT_ID/pqc-ent-containers/backend:latest
+  --tag europe-west1-docker.pkg.dev/PROJECT_ID/pq-ent-containers/backend:latest
 
-printf '%s' "$PQC_VAULT_MASTER_KEY" | gcloud secrets versions add pqc-ent-pqc-vault-master-key --data-file=-
-printf '%s' "$OPENAI_API_KEY" | gcloud secrets versions add pqc-ent-openai-api-key --data-file=-
+printf '%s' "$MORROW_VAULT_MASTER_KEY" | gcloud secrets versions add pq-ent-morrow-vault-master-key --data-file=-
+printf '%s' "$OPENAI_API_KEY" | gcloud secrets versions add pq-ent-openai-api-key --data-file=-
 
 terraform apply -var="deploy_runtime=true"
 ```

@@ -44,8 +44,8 @@ access. See `docs/DATA_BOUNDARY_AND_PRIVACY.md` for the exact data classes.
 
 ## How is Airlock evidence trusted?
 
-Enterprise pilots should set `PQC_AIRLOCK_SIGNING_KEY`,
-`PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1`, and `PQC_AIRLOCK_MAX_CLOCK_SKEW_SECONDS`. Signed evidence
+Enterprise pilots should set `MORROW_AIRLOCK_SIGNING_KEY`,
+`MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1`, and `MORROW_AIRLOCK_MAX_CLOCK_SKEW_SECONDS`. Signed evidence
 uses timestamp and nonce checks so the platform can reject stale or unsigned submissions. Unsigned
 evidence is acceptable only for local development or clearly marked demos.
 
@@ -60,7 +60,7 @@ is optional and should be scoped explicitly when remediation PR workflows are pa
 
 Yes after customer-controlled network deployment. The generated CAM/API package can run as an
 ingress reverse proxy, transparent Linux sidecar, or egress gateway. It wraps selected traffic in a
-hybrid/PQC-capable TLS tunnel and sends only handshake proof metadata to the platform. The customer
+hybrid/post-quantum-capable TLS tunnel and sends only handshake proof metadata to the platform. The customer
 still controls sidecar injection, destination CIDRs, DNS/load-balancer routing, certificates, and
 rollback. Certificate pinning and app-layer crypto still require separate remediation.
 

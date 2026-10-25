@@ -41,16 +41,16 @@ chmod 600 .env.prod
 python3 - <<'PY'
 import secrets
 print("POSTGRES_PASSWORD=" + secrets.token_urlsafe(32))
-print("PQC_PLATFORM_ADMIN_KEY=" + secrets.token_urlsafe(48))
-print("PQC_VAULT_MASTER_KEY=" + secrets.token_urlsafe(48))
-print("PQC_AIRLOCK_SIGNING_KEY=" + secrets.token_urlsafe(48))
+print("MORROW_PLATFORM_ADMIN_KEY=" + secrets.token_urlsafe(48))
+print("MORROW_VAULT_MASTER_KEY=" + secrets.token_urlsafe(48))
+print("MORROW_AIRLOCK_SIGNING_KEY=" + secrets.token_urlsafe(48))
 PY
 ```
 
-`PQC_VAULT_MASTER_KEY` decrypts every stored customer credential. If you lose it, a restored
+`MORROW_VAULT_MASTER_KEY` decrypts every stored customer credential. If you lose it, a restored
 backup comes back as unreadable ciphertext — so it belongs in your password manager before you
 paste it anywhere, and `scripts/rotate-vault-master-key.py` exists for the day you need to change
-it. `PQC_AIRLOCK_SIGNING_KEY` signs evidence; changing it invalidates signatures already issued.
+it. `MORROW_AIRLOCK_SIGNING_KEY` signs evidence; changing it invalidates signatures already issued.
 
 Then fill in the rest of `.env.prod`. The ones this overlay needs beyond the example file:
 
@@ -58,14 +58,14 @@ Then fill in the rest of `.env.prod`. The ones this overlay needs beyond the exa
 SITE_DOMAIN=your-domain.com
 ACME_EMAIL=you@your-domain.com
 POSTGRES_PASSWORD=<generated above>
-DATABASE_URL=postgresql://pqc:<that same password>@db:5432/pqc
+DATABASE_URL=postgresql://morrow:<that same password>@db:5432/morrow
 
-PQC_PUBLIC_BASE_URL=https://your-domain.com
-PQC_ALLOWED_HOSTS=your-domain.com,www.your-domain.com
-PQC_CORS_ORIGINS=https://your-domain.com
+MORROW_PUBLIC_BASE_URL=https://your-domain.com
+MORROW_ALLOWED_HOSTS=your-domain.com,www.your-domain.com
+MORROW_CORS_ORIGINS=https://your-domain.com
 ```
 
-`PQC_PUBLIC_BASE_URL` is load-bearing beyond cosmetics: every canonical link, every badge URL and
+`MORROW_PUBLIC_BASE_URL` is load-bearing beyond cosmetics: every canonical link, every badge URL and
 every invitation link is built from it. Wrong, and the registry advertises an address that does not
 resolve.
 
@@ -97,7 +97,7 @@ python3 -c "import sys; sys.path.insert(0,'backend'); import app; print(app._pro
 Then the gate itself, which is the real answer:
 
 ```bash
-curl -s -H "x-platform-key: $PQC_PLATFORM_ADMIN_KEY" \
+curl -s -H "x-platform-key: $MORROW_PLATFORM_ADMIN_KEY" \
   https://your-domain.com/platform/go-live-gate | python3 -m json.tool
 ```
 
@@ -121,15 +121,15 @@ Two separate things: who you sign in as, and what the roster says you may do.
 step 0 — a second application, not the customer one), then:
 
 ```ini
-PQC_ADMIN_OIDC_ISSUER=https://your-tenant.auth0.com/
-PQC_ADMIN_OIDC_CLIENT_ID=...
-PQC_ADMIN_OIDC_CLIENT_SECRET=...
-PQC_ADMIN_OIDC_REDIRECT_URI=https://your-domain.com/vendor-admin/sso/callback
-PQC_ADMIN_OIDC_ALLOWED_DOMAINS=your-domain.com
-PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=1
+MORROW_ADMIN_OIDC_ISSUER=https://your-tenant.auth0.com/
+MORROW_ADMIN_OIDC_CLIENT_ID=...
+MORROW_ADMIN_OIDC_CLIENT_SECRET=...
+MORROW_ADMIN_OIDC_REDIRECT_URI=https://your-domain.com/vendor-admin/sso/callback
+MORROW_ADMIN_OIDC_ALLOWED_DOMAINS=your-domain.com
+MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=1
 
 # The roster. "owner" is the ceiling; the others are operator, support and auditor.
-PQC_ADMIN_OPERATOR_ROLES=you@your-domain.com=owner
+MORROW_ADMIN_OPERATOR_ROLES=you@your-domain.com=owner
 ```
 
 **A named key, optionally**, for scripts and for break-glass — not for signing in day to day:
@@ -138,7 +138,7 @@ PQC_ADMIN_OPERATOR_ROLES=you@your-domain.com=owner
 $C run --rm api python -m services.platform_operators --name you@your-domain.com --role owner
 ```
 
-It prints a key once and the JSON entry to add to `PQC_PLATFORM_OPERATORS`. The key itself is never
+It prints a key once and the JSON entry to add to `MORROW_PLATFORM_OPERATORS`. The key itself is never
 stored — only its SHA-256 — so a lost key is replaced, not recovered.
 
 **Then enrol your authenticator, as the first thing you do.** MFA self-enrolment is open only
@@ -178,19 +178,19 @@ Postgres and Redis are on the compose network and are never published. The API p
 
 ## 8. The free checker, which is off until you turn it on
 
-`PQC_PUBLIC_CHECK_ENABLED` is `1` for self-hosters and `0` in `.env.prod.example` on purpose. It is
+`MORROW_PUBLIC_CHECK_ENABLED` is `1` for self-hosters and `0` in `.env.prod.example` on purpose. It is
 the only part of the platform that connects to a machine the requester may not own, and five things
 must exist before it faces the public:
 
 1. Terms that bind without a signup step — drafted, at `/public-check/terms`.
 2. An acceptable-use policy — drafted, at `/public-check/acceptable-use`.
 3. A privacy notice covering both the requester and the party checked — drafted, at `/public-check/privacy`.
-4. **A monitored abuse mailbox**, with a response time, set in `PQC_PUBLIC_CHECK_ABUSE_CONTACT`. Still yours to supply.
+4. **A monitored abuse mailbox**, with a response time, set in `MORROW_PUBLIC_CHECK_ABUSE_CONTACT`. Still yours to supply.
 5. **The egress addresses and reverse DNS** on `/scanner`, which depend on this server. Still yours to supply.
 
 The five pages are drafts marked for counsel. They are not legal advice and I am not a lawyer.
 
-Turn it on with `PQC_PUBLIC_CHECK_ENABLED=1` once 4 and 5 are real.
+Turn it on with `MORROW_PUBLIC_CHECK_ENABLED=1` once 4 and 5 are real.
 
 ## 9. Smoke test what a stranger sees
 

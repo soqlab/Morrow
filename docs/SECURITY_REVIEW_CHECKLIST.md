@@ -26,7 +26,7 @@ Run before any paid pilot, production deployment, or major write-path release.
 - [ ] No production secrets in `.env`, source code, docs, test fixtures, or videos.
 - [ ] Cloud secret manager configured.
 - [ ] GitHub App private key stored securely.
-- [ ] `PQC_VAULT_MASTER_KEY` rotated from local/demo value.
+- [ ] `MORROW_VAULT_MASTER_KEY` rotated from local/demo value.
 - [ ] Webhook secrets configured and verified.
 
 ## CI / Supply Chain

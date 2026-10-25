@@ -19,7 +19,7 @@ from services.security_intent_store import (
     list_security_intents,
     set_security_intent_status,
 )
-from services.advanced_pqc_controls import (
+from services.advanced_pq_controls import (
     build_crypto_mesh_profile,
     create_hndl_canary_token,
     generate_vendor_private_proof,

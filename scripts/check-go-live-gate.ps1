@@ -1,7 +1,7 @@
 param(
   [string]$BaseUrl = "http://localhost:8000",
-  [string]$PlatformKey = $env:PQC_PLATFORM_ADMIN_KEY,
-  [string]$OperatorSession = $env:PQC_OPERATOR_SESSION,
+  [string]$PlatformKey = $env:MORROW_PLATFORM_ADMIN_KEY,
+  [string]$OperatorSession = $env:MORROW_OPERATOR_SESSION,
   [switch]$Json
 )
 
@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 if (-not $PlatformKey -and -not $OperatorSession -and ([uri]$BaseUrl).Host -in @("localhost", "127.0.0.1", "::1", "[::1]")) {
   $envFile = Join-Path (Get-Location) "backend\.env"
   if (Test-Path $envFile) {
-    $line = Get-Content $envFile | ForEach-Object { $_.TrimStart([char]0xFEFF) } | Where-Object { $_ -match "^PQC_PLATFORM_ADMIN_KEY=" } | Select-Object -First 1
+    $line = Get-Content $envFile | ForEach-Object { $_.TrimStart([char]0xFEFF) } | Where-Object { $_ -match "^MORROW_PLATFORM_ADMIN_KEY=" } | Select-Object -First 1
     if ($line) {
       $PlatformKey = ($line -split "=", 2)[1].Trim()
     }

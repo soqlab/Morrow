@@ -20,10 +20,10 @@ ORG_B = "11111111-1111-1111-1111-111111111111"
 
 @pytest.fixture()
 def client():
-    os.environ["PQC_SCANNER_DB"] = os.path.join(tempfile.mkdtemp(), "feedback.db")
-    os.environ["PQC_FEATURE_STORE_BACKEND"] = "sqlite"
-    os.environ.setdefault("PQC_AUTH_MODE", "header")
-    os.environ.setdefault("PQC_DEFAULT_ROLE", "admin")
+    os.environ["MORROW_SCANNER_DB"] = os.path.join(tempfile.mkdtemp(), "feedback.db")
+    os.environ["MORROW_FEATURE_STORE_BACKEND"] = "sqlite"
+    os.environ.setdefault("MORROW_AUTH_MODE", "header")
+    os.environ.setdefault("MORROW_DEFAULT_ROLE", "admin")
 
     import importlib
     import db

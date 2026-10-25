@@ -66,16 +66,16 @@ def test_network_guard_blocks_everything_but_this_machine(monkeypatch):
         assert socket.getaddrinfo("127.0.0.1", 80)
     finally:
         socket.socket.connect, socket.socket.connect_ex, socket.socket.sendto, socket.getaddrinfo = saved
-        if hasattr(socket, "_pqc_demo_guard"):
-            del socket._pqc_demo_guard
+        if hasattr(socket, "_pq_demo_guard"):
+            del socket._pq_demo_guard
 
 
 def _seed_db(path):
     with closing(sqlite3.connect(path)) as c:
         c.executescript("""
             CREATE TABLE organizations (id TEXT PRIMARY KEY, name TEXT);
-            CREATE TABLE pqc_users (id TEXT PRIMARY KEY, org_id TEXT, email TEXT);
-            CREATE TABLE pqc_refresh_tokens (token_hash TEXT, user_id TEXT);
+            CREATE TABLE morrow_users (id TEXT PRIMARY KEY, org_id TEXT, email TEXT);
+            CREATE TABLE morrow_refresh_tokens (token_hash TEXT, user_id TEXT);
             CREATE TABLE assets (asset_key TEXT, organization_id TEXT, notes TEXT);
             CREATE TABLE audit_logs (id INTEGER PRIMARY KEY, organization_id TEXT, actor_id TEXT);
             CREATE TABLE platform_analytics_snapshots (id INTEGER PRIMARY KEY, payload TEXT);
@@ -84,8 +84,8 @@ def _seed_db(path):
         """)
         for org, user in ((ORG, "u1"), (OTHER, "u2")):
             c.execute("INSERT INTO organizations VALUES (?, 'Example Financial Group')", (org,))
-            c.execute("INSERT INTO pqc_users VALUES (?, ?, ?)", (user, org, f"{org}@demo.invalid"))
-            c.execute("INSERT INTO pqc_refresh_tokens VALUES ('h', ?)", (user,))
+            c.execute("INSERT INTO morrow_users VALUES (?, ?, ?)", (user, org, f"{org}@demo.invalid"))
+            c.execute("INSERT INTO morrow_refresh_tokens VALUES ('h', ?)", (user,))
             c.execute("INSERT INTO assets VALUES ('www.example.com:443', ?, 'visitor note')", (org,))
             c.execute("INSERT INTO audit_logs (organization_id, actor_id) VALUES (?, ?)", (org, user))
             c.execute("INSERT INTO platform_analytics_snapshots (payload) VALUES (?)", (f'{{"orgs":["{org}"]}}',))
@@ -103,16 +103,16 @@ def _traces(path, org):
 
 def test_purge_leaves_no_trace_and_keeps_audit_log_immutable(tmp_path, monkeypatch):
     db = tmp_path / "demo.db"
-    monkeypatch.setenv("PQC_SCANNER_DB", str(db))
-    monkeypatch.setenv("PQC_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(db))
+    monkeypatch.setenv("MORROW_DATA_DIR", str(tmp_path))
     _seed_db(db)
 
     assert dm.purge_workspace(ORG) > 0
     assert _traces(db, ORG) == 0
     assert _traces(db, OTHER) > 0
     with closing(sqlite3.connect(db)) as c:
-        assert c.execute("SELECT COUNT(*) FROM pqc_refresh_tokens WHERE user_id='u1'").fetchone()[0] == 0
-        assert c.execute("SELECT COUNT(*) FROM pqc_refresh_tokens WHERE user_id='u2'").fetchone()[0] == 1
+        assert c.execute("SELECT COUNT(*) FROM morrow_refresh_tokens WHERE user_id='u1'").fetchone()[0] == 0
+        assert c.execute("SELECT COUNT(*) FROM morrow_refresh_tokens WHERE user_id='u2'").fetchone()[0] == 1
         with pytest.raises(sqlite3.IntegrityError):
             c.execute("DELETE FROM audit_logs")
 

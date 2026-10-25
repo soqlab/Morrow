@@ -55,7 +55,7 @@ _default_redis_url = "redis://localhost:6379/0" if not _redis_pw else f"redis://
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", _default_redis_url)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 
-celery_app = Celery("pqc", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
+celery_app = Celery("pq", broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
 # Reasonable production defaults for reliable async delivery
 celery_app.conf.update(
@@ -100,17 +100,17 @@ try:
 
     _beat = {
         "drain-webhook-queue-every-30s": {
-            "task": "pqc.drain_webhook_queue",
+            "task": "morrow.drain_webhook_queue",
             "schedule": 30.0,
             "args": (),
         },
         "check-remediation-drift-every-5m": {
-            "task": "pqc.check_remediation_drift",
+            "task": "morrow.check_remediation_drift",
             "schedule": 300.0,
             "args": (),
         },
         "cleanup-remediation-branches-daily": {
-            "task": "pqc.cleanup_remediation_branches",
+            "task": "morrow.cleanup_remediation_branches",
             "schedule": crontab(minute=45, hour=3),
             "args": (),
         },
@@ -124,12 +124,12 @@ try:
         try:
             _gh_cred_int = int(_gh_cred)
             _beat["github-sync-daily"] = {
-                "task": "pqc.sync_github_repos",
+                "task": "morrow.sync_github_repos",
                 "schedule": crontab(minute=0, hour=3),  # daily at 03:00 UTC
                 "args": (_gh_cred_int, _gh_org or None, _gh_vis),
             }
             _beat["correlate-daily"] = {
-                "task": "pqc.correlate_assets",
+                "task": "morrow.correlate_assets",
                 "schedule": crontab(minute=15, hour=3),  # shortly after GitHub sync
                 "args": (_gh_cred_int, _env_int("CORRELATE_ASSET_LIMIT", 500)),
             }
@@ -143,7 +143,7 @@ try:
         try:
             _gcp_cred_int = int(_gcp_cred)
             _beat["gcp-sync-daily"] = {
-                "task": "pqc.sync_gcp_assets",
+                "task": "morrow.sync_gcp_assets",
                 "schedule": crontab(minute=30, hour=3),  # after GitHub/correlate
                 "args": (_gcp_cred_int, _gcp_project),
             }
@@ -162,7 +162,7 @@ def _progress(total: int, done: int) -> Dict[str, int]:
     return {"total": total, "done": done, "percent": max(0, min(100, pct))}
 
 
-@celery_app.task(name="pqc.drain_webhook_queue")
+@celery_app.task(name="morrow.drain_webhook_queue")
 def drain_webhook_queue_task(limit: int | None = None, max_attempts: int | None = None) -> Dict[str, Any]:
     """Dedicated async worker for webhook delivery.
 
@@ -172,12 +172,12 @@ def drain_webhook_queue_task(limit: int | None = None, max_attempts: int | None 
 
     Safe to call frequently; it only processes due rows.
     """
-    lim = int(limit or _env_int("PQC_WEBHOOK_DRAIN_LIMIT", 200))
-    ma = int(max_attempts or _env_int("PQC_WEBHOOK_MAX_ATTEMPTS", 5))
+    lim = int(limit or _env_int("MORROW_WEBHOOK_DRAIN_LIMIT", 200))
+    ma = int(max_attempts or _env_int("MORROW_WEBHOOK_MAX_ATTEMPTS", 5))
     return drain_webhook_delivery_queue(limit=lim, max_attempts=ma)
 
 
-@celery_app.task(bind=True, name="pqc.run_scan_task")
+@celery_app.task(bind=True, name="morrow.run_scan_task")
 def run_scan_task(self, scan_id: str, targets: List[str], organization_id: str = "") -> Dict[str, Any]:
     """Run a scan (asynchronously) and enqueue webhook deliveries.
 
@@ -262,13 +262,13 @@ def run_scan_task(self, scan_id: str, targets: List[str], organization_id: str =
             "verify": verify_stats,
         }
     except Exception as exc:
-        capture_exception(exc, {"task": "pqc.run_scan_task", "scan_id": scan_id, "organization_id": organization_id})
+        capture_exception(exc, {"task": "morrow.run_scan_task", "scan_id": scan_id, "organization_id": organization_id})
         raise
     finally:
         reset_current_organization_id(org_token)
 
 
-@celery_app.task(name="pqc.sync_gcp_assets")
+@celery_app.task(name="morrow.sync_gcp_assets")
 def sync_gcp_assets_task(credential_id: int, project_id: str | None = None, organization_id: str = "") -> Dict[str, Any]:
     """Background wrapper to sync GCP assets using a Vault-stored service account."""
     token = set_current_organization_id(organization_id)
@@ -277,14 +277,14 @@ def sync_gcp_assets_task(credential_id: int, project_id: str | None = None, orga
     except Exception as exc:
         capture_exception(
             exc,
-            {"task": "pqc.sync_gcp_assets", "credential_id": credential_id, "organization_id": organization_id},
+            {"task": "morrow.sync_gcp_assets", "credential_id": credential_id, "organization_id": organization_id},
         )
         raise
     finally:
         reset_current_organization_id(token)
 
 
-@celery_app.task(name="pqc.sync_github_repos")
+@celery_app.task(name="morrow.sync_github_repos")
 def sync_github_repos_task(
     credential_id: int,
     org: str | None = None,
@@ -299,7 +299,7 @@ def sync_github_repos_task(
         reset_current_organization_id(token)
 
 
-@celery_app.task(name="pqc.sync_github_app_installations")
+@celery_app.task(name="morrow.sync_github_app_installations")
 def sync_github_app_installations_task(credential_id: int, organization_id: str = "") -> Dict[str, Any]:
     token = set_current_organization_id(organization_id)
     try:
@@ -308,7 +308,7 @@ def sync_github_app_installations_task(credential_id: int, organization_id: str 
         reset_current_organization_id(token)
 
 
-@celery_app.task(name="pqc.sync_github_app_repositories")
+@celery_app.task(name="morrow.sync_github_app_repositories")
 def sync_github_app_repositories_task(
     credential_id: int,
     installation_id: int,
@@ -324,7 +324,7 @@ def sync_github_app_repositories_task(
         reset_current_organization_id(token)
 
 
-@celery_app.task(bind=True, name="pqc.validate_remediation")
+@celery_app.task(bind=True, name="morrow.validate_remediation")
 def validate_remediation_task(
     self,
     validation_job_id: int,
@@ -353,7 +353,7 @@ def validate_remediation_task(
         capture_exception(
             exc,
             {
-                "task": "pqc.validate_remediation",
+                "task": "morrow.validate_remediation",
                 "validation_job_id": validation_job_id,
                 "remediation_id": remediation_id,
                 "organization_id": organization_id,
@@ -364,15 +364,15 @@ def validate_remediation_task(
         reset_current_organization_id(token)
 
 
-@celery_app.task(name="pqc.check_remediation_drift")
+@celery_app.task(name="morrow.check_remediation_drift")
 def check_remediation_drift_task(
     limit_per_org: int | None = None,
     github_credential_id: int | None = None,
     organization_id: str = "",
     remediation_id: int | None = None,
 ) -> Dict[str, Any]:
-    limit_val = int(limit_per_org or _env_int("PQC_DRIFT_CHECK_LIMIT", 200))
-    github_cred_val = int(github_credential_id or _env_int("PQC_GITHUB_DRIFT_CREDENTIAL_ID", 0))
+    limit_val = int(limit_per_org or _env_int("MORROW_DRIFT_CHECK_LIMIT", 200))
+    github_cred_val = int(github_credential_id or _env_int("MORROW_GITHUB_DRIFT_CREDENTIAL_ID", 0))
     remediation_id_val = int(remediation_id or 0)
     org_filter = str(organization_id or "").strip()
     orgs = []
@@ -413,13 +413,13 @@ def check_remediation_drift_task(
     return stats
 
 
-@celery_app.task(name="pqc.cleanup_remediation_branches")
+@celery_app.task(name="morrow.cleanup_remediation_branches")
 def cleanup_remediation_branches_task(
     limit_per_org: int | None = None,
     github_credential_id: int | None = None,
     organization_id: str = "",
 ) -> Dict[str, Any]:
-    limit_val = int(limit_per_org or _env_int("PQC_BRANCH_CLEANUP_LIMIT", 100))
+    limit_val = int(limit_per_org or _env_int("MORROW_BRANCH_CLEANUP_LIMIT", 100))
     github_cred_val = int(github_credential_id or 0)
     org_filter = str(organization_id or "").strip()
     orgs = [{"id": org_filter}] if org_filter else (list_organizations(limit=1000) or [])
@@ -680,7 +680,7 @@ def _search_repo_tfstate(gh, repo, candidate: str) -> bool:
     return False
 
 
-@celery_app.task(name="pqc.correlate_assets")
+@celery_app.task(name="morrow.correlate_assets")
 def correlate_assets(credential_id: int, asset_limit: int = 500, organization_id: str = "") -> Dict[str, Any]:
     """
     Heuristic matcher: map discovered assets to repositories by searching code for asset names.

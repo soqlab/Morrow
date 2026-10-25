@@ -16,8 +16,8 @@ def _sha256_hex(s: str) -> str:
 class TestWebhookContractV1(unittest.TestCase):
     """Contract tests for the v1 webhook payload.
 
-    These need their own SQLite file, which means mutating PQC_SCANNER_DB and reloading db/events.
-    Both are process-global: db.get_connection() re-reads PQC_SCANNER_DB on every call, so a leaked
+    These need their own SQLite file, which means mutating MORROW_SCANNER_DB and reloading db/events.
+    Both are process-global: db.get_connection() re-reads MORROW_SCANNER_DB on every call, so a leaked
     value redirects every later test module in the same pytest process to a database that does not
     exist. tearDown must therefore restore the previous environment and reload the modules again.
     """
@@ -25,12 +25,12 @@ class TestWebhookContractV1(unittest.TestCase):
     def setUp(self):
         # A real temp directory, not a hardcoded POSIX path: "/tmp/..." resolves to C:\tmp on
         # Windows, which does not exist, so sqlite3 raises "unable to open database file".
-        self._tmpdir = tempfile.mkdtemp(prefix="pqc_contract_v1_")
-        self.db_path = os.path.join(self._tmpdir, "pqc_contract_v1_test.db")
+        self._tmpdir = tempfile.mkdtemp(prefix="pq_contract_v1_")
+        self.db_path = os.path.join(self._tmpdir, "pq_contract_v1_test.db")
 
         # Remember the prior value so tearDown can put it back exactly (including "unset").
-        self._prev_db_env = os.environ.get("PQC_SCANNER_DB")
-        os.environ["PQC_SCANNER_DB"] = self.db_path
+        self._prev_db_env = os.environ.get("MORROW_SCANNER_DB")
+        os.environ["MORROW_SCANNER_DB"] = self.db_path
 
         # Reload so module-level DB_PATH picks up the env var.
         import db
@@ -77,11 +77,11 @@ class TestWebhookContractV1(unittest.TestCase):
         )
 
     def tearDown(self):
-        # Restore PQC_SCANNER_DB before reloading, so db.DB_PATH resolves back to the real database.
+        # Restore MORROW_SCANNER_DB before reloading, so db.DB_PATH resolves back to the real database.
         if self._prev_db_env is None:
-            os.environ.pop("PQC_SCANNER_DB", None)
+            os.environ.pop("MORROW_SCANNER_DB", None)
         else:
-            os.environ["PQC_SCANNER_DB"] = self._prev_db_env
+            os.environ["MORROW_SCANNER_DB"] = self._prev_db_env
         import db
         import events
         importlib.reload(db)

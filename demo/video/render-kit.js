@@ -22,7 +22,7 @@ const { chromium } = require("playwright");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const FFMPEG = path.join(REPO, ".tools", "ffmpeg", "ffmpeg.exe");
-const BASE = process.env.PQC_DEMO_BASE || "http://127.0.0.1:8049";
+const BASE = process.env.MORROW_DEMO_BASE || "http://127.0.0.1:8049";
 const EMAIL = "avery.chen@example.com";
 const PASSWORD = "Airlock-Demo-Recording-8049";
 const FPS = 60;
@@ -33,7 +33,7 @@ const W = 1920, H = 1080;
    difference between a render that crawls and one that runs. After the
    downscale the two are not distinguishable -- type and canvas charts are
    still drawn above the size they are seen at. */
-const SS = Number(process.env.PQC_RENDER_SS || 1.5);
+const SS = Number(process.env.MORROW_RENDER_SS || 1.5);
 const FRAME_MS = 1000 / FPS;
 
 /* ------------------------------------------------------------------ browser */
@@ -54,10 +54,10 @@ async function open(opts) {
       // is a full re-raster of an animating 3840x2160 page, so handing that to
       // the real GPU takes a frame from 400 ms to 290 ms. It changes nothing
       // about what is drawn.
-      // PQC_NO_GPU=1 falls back to software rasterisation. It is about twice
+      // MORROW_NO_GPU=1 falls back to software rasterisation. It is about twice
       // as slow, and it is the way out when the GPU path stops answering
       // screenshots on a particular page — which the operator workspace does.
-      ...(process.env.PQC_NO_GPU
+      ...(process.env.MORROW_NO_GPU
         ? ["--disable-gpu", "--use-gl=swiftshader", "--enable-unsafe-swiftshader"]
         : ["--use-gl=angle", "--use-angle=d3d11", "--enable-gpu", "--ignore-gpu-blocklist"])],
   });
@@ -68,9 +68,9 @@ async function open(opts) {
     // No reducedMotion and no paused preference: the product animates.
   });
   await ctx.addInitScript((a) => {
-    localStorage.setItem("pqc_token", a.access_token);
-    localStorage.setItem("pqc_refresh", a.refresh_token);
-    localStorage.setItem("pqc_theme", "dark");
+    localStorage.setItem("morrow_token", a.access_token);
+    localStorage.setItem("morrow_refresh", a.refresh_token);
+    localStorage.setItem("morrow_theme", "dark");
     localStorage.removeItem("airlock-motion-paused");
   }, auth);
   await ctx.addInitScript({ path: path.join(__dirname, "tour-overlay.js") });

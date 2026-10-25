@@ -53,7 +53,7 @@
       <h2>Production Must-Pass</h2>
       <p class="notice">A local green page is not enough. These must pass in the deployment environment that customers will use.</p>
       <div class="matrix">
-        <div class="matrix-row"><strong>Identity</strong><p><code>PQC_AUTH_MODE=jwt</code>, <code>PQC_AUTH_REQUIRED=1</code>, production issuer/audience/JWKS, MFA at the identity provider, and no header-auth public production access.</p></div>
+        <div class="matrix-row"><strong>Identity</strong><p><code>MORROW_AUTH_MODE=jwt</code>, <code>MORROW_AUTH_REQUIRED=1</code>, production issuer/audience/JWKS, MFA at the identity provider, and no header-auth public production access.</p></div>
         <div class="matrix-row"><strong>Data layer</strong><p>Managed Postgres, managed Redis, secret manager, backup/restore evidence, retention policy, and verified RLS with a non-superuser app role.</p></div>
         <div class="matrix-row"><strong>Admin boundary</strong><p>Vendor routes behind SSO/VPN, operator SSO with MFA required, shared platform key kept as break-glass only and rotated after any use, traffic monitor export policy defined, and no request bodies, query strings, cookies, or auth headers in traffic records.</p></div>
         <div class="matrix-row"><strong>Evidence</strong><p>Passing market readiness report, launch collateral check, browser smoke, Airlock signature smoke, tenant isolation probe, and archived go-live evidence bundle.</p></div>

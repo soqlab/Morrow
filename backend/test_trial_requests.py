@@ -16,10 +16,10 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def store(tmp_path, monkeypatch):
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "trials.db"))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_SALT", "test-salt")
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "trials.db"))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_SALT", "test-salt")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     from services import trial_requests
 
     trial_requests._TABLES_READY.clear()
@@ -324,8 +324,8 @@ def test_an_approved_trial_is_capped_by_a_real_enforced_override(client, store, 
     the override is the only per-organization limit left -- and limits_for() honours it first and
     unconditionally.
     """
-    monkeypatch.setenv("PQC_TRIAL_API_CALLS_PER_MIN", "60")
-    monkeypatch.setenv("PQC_TRIAL_SCANS_PER_HOUR", "10")
+    monkeypatch.setenv("MORROW_TRIAL_API_CALLS_PER_MIN", "60")
+    monkeypatch.setenv("MORROW_TRIAL_SCANS_PER_HOUR", "10")
     assert store.trial_caps() == (60, 10)
 
     submitted = store.submit("ada@example.com")
@@ -349,8 +349,8 @@ def test_an_approved_trial_is_capped_by_a_real_enforced_override(client, store, 
 
 
 def test_caps_are_off_by_default_so_self_hosting_is_unchanged(client, store, monkeypatch):
-    monkeypatch.delenv("PQC_TRIAL_API_CALLS_PER_MIN", raising=False)
-    monkeypatch.delenv("PQC_TRIAL_SCANS_PER_HOUR", raising=False)
+    monkeypatch.delenv("MORROW_TRIAL_API_CALLS_PER_MIN", raising=False)
+    monkeypatch.delenv("MORROW_TRIAL_SCANS_PER_HOUR", raising=False)
     assert store.trial_caps() == (0, 0)
 
     submitted = store.submit("ada@example.com")
@@ -370,7 +370,7 @@ def test_caps_are_off_by_default_so_self_hosting_is_unchanged(client, store, mon
 def test_a_cap_that_cannot_be_applied_does_not_half_approve_the_request(client, store, monkeypatch):
     """An uncapped trial is a cost problem; a request marked approved with no invitation is a
     correctness problem. The second must not be caused by the first."""
-    monkeypatch.setenv("PQC_TRIAL_API_CALLS_PER_MIN", "60")
+    monkeypatch.setenv("MORROW_TRIAL_API_CALLS_PER_MIN", "60")
     from services import admin_console
 
     def boom(*args, **kwargs):

@@ -14,7 +14,7 @@ Recorded local verification results are kept privately; the gateway's own test s
    be controlled by the customer. Verification expires after 24 hours. No HTTP
    checks, provisioning, or remote gateway access occur before verification.
 3. An administrator downloads the one-time provisioning bundle. The control
-   plane encrypts its per-site credential using `PQC_VAULT_MASTER_KEY`. Reads and
+   plane encrypts its per-site credential using `MORROW_VAULT_MASTER_KEY`. Reads and
    audit records do not expose the credential. Keep the vault master key stable
    and backed up; configure it through your approved secret manager.
 4. On the gateway host, run `python gateway/prepare.py PATH_TO_BUNDLE.json`.
@@ -123,8 +123,8 @@ The report is not automatically uploaded or presented as independent attestation
   attestation or an independent audit. A compromised holder of its key can forge
   observations. Probes establish that this hostname returned a gateway response,
   not that every path on every network has been independently tested.
-- TLS certificate checking is real. Negotiated PQC groups are not measured by
-  this release's observation protocol: visitor/origin PQC status stays unknown.
+- TLS certificate checking is real. Negotiated post-quantum groups are not measured by
+  this release's observation protocol: visitor/origin post-quantum status stays unknown.
   Browser-side TLS, origin-side TLS, and application-layer crypto are distinct.
 
 ## Platform setup and verification
@@ -146,7 +146,7 @@ backend/.venv/Scripts/python.exe scripts/gateway-runtime-smoke.py
 ```
 
 `backend/test_gateway_auth.py` exercises the real JWT middleware. Set
-`PQC_TEST_PG_DSN` to a disposable test cluster with database/role creation rights
+`MORROW_TEST_PG_DSN` to a disposable test cluster with database/role creation rights
 to run `backend/test_gateway_postgres.py`; it creates and removes its own uniquely
 named database and non-bypass role. Never point the test at production.
 

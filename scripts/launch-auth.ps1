@@ -15,7 +15,7 @@ function Get-LaunchRequestParameters {
   if ($OperatorSession) {
     if ($OperatorSession -notmatch '^[A-Za-z0-9_-]+$') { throw "Invalid operator session format." }
     # Windows PowerShell ignores Cookie in -Headers; use its actual cookie jar.
-    $cookie = New-Object System.Net.Cookie("pqc_admin_session", $OperatorSession, "/", $uri.Host)
+    $cookie = New-Object System.Net.Cookie("morrow_admin_session", $OperatorSession, "/", $uri.Host)
     $cookie.Secure = $uri.Scheme -eq "https"
     $cookie.HttpOnly = $true
     $session.Cookies.Add($cookie)
@@ -23,7 +23,7 @@ function Get-LaunchRequestParameters {
     if ($PlatformKey -match '[\r\n]') { throw "Invalid operator key format." }
     $headers["x-platform-key"] = $PlatformKey
   } else {
-    throw "Operator authentication is required: set PQC_OPERATOR_SESSION after SSO/MFA or supply an authorized named operator key. No launch checks were skipped."
+    throw "Operator authentication is required: set MORROW_OPERATOR_SESSION after SSO/MFA or supply an authorized named operator key. No launch checks were skipped."
   }
   return @{ Headers = $headers; WebSession = $session }
 }
@@ -37,17 +37,17 @@ function Test-LaunchGatePassed {
 
 function Invoke-LaunchScript {
   param([string]$ScriptPath, [string[]]$Arguments, [string]$PlatformKey, [string]$OperatorSession)
-  $previousKey = $env:PQC_PLATFORM_ADMIN_KEY
-  $previousSession = $env:PQC_OPERATOR_SESSION
+  $previousKey = $env:MORROW_PLATFORM_ADMIN_KEY
+  $previousSession = $env:MORROW_OPERATOR_SESSION
   try {
     # Child processes inherit credentials privately, never through command arguments.
-    $env:PQC_PLATFORM_ADMIN_KEY = $PlatformKey
-    $env:PQC_OPERATOR_SESSION = $OperatorSession
+    $env:MORROW_PLATFORM_ADMIN_KEY = $PlatformKey
+    $env:MORROW_OPERATOR_SESSION = $OperatorSession
     $shell = (Get-Process -Id $PID).Path
     & $shell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath @Arguments
     if ($LASTEXITCODE -ne 0) { throw "Launch subprocess failed: $(Split-Path $ScriptPath -Leaf) (exit $LASTEXITCODE)" }
   } finally {
-    $env:PQC_PLATFORM_ADMIN_KEY = $previousKey
-    $env:PQC_OPERATOR_SESSION = $previousSession
+    $env:MORROW_PLATFORM_ADMIN_KEY = $previousKey
+    $env:MORROW_OPERATOR_SESSION = $previousSession
   }
 }

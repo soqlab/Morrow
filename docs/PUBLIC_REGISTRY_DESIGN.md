@@ -82,7 +82,7 @@ they can be rendered and sorted.
 
 | posture | meaning | badge |
 |---|---|---|
-| `pqc_ready` | a NIST PQC algorithm (ML-KEM / ML-DSA) was negotiated | green |
+| `pq_ready` | a NIST post-quantum algorithm (ML-KEM / ML-DSA) was negotiated | green |
 | `hybrid` | a hybrid group was observed, e.g. X25519MLKEM768 | green |
 | `classical_only` | RSA, ECDSA, ECDH, Ed25519 or X25519 only — harvestable today | amber |
 | `unreachable` | no handshake completed; nothing was measured | grey |

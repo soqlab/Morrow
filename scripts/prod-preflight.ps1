@@ -52,15 +52,15 @@ if (-not (Test-Path $EnvPath)) {
 }
 
 $required = @(
-  "PQC_VAULT_MASTER_KEY",
-  "PQC_PLATFORM_ADMIN_KEY",
-  "PQC_AUTH_REQUIRED",
-  "PQC_AUTH_MODE",
-  "PQC_AUTH_ISSUER_ENABLED",
-  "PQC_DEFAULT_ROLE",
-  "PQC_ALLOWED_HOSTS",
-  "PQC_AIRLOCK_SIGNING_KEY",
-  "PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE"
+  "MORROW_VAULT_MASTER_KEY",
+  "MORROW_PLATFORM_ADMIN_KEY",
+  "MORROW_AUTH_REQUIRED",
+  "MORROW_AUTH_MODE",
+  "MORROW_AUTH_ISSUER_ENABLED",
+  "MORROW_DEFAULT_ROLE",
+  "MORROW_ALLOWED_HOSTS",
+  "MORROW_AIRLOCK_SIGNING_KEY",
+  "MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE"
 )
 foreach ($key in $required) {
   if (-not $envMap.ContainsKey($key) -or -not $envMap[$key]) {
@@ -68,102 +68,102 @@ foreach ($key in $required) {
   }
 }
 
-$environment = [string]$envMap["PQC_ENVIRONMENT"]
+$environment = [string]$envMap["MORROW_ENVIRONMENT"]
 if ($environment -notin @("staging", "prod", "production")) {
-  Add-Finding blocker "environment" "PQC_ENVIRONMENT is not staging/production" "Set PQC_ENVIRONMENT=production before go-live."
+  Add-Finding blocker "environment" "MORROW_ENVIRONMENT is not staging/production" "Set MORROW_ENVIRONMENT=production before go-live."
 } else {
   Add-Finding ok "environment" "Environment is $environment."
 }
 
-if (($envMap["PQC_AUTH_REQUIRED"] -as [string]) -ne "1") {
-  Add-Finding blocker "auth_required" "PQC_AUTH_REQUIRED is not 1" "Set PQC_AUTH_REQUIRED=1."
+if (($envMap["MORROW_AUTH_REQUIRED"] -as [string]) -ne "1") {
+  Add-Finding blocker "auth_required" "MORROW_AUTH_REQUIRED is not 1" "Set MORROW_AUTH_REQUIRED=1."
 } else {
   Add-Finding ok "auth_required" "Authentication is required."
 }
 
-if (($envMap["PQC_AUTH_MODE"] -as [string]) -ne "jwt") {
-  Add-Finding blocker "auth_mode" "PQC_AUTH_MODE is not jwt" "Use PQC_AUTH_MODE=jwt for production."
+if (($envMap["MORROW_AUTH_MODE"] -as [string]) -ne "jwt") {
+  Add-Finding blocker "auth_mode" "MORROW_AUTH_MODE is not jwt" "Use MORROW_AUTH_MODE=jwt for production."
 } else {
   Add-Finding ok "auth_mode" "JWT auth mode configured."
 }
 
-foreach ($key in @("PQC_AUTH_JWT_ISSUER", "PQC_AUTH_JWT_AUDIENCE", "PQC_AUTH_JWT_JWKS_URL")) {
+foreach ($key in @("MORROW_AUTH_JWT_ISSUER", "MORROW_AUTH_JWT_AUDIENCE", "MORROW_AUTH_JWT_JWKS_URL")) {
   if (-not ([string]$envMap[$key])) {
     Add-Finding blocker "jwt:$key" "$key is missing" "Configure hosted JWT provider metadata."
   }
 }
 
-$jwtAlgorithms = [string]$envMap["PQC_AUTH_JWT_ALGORITHMS"]
+$jwtAlgorithms = [string]$envMap["MORROW_AUTH_JWT_ALGORITHMS"]
 if (-not $jwtAlgorithms) { $jwtAlgorithms = "RS256" }
 $jwtAlgorithmList = @($jwtAlgorithms.Split(",") | ForEach-Object { $_.Trim().ToUpperInvariant() } | Where-Object { $_ })
-$issuerEnabled = Test-Truthy ([string]$envMap["PQC_AUTH_ISSUER_ENABLED"])
-$jwtSecret = [string]$envMap["PQC_AUTH_JWT_SECRET"]
-if (Test-Truthy ([string]$envMap["PQC_JWT_ALLOW_NO_EXP"])) {
-  Add-Finding blocker "jwt_expiry" "Non-expiring tokens are enabled" "Unset PQC_JWT_ALLOW_NO_EXP."
+$issuerEnabled = Test-Truthy ([string]$envMap["MORROW_AUTH_ISSUER_ENABLED"])
+$jwtSecret = [string]$envMap["MORROW_AUTH_JWT_SECRET"]
+if (Test-Truthy ([string]$envMap["MORROW_JWT_ALLOW_NO_EXP"])) {
+  Add-Finding blocker "jwt_expiry" "Non-expiring tokens are enabled" "Unset MORROW_JWT_ALLOW_NO_EXP."
 }
-if (Test-Truthy ([string]$envMap["PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP"])) {
-  Add-Finding blocker "startup_override" "Unsafe startup override is enabled" "Set PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP=0."
+if (Test-Truthy ([string]$envMap["MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP"])) {
+  Add-Finding blocker "startup_override" "Unsafe startup override is enabled" "Set MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP=0."
 }
 if (@($jwtAlgorithmList | Where-Object { $_ -notin @("RS256", "HS256") }).Count -or -not $jwtAlgorithmList.Count) {
   Add-Finding blocker "jwt_algorithms" "JWT algorithm list contains unsupported algorithms" "Use RS256; the verifier implements RS256 and explicitly approved HS256 only."
 }
-foreach ($key in @("PQC_PUBLIC_BASE_URL", "PQC_AUTH_JWT_JWKS_URL", "PQC_ADMIN_OIDC_ISSUER")) {
+foreach ($key in @("MORROW_PUBLIC_BASE_URL", "MORROW_AUTH_JWT_JWKS_URL", "MORROW_ADMIN_OIDC_ISSUER")) {
   $uri = $null
   if (-not [uri]::TryCreate([string]$envMap[$key], [UriKind]::Absolute, [ref]$uri) -or $uri.Scheme -ne "https" -or $uri.UserInfo -or $uri.Fragment) {
     Add-Finding blocker "https:$key" "$key must be a credential-free HTTPS URL" "Configure the actual production URL."
   }
 }
-if (-not ([string]$envMap["PQC_ADMIN_OIDC_CLIENT_ID"])) {
-  Add-Finding blocker "operator_sso" "Operator SSO client ID is missing" "Set PQC_ADMIN_OIDC_CLIENT_ID and register /vendor-admin/sso/callback at your IdP."
+if (-not ([string]$envMap["MORROW_ADMIN_OIDC_CLIENT_ID"])) {
+  Add-Finding blocker "operator_sso" "Operator SSO client ID is missing" "Set MORROW_ADMIN_OIDC_CLIENT_ID and register /vendor-admin/sso/callback at your IdP."
 }
-if (-not ([string]$envMap["PQC_ADMIN_OPERATOR_ROLES"]) -and -not ([string]$envMap["PQC_ADMIN_OIDC_ALLOWED_DOMAINS"])) {
-  Add-Finding blocker "operator_roster" "No operator SSO roster or approved domain is configured" "Set PQC_ADMIN_OPERATOR_ROLES to your authorized staff and roles."
+if (-not ([string]$envMap["MORROW_ADMIN_OPERATOR_ROLES"]) -and -not ([string]$envMap["MORROW_ADMIN_OIDC_ALLOWED_DOMAINS"])) {
+  Add-Finding blocker "operator_roster" "No operator SSO roster or approved domain is configured" "Set MORROW_ADMIN_OPERATOR_ROLES to your authorized staff and roles."
 }
-if (([string]$envMap["PQC_ADMIN_REQUIRE_MFA"]) -match "^(0|false|no|off)$") {
-  Add-Finding blocker "operator_mfa" "Operator MFA is disabled" "Set PQC_ADMIN_REQUIRE_MFA=1."
+if (([string]$envMap["MORROW_ADMIN_REQUIRE_MFA"]) -match "^(0|false|no|off)$") {
+  Add-Finding blocker "operator_mfa" "Operator MFA is disabled" "Set MORROW_ADMIN_REQUIRE_MFA=1."
 }
-if (Test-Truthy ([string]$envMap["PQC_ALLOW_BREAK_GLASS_KEY"])) {
-  Add-Finding blocker "break_glass" "Shared-key emergency access is enabled" "Set PQC_ALLOW_BREAK_GLASS_KEY=0 before launch."
+if (Test-Truthy ([string]$envMap["MORROW_ALLOW_BREAK_GLASS_KEY"])) {
+  Add-Finding blocker "break_glass" "Shared-key emergency access is enabled" "Set MORROW_ALLOW_BREAK_GLASS_KEY=0 before launch."
 }
 if ($issuerEnabled -and -not $jwtSecret) {
-  Add-Finding blocker "auth_issuer_secret" "PQC_AUTH_ISSUER_ENABLED=1 but PQC_AUTH_JWT_SECRET is missing" "Set a stable token signing secret or set PQC_AUTH_ISSUER_ENABLED=0 for external IdP deployments."
+  Add-Finding blocker "auth_issuer_secret" "MORROW_AUTH_ISSUER_ENABLED=1 but MORROW_AUTH_JWT_SECRET is missing" "Set a stable token signing secret or set MORROW_AUTH_ISSUER_ENABLED=0 for external IdP deployments."
 }
-if ($issuerEnabled -and -not (Test-Truthy ([string]$envMap["PQC_ALLOW_HS256_IN_PRODUCTION"]))) {
-  Add-Finding blocker "auth_issuer_hs256" "Built-in password issuer requires HS256 but HS256 is not explicitly allowed" "Prefer PQC_AUTH_ISSUER_ENABLED=0 with RS256/JWKS. Only set PQC_ALLOW_HS256_IN_PRODUCTION=1 with a documented exception."
+if ($issuerEnabled -and -not (Test-Truthy ([string]$envMap["MORROW_ALLOW_HS256_IN_PRODUCTION"]))) {
+  Add-Finding blocker "auth_issuer_hs256" "Built-in password issuer requires HS256 but HS256 is not explicitly allowed" "Prefer MORROW_AUTH_ISSUER_ENABLED=0 with RS256/JWKS. Only set MORROW_ALLOW_HS256_IN_PRODUCTION=1 with a documented exception."
 }
-if ($jwtAlgorithmList -contains "HS256" -and -not (Test-Truthy ([string]$envMap["PQC_ALLOW_HS256_IN_PRODUCTION"]))) {
-  Add-Finding blocker "jwt_hs256" "PQC_AUTH_JWT_ALGORITHMS includes HS256 without an explicit production exception" "Use RS256/JWKS or set PQC_ALLOW_HS256_IN_PRODUCTION=1 with a documented exception."
+if ($jwtAlgorithmList -contains "HS256" -and -not (Test-Truthy ([string]$envMap["MORROW_ALLOW_HS256_IN_PRODUCTION"]))) {
+  Add-Finding blocker "jwt_hs256" "MORROW_AUTH_JWT_ALGORITHMS includes HS256 without an explicit production exception" "Use RS256/JWKS or set MORROW_ALLOW_HS256_IN_PRODUCTION=1 with a documented exception."
 }
 
-if (($envMap["PQC_DEFAULT_ROLE"] -as [string]) -ne "viewer") {
-  Add-Finding blocker "default_role" "PQC_DEFAULT_ROLE is not viewer" "Set PQC_DEFAULT_ROLE=viewer."
+if (($envMap["MORROW_DEFAULT_ROLE"] -as [string]) -ne "viewer") {
+  Add-Finding blocker "default_role" "MORROW_DEFAULT_ROLE is not viewer" "Set MORROW_DEFAULT_ROLE=viewer."
 } else {
   Add-Finding ok "default_role" "Default role is viewer."
 }
 
-if (Test-Truthy ([string]$envMap["PQC_CORS_ALLOW_ALL"])) {
-  Add-Finding blocker "cors" "PQC_CORS_ALLOW_ALL=1" "Set explicit PQC_CORS_ORIGINS for production."
+if (Test-Truthy ([string]$envMap["MORROW_CORS_ALLOW_ALL"])) {
+  Add-Finding blocker "cors" "MORROW_CORS_ALLOW_ALL=1" "Set explicit MORROW_CORS_ORIGINS for production."
 }
-if (-not ([string]$envMap["PQC_CORS_ORIGINS"]) -and -not (Test-Truthy ([string]$envMap["PQC_CORS_ALLOW_ALL"]))) {
-  Add-Finding blocker "cors_origins" "PQC_CORS_ORIGINS is missing" "Set the exact production origin(s)."
+if (-not ([string]$envMap["MORROW_CORS_ORIGINS"]) -and -not (Test-Truthy ([string]$envMap["MORROW_CORS_ALLOW_ALL"]))) {
+  Add-Finding blocker "cors_origins" "MORROW_CORS_ORIGINS is missing" "Set the exact production origin(s)."
 }
 
-$allowedHosts = [string]$envMap["PQC_ALLOWED_HOSTS"]
+$allowedHosts = [string]$envMap["MORROW_ALLOWED_HOSTS"]
 if (-not $allowedHosts) {
-  Add-Finding blocker "allowed_hosts" "PQC_ALLOWED_HOSTS is missing" "Set the exact production app/admin/API hostnames."
+  Add-Finding blocker "allowed_hosts" "MORROW_ALLOWED_HOSTS is missing" "Set the exact production app/admin/API hostnames."
 } elseif (@($allowedHosts.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -eq "*" }).Count -gt 0) {
-  Add-Finding blocker "allowed_hosts" "PQC_ALLOWED_HOSTS contains wildcard '*'" "Replace wildcard hosts with exact production hostnames."
+  Add-Finding blocker "allowed_hosts" "MORROW_ALLOWED_HOSTS contains wildcard '*'" "Replace wildcard hosts with exact production hostnames."
 } else {
   Add-Finding ok "allowed_hosts" "Allowed hosts are explicit."
 }
 
-$dbUrl = [string]$envMap["PQC_PRODUCT_DATABASE_URL"]
+$dbUrl = [string]$envMap["MORROW_PRODUCT_DATABASE_URL"]
 if (-not $dbUrl) {
   $dbUrl = [string]$envMap["DATABASE_URL"]
 }
 if ($dbUrl -notmatch "^postgres(?:ql)?://") {
-  Add-Finding blocker "database" "Production database URL is not Postgres" "Use managed Postgres and set PQC_PRODUCT_DATABASE_URL."
-} elseif ($dbUrl -match "localhost|127\.0\.0\.1|postgres:5432|pqc:pqc") {
+  Add-Finding blocker "database" "Production database URL is not Postgres" "Use managed Postgres and set MORROW_PRODUCT_DATABASE_URL."
+} elseif ($dbUrl -match "localhost|127\.0\.0\.1|postgres:5432|pq:pq") {
   Add-Finding blocker "database_nonprod" "Database URL looks local or default" "Use a managed production Postgres DSN with a least-privilege runtime role."
 } else {
   Add-Finding ok "database" "Postgres DSN is configured."
@@ -186,55 +186,55 @@ foreach ($key in @("CELERY_BROKER_URL", "CELERY_RESULT_BACKEND")) {
   }
 }
 
-if (Test-Truthy ([string]$envMap["PQC_ALLOW_PLATFORM_KEY_QUERY"])) {
-  Add-Finding blocker "platform_key_query" "PQC_ALLOW_PLATFORM_KEY_QUERY=1" "Platform keys must only be accepted in headers in production."
+if (Test-Truthy ([string]$envMap["MORROW_ALLOW_PLATFORM_KEY_QUERY"])) {
+  Add-Finding blocker "platform_key_query" "MORROW_ALLOW_PLATFORM_KEY_QUERY=1" "Platform keys must only be accepted in headers in production."
 }
-if (Test-Truthy ([string]$envMap["PQC_ALLOW_DEMO_IN_PRODUCTION"])) {
-  Add-Finding blocker "demo_mode" "Demo mode is enabled in production" "Set PQC_ALLOW_DEMO_IN_PRODUCTION=0."
+if (Test-Truthy ([string]$envMap["MORROW_ALLOW_DEMO_IN_PRODUCTION"])) {
+  Add-Finding blocker "demo_mode" "Demo mode is enabled in production" "Set MORROW_ALLOW_DEMO_IN_PRODUCTION=0."
 }
-if (($envMap["PQC_CSP_ENABLED"] -as [string]) -eq "0") {
-  Add-Finding blocker "csp" "CSP is disabled" "Set PQC_CSP_ENABLED=1 and configure PQC_CSP_VALUE."
+if (($envMap["MORROW_CSP_ENABLED"] -as [string]) -eq "0") {
+  Add-Finding blocker "csp" "CSP is disabled" "Set MORROW_CSP_ENABLED=1 and configure MORROW_CSP_VALUE."
 }
-if (-not ([string]$envMap["PQC_CSP_VALUE"])) {
-  Add-Finding warning "csp_value" "PQC_CSP_VALUE is missing" "Set an explicit Content-Security-Policy before internet exposure."
+if (-not ([string]$envMap["MORROW_CSP_VALUE"])) {
+  Add-Finding warning "csp_value" "MORROW_CSP_VALUE is missing" "Set an explicit Content-Security-Policy before internet exposure."
 }
 if (-not ([string]$envMap["SENTRY_DSN"])) {
   Add-Finding warning "sentry" "SENTRY_DSN is missing" "Configure runtime exception reporting before launch."
 }
 
-if (($envMap["PQC_TRAFFIC_MONITOR_ENABLED"] -as [string]) -eq "0") {
-  Add-Finding warning "traffic_monitor" "PQC_TRAFFIC_MONITOR_ENABLED=0" "Keep the admin traffic monitor enabled for launch operations."
+if (($envMap["MORROW_TRAFFIC_MONITOR_ENABLED"] -as [string]) -eq "0") {
+  Add-Finding warning "traffic_monitor" "MORROW_TRAFFIC_MONITOR_ENABLED=0" "Keep the admin traffic monitor enabled for launch operations."
 } else {
   Add-Finding ok "traffic_monitor" "Admin traffic monitor is enabled or using the secure default."
 }
-if (($envMap["PQC_TRAFFIC_PERSIST_TO_DB"] -as [string]) -ne "1") {
-  Add-Finding warning "traffic_persistence" "PQC_TRAFFIC_PERSIST_TO_DB is not 1" "Set PQC_TRAFFIC_PERSIST_TO_DB=1 to persist admin traffic metadata into Postgres for SIEM export."
+if (($envMap["MORROW_TRAFFIC_PERSIST_TO_DB"] -as [string]) -ne "1") {
+  Add-Finding warning "traffic_persistence" "MORROW_TRAFFIC_PERSIST_TO_DB is not 1" "Set MORROW_TRAFFIC_PERSIST_TO_DB=1 to persist admin traffic metadata into Postgres for SIEM export."
 } else {
   Add-Finding ok "traffic_persistence" "Admin traffic metadata persistence is enabled."
 }
 Add-Finding ok "proxy_headers" "Forwarded-header trust must match the deployed edge; leaving it off is a safe default."
 
-$replicasRaw = [string]$envMap["PQC_API_REPLICA_COUNT"]
+$replicasRaw = [string]$envMap["MORROW_API_REPLICA_COUNT"]
 if (-not $replicasRaw) { $replicasRaw = "1" }
 $replicas = 1
 [void][int]::TryParse($replicasRaw, [ref]$replicas)
-if ($replicas -gt 1 -and -not (Test-Truthy ([string]$envMap["PQC_AUXILIARY_STATE_MIGRATED"]))) {
-  Add-Finding blocker "api_replicas" "PQC_API_REPLICA_COUNT=$replicas but auxiliary SQLite state is not marked migrated" "Keep one API replica or complete auxiliary state migration and set PQC_AUXILIARY_STATE_MIGRATED=1."
+if ($replicas -gt 1 -and -not (Test-Truthy ([string]$envMap["MORROW_AUXILIARY_STATE_MIGRATED"]))) {
+  Add-Finding blocker "api_replicas" "MORROW_API_REPLICA_COUNT=$replicas but auxiliary SQLite state is not marked migrated" "Keep one API replica or complete auxiliary state migration and set MORROW_AUXILIARY_STATE_MIGRATED=1."
 } else {
   Add-Finding ok "api_replicas" "API replica count is compatible with current state backend."
 }
 
-$airlockSigningKey = [string]$envMap["PQC_AIRLOCK_SIGNING_KEY"]
+$airlockSigningKey = [string]$envMap["MORROW_AIRLOCK_SIGNING_KEY"]
 if (-not $airlockSigningKey) {
-  Add-Finding blocker "airlock_signing_key" "PQC_AIRLOCK_SIGNING_KEY is missing" "Generate a production-only Airlock signing key."
+  Add-Finding blocker "airlock_signing_key" "MORROW_AIRLOCK_SIGNING_KEY is missing" "Generate a production-only Airlock signing key."
 } elseif ($airlockSigningKey.Length -lt 32) {
-  Add-Finding blocker "airlock_signing_key_length" "PQC_AIRLOCK_SIGNING_KEY is shorter than 32 characters" "Use at least 32 random bytes/64 hex characters."
+  Add-Finding blocker "airlock_signing_key_length" "MORROW_AIRLOCK_SIGNING_KEY is shorter than 32 characters" "Use at least 32 random bytes/64 hex characters."
 } else {
   Add-Finding ok "airlock_signing_key" "Airlock signing key is configured."
 }
 
-if (-not (Test-Truthy ([string]$envMap["PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE"]))) {
-  Add-Finding blocker "airlock_agent_signatures" "Airlock agent signatures are not required" "Set PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 in production."
+if (-not (Test-Truthy ([string]$envMap["MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE"]))) {
+  Add-Finding blocker "airlock_agent_signatures" "Airlock agent signatures are not required" "Set MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 in production."
 } else {
   Add-Finding ok "airlock_agent_signatures" "Airlock agent signatures are required."
 }
@@ -249,7 +249,7 @@ foreach ($entry in $envMap.GetEnumerator()) {
   }
 }
 
-foreach ($name in @("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PQC_PLATFORM_ADMIN_KEY", "PQC_AIRLOCK_SIGNING_KEY", "REDIS_PASSWORD", "PQC_VAULT_MASTER_KEY", "PQC_AUTH_JWT_SECRET", "PQC_ADMIN_PASSWORD")) {
+foreach ($name in @("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "MORROW_PLATFORM_ADMIN_KEY", "MORROW_AIRLOCK_SIGNING_KEY", "REDIS_PASSWORD", "MORROW_VAULT_MASTER_KEY", "MORROW_AUTH_JWT_SECRET", "MORROW_ADMIN_PASSWORD")) {
   $value = [string]$envMap[$name]
   if (-not $value) { continue }
   if ($value -match "(?i)(change[_-]?me|replace[_-]?with|example|placeholder|test-only)") {
@@ -258,21 +258,21 @@ foreach ($name in @("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PQC_PLATFORM_ADMIN_K
   if ($name -eq "OPENAI_API_KEY" -and $value -match "^sk-") {
     Add-Finding warning "secret_rotation:$name" "$name contains a live-looking API key in a local env file" "Rotate it if this file was shared, committed, logged, or exposed."
   }
-  if ($Strict -and $value -match "local|dev|test|demo|pqc|scanner") {
+  if ($Strict -and $value -match "local|dev|test|demo|pq|scanner") {
     Add-Finding warning "strict_secret_name:$name" "$name contains a development-looking token" "Use a fresh production-only secret."
   }
 }
 
-if (([string]$envMap["PQC_PLATFORM_ADMIN_KEY"]).Length -lt 32) {
-  Add-Finding blocker "platform_key_length" "PQC_PLATFORM_ADMIN_KEY is shorter than 32 characters" "Generate a long random platform admin key."
+if (([string]$envMap["MORROW_PLATFORM_ADMIN_KEY"]).Length -lt 32) {
+  Add-Finding blocker "platform_key_length" "MORROW_PLATFORM_ADMIN_KEY is shorter than 32 characters" "Generate a long random platform admin key."
 }
 
 if ([string]$envMap["REDIS_PASSWORD"] -and ([string]$envMap["REDIS_PASSWORD"]).Length -lt 24) {
   Add-Finding blocker "redis_password_length" "REDIS_PASSWORD is shorter than 24 characters" "Generate a long random Redis password."
 }
 
-if ([string]$envMap["PQC_AUTH_JWT_SECRET"] -and ([string]$envMap["PQC_AUTH_JWT_SECRET"]).Length -lt 32) {
-  Add-Finding blocker "jwt_secret_length" "PQC_AUTH_JWT_SECRET is shorter than 32 characters" "Generate a stable random token signing secret."
+if ([string]$envMap["MORROW_AUTH_JWT_SECRET"] -and ([string]$envMap["MORROW_AUTH_JWT_SECRET"]).Length -lt 32) {
+  Add-Finding blocker "jwt_secret_length" "MORROW_AUTH_JWT_SECRET is shorter than 32 characters" "Generate a stable random token signing secret."
 }
 
 $trackedEnv = git -C $RepoRoot ls-files "backend/.env" ".env" ".env.prod" 2>$null

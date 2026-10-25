@@ -25,7 +25,7 @@ const { chromium } = require("playwright");
 
 const REPO = path.resolve(__dirname, "..", "..");
 const FFMPEG = path.join(REPO, ".tools", "ffmpeg", "ffmpeg.exe");
-const BASE = process.env.PQC_DEMO_BASE || "http://127.0.0.1:8049";
+const BASE = process.env.MORROW_DEMO_BASE || "http://127.0.0.1:8049";
 const EMAIL = "avery.chen@example.com";
 const PASSWORD = "Airlock-Demo-Recording-8049";
 const FPS = 60;
@@ -381,7 +381,7 @@ const SHOTS = [
 // Reading time: about 13.5 characters a second plus a beat to settle, which is
 // what the old cut used. TARGET then scales every shot uniformly so the
 // delivered file lands where it should.
-const TARGET = Number(process.env.PQC_TARGET_SECONDS || 640);
+const TARGET = Number(process.env.MORROW_TARGET_SECONDS || 640);
 function plannedSeconds(s) {
   const chars = (s.cap || []).join(" ").length;
   if (!chars) return (s.pad || 2);
@@ -469,9 +469,9 @@ async function shoot(p, file, scale) {
     colorScheme: "dark",
   });
   await ctx.addInitScript((a) => {
-    localStorage.setItem("pqc_token", a.access_token);
-    localStorage.setItem("pqc_refresh", a.refresh_token);
-    localStorage.setItem("pqc_theme", "dark");
+    localStorage.setItem("morrow_token", a.access_token);
+    localStorage.setItem("morrow_refresh", a.refresh_token);
+    localStorage.setItem("morrow_theme", "dark");
     localStorage.setItem("airlock-motion-paused", "1");   // body[data-motion="paused"]
   }, auth);
   await ctx.addInitScript(HOOKS);

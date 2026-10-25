@@ -126,7 +126,7 @@ def readiness_handoff_markdown(readiness: Dict[str, Any]) -> str:
     summary = handoff.get("summary") or {}
     source_counts = handoff.get("source_counts") or {}
     lines = [
-        "# PQC Platform E2E Readiness Handoff",
+        "# Post-Quantum Platform E2E Readiness Handoff",
         "",
         f"- Readiness: {summary.get('readiness_percent', 0)}%",
         f"- Ready: {summary.get('ready', 0)}/{summary.get('total', 0)}",

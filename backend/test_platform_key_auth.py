@@ -2,7 +2,7 @@
 
 The platform key is a standalone vendor-operator credential: the vendor admin portal and
 scripts/check-go-live-gate.ps1 present it and have no user token to offer. But /platform/* is not an
-auth-public path, so under PQC_AUTH_REQUIRED=1 -- the setting the hardening guide prescribes -- the
+auth-public path, so under MORROW_AUTH_REQUIRED=1 -- the setting the hardening guide prescribes -- the
 auth middleware rejected those requests with 401 before the endpoint's own key check ran. The
 go-live gate was unreachable on exactly the configuration it exists to certify.
 
@@ -18,31 +18,31 @@ from fastapi.testclient import TestClient
 PLATFORM_KEY = "test-platform-key-long-enough-for-production-use"
 
 _ENV_KEYS = (
-    "PQC_SCANNER_DB",
-    "PQC_AUTH_MODE",
-    "PQC_AUTH_REQUIRED",
-    "PQC_AUTH_JWT_SECRET",
-    "PQC_AUTH_JWT_ISSUER",
-    "PQC_AUTH_JWT_AUDIENCE",
-    "PQC_AUTH_JWT_ALGORITHMS",
-    "PQC_PLATFORM_ADMIN_KEY",
-    "PQC_ALLOW_PLATFORM_KEY_QUERY",
+    "MORROW_SCANNER_DB",
+    "MORROW_AUTH_MODE",
+    "MORROW_AUTH_REQUIRED",
+    "MORROW_AUTH_JWT_SECRET",
+    "MORROW_AUTH_JWT_ISSUER",
+    "MORROW_AUTH_JWT_AUDIENCE",
+    "MORROW_AUTH_JWT_ALGORITHMS",
+    "MORROW_PLATFORM_ADMIN_KEY",
+    "MORROW_ALLOW_PLATFORM_KEY_QUERY",
 )
 
 
 @pytest.fixture()
 def client(tmp_path):
     old_env = {k: os.environ.get(k) for k in _ENV_KEYS}
-    os.environ["PQC_SCANNER_DB"] = str(tmp_path / "platform_key_auth.db")
+    os.environ["MORROW_SCANNER_DB"] = str(tmp_path / "platform_key_auth.db")
     # Authentication enforced, as in production.
-    os.environ["PQC_AUTH_MODE"] = "jwt"
-    os.environ["PQC_AUTH_REQUIRED"] = "1"
-    os.environ["PQC_AUTH_JWT_SECRET"] = "test-secret"
-    os.environ["PQC_AUTH_JWT_ISSUER"] = "https://issuer.example"
-    os.environ["PQC_AUTH_JWT_AUDIENCE"] = "pqc-ui"
-    os.environ["PQC_AUTH_JWT_ALGORITHMS"] = "HS256"
-    os.environ["PQC_PLATFORM_ADMIN_KEY"] = PLATFORM_KEY
-    os.environ["PQC_ALLOW_PLATFORM_KEY_QUERY"] = "0"
+    os.environ["MORROW_AUTH_MODE"] = "jwt"
+    os.environ["MORROW_AUTH_REQUIRED"] = "1"
+    os.environ["MORROW_AUTH_JWT_SECRET"] = "test-secret"
+    os.environ["MORROW_AUTH_JWT_ISSUER"] = "https://issuer.example"
+    os.environ["MORROW_AUTH_JWT_AUDIENCE"] = "pq-ui"
+    os.environ["MORROW_AUTH_JWT_ALGORITHMS"] = "HS256"
+    os.environ["MORROW_PLATFORM_ADMIN_KEY"] = PLATFORM_KEY
+    os.environ["MORROW_ALLOW_PLATFORM_KEY_QUERY"] = "0"
 
     import app as fastapi_app
 

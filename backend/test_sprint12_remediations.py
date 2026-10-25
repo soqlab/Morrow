@@ -21,8 +21,8 @@ from db import (
 def client_and_repo():
     # isolated temp DB
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    _previous_db = os.environ.get("PQC_SCANNER_DB")
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    _previous_db = os.environ.get("MORROW_SCANNER_DB")
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
 
     # Disable startup hooks (Vault/Postgres)
     fastapi_app.app.router.on_startup.clear()
@@ -79,12 +79,12 @@ def client_and_repo():
 
     fastapi_app.execute_validation_job = original_execute_validation_job
     # Put the database selection back. This fixture is module-scoped, so its teardown runs
-    # after the per-test cleanup in conftest; without this, PQC_SCANNER_DB keeps pointing at
+    # after the per-test cleanup in conftest; without this, MORROW_SCANNER_DB keeps pointing at
     # this (now deleted) file for every module that runs afterwards.
     if _previous_db is None:
-        os.environ.pop("PQC_SCANNER_DB", None)
+        os.environ.pop("MORROW_SCANNER_DB", None)
     else:
-        os.environ["PQC_SCANNER_DB"] = _previous_db
+        os.environ["MORROW_SCANNER_DB"] = _previous_db
     try:
         os.remove(tmp_db.name)
     except OSError:
@@ -136,7 +136,7 @@ def test_remediation_lifecycle(client_and_repo):
         json={
             "github_credential_id": 1,
             "base_branch": "main",
-            "branch_prefix": "fix/pqc-remediation",
+            "branch_prefix": "fix/pq-remediation",
             "title": "Upgrade TLS to 1.3",
             "body": "test",
         },
@@ -164,12 +164,12 @@ def test_remediation_lifecycle(client_and_repo):
 
 
 def test_remediation_pr_branch_name_is_collision_resistant():
-    first = fastapi_app._build_remediation_branch_name("fix/pqc-remediation", 7)
-    second = fastapi_app._build_remediation_branch_name("fix/pqc-remediation", 7)
+    first = fastapi_app._build_remediation_branch_name("fix/pq-remediation", 7)
+    second = fastapi_app._build_remediation_branch_name("fix/pq-remediation", 7)
 
     assert first != second
-    assert first.startswith("fix/pqc-remediation-7-")
-    assert re.match(r"^fix/pqc-remediation-7-\d{14}-[0-9a-f]{8}$", first)
+    assert first.startswith("fix/pq-remediation-7-")
+    assert re.match(r"^fix/pq-remediation-7-\d{14}-[0-9a-f]{8}$", first)
 
 
 def test_github_webhook_marks_merged(client_and_repo):
@@ -209,7 +209,7 @@ def test_github_webhook_marks_merged(client_and_repo):
         json={
             "github_credential_id": 1,
             "base_branch": "main",
-            "branch_prefix": "fix/pqc-remediation",
+            "branch_prefix": "fix/pq-remediation",
         },
     )
     assert resp.status_code == 200
@@ -284,7 +284,7 @@ def test_github_webhook_marks_merged_across_orgs(client_and_repo):
             json={
                 "github_credential_id": 1,
                 "base_branch": "main",
-                "branch_prefix": "fix/pqc-remediation",
+                "branch_prefix": "fix/pq-remediation",
             },
         )
         assert resp.status_code == 200
@@ -350,7 +350,7 @@ def test_synthetic_scan_can_verify_close_remediation(client_and_repo):
         json={
             "github_credential_id": 1,
             "base_branch": "main",
-            "branch_prefix": "fix/pqc-remediation",
+            "branch_prefix": "fix/pq-remediation",
         },
     )
     assert resp.status_code == 200
@@ -410,7 +410,7 @@ def test_create_pr_requires_validation(client_and_repo):
         json={
             "github_credential_id": 1,
             "base_branch": "main",
-            "branch_prefix": "fix/pqc-remediation",
+            "branch_prefix": "fix/pq-remediation",
         },
     )
     assert resp.status_code == 400
@@ -474,7 +474,7 @@ def test_create_pr_uses_normalized_content_from_validation(client_and_repo):
             json={
                 "github_credential_id": 1,
                 "base_branch": "main",
-                "branch_prefix": "fix/pqc-remediation",
+                "branch_prefix": "fix/pq-remediation",
             },
         )
         assert resp.status_code == 200

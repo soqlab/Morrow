@@ -7,7 +7,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
 /* ============================================================
-   PQC SCANNER — Design tokens
+   MORROW — Design tokens
    ============================================================ */
 :root{
   --bg:#f1f2ef; --bg2:#e7e9e5; --surface:#ffffff; --surface2:#fafbf8; --surface3:#f0f1ee;
@@ -1231,7 +1231,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 <script>
 "use strict";
 /* ==========================================================================
-   PQC SCANNER — Command Center
+   MORROW — Command Center
    Single-file vanilla SPA over the FastAPI backend. No build step.
    ========================================================================== */
 
@@ -1297,7 +1297,7 @@ const AGO = (v) => {
 /* Words that should stay upper-case when a snake_case key or status is humanised, so we render
    "TLS Version" and "JWT mode" rather than "Tls Version" and "Jwt mode". */
 const ACRONYMS = new Set(["jwt", "saml", "oidc", "sso", "tls", "ssl", "api", "url", "id", "ip", "csv",
-  "json", "xml", "html", "pqc", "hndl", "cbom", "sbom", "sast", "kms", "sla", "roi", "ca", "crl",
+  "json", "xml", "html", "pq", "hndl", "cbom", "sbom", "sast", "kms", "sla", "roi", "ca", "crl",
   "ocsp", "san", "eku", "rsa", "ec", "ecdsa", "ecdh", "aes", "sha", "kem", "crqc", "qtisn", "zk",
   "fips", "nist", "cnsa", "rbac", "rls", "cors", "csp", "iac", "cicd", "pr", "hs256", "rs256", "e2e"]);
 const TITLE = (s) => String(s ?? "")
@@ -1390,25 +1390,25 @@ const LS = {
 const ROLES = ["viewer", "operator", "admin"];
 const platformSessionKey = () => {
   try {
-    localStorage.removeItem("pqc_platform_key");
-    localStorage.removeItem("pqc_platform_admin_key");
-    return sessionStorage.getItem("pqc_platform_admin_key") || "";
+    localStorage.removeItem("morrow_platform_key");
+    localStorage.removeItem("morrow_platform_admin_key");
+    return sessionStorage.getItem("morrow_platform_admin_key") || "";
   } catch { return ""; }
 };
 const S = {
   navToken: 0,             // bumped by go(); a render whose token is stale stops instead of painting
-  base:    LS.get("pqc_api_base", location.origin).replace(/\/+$/, ""),
-  key:     LS.get("pqc_api_key", ""),
+  base:    LS.get("pq_api_base", location.origin).replace(/\/+$/, ""),
+  key:     LS.get("pq_api_key", ""),
   platKey: platformSessionKey(),   // Administrative credential is confined to this tab.
-  token:   LS.get("pqc_token", ""),
-  refresh: LS.get("pqc_refresh", ""),
-  org:     LS.get("pqc_org", ""),
-  actor:   LS.get("pqc_actor", ""),
-  role:    LS.get("pqc_role", ""),
-  theme:   LS.get("pqc_theme", "dark"),
+  token:   LS.get("morrow_token", ""),
+  refresh: LS.get("morrow_refresh", ""),
+  org:     LS.get("pq_org", ""),
+  actor:   LS.get("pq_actor", ""),
+  role:    LS.get("morrow_role", ""),
+  theme:   LS.get("morrow_theme", "dark"),
   route:   "",
   poll:    null,
-  scan:    { id: LS.get("pqc_scan", ""), data: null, results: null },
+  scan:    { id: LS.get("pq_scan", ""), data: null, results: null },
   copilotHistory: [],
   ctx:     null,        // /auth/context
   authCfg: null,        // /auth/config — drives which auth affordances are shown
@@ -1416,13 +1416,13 @@ const S = {
 };
 const saveAuth = () => {
   if (SUPPORT.active) return;   // a support view never writes its token or identity to shared storage
-  LS.set("pqc_token", S.token); LS.set("pqc_refresh", S.refresh);
-  LS.set("pqc_api_key", S.key); LS.set("pqc_org", S.org);
-  LS.set("pqc_actor", S.actor); LS.set("pqc_role", S.role);
+  LS.set("morrow_token", S.token); LS.set("morrow_refresh", S.refresh);
+  LS.set("pq_api_key", S.key); LS.set("pq_org", S.org);
+  LS.set("pq_actor", S.actor); LS.set("morrow_role", S.role);
   try {
-    if (S.platKey) sessionStorage.setItem("pqc_platform_admin_key", S.platKey);
-    else sessionStorage.removeItem("pqc_platform_admin_key");
-    localStorage.removeItem("pqc_platform_key");
+    if (S.platKey) sessionStorage.setItem("morrow_platform_admin_key", S.platKey);
+    else sessionStorage.removeItem("morrow_platform_admin_key");
+    localStorage.removeItem("morrow_platform_key");
   } catch {}
 };
 
@@ -1431,7 +1431,7 @@ const saveAuth = () => {
    exchanged once for a short-lived read-only token kept in THIS tab's sessionStorage only, and the
    fragment is stripped at once. The server enforces read-only access; the UI also disables writes. */
 const SUPPORT = { active: false, session: null, token: "", code: "", clock: 0, poll: 0, ended: false };
-const SUPPORT_KEY = "pqc_support_view";
+const SUPPORT_KEY = "pq_support_view";
 (() => {
   const m = /^#support=([A-Za-z0-9_-]{16,256})$/.exec(location.hash || "");
   if (m) {
@@ -1450,7 +1450,7 @@ function supportApply(saved) {
      spoofable role headers, or platform key (a tab opened from the admin portal must not carry it). */
   S.token = SUPPORT.token; S.refresh = ""; S.key = ""; S.actor = ""; S.role = ""; S.platKey = "";
   S.org = SUPPORT.session?.organization_id || "";
-  try { sessionStorage.removeItem("pqc_platform_admin_key"); } catch {}
+  try { sessionStorage.removeItem("morrow_platform_admin_key"); } catch {}
 }
 async function supportBoot() {
   if (!SUPPORT.active) return true;
@@ -1565,7 +1565,7 @@ function headers(json = false) {
   if (S.org)   h["x-org-id"]      = S.org;
   if (S.actor) h["x-user-id"]     = S.actor;
   if (S.role)  h["x-user-role"]   = S.role;
-  /* /platform/* is gated by a separate operator key (PQC_PLATFORM_ADMIN_KEY) and rejects the
+  /* /platform/* is gated by a separate operator key (MORROW_PLATFORM_ADMIN_KEY) and rejects the
      normal user identity, so it needs its own header. Without it those endpoints answer 503/403. */
   if (S.platKey) h["x-platform-key"] = S.platKey;
   return h;
@@ -2111,21 +2111,21 @@ const NAV = [
       <details class="faq"><summary>1. Signing in</summary>
       <p>The console shows a full-page sign-in until you are connected. What you see depends on how the server is configured.</p>
       <p><b>Sign in with SSO (production default)</b></p>
-      <div class="stepList"><div class="stepItem"><div>Open <code>/vendor-admin/</code>. When SSO is configured, the screen shows <b>Sign in with SSO</b>. The key sign-in is folded underneath.</div></div><div class="stepItem"><div>Press <b>Sign in with SSO</b> and sign in at your company identity provider.</div></div><div class="stepItem"><div>Back in the console, access is granted only if your email is on the operator roster (<code>PQC_ADMIN_OPERATOR_ROLES</code>) with a role, or, when no roster is set, in an allowed domain. Anyone else sees "Your account is not an authorized platform operator. Ask an owner to add you to the operator roster."</div></div><div class="stepItem"><div>If MFA is required (always in production and staging unless explicitly turned off), the console asks for an authenticator code. See below.</div></div></div>
-      <p>Console sessions end after 30 minutes without activity (<code>PQC_ADMIN_SESSION_IDLE_SECONDS</code>) and 8 hours after sign-in at the latest (<code>PQC_ADMIN_SESSION_ABSOLUTE_SECONDS</code>). <b>Sign out</b> in the operator menu ends the session on the server too. SSO sessions live in a secure cookie that page scripts cannot read; nothing is stored in the tab. <b>Remember for this tab</b> only applies to key sign-in.</p>
+      <div class="stepList"><div class="stepItem"><div>Open <code>/vendor-admin/</code>. When SSO is configured, the screen shows <b>Sign in with SSO</b>. The key sign-in is folded underneath.</div></div><div class="stepItem"><div>Press <b>Sign in with SSO</b> and sign in at your company identity provider.</div></div><div class="stepItem"><div>Back in the console, access is granted only if your email is on the operator roster (<code>MORROW_ADMIN_OPERATOR_ROLES</code>) with a role, or, when no roster is set, in an allowed domain. Anyone else sees "Your account is not an authorized platform operator. Ask an owner to add you to the operator roster."</div></div><div class="stepItem"><div>If MFA is required (always in production and staging unless explicitly turned off), the console asks for an authenticator code. See below.</div></div></div>
+      <p>Console sessions end after 30 minutes without activity (<code>MORROW_ADMIN_SESSION_IDLE_SECONDS</code>) and 8 hours after sign-in at the latest (<code>MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS</code>). <b>Sign out</b> in the operator menu ends the session on the server too. SSO sessions live in a secure cookie that page scripts cannot read; nothing is stored in the tab. <b>Remember for this tab</b> only applies to key sign-in.</p>
       <p><b>MFA enrolment and recovery codes</b></p>
       <ul><li><b>First sign-in:</b> the screen <b>Set up your authenticator</b> shows a QR code and a text key (<b>Or type this key</b>). Scan it with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Okta Verify), enter the 6-digit code and press <b>Verify</b>.</li><li><b>Save your recovery codes:</b> 10 recovery codes appear once. Store them in a password manager, then press <b>I saved them — continue</b>. Each code works once.</li><li><b>Later sign-ins:</b> <b>Enter your authenticator code</b>. Lost your phone? Press <b>Use a recovery code</b>. Case and the dash don't matter.</li><li><b>New codes:</b> <b>Access › Operators &amp; roles › Multi-factor authentication › Regenerate recovery codes</b> (needs a current authenticator code). The old codes stop working.</li><li><b>Everything lost:</b> another <b>owner</b> opens <b>Reset another operator's MFA</b>, presses <b>Reset MFA…</b> and gives a reason. The person's console sessions end and they enrol again at next sign-in. Owners cannot reset their own MFA.</li><li><b>Wrong codes:</b> after 5 failed attempts in 5 minutes the identity must wait ("Too many MFA attempts. Wait five minutes and try again."). Attempts are recorded.</li></ul>
-      <p>MFA secrets are encrypted with <code>PQC_VAULT_MASTER_KEY</code>, so that key must be set for MFA to work.</p>
+      <p>MFA secrets are encrypted with <code>MORROW_VAULT_MASTER_KEY</code>, so that key must be set for MFA to work.</p>
       <p><b>Step-up prompts</b></p>
-      <p>Some actions ask for a fresh code when your last one is older than 15 minutes (<code>PQC_ADMIN_STEP_UP_SECONDS</code>). This applies to SSO sessions and named operator keys with MFA enrolled; if MFA is required and you have not enrolled, the action is refused until you do. The shared key has no identity and is never asked. The dialog <b>Confirm with your authenticator</b> accepts a 6-digit code or a recovery code; after <b>Verify and continue</b> the action carries on. Actions that ask:</p>
+      <p>Some actions ask for a fresh code when your last one is older than 15 minutes (<code>MORROW_ADMIN_STEP_UP_SECONDS</code>). This applies to SSO sessions and named operator keys with MFA enrolled; if MFA is required and you have not enrolled, the action is refused until you do. The shared key has no identity and is never asked. The dialog <b>Confirm with your authenticator</b> accepts a 6-digit code or a recovery code; after <b>Verify and continue</b> the action carries on. Actions that ask:</p>
       <ul><li>purge an organization</li><li>run a deleting retention pass</li><li>revoke every session in an organization</li><li>rotate an API key</li><li>change a customer's plan</li><li>migrate platform state</li><li>reset another operator's MFA</li></ul>
       <p><b>Named operator keys</b></p>
-      <p>Scripts, Traffic Lens and people without SSO use named operator keys (<code>PQC_PLATFORM_OPERATORS</code>, a JSON list of <code>name</code>, <code>role</code> and the key's <code>key_sha256</code>; create an entry with <code>cd backend &amp;&amp; python -m services.platform_operators --name alice --role operator</code>). The role is bound to the key and every audit event records the operator name.</p>
+      <p>Scripts, Traffic Lens and people without SSO use named operator keys (<code>MORROW_PLATFORM_OPERATORS</code>, a JSON list of <code>name</code>, <code>role</code> and the key's <code>key_sha256</code>; create an entry with <code>cd backend &amp;&amp; python -m services.platform_operators --name alice --role operator</code>). The role is bound to the key and every audit event records the operator name.</p>
       <p>Open <b>Use an operator key</b> (it reads <b>Use a named operator key</b> when the shared key is disabled), paste the key into <b>Platform admin key</b> and press <b>Connect</b>. When MFA is required, or once the key has enrolled MFA, the key must be verified with a code before use; a verification lasts 8 hours (the absolute session length). The console handles enrolment and verification after you connect, through the MFA card on <b>Operators &amp; roles</b>.</p>
       <p><b>The shared key and break-glass, per environment</b></p>
-      <ul><li><code>local</code> (the default) and any value other than those below: <b>Shared <code>PQC_PLATFORM_ADMIN_KEY</code></b> Accepted, as <b>Shared platform key</b>, up to the ceiling <code>PQC_PLATFORM_ADMIN_KEY_ROLE</code>. A request that does not ask for a role runs as auditor.. <b>MFA default</b> Off unless <code>PQC_ADMIN_REQUIRE_MFA=1</code></li><li><code>production</code>, <code>prod</code>, <code>staging</code>, <code>stage</code>: <b>Shared <code>PQC_PLATFORM_ADMIN_KEY</code></b> Refused ("The shared platform key is disabled in production. Sign in with SSO…") unless <code>PQC_ALLOW_BREAK_GLASS_KEY=1</code>. <b>MFA default</b> On unless <code>PQC_ADMIN_REQUIRE_MFA=0</code></li></ul>
+      <ul><li><code>local</code> (the default) and any value other than those below: <b>Shared <code>MORROW_PLATFORM_ADMIN_KEY</code></b> Accepted, as <b>Shared platform key</b>, up to the ceiling <code>MORROW_PLATFORM_ADMIN_KEY_ROLE</code>. A request that does not ask for a role runs as auditor.. <b>MFA default</b> Off unless <code>MORROW_ADMIN_REQUIRE_MFA=1</code></li><li><code>production</code>, <code>prod</code>, <code>staging</code>, <code>stage</code>: <b>Shared <code>MORROW_PLATFORM_ADMIN_KEY</code></b> Refused ("The shared platform key is disabled in production. Sign in with SSO…") unless <code>MORROW_ALLOW_BREAK_GLASS_KEY=1</code>. <b>MFA default</b> On unless <code>MORROW_ADMIN_REQUIRE_MFA=0</code></li></ul>
       <p>Break-glass rules:</p>
-      <ul><li>Use it only when SSO is down and nobody can sign in otherwise.</li><li>Turn it on with <code>PQC_ALLOW_BREAK_GLASS_KEY=1</code> and a restart, then sign in with the shared key.</li><li>Every change, and the first read of each page per minute, is recorded as <code>platform.break_glass_used</code> with severity high. The bell shows a critical <b>Break-glass platform key used</b> notification for 24 hours, and the operator menu warns "Break-glass access: every request is audited with severity high."</li><li>The go-live gate fails <b>Shared key is break-glass only</b> while the flag is on.</li><li>Afterwards: remove the flag, restart, and rotate the shared key.</li></ul>
+      <ul><li>Use it only when SSO is down and nobody can sign in otherwise.</li><li>Turn it on with <code>MORROW_ALLOW_BREAK_GLASS_KEY=1</code> and a restart, then sign in with the shared key.</li><li>Every change, and the first read of each page per minute, is recorded as <code>platform.break_glass_used</code> with severity high. The bell shows a critical <b>Break-glass platform key used</b> notification for 24 hours, and the operator menu warns "Break-glass access: every request is audited with severity high."</li><li>The go-live gate fails <b>Shared key is break-glass only</b> while the flag is on.</li><li>Afterwards: remove the flag, restart, and rotate the shared key.</li></ul>
       <p><b>The operator menu and sessions</b></p>
       <p>The operator menu (top right) shows who you are, your role, <b>Signed in with</b> (SSO, Named operator key, Shared platform key or Break-glass shared key), your MFA status and, for SSO, when the session expires. <b>Access › Sessions › Operator console sessions</b> lists everyone signed in with SSO (role, method, MFA, last active, expiry); <b>Revoke…</b> with a reason signs that person out on their next request.</p>
       </details>
@@ -2146,7 +2146,7 @@ const NAV = [
       <p><b>Charts and lists</b></p>
       <ul><li><b>Signups</b>, <b>Active users</b>, <b>API requests</b> (stacked: successful, client errors 4xx, rate limited 429, server errors 5xx), <b>Latency</b> (p50 and p95), <b>Sign-ins</b>, <b>Scans</b>.</li><li><b>Top organizations by activity</b>: requests, sign-ins and scans per organization; open one for its Customer 360.</li><li><b>Routes by errors</b>: route templates with the most 5xx responses.</li><li><b>Needs attention</b>: open notifications, most severe first.</li><li><b>Plans</b>: organizations by plan.</li><li><b>Platform status</b>: go-live verdict, health, alerts, at-risk customers, traffic events and capture policy.</li><li><b>Maintenance &amp; announcements</b>: what customers see right now.</li></ul>
       <p><b>Coverage, "unavailable" and how history extends</b></p>
-      <ul><li>Raw request records are kept for 7 days (<code>PQC_TRAFFIC_RETENTION_DAYS</code>, maximum 30) and sign-in records for 90 days (<code>PQC_AUTH_LOG_RETENTION_DAYS</code>, maximum 365).</li><li>Before raw records expire, the <b>Daily usage rollups</b> job saves a summary of each finished UTC day per organization: requests, client errors, server errors, rate-limited requests, signed-in requests, a latency profile, successful and failed sign-ins, and scans. Active users are stored as salted hashes, never user ids. It runs at start-up (catching up every complete day still in the raw log) and then every hour (<code>PQC_USAGE_ROLLUP_INTERVAL_SECONDS</code>). Summaries are kept 400 days (<code>PQC_USAGE_ROLLUP_RETENTION_DAYS</code>).</li><li>The dashboard reads a finished day from its summary as soon as that day is summarised, and the raw log only for today and for any day not summarised yet. A summary is built from exactly the raw rows of that day, so the numbers are the same either way; it is simply much faster than re-reading millions of raw rows on every load. Summaries also hold per-route request and error counts, which is where <b>Routes by errors</b> gets its finished days. After an upgrade that changes what a summary holds, the job rebuilds every day still in the raw log before the dashboard uses them again. If you later raise <code>PQC_TRAFFIC_RETENTION_DAYS</code>, the days whose raw rows were already deleted under the old setting keep answering from their summary instead of showing a gap.</li><li>A period not covered by raw data or summaries is <b>blank</b>, never zero. Charts say "Request data is retained from …; earlier buckets are unknown and left blank." until the summaries cover the range.</li><li>History starts at the last 7 days of raw data on the day the feature is deployed. A fresh deployment reaches full 30-day charts after about 30 days and full 90-day comparisons after about 180 days. Days are UTC; today always comes from the raw log, and so does yesterday until the hourly job has summarised it.</li><li>If the API is down for more than 7 days, those days stay unknown.</li><li>Request attribution to organizations started with this release; older requests stay unattributed. Anonymous requests, rejected tokens and operator traffic to <code>/platform</code> and <code>/vendor-admin</code> are logged without an organization. Request bodies, query strings, tokens and key secrets are never stored.</li><li><b>Unavailable metrics</b> (bottom of the page) lists every metric this server cannot produce and why.</li></ul>
+      <ul><li>Raw request records are kept for 7 days (<code>MORROW_TRAFFIC_RETENTION_DAYS</code>, maximum 30) and sign-in records for 90 days (<code>MORROW_AUTH_LOG_RETENTION_DAYS</code>, maximum 365).</li><li>Before raw records expire, the <b>Daily usage rollups</b> job saves a summary of each finished UTC day per organization: requests, client errors, server errors, rate-limited requests, signed-in requests, a latency profile, successful and failed sign-ins, and scans. Active users are stored as salted hashes, never user ids. It runs at start-up (catching up every complete day still in the raw log) and then every hour (<code>MORROW_USAGE_ROLLUP_INTERVAL_SECONDS</code>). Summaries are kept 400 days (<code>MORROW_USAGE_ROLLUP_RETENTION_DAYS</code>).</li><li>The dashboard reads a finished day from its summary as soon as that day is summarised, and the raw log only for today and for any day not summarised yet. A summary is built from exactly the raw rows of that day, so the numbers are the same either way; it is simply much faster than re-reading millions of raw rows on every load. Summaries also hold per-route request and error counts, which is where <b>Routes by errors</b> gets its finished days. After an upgrade that changes what a summary holds, the job rebuilds every day still in the raw log before the dashboard uses them again. If you later raise <code>MORROW_TRAFFIC_RETENTION_DAYS</code>, the days whose raw rows were already deleted under the old setting keep answering from their summary instead of showing a gap.</li><li>A period not covered by raw data or summaries is <b>blank</b>, never zero. Charts say "Request data is retained from …; earlier buckets are unknown and left blank." until the summaries cover the range.</li><li>History starts at the last 7 days of raw data on the day the feature is deployed. A fresh deployment reaches full 30-day charts after about 30 days and full 90-day comparisons after about 180 days. Days are UTC; today always comes from the raw log, and so does yesterday until the hourly job has summarised it.</li><li>If the API is down for more than 7 days, those days stay unknown.</li><li>Request attribution to organizations started with this release; older requests stay unattributed. Anonymous requests, rejected tokens and operator traffic to <code>/platform</code> and <code>/vendor-admin</code> are logged without an organization. Request bodies, query strings, tokens and key secrets are never stored.</li><li><b>Unavailable metrics</b> (bottom of the page) lists every metric this server cannot produce and why.</li></ul>
       </details>
       <details class="faq"><summary>4. Customer 360</summary>
       <p>Open it from <b>Customers › Organizations</b>, a dashboard row, or search.</p>
@@ -2159,12 +2159,12 @@ const NAV = [
       <p><b>Access › Rate limits</b> stores two numbers per organization: <b>API calls per minute</b> (every signed-in request from that organization) and <b>Scans per hour</b> (requests that start a scan: TLS, SSH, SAST, dependency, binary, mobile/IoT, supply-chain, secrets and CI-gate scans, running a scan schedule or collection, crypto discovery). Choose the organization, set both, give a <b>Reason</b> and press <b>Save overrides</b>.</p>
       <p><b>Which limit applies</b></p>
       <p>For each organization, in this order:</p>
-      <div class="stepList"><div class="stepItem"><div><b>Override</b> saved on this page (both values come from it).</div></div><div class="stepItem"><div><b>Platform default</b>: <code>PQC_ORG_DEFAULT_API_CALLS_PER_MIN</code> and <code>PQC_ORG_DEFAULT_SCANS_PER_HOUR</code> (0 = none).</div></div></div>
+      <div class="stepList"><div class="stepItem"><div><b>Override</b> saved on this page (both values come from it).</div></div><div class="stepItem"><div><b>Platform default</b>: <code>MORROW_ORG_DEFAULT_API_CALLS_PER_MIN</code> and <code>MORROW_ORG_DEFAULT_SCANS_PER_HOUR</code> (0 = none).</div></div></div>
       <p>The page note and <b>Customer 360 › Rate limits</b> say which one is in force: <b>operator override</b>, <b>platform default</b>, or <b>not limited</b>. The API returns it as <code>limit_source</code> (<code>override</code>, <code>plan</code>, <code>default</code>, <code>none</code>) with <code>limit_source_label</code>.</p>
       <p>With none of these, the organization is not limited per organization; per-IP limits still apply. The page then shows the suggested values (100 per minute, 60 per hour) and says "The values shown are the suggested defaults. Save them to enforce them." There is no button to delete an override once saved; lower or raise it instead.</p>
-      <p><code>PQC_ORG_RATE_LIMITS_ENABLED=0</code> switches enforcement off; values are then stored only.</p>
+      <p><code>MORROW_ORG_RATE_LIMITS_ENABLED=0</code> switches enforcement off; values are then stored only.</p>
       <p><b>Behaviour</b></p>
-      <ul><li>Windows slide: the last 60 seconds for API calls, the last hour for scans. A scan request counts toward both limits, even if the scan is then rejected for bad input.</li><li>Over the limit: HTTP 429 with <code>Retry-After</code>, <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining: 0</code> and a message naming the limit. Allowed responses to a limited organization carry <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>.</li><li>One organization hitting its limit never affects another.</li><li><b>Exempt</b>: <code>/platform</code> and <code>/vendor-admin</code>, health and status checks, the web UI and static files, API docs, public pages, all <code>/auth</code> routes (they have their own limit, <code>PQC_RATE_LIMIT_AUTH</code>, default 10/minute) and anonymous requests.</li><li>A saved change applies at once on the server that saved it and within 15 seconds elsewhere (<code>PQC_ORG_RATE_LIMIT_CACHE_SECONDS</code>).</li></ul>
+      <ul><li>Windows slide: the last 60 seconds for API calls, the last hour for scans. A scan request counts toward both limits, even if the scan is then rejected for bad input.</li><li>Over the limit: HTTP 429 with <code>Retry-After</code>, <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining: 0</code> and a message naming the limit. Allowed responses to a limited organization carry <code>X-RateLimit-Limit</code> and <code>X-RateLimit-Remaining</code>.</li><li>One organization hitting its limit never affects another.</li><li><b>Exempt</b>: <code>/platform</code> and <code>/vendor-admin</code>, health and status checks, the web UI and static files, API docs, public pages, all <code>/auth</code> routes (they have their own limit, <code>MORROW_RATE_LIMIT_AUTH</code>, default 10/minute) and anonymous requests.</li><li>A saved change applies at once on the server that saved it and within 15 seconds elsewhere (<code>MORROW_ORG_RATE_LIMIT_CACHE_SECONDS</code>).</li></ul>
       <p><b>Redis</b></p>
       <p>With <code>REDIS_URL</code> or <code>CELERY_BROKER_URL</code> set, all API servers share one count. Without Redis each server counts on its own, so N servers allow up to N times the limit. If Redis fails, servers fall back to local counting and requests are not blocked.</p>
       <p><b>Seeing 429s</b></p>
@@ -2177,11 +2177,11 @@ const NAV = [
       <p>Every kind can be chosen in <b>Only these kinds</b>, and PagerDuty resolves each of them when the item clears. The list in the channel editor comes from the server (<code>notification_kinds</code> in <code>GET /platform/alert-channels</code>), which reads the same catalogue the notifications use.</p>
       <p><b>Add a channel</b></p>
       <p>Press <b>Add channel</b>, choose a <b>Type</b>, a <b>Name</b>, the target, <b>Minimum severity</b> (<b>Critical only</b>, <b>Warn and critical</b>, <b>Everything (info, warn, critical)</b>), optionally <b>Only these kinds</b>, <b>Enabled</b>, and optional quiet hours (<b>From</b>, <b>Until</b>, <b>Time zone (IANA)</b>, <b>Still send critical</b>). Give a reason and press <b>Save channel</b>. Then press <b>Send test</b> on the row; the message is marked <b>[TEST]</b> and the result appears above the list and in the delivery log.</p>
-      <ul><li><b>Slack incoming webhook</b>: in Slack, enable Incoming Webhooks for an app, add a webhook for the channel, paste the <code>https://hooks.slack.com/services/...</code> URL.</li><li><b>Email</b>: needs platform email (<code>PQC_SMTP_HOST</code> and <code>PQC_SMTP_FROM</code>, or <code>PQC_PLATFORM_SMTP_ORG_ID</code>). Up to 20 comma-separated addresses. Plain-text messages with subjects like <code>[Morrow] [CRITICAL] …</code>.</li><li><b>PagerDuty Events API v2</b>: in PagerDuty add the Events API v2 integration to a service and paste its integration (routing) key. The dedup key is the notification id; when the item clears, the incident is resolved. The test opens and immediately resolves a test incident.</li><li><b>Generic webhook (JSON)</b>: an <code>https://</code> URL; each alert is a JSON POST with <code>source</code>, <code>event</code>, <code>severity</code>, <code>subject</code>, <code>text</code>, <code>link</code>, <code>sent_at</code> and a <code>notifications</code> list.</li></ul>
-      <p>Slack, PagerDuty and webhook targets are encrypted with <code>PQC_VAULT_MASTER_KEY</code>; without it those types cannot be saved. After saving, only a hint is shown; leave the target empty when editing to keep it. Webhook URLs must be <code>https</code>, contain no username or password and point at a public address; private, loopback, link-local, carrier-grade NAT and reserved addresses are refused on save and on every send, and redirects are not followed.</p>
+      <ul><li><b>Slack incoming webhook</b>: in Slack, enable Incoming Webhooks for an app, add a webhook for the channel, paste the <code>https://hooks.slack.com/services/...</code> URL.</li><li><b>Email</b>: needs platform email (<code>MORROW_SMTP_HOST</code> and <code>MORROW_SMTP_FROM</code>, or <code>MORROW_PLATFORM_SMTP_ORG_ID</code>). Up to 20 comma-separated addresses. Plain-text messages with subjects like <code>[Morrow] [CRITICAL] …</code>.</li><li><b>PagerDuty Events API v2</b>: in PagerDuty add the Events API v2 integration to a service and paste its integration (routing) key. The dedup key is the notification id; when the item clears, the incident is resolved. The test opens and immediately resolves a test incident.</li><li><b>Generic webhook (JSON)</b>: an <code>https://</code> URL; each alert is a JSON POST with <code>source</code>, <code>event</code>, <code>severity</code>, <code>subject</code>, <code>text</code>, <code>link</code>, <code>sent_at</code> and a <code>notifications</code> list.</li></ul>
+      <p>Slack, PagerDuty and webhook targets are encrypted with <code>MORROW_VAULT_MASTER_KEY</code>; without it those types cannot be saved. After saving, only a hint is shown; leave the target empty when editing to keep it. Webhook URLs must be <code>https</code>, contain no username or password and point at a public address; private, loopback, link-local, carrier-grade NAT and reserved addresses are refused on save and on every send, and redirects are not followed.</p>
       <p><b>Dedupe, renotify, rate cap</b></p>
-      <ul><li>The dispatcher runs inside the API every 60 seconds (<code>PQC_ALERT_DISPATCH_INTERVAL_SECONDS</code>). With several API servers only one dispatches at a time.</li><li><b>Dedupe</b>: each channel remembers what it sent; an open item is not re-sent every run.</li><li><b>Renotify</b>: an item still open 24 hours after it was last sent (<code>PQC_ALERT_RENOTIFY_HOURS</code>) is sent again, prefixed "Still open:".</li><li><b>Resolve</b>: when an item disappears PagerDuty gets a resolve event; Slack, email and webhooks get nothing. Nothing is resolved from a run in which that source failed to load.</li><li><b>Deleting or disabling a PagerDuty channel</b> resolves every incident that channel still has open first, one resolve per incident (dedup key = notification id), before its routing key is discarded. The response and the delivery log say which incidents were resolved and which were not. A resolve PagerDuty did not accept is kept — with the key, still encrypted — and retried by the dispatcher, up to 10 attempts with a growing wait (<code>PQC_ALERT_RESOLVE_MAX_ATTEMPTS</code>); after that the delivery log says to close the incident in PagerDuty. Alerts that went out inside a digest message share one incident whose dedup key is not stored, so those are reported rather than resolved. Re-enabling a channel before a queued resolve goes out drops it: the incident is open again.</li><li><b>Rate cap</b>: at most 20 messages per channel in 10 minutes (<code>PQC_ALERT_RATE_CAP</code>, <code>PQC_ALERT_RATE_WINDOW_MINUTES</code>). If more are due, the most severe go individually and the last slot becomes one digest. A channel already at its cap waits, and the log shows one "rate limited" entry.</li><li><b>Failures</b> are logged and retried on the next run.</li><li><code>PQC_ALERT_DISPATCH_ENABLED=0</code> stops automatic sending; <b>Send test</b> still works.</li></ul>
-      <p>The <b>Delivery log</b> lists every attempt (time, channel, event, status, notification, HTTP status, latency, error), filterable by channel, status and event, kept 30 days (<code>PQC_ALERT_DELIVERY_RETENTION_DAYS</code>). Error text never contains the URL or key. Deleting a channel keeps its past log entries, including the resolve it sent for each incident it had open.</p>
+      <ul><li>The dispatcher runs inside the API every 60 seconds (<code>MORROW_ALERT_DISPATCH_INTERVAL_SECONDS</code>). With several API servers only one dispatches at a time.</li><li><b>Dedupe</b>: each channel remembers what it sent; an open item is not re-sent every run.</li><li><b>Renotify</b>: an item still open 24 hours after it was last sent (<code>MORROW_ALERT_RENOTIFY_HOURS</code>) is sent again, prefixed "Still open:".</li><li><b>Resolve</b>: when an item disappears PagerDuty gets a resolve event; Slack, email and webhooks get nothing. Nothing is resolved from a run in which that source failed to load.</li><li><b>Deleting or disabling a PagerDuty channel</b> resolves every incident that channel still has open first, one resolve per incident (dedup key = notification id), before its routing key is discarded. The response and the delivery log say which incidents were resolved and which were not. A resolve PagerDuty did not accept is kept — with the key, still encrypted — and retried by the dispatcher, up to 10 attempts with a growing wait (<code>MORROW_ALERT_RESOLVE_MAX_ATTEMPTS</code>); after that the delivery log says to close the incident in PagerDuty. Alerts that went out inside a digest message share one incident whose dedup key is not stored, so those are reported rather than resolved. Re-enabling a channel before a queued resolve goes out drops it: the incident is open again.</li><li><b>Rate cap</b>: at most 20 messages per channel in 10 minutes (<code>MORROW_ALERT_RATE_CAP</code>, <code>MORROW_ALERT_RATE_WINDOW_MINUTES</code>). If more are due, the most severe go individually and the last slot becomes one digest. A channel already at its cap waits, and the log shows one "rate limited" entry.</li><li><b>Failures</b> are logged and retried on the next run.</li><li><code>MORROW_ALERT_DISPATCH_ENABLED=0</code> stops automatic sending; <b>Send test</b> still works.</li></ul>
+      <p>The <b>Delivery log</b> lists every attempt (time, channel, event, status, notification, HTTP status, latency, error), filterable by channel, status and event, kept 30 days (<code>MORROW_ALERT_DELIVERY_RETENTION_DAYS</code>). Error text never contains the URL or key. Deleting a channel keeps its past log entries, including the resolve it sent for each incident it had open.</p>
       </details>
       <details class="faq"><summary>8. Support sessions</summary>
       <p>Lets support open a customer's console <b>read-only</b>, for a limited time, with a reason the customer sees.</p>
@@ -2189,7 +2189,7 @@ const NAV = [
       <div class="stepList"><div class="stepItem"><div><b>Customers › Customer 360</b> for the organization, then <b>View as customer (read-only)</b>. Requires the owner, operator or support role; auditors can only list sessions and read journals.</div></div><div class="stepItem"><div>Fill in <b>Reason</b> (at least 10 characters; the customer sees it), <b>Duration</b> (5, 15, 30, 45 or 60 minutes; default 30) and <b>Ticket reference (optional)</b>.</div></div><div class="stepItem"><div>Press <b>Start read-only session</b>. The customer console opens in a new tab. The launch link works once, within 60 seconds; if the browser blocked the tab, Customer 360 shows the link for that minute.</div></div></div>
       <p>The tab shows a dark orange <b>Support view · read-only</b> bar with your name, the reason, a countdown and <b>End session</b>.</p>
       <p><b>Limits and what is blocked</b></p>
-      <ul><li>The session behaves like a <b>viewer</b> in that organization. Change buttons are greyed out ("Read-only support view: changes are disabled"), and the server refuses every write except ending the session.</li><li>Anything not on the allow-list of read-only pages is refused, and always: stored credentials and secrets (vault, API key material, webhook, Slack, Jira, ServiceNow, email and Cloudflare settings), user, password and token management, bulk exports and downloads (audit CSV, GDPR export, CBOM and scan exports, evidence bundles, readiness and blast-radius exports, installers, generated CI scripts), every <code>/platform</code>, <code>/admin</code> and vendor admin route, and any other organization.</li><li>Suspended or archived organization: only an owner can start a session, and most customer pages still refuse requests.</li><li>Requires <code>PQC_AUTH_JWT_SECRET</code>; without it, starting a session answers 503.</li></ul>
+      <ul><li>The session behaves like a <b>viewer</b> in that organization. Change buttons are greyed out ("Read-only support view: changes are disabled"), and the server refuses every write except ending the session.</li><li>Anything not on the allow-list of read-only pages is refused, and always: stored credentials and secrets (vault, API key material, webhook, Slack, Jira, ServiceNow, email and Cloudflare settings), user, password and token management, bulk exports and downloads (audit CSV, GDPR export, CBOM and scan exports, evidence bundles, readiness and blast-radius exports, installers, generated CI scripts), every <code>/platform</code>, <code>/admin</code> and vendor admin route, and any other organization.</li><li>Suspended or archived organization: only an owner can start a session, and most customer pages still refuse requests.</li><li>Requires <code>MORROW_AUTH_JWT_SECRET</code>; without it, starting a session answers 503.</li></ul>
       <p><b>Ending</b></p>
       <p><b>End session</b> in the bar; the time limit; <b>Revoke…</b> from <b>Active support sessions</b> in Customer 360 or <b>Customers › Support sessions</b> (reason required; the pass stops working within 5 seconds, at once on the server that handled it, and the open tab notices within about 20 seconds); or the customer turning access off (ends immediately).</p>
       <p><b>Customer opt-in and revocation</b></p>
@@ -2199,7 +2199,7 @@ const NAV = [
       </details>
       <details class="faq"><summary>9. Invitations</summary>
       <p><b>Customers › Invitations</b>: choose the <b>Organization</b>, the <b>Role</b> (viewer, analyst (operator), org admin (admin)), the <b>Email</b>, <b>Expires after (hours)</b> (1 to 720, default 72) and a <b>Reason</b>, then <b>Create invitation</b>. The <b>Invitation created</b> dialog shows the invite link once; use <b>Copy invite link</b> and send it over a trusted channel. If platform email is configured, each pending invitation has <b>Email the invite</b>, which sends the link to the invited address only.</p>
-      <p>The link looks like <code>https://&lt;public URL&gt;/invite#token=…</code> (base from <code>PQC_PUBLIC_BASE_URL</code>, otherwise the request origin). The code after <code>#</code> is not sent to servers, so it stays out of logs and Referer headers. The invite page shows organization, role, the masked address, expiry and status, and handles "not signed in", "different email", expired, used, revoked and not-found cases. The server enforces: signed in with the matching email, one use, not expired or revoked; lookups are rate limited with the sign-in limit (<code>PQC_RATE_LIMIT_AUTH</code>).</p>
+      <p>The link looks like <code>https://&lt;public URL&gt;/invite#token=…</code> (base from <code>MORROW_PUBLIC_BASE_URL</code>, otherwise the request origin). The code after <code>#</code> is not sent to servers, so it stays out of logs and Referer headers. The invite page shows organization, role, the masked address, expiry and status, and handles "not signed in", "different email", expired, used, revoked and not-found cases. The server enforces: signed in with the matching email, one use, not expired or revoked; lookups are rate limited with the sign-in limit (<code>MORROW_RATE_LIMIT_AUTH</code>).</p>
       <p>Customer organization admins can also invite from their console (<b>Administration › Invitations › Invite</b>) and get the same link.</p>
       </details>
       <details class="faq"><summary>10. Announcements and maintenance</summary>
@@ -2216,7 +2216,7 @@ const NAV = [
       </details>
       <details class="faq"><summary>14. Launch readiness (go-live gate)</summary>
       <p><b>Security › Launch readiness › Go-Live Gate</b> returns <b>go</b> only when every required check passes and no blocking warning stands; advisories are reported but do not block. The required checks include environment, auth mode and auth required, default role, JWT config and issuer, CORS, allowed hosts, platform admin key checks, production demo lockout, security headers, traffic monitor and persistence, security journal, state backend scaling, observability, Airlock signing and agent signatures, retention policy, Postgres, RLS, database role, secrets and queue, plus three operator sign-in checks:</p>
-      <ul><li><b>Operator SSO</b>: issuer, client id and a roster or allowed domains are configured.</li><li><b>Operator MFA required</b>: set <code>PQC_ENVIRONMENT=production</code> and do not set <code>PQC_ADMIN_REQUIRE_MFA=0</code>.</li><li><b>Shared key is break-glass only</b>: fails while <code>PQC_ALLOW_BREAK_GLASS_KEY=1</code>.</li></ul>
+      <ul><li><b>Operator SSO</b>: issuer, client id and a roster or allowed domains are configured.</li><li><b>Operator MFA required</b>: set <code>MORROW_ENVIRONMENT=production</code> and do not set <code>MORROW_ADMIN_REQUIRE_MFA=0</code>.</li><li><b>Shared key is break-glass only</b>: fails while <code>MORROW_ALLOW_BREAK_GLASS_KEY=1</code>.</li></ul>
       <p>The gate also lists manual exit criteria (real GitHub App pilot, tenant isolation via POST <code>/platform/tenant-isolation/verify</code>, backup and restore drill, audit package review, dashboards checked during pilot traffic, CI security workflow, threat model sign-off). <code>scripts/check-go-live-gate.ps1</code> runs the same gate from a shell.</p>
       <p>The gate reads settings. It cannot tell you whether the accounts behind them work, because it never calls them. <code>scripts/check-integrations.py</code> does, and it is the check to run before you hand the URL to a customer:</p>
       <ul><li><code>.\scripts\check-integrations.ps1</code> checks SSO, alert channels, Redis, Postgres, the vault key and the AI provider.</li><li><code>.\scripts\check-integrations.ps1 -Offline</code> checks configuration only, with no network call at all.</li><li><code>.\scripts\check-integrations.ps1 -SendTest</code> also sends ONE labelled test message to each enabled alert channel.</li></ul>
@@ -2226,31 +2226,31 @@ const NAV = [
       <div class="stepList"><div class="stepItem"><div><b>Create the organization.</b> <b>Customers › Organizations › New customer</b>: <b>Organization id</b> (for example <code>acme-bank</code>), <b>Display name</b>, <b>Plan</b>, <b>Initial status</b> (active or trial), <b>Reason</b> (for example the order form reference), <b>Create customer</b>.</div></div><div class="stepItem"><div><b>Invite the customer admin.</b> <b>Customers › Invitations</b>: organization, role <b>org admin (admin)</b>, their email, expiry, reason, <b>Create invitation</b>. Copy the link and send it over a trusted channel, or use <b>Email the invite</b>. The person must be able to sign in with that email (through the customer's configured SSO or JWT identity, or a built-in account): there is no self sign-up.</div></div><div class="stepItem"><div><b>Set limits.</b> If this organization needs limits other than the platform default, <b>Access Rate limits</b>: choose the organization, <b>API calls per minute</b>, <b>Scans per hour</b>, reason, <b>Save overrides</b>. Leave it alone to use the plan or platform default.</div></div><div class="stepItem"><div><b>Verify in Customer 360.</b> Refresh the organization: <b>Members</b> shows the admin once they accept; <b>Manage… › Users &amp; access</b> shows the rate-limit enforcement state; <b>Onboarding checklist</b> shows the next activation steps; <b>Recent activity</b> shows your admin changes.</div></div><div class="stepItem"><div><b>Tell the customer</b> that support access requires their explicit approval and where to control it (<b>Administration › Support access</b>).</div></div></div>
       </details>
       <details class="faq"><summary>16. Runbook: an alert arrives</summary>
-      <div class="stepList"><div class="stepItem"><div><b>Acknowledge</b> in your on-call tool so nobody else starts the same work. A message beginning "Still open:" is a 24-hour reminder, not a new problem.</div></div><div class="stepItem"><div><b>Open the console</b> and the bell or <b>Operations › Notifications</b>. Each item links to the page that deals with it.</div></div><div class="stepItem"><div><b>Triage by kind:</b><ul><li><code>incident</code>: <b>Operations › Incidents &amp; abuse</b> and <b>Service health</b> (request observability shows recent errors and slow requests); check <b>Background jobs</b> for failing jobs.</li><li><code>abuse</code> or 429s: <b>Incidents &amp; abuse</b> and <b>Access › Rate limits › Rate-limit pressure</b>; decide whether a limit is too low or a client misbehaves. Use <b>Traffic Lens</b> for source IPs and routes.</li><li><code>failed_login_spike</code>: <b>Security › Audit log › Authentication events</b>; consider <b>Access › Sessions › Revoke access</b> for affected users or organizations.</li><li><code>maintenance_overdue</code>: finish the work or <b>Turn maintenance off</b>.</li><li><code>go_live_blockers</code>: <b>Security › Launch readiness</b>.</li><li><code>security_finding</code>: <b>Security › Security truth</b>.</li><li><code>api_key_expiring</code>: <b>Access › API keys</b>; rotate with a grace period.</li><li><code>org_suspended</code>, <code>sla_breach</code>, <code>feedback</code>, <code>autopatch_pending</code>: open the linked customer, remediation, feedback or autopatch.</li><li><b>Break-glass platform key used</b> (bell): confirm the emergency is real; when over, remove <code>PQC_ALLOW_BREAK_GLASS_KEY</code>, restart and rotate the shared key.</li></ul></div></div><div class="stepItem"><div><b>Communicate</b> if customers are affected: publish an announcement, and use maintenance mode if writes must stop.</div></div><div class="stepItem"><div><b>Resolve</b> the cause. The item clears from notifications on its own; PagerDuty incidents resolve automatically for the kinds in section 7. Resolve other incidents in PagerDuty yourself.</div></div><div class="stepItem"><div><b>Check delivery</b> if an expected alert never came: <b>Alert routing › Delivery log</b> (failed, suppressed during quiet hours, or rate limited) and the <b>Alert routing dispatcher</b> job.</div></div><div class="stepItem"><div><b>Record</b> what happened; admin changes are already in <b>Admin Audit</b>.</div></div></div>
+      <div class="stepList"><div class="stepItem"><div><b>Acknowledge</b> in your on-call tool so nobody else starts the same work. A message beginning "Still open:" is a 24-hour reminder, not a new problem.</div></div><div class="stepItem"><div><b>Open the console</b> and the bell or <b>Operations › Notifications</b>. Each item links to the page that deals with it.</div></div><div class="stepItem"><div><b>Triage by kind:</b><ul><li><code>incident</code>: <b>Operations › Incidents &amp; abuse</b> and <b>Service health</b> (request observability shows recent errors and slow requests); check <b>Background jobs</b> for failing jobs.</li><li><code>abuse</code> or 429s: <b>Incidents &amp; abuse</b> and <b>Access › Rate limits › Rate-limit pressure</b>; decide whether a limit is too low or a client misbehaves. Use <b>Traffic Lens</b> for source IPs and routes.</li><li><code>failed_login_spike</code>: <b>Security › Audit log › Authentication events</b>; consider <b>Access › Sessions › Revoke access</b> for affected users or organizations.</li><li><code>maintenance_overdue</code>: finish the work or <b>Turn maintenance off</b>.</li><li><code>go_live_blockers</code>: <b>Security › Launch readiness</b>.</li><li><code>security_finding</code>: <b>Security › Security truth</b>.</li><li><code>api_key_expiring</code>: <b>Access › API keys</b>; rotate with a grace period.</li><li><code>org_suspended</code>, <code>sla_breach</code>, <code>feedback</code>, <code>autopatch_pending</code>: open the linked customer, remediation, feedback or autopatch.</li><li><b>Break-glass platform key used</b> (bell): confirm the emergency is real; when over, remove <code>MORROW_ALLOW_BREAK_GLASS_KEY</code>, restart and rotate the shared key.</li></ul></div></div><div class="stepItem"><div><b>Communicate</b> if customers are affected: publish an announcement, and use maintenance mode if writes must stop.</div></div><div class="stepItem"><div><b>Resolve</b> the cause. The item clears from notifications on its own; PagerDuty incidents resolve automatically for the kinds in section 7. Resolve other incidents in PagerDuty yourself.</div></div><div class="stepItem"><div><b>Check delivery</b> if an expected alert never came: <b>Alert routing › Delivery log</b> (failed, suppressed during quiet hours, or rate limited) and the <b>Alert routing dispatcher</b> job.</div></div><div class="stepItem"><div><b>Record</b> what happened; admin changes are already in <b>Admin Audit</b>.</div></div></div>
       </details>
       <details class="faq"><summary>17. Rotating the vault master key</summary>
-      <p><code>PQC_VAULT_MASTER_KEY</code> encrypts stored integration credentials, gateway site keys, operators' MFA secrets, GitHub sign-in tokens and alert channel targets. <code>scripts/rotate-vault-master-key.py</code> re-encrypts all five.</p>
-      <div class="stepList"><div class="stepItem"><div>Schedule a maintenance window and back up the databases.</div></div><div class="stepItem"><div>Put the current key in <code>PQC_VAULT_MASTER_KEY</code> and the new one in <code>PQC_VAULT_MASTER_KEY_NEW</code> in the shell only, or pass <code>--generate-new-key-file &lt;path&gt;</code> to create one (written only to that owner-only file, never shown).</div></div><div class="stepItem"><div>Rehearse (default, changes nothing): <code>backend/.venv/Scripts/python.exe scripts/rotate-vault-master-key.py</code>. If any value cannot be decrypted with the current key, it stops and changes nothing.</div></div><div class="stepItem"><div>Apply: add <code>--apply</code>. Values are verified with the new key before commit.</div></div><div class="stepItem"><div>Store the new key as <code>PQC_VAULT_MASTER_KEY</code> in the secret manager, restart every server and worker, and check integrations, gateways and MFA sign-in.</div></div><div class="stepItem"><div>Press <b>Send test</b> on one Slack, PagerDuty or webhook alert channel to confirm its target decrypts with the new key.</div></div><div class="stepItem"><div>Destroy the old key and the key file.</div></div></div>
-      <p>Also: SAML users sign in again; evidence signed with the vault key (when no <code>PQC_EVIDENCE_SIGNING_KEY</code> is set) no longer verifies, so set a dedicated evidence key first; and, if <code>PQC_USAGE_ACTOR_SALT</code> is unset, distinct-user counting restarts.</p>
+      <p><code>MORROW_VAULT_MASTER_KEY</code> encrypts stored integration credentials, gateway site keys, operators' MFA secrets, GitHub sign-in tokens and alert channel targets. <code>scripts/rotate-vault-master-key.py</code> re-encrypts all five.</p>
+      <div class="stepList"><div class="stepItem"><div>Schedule a maintenance window and back up the databases.</div></div><div class="stepItem"><div>Put the current key in <code>MORROW_VAULT_MASTER_KEY</code> and the new one in <code>MORROW_VAULT_MASTER_KEY_NEW</code> in the shell only, or pass <code>--generate-new-key-file &lt;path&gt;</code> to create one (written only to that owner-only file, never shown).</div></div><div class="stepItem"><div>Rehearse (default, changes nothing): <code>backend/.venv/Scripts/python.exe scripts/rotate-vault-master-key.py</code>. If any value cannot be decrypted with the current key, it stops and changes nothing.</div></div><div class="stepItem"><div>Apply: add <code>--apply</code>. Values are verified with the new key before commit.</div></div><div class="stepItem"><div>Store the new key as <code>MORROW_VAULT_MASTER_KEY</code> in the secret manager, restart every server and worker, and check integrations, gateways and MFA sign-in.</div></div><div class="stepItem"><div>Press <b>Send test</b> on one Slack, PagerDuty or webhook alert channel to confirm its target decrypts with the new key.</div></div><div class="stepItem"><div>Destroy the old key and the key file.</div></div></div>
+      <p>Also: SAML users sign in again; evidence signed with the vault key (when no <code>MORROW_EVIDENCE_SIGNING_KEY</code> is set) no longer verifies, so set a dedicated evidence key first; and, if <code>MORROW_USAGE_ACTOR_SALT</code> is unset, distinct-user counting restarts.</p>
       </details>
       <details class="faq"><summary>18. Environment variable reference</summary>
       <p>Names and defaults as read by the code; <code>.env.prod.example</code> carries a commented section for each group.</p>
       <p><b>Operator sign-in</b></p>
-      <ul><li><code>PQC_ENVIRONMENT</code>: <b>Default</b> <code>local</code>. <b>Meaning</b> <code>production</code>, <code>prod</code>, <code>staging</code> and <code>stage</code> are strict: shared key refused, MFA on</li><li><code>PQC_ADMIN_OIDC_ISSUER</code>: <b>Default</b> none. <b>Meaning</b> Identity provider issuer URL</li><li><code>PQC_ADMIN_OIDC_CLIENT_ID</code>: <b>Default</b> none. <b>Meaning</b> OIDC client id</li><li><code>PQC_ADMIN_OIDC_CLIENT_SECRET</code>: <b>Default</b> empty. <b>Meaning</b> Leave empty for a public PKCE client</li><li><code>PQC_ADMIN_OIDC_REDIRECT_URI</code>: <b>Default</b> <code>{PQC_PUBLIC_BASE_URL}/vendor-admin/sso/callback</code>. <b>Meaning</b> Must match the IdP registration</li><li><code>PQC_ADMIN_OPERATOR_ROLES</code>: <b>Default</b> none. <b>Meaning</b> Roster: <code>email=role</code> pairs (owner, operator, support, auditor)</li><li><code>PQC_ADMIN_OIDC_ALLOWED_DOMAINS</code>: <b>Default</b> none. <b>Meaning</b> Allowed email domains</li><li><code>PQC_ADMIN_OIDC_DOMAIN_ROLE</code>: <b>Default</b> <code>auditor</code>. <b>Meaning</b> Role for domain members when no roster is set</li><li><code>PQC_ADMIN_OIDC_SCOPES</code>: <b>Default</b> <code>openid email profile</code>. <b>Meaning</b> Requested scopes</li><li><code>PQC_ADMIN_OIDC_EMAIL_CLAIM</code>: <b>Default</b> <code>email</code>. <b>Meaning</b> Claim holding the email</li><li><code>PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Require <code>email_verified=true</code></li><li><code>PQC_ADMIN_SESSION_ABSOLUTE_SECONDS</code>: <b>Default</b> <code>28800</code>. <b>Meaning</b> Longest console session; also how long a named key's MFA verification lasts</li><li><code>PQC_ADMIN_SESSION_IDLE_SECONDS</code>: <b>Default</b> <code>1800</code>. <b>Meaning</b> Inactivity timeout</li><li><code>PQC_ADMIN_REQUIRE_MFA</code>: <b>Default</b> on in production/staging. <b>Meaning</b> Require TOTP</li><li><code>PQC_ADMIN_STEP_UP_SECONDS</code>: <b>Default</b> <code>900</code>. <b>Meaning</b> How recent a code must be for risky actions</li><li><code>PQC_ALLOW_BREAK_GLASS_KEY</code>: <b>Default</b> off. <b>Meaning</b> Accept the shared key in production/staging</li><li><code>PQC_PLATFORM_ADMIN_KEY</code>: <b>Default</b> none. <b>Meaning</b> Shared key (break-glass in production)</li><li><code>PQC_PLATFORM_ADMIN_KEY_ROLE</code>: <b>Default</b> <code>owner</code>. <b>Meaning</b> Ceiling for the shared key</li><li><code>PQC_PLATFORM_OPERATORS</code>: <b>Default</b> none. <b>Meaning</b> Named operator keys (JSON list with <code>key_sha256</code>)</li><li><code>PQC_VAULT_MASTER_KEY</code>: <b>Default</b> none. <b>Meaning</b> Required for MFA secrets and encrypted alert targets</li><li><code>PQC_VAULT_MASTER_KEY_NEW</code>: <b>Default</b> none. <b>Meaning</b> Only for a rotation run</li></ul>
+      <ul><li><code>MORROW_ENVIRONMENT</code>: <b>Default</b> <code>local</code>. <b>Meaning</b> <code>production</code>, <code>prod</code>, <code>staging</code> and <code>stage</code> are strict: shared key refused, MFA on</li><li><code>MORROW_ADMIN_OIDC_ISSUER</code>: <b>Default</b> none. <b>Meaning</b> Identity provider issuer URL</li><li><code>MORROW_ADMIN_OIDC_CLIENT_ID</code>: <b>Default</b> none. <b>Meaning</b> OIDC client id</li><li><code>MORROW_ADMIN_OIDC_CLIENT_SECRET</code>: <b>Default</b> empty. <b>Meaning</b> Leave empty for a public PKCE client</li><li><code>MORROW_ADMIN_OIDC_REDIRECT_URI</code>: <b>Default</b> <code>{MORROW_PUBLIC_BASE_URL}/vendor-admin/sso/callback</code>. <b>Meaning</b> Must match the IdP registration</li><li><code>MORROW_ADMIN_OPERATOR_ROLES</code>: <b>Default</b> none. <b>Meaning</b> Roster: <code>email=role</code> pairs (owner, operator, support, auditor)</li><li><code>MORROW_ADMIN_OIDC_ALLOWED_DOMAINS</code>: <b>Default</b> none. <b>Meaning</b> Allowed email domains</li><li><code>MORROW_ADMIN_OIDC_DOMAIN_ROLE</code>: <b>Default</b> <code>auditor</code>. <b>Meaning</b> Role for domain members when no roster is set</li><li><code>MORROW_ADMIN_OIDC_SCOPES</code>: <b>Default</b> <code>openid email profile</code>. <b>Meaning</b> Requested scopes</li><li><code>MORROW_ADMIN_OIDC_EMAIL_CLAIM</code>: <b>Default</b> <code>email</code>. <b>Meaning</b> Claim holding the email</li><li><code>MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Require <code>email_verified=true</code></li><li><code>MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS</code>: <b>Default</b> <code>28800</code>. <b>Meaning</b> Longest console session; also how long a named key's MFA verification lasts</li><li><code>MORROW_ADMIN_SESSION_IDLE_SECONDS</code>: <b>Default</b> <code>1800</code>. <b>Meaning</b> Inactivity timeout</li><li><code>MORROW_ADMIN_REQUIRE_MFA</code>: <b>Default</b> on in production/staging. <b>Meaning</b> Require TOTP</li><li><code>MORROW_ADMIN_STEP_UP_SECONDS</code>: <b>Default</b> <code>900</code>. <b>Meaning</b> How recent a code must be for risky actions</li><li><code>MORROW_ALLOW_BREAK_GLASS_KEY</code>: <b>Default</b> off. <b>Meaning</b> Accept the shared key in production/staging</li><li><code>MORROW_PLATFORM_ADMIN_KEY</code>: <b>Default</b> none. <b>Meaning</b> Shared key (break-glass in production)</li><li><code>MORROW_PLATFORM_ADMIN_KEY_ROLE</code>: <b>Default</b> <code>owner</code>. <b>Meaning</b> Ceiling for the shared key</li><li><code>MORROW_PLATFORM_OPERATORS</code>: <b>Default</b> none. <b>Meaning</b> Named operator keys (JSON list with <code>key_sha256</code>)</li><li><code>MORROW_VAULT_MASTER_KEY</code>: <b>Default</b> none. <b>Meaning</b> Required for MFA secrets and encrypted alert targets</li><li><code>MORROW_VAULT_MASTER_KEY_NEW</code>: <b>Default</b> none. <b>Meaning</b> Only for a rotation run</li></ul>
       <p><b>Usage rollups and rate limits</b></p>
-      <ul><li><code>PQC_USAGE_ROLLUPS_ENABLED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Daily summaries on or off</li><li><code>PQC_USAGE_ROLLUP_INTERVAL_SECONDS</code>: <b>Default</b> <code>3600</code>. <b>Meaning</b> Check interval (minimum 60)</li><li><code>PQC_USAGE_ROLLUP_RETENTION_DAYS</code>: <b>Default</b> <code>400</code>. <b>Meaning</b> Summary retention (35 to 3650)</li><li><code>PQC_USAGE_ACTOR_SALT</code>: <b>Default</b> derived from <code>PQC_VAULT_MASTER_KEY</code> or <code>PQC_AUTH_JWT_SECRET</code>. <b>Meaning</b> Salt for active-user hashes; set a long random value and keep it stable</li><li><code>PQC_TRAFFIC_RETENTION_DAYS</code>: <b>Default</b> <code>7</code> (max 30). <b>Meaning</b> Raw request records</li><li><code>PQC_AUTH_LOG_RETENTION_DAYS</code>: <b>Default</b> <code>90</code> (max 365). <b>Meaning</b> Raw sign-in records</li><li><code>PQC_ORG_RATE_LIMITS_ENABLED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Per-organization enforcement</li><li><code>PQC_ORG_RATE_LIMIT_CACHE_SECONDS</code>: <b>Default</b> <code>15</code>. <b>Meaning</b> Override cache per server</li><li><code>PQC_ORG_DEFAULT_API_CALLS_PER_MIN</code>: <b>Default</b> <code>0</code>. <b>Meaning</b> Default per-minute limit (0 = none)</li><li><code>PQC_ORG_DEFAULT_SCANS_PER_HOUR</code>: <b>Default</b> <code>0</code>. <b>Meaning</b> Default hourly scan limit (0 = none)</li><li><code>REDIS_URL</code> / <code>CELERY_BROKER_URL</code>: <b>Default</b> none. <b>Meaning</b> Shared rate-limit counters across servers</li><li><code>PQC_RATE_LIMIT_AUTH</code>: <b>Default</b> <code>10/minute</code>. <b>Meaning</b> Sign-in and invite lookups</li></ul>
+      <ul><li><code>MORROW_USAGE_ROLLUPS_ENABLED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Daily summaries on or off</li><li><code>MORROW_USAGE_ROLLUP_INTERVAL_SECONDS</code>: <b>Default</b> <code>3600</code>. <b>Meaning</b> Check interval (minimum 60)</li><li><code>MORROW_USAGE_ROLLUP_RETENTION_DAYS</code>: <b>Default</b> <code>400</code>. <b>Meaning</b> Summary retention (35 to 3650)</li><li><code>MORROW_USAGE_ACTOR_SALT</code>: <b>Default</b> derived from <code>MORROW_VAULT_MASTER_KEY</code> or <code>MORROW_AUTH_JWT_SECRET</code>. <b>Meaning</b> Salt for active-user hashes; set a long random value and keep it stable</li><li><code>MORROW_TRAFFIC_RETENTION_DAYS</code>: <b>Default</b> <code>7</code> (max 30). <b>Meaning</b> Raw request records</li><li><code>MORROW_AUTH_LOG_RETENTION_DAYS</code>: <b>Default</b> <code>90</code> (max 365). <b>Meaning</b> Raw sign-in records</li><li><code>MORROW_ORG_RATE_LIMITS_ENABLED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Per-organization enforcement</li><li><code>MORROW_ORG_RATE_LIMIT_CACHE_SECONDS</code>: <b>Default</b> <code>15</code>. <b>Meaning</b> Override cache per server</li><li><code>MORROW_ORG_DEFAULT_API_CALLS_PER_MIN</code>: <b>Default</b> <code>0</code>. <b>Meaning</b> Default per-minute limit (0 = none)</li><li><code>MORROW_ORG_DEFAULT_SCANS_PER_HOUR</code>: <b>Default</b> <code>0</code>. <b>Meaning</b> Default hourly scan limit (0 = none)</li><li><code>REDIS_URL</code> / <code>CELERY_BROKER_URL</code>: <b>Default</b> none. <b>Meaning</b> Shared rate-limit counters across servers</li><li><code>MORROW_RATE_LIMIT_AUTH</code>: <b>Default</b> <code>10/minute</code>. <b>Meaning</b> Sign-in and invite lookups</li></ul>
       <p><b>Support sessions</b></p>
-      <ul><li><code>PQC_AUTH_JWT_SECRET</code>: <b>Default</b> none. <b>Meaning</b> Required; without it sessions answer 503</li><li><code>PQC_SUPPORT_SESSION_CACHE_SECONDS</code>: <b>Default</b> <code>5</code> (capped at 5). <b>Meaning</b> How long a server trusts a cached session status</li></ul>
+      <ul><li><code>MORROW_AUTH_JWT_SECRET</code>: <b>Default</b> none. <b>Meaning</b> Required; without it sessions answer 503</li><li><code>MORROW_SUPPORT_SESSION_CACHE_SECONDS</code>: <b>Default</b> <code>5</code> (capped at 5). <b>Meaning</b> How long a server trusts a cached session status</li></ul>
       <p><b>Alert routing and platform email</b></p>
-      <ul><li><code>PQC_ALERT_DISPATCH_ENABLED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Automatic sending (tests always work)</li><li><code>PQC_ALERT_DISPATCH_INTERVAL_SECONDS</code>: <b>Default</b> <code>60</code>. <b>Meaning</b> Dispatcher interval (10 to 3600)</li><li><code>PQC_ALERT_RENOTIFY_HOURS</code>: <b>Default</b> <code>24</code>. <b>Meaning</b> Re-send items still open</li><li><code>PQC_ALERT_RATE_CAP</code>: <b>Default</b> <code>20</code>. <b>Meaning</b> Messages per channel per window</li><li><code>PQC_ALERT_RATE_WINDOW_MINUTES</code>: <b>Default</b> <code>10</code>. <b>Meaning</b> Rate-cap window</li><li><code>PQC_ALERT_DELIVERY_RETENTION_DAYS</code>: <b>Default</b> <code>30</code>. <b>Meaning</b> Delivery log retention</li><li><code>PQC_SMTP_HOST</code>, <code>PQC_SMTP_PORT</code>, <code>PQC_SMTP_USER</code>, <code>PQC_SMTP_PASSWORD</code>, <code>PQC_SMTP_FROM</code>, <code>PQC_SMTP_STARTTLS</code>: <b>Default</b> unset; port <code>587</code>, STARTTLS <code>1</code>. <b>Meaning</b> Platform email for alert emails and <b>Email the invite</b></li><li><code>PQC_PLATFORM_SMTP_ORG_ID</code>: <b>Default</b> unset. <b>Meaning</b> Reuse one organization's saved SMTP settings instead</li><li><code>PQC_PUBLIC_BASE_URL</code>: <b>Default</b> request origin. <b>Meaning</b> Base for invite links and links in alerts; set it in production</li></ul>
+      <ul><li><code>MORROW_ALERT_DISPATCH_ENABLED</code>: <b>Default</b> <code>1</code>. <b>Meaning</b> Automatic sending (tests always work)</li><li><code>MORROW_ALERT_DISPATCH_INTERVAL_SECONDS</code>: <b>Default</b> <code>60</code>. <b>Meaning</b> Dispatcher interval (10 to 3600)</li><li><code>MORROW_ALERT_RENOTIFY_HOURS</code>: <b>Default</b> <code>24</code>. <b>Meaning</b> Re-send items still open</li><li><code>MORROW_ALERT_RATE_CAP</code>: <b>Default</b> <code>20</code>. <b>Meaning</b> Messages per channel per window</li><li><code>MORROW_ALERT_RATE_WINDOW_MINUTES</code>: <b>Default</b> <code>10</code>. <b>Meaning</b> Rate-cap window</li><li><code>MORROW_ALERT_DELIVERY_RETENTION_DAYS</code>: <b>Default</b> <code>30</code>. <b>Meaning</b> Delivery log retention</li><li><code>MORROW_SMTP_HOST</code>, <code>MORROW_SMTP_PORT</code>, <code>MORROW_SMTP_USER</code>, <code>MORROW_SMTP_PASSWORD</code>, <code>MORROW_SMTP_FROM</code>, <code>MORROW_SMTP_STARTTLS</code>: <b>Default</b> unset; port <code>587</code>, STARTTLS <code>1</code>. <b>Meaning</b> Platform email for alert emails and <b>Email the invite</b></li><li><code>MORROW_PLATFORM_SMTP_ORG_ID</code>: <b>Default</b> unset. <b>Meaning</b> Reuse one organization's saved SMTP settings instead</li><li><code>MORROW_PUBLIC_BASE_URL</code>: <b>Default</b> request origin. <b>Meaning</b> Base for invite links and links in alerts; set it in production</li></ul>
       <p><b>Customer console assistant</b></p>
-      <ul><li><code>PQC_LLM_PROVIDER</code>: <b>Default</b> unset. <b>Meaning</b> Which adapter answers: anthropic, openai, azure-openai, gemini, openai-compatible, ollama, builtin or custom. Unset keeps the original behaviour below</li><li><code>PQC_LLM_MODEL</code> / <code>PQC_LLM_BASE_URL</code> / <code>PQC_LLM_API_KEY</code>: <b>Default</b> unset. <b>Meaning</b> Model name, endpoint and credential for the chosen provider</li><li><code>PQC_LLM_HEADERS</code>: <b>Default</b> unset. <b>Meaning</b> Extra headers for a gateway, as JSON or k=v,k=v</li><li><code>PQC_LLM_CUSTOM_MODULE</code>: <b>Default</b> unset. <b>Meaning</b> With <code>PQC_LLM_PROVIDER=custom</code>, the dotted import path of your own adapter (see examples/custom_llm_provider.py)</li><li><code>PQC_LLM_DISABLED</code>: <b>Default</b> unset. <b>Meaning</b> 1 forces the built-in answerer; no model call leaves the deployment, and no organization setting can override it</li><li><code>ANTHROPIC_API_KEY</code>: <b>Default</b> unset. <b>Meaning</b> CipherLens uses Claude when set and no PQC_LLM_PROVIDER is given</li><li><code>OPENAI_API_KEY</code>: <b>Default</b> unset. <b>Meaning</b> Used when no Anthropic key is set. With neither key, CipherLens answers with built-in guidance and notes that no AI provider is configured</li></ul>
+      <ul><li><code>MORROW_LLM_PROVIDER</code>: <b>Default</b> unset. <b>Meaning</b> Which adapter answers: anthropic, openai, azure-openai, gemini, openai-compatible, ollama, builtin or custom. Unset keeps the original behaviour below</li><li><code>MORROW_LLM_MODEL</code> / <code>MORROW_LLM_BASE_URL</code> / <code>MORROW_LLM_API_KEY</code>: <b>Default</b> unset. <b>Meaning</b> Model name, endpoint and credential for the chosen provider</li><li><code>MORROW_LLM_HEADERS</code>: <b>Default</b> unset. <b>Meaning</b> Extra headers for a gateway, as JSON or k=v,k=v</li><li><code>MORROW_LLM_CUSTOM_MODULE</code>: <b>Default</b> unset. <b>Meaning</b> With <code>MORROW_LLM_PROVIDER=custom</code>, the dotted import path of your own adapter (see examples/custom_llm_provider.py)</li><li><code>MORROW_LLM_DISABLED</code>: <b>Default</b> unset. <b>Meaning</b> 1 forces the built-in answerer; no model call leaves the deployment, and no organization setting can override it</li><li><code>ANTHROPIC_API_KEY</code>: <b>Default</b> unset. <b>Meaning</b> CipherLens uses Claude when set and no MORROW_LLM_PROVIDER is given</li><li><code>OPENAI_API_KEY</code>: <b>Default</b> unset. <b>Meaning</b> Used when no Anthropic key is set. With neither key, CipherLens answers with built-in guidance and notes that no AI provider is configured</li></ul>
       <p>Full provider reference, including the capability table and how to add an adapter: <code>docs/AI_PROVIDERS.md</code>.</p>
       </details>
       <details class="faq"><summary>19. Identity provider setup (summary)</summary>
       <p>Create an OIDC web application with redirect URI <code>https://&lt;console host&gt;/vendor-admin/sso/callback</code>, authorization code grant (PKCE is automatic) and scopes <code>openid email profile</code>. Then:</p>
-      <ul><li><b>Okta</b>: issuer <code>https://your-org.okta.com</code> (or <code>/oauth2/default</code>); assign the app to your operators group.</li><li><b>Microsoft Entra ID</b>: issuer <code>https://login.microsoftonline.com/&lt;tenant id&gt;/v2.0</code>, never <code>common</code>. Entra does not send <code>email_verified</code>: add the optional <code>email</code> claim, or set <code>PQC_ADMIN_OIDC_EMAIL_CLAIM=preferred_username</code> and <code>PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=0</code> with the tenant-specific issuer only.</li><li><b>Google Workspace</b>: issuer <code>https://accounts.google.com</code>, consent screen <b>Internal</b>, and <code>PQC_ADMIN_OIDC_ALLOWED_DOMAINS=yourcompany.com</code>.</li></ul>
-      <p>Prefer an explicit roster (<code>PQC_ADMIN_OPERATOR_ROLES</code>). Removing an email takes effect on that person's next click. Full detail: "Operator SSO, MFA and break-glass" in <code>docs/COMPLETE_DOCUMENTATION.md</code>.</p>
+      <ul><li><b>Okta</b>: issuer <code>https://your-org.okta.com</code> (or <code>/oauth2/default</code>); assign the app to your operators group.</li><li><b>Microsoft Entra ID</b>: issuer <code>https://login.microsoftonline.com/&lt;tenant id&gt;/v2.0</code>, never <code>common</code>. Entra does not send <code>email_verified</code>: add the optional <code>email</code> claim, or set <code>MORROW_ADMIN_OIDC_EMAIL_CLAIM=preferred_username</code> and <code>MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=0</code> with the tenant-specific issuer only.</li><li><b>Google Workspace</b>: issuer <code>https://accounts.google.com</code>, consent screen <b>Internal</b>, and <code>MORROW_ADMIN_OIDC_ALLOWED_DOMAINS=yourcompany.com</code>.</li></ul>
+      <p>Prefer an explicit roster (<code>MORROW_ADMIN_OPERATOR_ROLES</code>). Removing an email takes effect on that person's next click. Full detail: "Operator SSO, MFA and break-glass" in <code>docs/COMPLETE_DOCUMENTATION.md</code>.</p>
       </details>
       <details class="faq"><summary>20. What the platform will not invent</summary>
       <p>A customer's console shows a figure only when it is measured from that customer's own data, or when it is labelled as a model or reference with its assumptions and sources attached. Two rules follow, and support will be asked about both.</p>
@@ -2284,7 +2284,7 @@ const NAV = [
   ]},
   { g: "System", items: [
     { id: "integrations",n: "Integrations",    i: I.plug,      d: "GitHub, Cloudflare, Slack, Jira, webhooks and CI/CD gates" },
-    { id: "knowledge",  n: "Knowledge",        i: I.book,      d: "PQC knowledge base, provider capabilities and search" },
+    { id: "knowledge",  n: "Knowledge",        i: I.book,      d: "Post-quantum knowledge base, provider capabilities and search" },
     { id: "admin",      n: "Administration",   i: I.shield,    d: "Launch readiness, users, organizations, audit trail and platform control" },
     { id: "api",        n: "API Explorer",     i: I.terminal,  d: "Browse the endpoint catalog or call any backend route directly" },
   ]},
@@ -2885,8 +2885,8 @@ ACTIONS.gateRetry = async () => { hideAuthGate(); await afterAuthChange(); };
 /** The /invite landing page sends people here to sign in; send them back (same tab, within 30 min). */
 function inviteReturnPath(consume = false) {
   try {
-    const saved = JSON.parse(sessionStorage.getItem("pqc_invite_return") || "null");
-    if (consume) sessionStorage.removeItem("pqc_invite_return");
+    const saved = JSON.parse(sessionStorage.getItem("pq_invite_return") || "null");
+    if (consume) sessionStorage.removeItem("pq_invite_return");
     const path = String(saved?.path || "");
     return /^\/invite#token=[A-Za-z0-9_-]{16,256}$/.test(path) && Date.now() - Number(saved.at || 0) < 1800000 ? path : "";
   } catch { return ""; }
@@ -2933,7 +2933,7 @@ function reportLoginFailure(r) {
   }
   if (r.status === 503 || (r.status === 500 && /secret/i.test(r.err || ""))) {
     return showLoginError("Server not configured for tokens",
-      "The server cannot sign tokens — PQC_AUTH_JWT_SECRET is not set. Set it and restart the API.");
+      "The server cannot sign tokens — MORROW_AUTH_JWT_SECRET is not set. Set it and restart the API.");
   }
   if (r.status === 401) {
     return showLoginError("Incorrect email or password", "The server rejected those credentials.");
@@ -3105,7 +3105,7 @@ function openConn() {
         <span class="bx">This page is served with a Content-Security-Policy that restricts
         <span class="mono">connect-src</span>, so the browser will <b>block</b> requests to other origins —
         you'll see a CSP violation, not a server error. To target a remote API, serve this page from that
-        origin or widen <span class="mono">PQC_CSP_VALUE</span> on the server.
+        origin or widen <span class="mono">MORROW_CSP_VALUE</span> on the server.
         <span id="cspLive"></span></span></div></div>
       <div class="row"><button class="btn ghost" data-act="openLogin" type="button">${I.lock}Sign-in &amp; identity…</button></div>
     </div>`,
@@ -3135,7 +3135,7 @@ function openConn() {
 ACTIONS.openConn = openConn;
 ACTIONS.connSave = async () => {
   S.base = ($("#cfgBase").value || location.origin).trim().replace(/\/+$/, "");
-  LS.set("pqc_api_base", S.base);
+  LS.set("pq_api_base", S.base);
   $("#overlay").innerHTML = "";
   if (crossOrigin()) toast("API base is cross-origin — requests will be blocked by CSP.", "bad", "Heads up");
   else ok("Connection saved");
@@ -3208,7 +3208,7 @@ function applyTheme() {
   $("#themeBtn").innerHTML = S.theme === "dark" ? I.sun : I.moon;
 }
 // Charts use CSS color tokens; changing appearance must not refetch data or reset forms.
-function toggleTheme() { S.theme = S.theme === "dark" ? "light" : "dark"; LS.set("pqc_theme", S.theme); applyTheme(); }
+function toggleTheme() { S.theme = S.theme === "dark" ? "light" : "dark"; LS.set("morrow_theme", S.theme); applyTheme(); }
 
 async function health() {
   const dot = $("#hDot"), txt = $("#hTxt");
@@ -3239,7 +3239,7 @@ async function loadNotices() {
   }
   const r = await safe("/announcements/active");
   if (!r.ok || !r.data) { box.innerHTML = out.join(""); box.hidden = !out.length; return; }
-  const hidden = new Set(LS.get("pqc_dismissed_notices", "").split("|").filter(Boolean));
+  const hidden = new Set(LS.get("pq_dismissed_notices", "").split("|").filter(Boolean));
   const m = r.data.maintenance || {};
   if (m.enabled) {
     const until = m.ends_at ? ` Expected back ${H(fmtNoticeTime(m.ends_at))}.` : "";
@@ -3263,9 +3263,9 @@ function fmtNoticeTime(v) {
   return isNaN(d) ? String(v) : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 ACTIONS.dismissNotice = async (b) => {
-  const keys = LS.get("pqc_dismissed_notices", "").split("|").filter(Boolean);
+  const keys = LS.get("pq_dismissed_notices", "").split("|").filter(Boolean);
   keys.push(b.dataset.key);
-  LS.set("pqc_dismissed_notices", keys.slice(-50).join("|"));
+  LS.set("pq_dismissed_notices", keys.slice(-50).join("|"));
   // Hide it now; the next refresh already skips dismissed keys, so no refetch is needed.
   b.closest(".banner")?.remove();
   const box = $("#notices");
@@ -3407,8 +3407,8 @@ function boot() {
     await loadAuth();
     paintIdentity();
     try {   // a one-time message handed over by another page (e.g. /invite after accepting)
-      const flash = JSON.parse(sessionStorage.getItem("pqc_flash") || "null");
-      sessionStorage.removeItem("pqc_flash");
+      const flash = JSON.parse(sessionStorage.getItem("pq_flash") || "null");
+      sessionStorage.removeItem("pq_flash");
       if (flash?.message) toast(String(flash.message).slice(0, 200), flash.kind === "ok" ? "ok" : "info", String(flash.title || "").slice(0, 80));
     } catch {}
     if (/[?&]signin=invite(&|$)/.test(location.search) && inviteReturnPath()) {
@@ -3835,7 +3835,7 @@ function strategicCapabilityPanel(ctx) {
       icon: I.bell, color: "var(--bad)", title: "CI/CD quantum vulnerability buzzer engine",
       status: ciTotal ? `${NUM(ciTotal)} scans` : "idle",
       detail: "merge protection",
-      body: "Pull requests buzz when they add RSA/ECDH, pinned classical certificates, weak TLS policy, or missing PQC migration metadata.",
+      body: "Pull requests buzz when they add RSA/ECDH, pinned classical certificates, weak TLS policy, or missing post-quantum migration metadata.",
       cap: "cicd", run: "Buzz diff", to: "integrations", q: "Create the product spec for a CI/CD quantum vulnerability buzzer engine that blocks risky merges.",
     },
     {
@@ -3846,11 +3846,11 @@ function strategicCapabilityPanel(ctx) {
       cap: "firmware", run: "Scan proof", to: "scanners", q: "Define zero-knowledge firmware provenance for IoT and edge devices using the current scanner and proof features.",
     },
     {
-      icon: I.scale, color: "var(--ok)", title: "Automated compliance ledger for cross-border PQC mandates",
+      icon: I.scale, color: "var(--ok)", title: "Automated compliance ledger for cross-border post-quantum mandates",
       status: `${NUM(regimes)} regimes`,
       detail: `${NUM(controls)} controls`,
-      body: "A tamper-evident ledger of policies, scans, exemptions, evidence packs and filings mapped to NIST, CNSA and regional PQC mandates.",
-      cap: "ledger", run: "Build ledger", to: "governance", q: "Design the automated compliance ledger for cross-border PQC mandates and explain what evidence it should store.",
+      body: "A tamper-evident ledger of policies, scans, exemptions, evidence packs and filings mapped to NIST, CNSA and regional post-quantum mandates.",
+      cap: "ledger", run: "Build ledger", to: "governance", q: "Design the automated compliance ledger for cross-border post-quantum mandates and explain what evidence it should store.",
     },
     {
       icon: I.radar, color: "var(--accent)", title: "Autonomous predictive security mesh",
@@ -4036,7 +4036,7 @@ function missionRiskMapCard(assets, repos, rems, fixes, scans) {
   });
   (fixes || []).slice(0, 10).forEach((f, i) => {
     const key = f.asset_key || f.host || f.target || `fix-${i + 1}`;
-    addNode("fix:" + key, String(f.title || f.pqc_recommendation || f.recommendation || key).slice(0, 42), "next fix", missionRiskScore(f));
+    addNode("fix:" + key, String(f.title || f.pq_recommendation || f.recommendation || key).slice(0, 42), "next fix", missionRiskScore(f));
     if (f.asset_key || f.host || f.target) addEdge("asset:" + key, "fix:" + key);
   });
   (scans || []).slice(0, 4).forEach(s => {
@@ -4090,7 +4090,7 @@ function evidenceTimelineCard(scans, rems, readiness) {
 function nextBestActionsCard(fixes, rems, readiness) {
   const failed = readinessFailures(readiness);
   let actions = (fixes || []).slice(0, 5).map((f, i) => ({
-    title: f.pqc_recommendation || f.recommendation || f.action || f.title || `Fix ${f.asset_key || f.host || `#${i + 1}`}`,
+    title: f.pq_recommendation || f.recommendation || f.action || f.title || `Fix ${f.asset_key || f.host || `#${i + 1}`}`,
     detail: `${f.asset_key || f.host || f.target || "asset"} - ${TITLE(f.risk_level || f.priority || f.severity || "priority")} - score ${NUM(missionRiskScore(f), 0)}`,
     to: "remediation",
     q: `Explain the highest impact fix for ${f.asset_key || f.host || f.target || "this asset"} and give an implementation plan.`,
@@ -4333,15 +4333,15 @@ ACTIONS.capRun = async (b) => {
     return;
   }
   if (cap === "middleware") {
-    return requestForm("Plan a transparent PQC proxy", "Describe the service to put behind a hybrid key-exchange sidecar.", [
+    return requestForm("Plan a transparent post-quantum proxy", "Describe the service to put behind a hybrid key-exchange sidecar.", [
       { name: "service", label: "Service name", mono: true },
       { name: "upstream", label: "Upstream host", mono: true },
       { name: "port", label: "Upstream port", type: "number" },
       { name: "listen", label: "Proxy listen port", type: "number", value: "15443" },
     ], v => safe("/crypto-mesh/middleware-plan", { method: "POST", body: {
-      name: `${v.service}-pqc-proxy`, emergency_algorithm: "X25519MLKEM768", deployment_mode: "transparent_sidecar", outbound_capture_port: 15001,
+      name: `${v.service}-pq-proxy`, emergency_algorithm: "X25519MLKEM768", deployment_mode: "transparent_sidecar", outbound_capture_port: 15001,
       services: [{ name: v.service, upstream_host: v.upstream, upstream_port: Number(v.port), listen_port: Number(v.listen) || 15443,
-        gateway_host: `${v.service}-pqc-gateway`, destination_cidr: "" }],
+        gateway_host: `${v.service}-pq-gateway`, destination_cidr: "" }],
     } }).then(r => (r.ok ? capResultDrawer("Automated CAM/API transparent proxy", "/crypto-mesh/middleware-plan", r) : err(r.err))));
   }
   if (cap === "mesh") {
@@ -4365,7 +4365,7 @@ ACTIONS.capRun = async (b) => {
   if (cap === "ledger") {
     const r = await safe("/compliance-ledger/snapshot");
     if (!r.ok) return err(r.err);
-    capResultDrawer("Cross-border PQC compliance ledger", "/compliance-ledger/snapshot", r);
+    capResultDrawer("Cross-border post-quantum compliance ledger", "/compliance-ledger/snapshot", r);
   }
 };
 
@@ -4389,25 +4389,25 @@ VIEWS.airlock = async (host) => {
   const lanes = [
     { icon: I.lock, color: "var(--brand)", title: "Enterprise Airlock Agent", body: "Working Python agent package with HMAC submissions, offline spool, TLS metadata collector, firmware hash proof, systemd timer and Docker deployment.", status: boundary.default_mode || "read_only", act: "airlockAgent" },
     { icon: I.file, color: "var(--brand2)", title: "Signed Airlock Policy Pull", body: "Customer-side agent can pull a signed policy defining collectors, blocked exports, required hybrid TLS groups and submission endpoints.", status: "signed policy", act: "airlockPolicy" },
-    { icon: I.shield, color: "var(--ok)", title: "Trust Passport", body: "Signed PQC readiness proof for an app, API, vendor or device. Shareable with customers, procurement, regulators and cyber insurers.", status: P.status || "ready", act: "airlockTrust" },
-    { icon: I.radar, color: "var(--brand)", title: "Runtime PQC Flight Recorder", body: "Persists payload-blind handshake evidence from agents. Proves what TLS version, cipher and hybrid group were actually observed.", status: `${NUM(F.summary?.returned || 0)} proofs`, act: "airlockFlightSubmit" },
+    { icon: I.shield, color: "var(--ok)", title: "Trust Passport", body: "Signed post-quantum readiness proof for an app, API, vendor or device. Shareable with customers, procurement, regulators and cyber insurers.", status: P.status || "ready", act: "airlockTrust" },
+    { icon: I.radar, color: "var(--brand)", title: "Runtime post-quantum Flight Recorder", body: "Persists payload-blind handshake evidence from agents. Proves what TLS version, cipher and hybrid group were actually observed.", status: `${NUM(F.summary?.returned || 0)} proofs`, act: "airlockFlightSubmit" },
     { icon: I.map, color: "var(--warn)", title: "Autopilot Change Simulator", body: "Simulates middleware and kill-switch rollout before enforcement. Shows affected services, legacy clients and rollback plan.", status: "no change applied", act: "airlockSimulate" },
     { icon: I.git, color: "var(--accent)", title: "Signed Remediation PR Factory", body: "Creates review-only PR bundles with patch, CI gate, middleware route policy and SLSA-style provenance. No repository push required.", status: "signed bundle", act: "airlockPrFactory" },
     { icon: I.layers, color: "var(--accent)", title: "Privacy-Preserving CBOM", body: "Creates salted cryptographic component fingerprints. Raw proprietary component names stay inside the customer boundary by default.", status: "hash-only", act: "airlockCbom" },
     { icon: I.wrench, color: "var(--warn)", title: "Proof-Carrying Remediation", body: "Generates reviewable fix packages with signed policy, CI/CD gate, and middleware controls. Customer approves before anything changes.", status: "manual approval", act: "airlockRemediate" },
     { icon: I.bird, color: "var(--bad)", title: "HNDL Canary Mesh", body: "Deploy decoy cryptographic canaries that create evidence if harvested data is touched later. No real sensitive data is required.", status: "armed", act: "airlockCanary" },
     { icon: I.bug, color: "var(--brand2)", title: "Firmware Proof Without Upload", body: "Accepts firmware hash, findings and provenance only. The raw binary remains in the customer environment.", status: "hash proof", act: "airlockFirmware" },
-    { icon: I.scale, color: "var(--ok)", title: "Compliance Credential", body: "Turns the PQC compliance ledger into a machine-verifiable credential that can be shared without exposing raw customer data.", status: "VC export", act: "airlockCompliance" },
+    { icon: I.scale, color: "var(--ok)", title: "Compliance Credential", body: "Turns the post-quantum compliance ledger into a machine-verifiable credential that can be shared without exposing raw customer data.", status: "VC export", act: "airlockCompliance" },
     { icon: I.zap, color: "var(--bad)", title: "Crypto Kill Switch", body: "Generates signed OPA, CI/CD and middleware policy to rapidly block unsafe algorithms and require hybrid TLS groups.", status: "policy pack", act: "airlockKillSwitch" },
     { icon: I.radar, color: "var(--brand)", title: "Runtime Handshake Proof", body: "Creates a signed individual handshake proof without inspecting payloads. Useful for API demos and one-off evidence.", status: "payload blind", act: "airlockRuntime" },
-    { icon: I.truck, color: "var(--accent)", title: "Vendor Trust Network", body: "Creates vendor trust credentials so suppliers can prove PQC readiness to customers through passports instead of PDFs.", status: "network ready", act: "airlockVendor" },
+    { icon: I.truck, color: "var(--accent)", title: "Vendor Trust Network", body: "Creates vendor trust credentials so suppliers can prove post-quantum readiness to customers through passports instead of PDFs.", status: "network ready", act: "airlockVendor" },
     { icon: I.briefcase, color: "var(--warn)", title: "CipherLens Airlock Wall", body: "Redacts secrets, source, payloads and large raw text before AI calls. The assistant works from summaries and signed evidence.", status: red.default_prompt_mode || "redacted", act: "airlockRedact" },
   ];
   host.innerHTML = `
     <div class="missionBoard">
       <div class="missionNarrative">
         <small>Category moat</small>
-        <h3>Quantum Airlock: customer-boundary PQC trust infrastructure.</h3>
+        <h3>Quantum Airlock: customer-boundary post-quantum trust infrastructure.</h3>
         <p>The platform should not need deep customer access to prove value. The Airlock keeps raw data inside the customer environment and sends signed proofs, hashes, posture metadata, credentials and reviewable remediation packages.</p>
         <div class="row" style="margin-top:16px">
           ${actBtn("Download Airlock Agent", "airlockAgent", { cls: "btn sm pri", icon: I.dl })}
@@ -4514,7 +4514,7 @@ async function topFix() {
   const r = await safe("/fix-next");
   const item = r.ok ? rows(r.data)[0] : null;
   return item
-    ? { asset: item.asset_key || [item.host, item.port].filter(Boolean).join(":"), finding: item.top_findings?.[0]?.title || item.pqc_recommendation || "" }
+    ? { asset: item.asset_key || [item.host, item.port].filter(Boolean).join(":"), finding: item.top_findings?.[0]?.title || item.pq_recommendation || "" }
     : { asset: "", finding: "" };
 }
 ACTIONS.airlockAgent = () => {
@@ -4533,7 +4533,7 @@ ACTIONS.airlockInstallPs = () => {
 ACTIONS.airlockOnboarding = () => airlockShow("/airlock/onboarding-status", "Enterprise Airlock onboarding status");
 ACTIONS.airlockPolicy = () => airlockShow("/airlock/policy", "Signed Airlock policy");
 ACTIONS.airlockReady = () => airlockShow("/airlock/enterprise-readiness", "Enterprise Airlock readiness");
-ACTIONS.airlockTrust = () => airlockShow("/trust-passport", "PQC Trust Passport");
+ACTIONS.airlockTrust = () => airlockShow("/trust-passport", "Post-Quantum Trust Passport");
 ACTIONS.airlockShare = () => requestForm("Share a Trust Passport",
   "Anyone with the link can read this organization's current passport until the link expires.", [
     { name: "subject", label: "Subject name", placeholder: "The system or product this passport describes" },
@@ -4595,10 +4595,10 @@ ACTIONS.airlockFlightSubmit = () => requestForm("Submit runtime handshake observ
     { name: "agent", label: "Collector ID", mono: true, placeholder: "The collector that recorded these" },
     { name: "observations", label: "Observations (JSON array)", type: "textarea", mono: true, rows: 7,
       placeholder: '[{"service_name":"","peer":"","sni":"","tls_version":"TLSv1.3","negotiated_group":"","cipher":"","payload_visible":false}]' },
-  ], v => airlockShow("/airlock/flight-recorder/submit", "Runtime PQC flight-recorder submission", {
+  ], v => airlockShow("/airlock/flight-recorder/submit", "Runtime post-quantum flight-recorder submission", {
     method: "POST", body: { agent_id: v.agent, policy_version: "airlock-enterprise-v1", observations: parseJSONField(v.observations, "Observations") },
   }));
-ACTIONS.airlockFlightList = () => airlockShow("/airlock/flight-recorder", "Runtime PQC flight recorder");
+ACTIONS.airlockFlightList = () => airlockShow("/airlock/flight-recorder", "Runtime post-quantum flight recorder");
 ACTIONS.airlockCanary = () => requestForm("Deploy an HNDL canary token",
   "A decoy secret that reveals itself if traffic harvested from this system is ever decrypted.", [
     { name: "label", label: "Label", placeholder: "Where this token will live" },
@@ -4648,7 +4648,7 @@ ACTIONS.airlockVendor = () => requestForm("Create a vendor trust passport", "", 
 ], v => airlockShow("/vendor-trust/passport", "Vendor trust network passport", {
   method: "POST", body: {
     vendor_name: v.vendor, domain: v.domain, services: v.services.split(",").map(s => s.trim()).filter(Boolean),
-    claims: { pqc_program: v.program, raw_vendor_data_exported: false },
+    claims: { pq_program: v.program, raw_vendor_data_exported: false },
   },
 }));
 ACTIONS.airlockRedact = () => requestForm("Test CipherLens redaction",
@@ -4674,7 +4674,7 @@ VIEWS.scans = async (host) => {
     <div class="col">
       ${card("New scan", `
         <div class="field"><label for="tg">Targets — one per line, <span class="mono">host</span> or <span class="mono">host:port</span></label>
-          <textarea class="inp" id="tg" spellcheck="false" placeholder="your-company.com&#10;api.your-company.com:443">${H(LS.get("pqc_targets", ""))}</textarea></div>
+          <textarea class="inp" id="tg" spellcheck="false" placeholder="your-company.com&#10;api.your-company.com:443">${H(LS.get("pq_targets", ""))}</textarea></div>
         <div class="chipRow" style="margin-top:10px">
           ${[["Clear", ""]].map(([l, v]) =>
             `<button class="chip" type="button" data-act="preset" data-v="${H(v)}">${H(l)}</button>`).join("")}
@@ -4714,7 +4714,7 @@ VIEWS.scans = async (host) => {
 
   const ta = $("#tg");
   const count = () => $("#tgCount").textContent = `${targetList().length} targets`;
-  ta.oninput = () => { LS.set("pqc_targets", ta.value); count(); };
+  ta.oninput = () => { LS.set("pq_targets", ta.value); count(); };
   count();
   if (S.scan.id) renderScanPane(S.scan.id);
   navBadge("scans", list.length || "");
@@ -4783,7 +4783,7 @@ function hndlLiveData(dash) {
     qday: dash?.q_day_year ?? null,
     assets: (dash?.priority_queue || []).map(r => ({
       name: r.asset_key || `${r.host}:${r.port}`, usd: Number(r.exposure_usd) || 0, p: Number(r.p_broken) || 0,
-      cls: hndlClass(r.algo_class), pqc: /pqc/i.test(String(r.algo_class || "")),
+      cls: hndlClass(r.algo_class), pq: /pq/i.test(String(r.algo_class || "")),
     })),
   };
 }
@@ -4837,7 +4837,7 @@ ACTIONS.startScan = async () => {
     const r = await safe("/scans", { method: "POST", body: { targets } });
     if (r.ok) {
       const id = r.data.id || r.data.scan_id;
-      S.scan.id = id; LS.set("pqc_scan", id);
+      S.scan.id = id; LS.set("pq_scan", id);
       ok(`Queued ${targets.length} target${targets.length > 1 ? "s" : ""} to the worker`, "Scan started");
       if (wrap) wrap.hidden = false;
       pollScan(id);
@@ -4868,7 +4868,7 @@ ACTIONS.startScan = async () => {
   const savedId = saved.ok ? (saved.data?.scan?.id || saved.data?.id || saved.data?.scan_id) : null;
   if (saved.ok && savedId) {
     const id = savedId;
-    S.scan.id = id; LS.set("pqc_scan", id);
+    S.scan.id = id; LS.set("pq_scan", id);
     if (wrap) {
       $("#pBar").style.width = "100%";
       $("#pPct").textContent = `100% (${results.length}/${results.length})`;
@@ -4940,7 +4940,7 @@ function pollScan(id) {
 async function renderScanPane(id) {
   const pane = $("#scanPane");
   if (!pane) return;
-  S.scan.id = id; LS.set("pqc_scan", id);
+  S.scan.id = id; LS.set("pq_scan", id);
   const work = $("#scanWork");
   if (work) work.dataset.pane = "result";
   pane.innerHTML = skel(3, 90);
@@ -4976,7 +4976,7 @@ function scanResultBlocks(d, diff, id) {
     <div class="row" style="margin:14px 0">
       <div class="tabs" data-tabs="sc">
         ${[["res", "Posture"], ["find", `Findings${findings.length ? ` (${findings.length})` : ""}`], ["cert", "Certificates"], ["tls", "TLS support"],
-           ["pqc", "PQC guidance"], ["diff", "Baseline diff"], ["plan", "Migration plan"], ["raw", "Raw JSON"]]
+           ["pq", "Post-quantum guidance"], ["diff", "Baseline diff"], ["plan", "Migration plan"], ["raw", "Raw JSON"]]
           .map(([k, l], i) => `<button class="tab ${i ? "" : "on"}" data-key="${k}">${l}</button>`).join("")}
       </div>
       <span class="grow"></span>
@@ -4993,7 +4993,7 @@ function scanResultBlocks(d, diff, id) {
             r.tls12_weak_accepted_ciphers?.length ? `<span class="sub" style="color:var(--warn)">${NUM(r.tls12_weak_accepted_ciphers.length)} weak ciphers</span>` : ""}` },
         { h: "Public key", f: r => `<span class="m">${H(r.classical_algorithm || r.key_type || "—")}${r.key_detail ? ` ${H(r.key_detail)}` : ""}</span>` },
         { h: "Signature", f: r => `<span class="m">${H(r.signature_algorithm || r.sig_algorithm || "—")}</span>` },
-        { h: "Quantum", f: r => `${pill(r.quantum_risk_level || r.pqc_relevance || "unknown")}${
+        { h: "Quantum", f: r => `${pill(r.quantum_risk_level || r.pq_relevance || "unknown")}${
             r.quantum_risk_score != null ? `<span class="sub mono">score ${NUM(r.quantum_risk_score)}</span>` : ""}` },
         { h: "HNDL", f: r => r.harvest_now_decrypt_later_risk ? pill(r.harvest_now_decrypt_later_risk) : "—" },
         { h: "Safe?", f: r => /not_quantum_proof|not_safe/i.test(String(r.quantum_safe_claim || ""))
@@ -5051,33 +5051,33 @@ function scanResultBlocks(d, diff, id) {
       ], list, { max: "560px", empty: "No TLS probe data" }), { flush: true, lift: false })}
     </div>
 
-    <div data-pane="sc" data-key="pqc" hidden>
+    <div data-pane="sc" data-key="pq" hidden>
       <div class="g gWide">${list.map(r => `
         <div class="card lift"><div class="cardHead"><div class="grow">
-          <h3>${I.atom}${H(rTarget(r))}</h3><p>${H(r.pqc_migration_status ? TITLE(r.pqc_migration_status) : "")}</p></div>
-          ${pill(r.pqc_relevance || r.quantum_risk_level)}</div>
+          <h3>${I.atom}${H(rTarget(r))}</h3><p>${H(r.pq_migration_status ? TITLE(r.pq_migration_status) : "")}</p></div>
+          ${pill(r.pq_relevance || r.quantum_risk_level)}</div>
           <div class="cardBody tight">
-            ${r.pqc_recommendation ? `<div class="banner info" style="font-size:11.5px;padding:9px 11px;margin-bottom:11px">${I.info}
-              <div><span class="bx">${H(r.pqc_recommendation)}</span></div></div>` : ""}
+            ${r.pq_recommendation ? `<div class="banner info" style="font-size:11.5px;padding:9px 11px;margin-bottom:11px">${I.info}
+              <div><span class="bx">${H(r.pq_recommendation)}</span></div></div>` : ""}
             ${kvList([
               ["Readiness", r.quantum_readiness_level ? rawPill(r.quantum_readiness_level) : ""],
               ["Crypto agility", r.crypto_agility_score != null ? `<span class="mono">${NUM(r.crypto_agility_score)}/100</span>` : ""],
-              ["Provider", r.provider_guess ? `${H(r.provider_guess)} · ${rawPill(r.provider_pqc_support_status || "")}` : ""],
+              ["Provider", r.provider_guess ? `${H(r.provider_guess)} · ${rawPill(r.provider_pq_support_status || "")}` : ""],
               ["Claim", r.quantum_safe_claim ? rawPill(r.quantum_safe_claim) : ""],
             ])}
             ${(r.immediate_hardening_actions || []).length ? `<div style="margin-top:11px">
               <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink3);font-weight:700;margin-bottom:6px">Harden now</div>
               <ul style="margin:0;padding-left:16px;font-size:11.5px;color:var(--ink2);line-height:1.6">
               ${r.immediate_hardening_actions.map(a => `<li>${H(a)}</li>`).join("")}</ul></div>` : ""}
-            ${(r.pqc_migration_actions || []).length ? `<div style="margin-top:11px">
-              <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink3);font-weight:700;margin-bottom:6px">PQC migration</div>
+            ${(r.pq_migration_actions || []).length ? `<div style="margin-top:11px">
+              <div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink3);font-weight:700;margin-bottom:6px">Post-quantum migration</div>
               <ul style="margin:0;padding-left:16px;font-size:11.5px;color:var(--ink2);line-height:1.6">
-              ${r.pqc_migration_actions.map(a => `<li>${H(a)}</li>`).join("")}</ul></div>` : ""}
-            ${(r.pqc_migration_plan || []).length ? `<div style="margin-top:12px"><div class="tl">${r.pqc_migration_plan.map(s => `
+              ${r.pq_migration_actions.map(a => `<li>${H(a)}</li>`).join("")}</ul></div>` : ""}
+            ${(r.pq_migration_plan || []).length ? `<div style="margin-top:12px"><div class="tl">${r.pq_migration_plan.map(s => `
               <div class="tli ${/complete/i.test(s.status || "") ? "done" : /progress|active/i.test(s.status || "") ? "now" : "next"}">
                 <div class="ty">${H(TITLE(String(s.stage || "").replace(/^\d+_/, "")))}</div>
                 <div class="te">${H(s.title || "")}</div></div>`).join("")}</div></div>` : ""}
-          </div></div>`).join("") || emptyBox("No PQC guidance in this scan", I.atom)}</div>
+          </div></div>`).join("") || emptyBox("No post-quantum guidance in this scan", I.atom)}</div>
     </div>
 
     <div data-pane="sc" data-key="diff" hidden>
@@ -5107,7 +5107,7 @@ function scanResultBlocks(d, diff, id) {
     ${Object.keys(sum).length ? sec("Scan summary", card("", autoKV(sum), { lift: false })) : ""}
     ${segs.length ? sec("Risk distribution", card("", donut(segs, { center: NUM(list.length), sub: "assets" }), { lift: false })) : ""}`;
 }
-const rRisk   = (r) => r.risk_level || r.risk || r.severity || r.classification?.risk || r.pqc_relevance || "unknown";
+const rRisk   = (r) => r.risk_level || r.risk || r.severity || r.classification?.risk || r.pq_relevance || "unknown";
 const rTarget = (r) => r.asset_key || r.target || [r.host, r.port].filter(Boolean).join(":") || r.hostname || "unknown";
 ACTIONS.csv = (b) => { location.href = `${S.base}/scans/${encodeURIComponent(b.dataset.id)}/export.csv`; };
 ACTIONS.scanCbom = (b) => { location.href = `${S.base}/scans/${encodeURIComponent(b.dataset.id)}/cbom.json`; };
@@ -5138,7 +5138,7 @@ ACTIONS.scanDetail = (b) => {
   drawer(key, `${r.tls_version || "TLS"} · ${r.cipher_name || ""}`, `
     <div class="banner ${TONE(rRisk(r)) || "info"}">${TONE(rRisk(r)) === "ok" ? I.check : I.alert}
       <div><b>${H(TITLE(rRisk(r)))} risk${r.quantum_risk_score != null ? ` · quantum score ${NUM(r.quantum_risk_score)}` : ""}</b>
-      <span class="bx">${H(r.quantum_safe_claim_explanation || r.pqc_recommendation || "")}</span></div></div>
+      <span class="bx">${H(r.quantum_safe_claim_explanation || r.pq_recommendation || "")}</span></div></div>
     <div style="height:16px"></div>
 
     ${card("Transport", kvList([
@@ -5185,16 +5185,16 @@ ACTIONS.scanDetail = (b) => {
     <div style="height:14px"></div>
 
     ${card("Post-quantum posture", kvList([
-      ["PQC relevance", rawPill(r.pqc_relevance)],
+      ["Post-quantum relevance", rawPill(r.pq_relevance)],
       ["Quantum risk", `${rawPill(r.quantum_risk_level)} ${r.quantum_risk_score != null ? `<span class="pill mono">${NUM(r.quantum_risk_score)}/100</span>` : ""}`],
       ["HNDL risk", rawPill(r.harvest_now_decrypt_later_risk)],
       ["Readiness level", rawPill(r.quantum_readiness_level)],
-      ["Migration status", rawPill(r.pqc_migration_status)],
+      ["Migration status", rawPill(r.pq_migration_status)],
       ["Crypto agility", r.crypto_agility_score != null ? `<span class="mono">${NUM(r.crypto_agility_score)}/100</span>` : ""],
       ["Classical dependency", r.classical_crypto_dependency ? `<span class="pill bad">Yes — ${H(r.classical_algorithm || "")} ${H(r.classical_algorithm_detail || "")}</span>` : `<span class="pill ok">No</span>`],
-      ["Provider", r.provider_guess ? `${H(r.provider_guess)} · ${rawPill(r.provider_pqc_support_status || "")}` : ""],
-      ["Provider note", r.provider_pqc_support_note ? `<span style="font-size:11.5px">${H(r.provider_pqc_support_note)}</span>` : ""],
-      ["Blockers", (r.pqc_blockers || []).length ? r.pqc_blockers.map(x => `<span class="pill bad">${H(x)}</span>`).join(" ") : `<span class="pill ok">none</span>`],
+      ["Provider", r.provider_guess ? `${H(r.provider_guess)} · ${rawPill(r.provider_pq_support_status || "")}` : ""],
+      ["Provider note", r.provider_pq_support_note ? `<span style="font-size:11.5px">${H(r.provider_pq_support_note)}</span>` : ""],
+      ["Blockers", (r.pq_blockers || []).length ? r.pq_blockers.map(x => `<span class="pill bad">${H(x)}</span>`).join(" ") : `<span class="pill ok">none</span>`],
     ]), { icon: I.atom, lift: false })}
     ${(r.recommended_quantum_safe_controls || []).length ? `<div style="height:14px"></div>
       ${card("Recommended controls", table([
@@ -5375,12 +5375,12 @@ ACTIONS.collScan = async (b) => {
  * inputs (imports, webhook ingests) that feed it instead of only counting them. */
 const CBOM_Q = {
   classical: ["Quantum-vulnerable", "tBad"],
-  pqc: ["Post-quantum", "tOk"],
+  pq: ["Post-quantum", "tOk"],
   na: ["No algorithm recorded", "tNa"],
 };
 function cbomQuantum(c) {
   const s = JSON.stringify(c).toLowerCase();
-  if (/ml-kem|mlkem|kyber|dilithium|ml-dsa|slh-dsa|sphincs|falcon|hybrid|x25519kyber/.test(s)) return "pqc";
+  if (/ml-kem|mlkem|kyber|dilithium|ml-dsa|slh-dsa|sphincs|falcon|hybrid|x25519kyber/.test(s)) return "pq";
   if (/\brsa|ecdsa|ecdh|\bdh\b|\bdsa\b|x25519|p-256|p-384|secp|ed25519/.test(s)) return "classical";
   return "na";
 }
@@ -5389,7 +5389,7 @@ VIEWS.cbom = async (host) => {
   const [cbom, imports, hook] = await all(["/cbom", "/sbom/imports", "/cbom/webhook/ingests"]);
   const C = cbom.ok ? cbom.data : null;
   const comps = C?.components || [];
-  const counts = { classical: 0, pqc: 0, na: 0 };
+  const counts = { classical: 0, pq: 0, na: 0 };
   comps.forEach(c => { counts[cbomQuantum(c)]++; });
   const byType = {};
   comps.forEach(c => { const t = c.cryptoProperties?.assetType || c.type || "unknown"; byType[t] = (byType[t] || 0) + 1; });
@@ -5458,7 +5458,7 @@ VIEWS.cbom = async (host) => {
         ${ingests.every(i => !Number(i.components)) ? `<p class="ingWarn">None of these documents contained components. Check the payload your pipeline sends.</p>` : ""}
         <ul class="ingList">${ingests.slice(0, 5).map(i => `<li>
           <span class="m">${H(String(i.sha256 || "—").slice(0, 12))}</span><small>${H(when(i.created_at))}</small>
-          <span>${H(i.repo || "unknown repo")} · ${NUM(i.components ?? 0)} components · ${NUM(i.classical ?? 0)} classical · ${NUM(i.pqc ?? 0)} PQC</span></li>`).join("")}</ul>`
+          <span>${H(i.repo || "unknown repo")} · ${NUM(i.components ?? 0)} components · ${NUM(i.classical ?? 0)} classical · ${NUM(i.pq ?? 0)} post-quantum</span></li>`).join("")}</ul>`
         : `<p class="qtMsg" style="margin:0">No webhook ingests yet. Set up the CBOM webhook to push documents from CI.</p>`,
         { icon: I.plug, act: actBtn("Setup", "cbomHook", { cls: "btn xs" }) }), "/cbom/webhook/ingests")}
       ${card("Supply-chain crypto scan", `
@@ -5528,7 +5528,7 @@ ACTIONS.supplyScan = async () => {
  * modelled chance each algorithm is broken — against the model's Q-Day. */
 const HNDL_CLASS = {
   rsa2048: "RSA-2048", rsa3072: "RSA-3072", rsa4096: "RSA-4096", ecc256: "ECC P-256", ecc384: "ECC P-384",
-  x25519: "X25519", dh_classical: "Classical DH", pqc_hybrid: "PQC hybrid", pqc_pure: "PQC", unknown_classical: "Unknown classical",
+  x25519: "X25519", dh_classical: "Classical DH", pq_hybrid: "Post-quantum hybrid", pq_pure: "post-quantum", unknown_classical: "Unknown classical",
 };
 const hndlClass = k => HNDL_CLASS[k] || TITLE(String(k || "unknown"));
 const hndlTone = tier => ({ critical: "tBad", high: "tWarn", medium: "tInfo", low: "tOk" })[String(tier || "").toLowerCase()] || "tNa";
@@ -6718,7 +6718,7 @@ VIEWS.remediation = async (host) => {
         ], rows(d, "tasks"), { max: "400px", empty: "Autopilot has no queued tasks." }), { icon: I.zap, flush: true }), "/autopilot/tasks")}
         ${card("Autopilot control", `
           <p style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:0 0 14px">
-            Autopilot analyzes your inventory, proposes hybrid-PQC configuration changes, and can open pull requests
+            Autopilot analyzes your inventory, proposes hybrid-post-quantum configuration changes, and can open pull requests
             against connected repositories for review.</p>
           <div class="col">
             ${actBtn("Analyze estate", "autoAnalyze", { cls: "btn sm block", icon: I.eye })}
@@ -6730,7 +6730,7 @@ VIEWS.remediation = async (host) => {
 
     <div data-pane="rm" data-key="gen" hidden>
       <div class="g g2">
-        ${card("PQC code generation", `
+        ${card("Post-quantum code generation", `
           <div class="field"><label for="cgTarget">Target</label>
             <select class="inp" id="cgTarget"><option value="">Loading targets…</option></select></div>
           <div class="field" style="margin-top:10px"><label for="cgCtx">Context (optional JSON)</label>
@@ -6743,7 +6743,7 @@ VIEWS.remediation = async (host) => {
             ${actBtn("Generate CSR", "hcCsr", { cls: "btn sm" })}
             ${actBtn("Generate hybrid cert", "hcGen", { cls: "btn sm pri" })}
             ${actBtn("Libraries", "hcLibs", { cls: "btn sm ghost" })}
-          </div>`, { icon: I.lock, sub: "Classical + PQC dual-signature certificates" })}
+          </div>`, { icon: I.lock, sub: "Classical + post-quantum dual-signature certificates" })}
       </div>
       <div style="height:14px"></div>
       <div id="genOut"></div>
@@ -6760,7 +6760,7 @@ VIEWS.remediation = async (host) => {
 
   const sel = $("#cgTarget");
   if (sel) {
-    const t = await safe("/pqc-codegen/targets");
+    const t = await safe("/pq-codegen/targets");
     const list = t.ok ? rows(t.data, "targets") : [];
     sel.innerHTML = list.length
       ? list.map(x => `<option value="${H(x.id || x)}">${H(x.name || x.label || x.id || x)}</option>`).join("")
@@ -6886,7 +6886,7 @@ ACTIONS.codegen = async () => {
   let ctx = {};
   const raw = $("#cgCtx").value.trim();
   if (raw) { try { ctx = JSON.parse(raw); } catch { return err("Context is not valid JSON"); } }
-  const r = await safe("/pqc-codegen/generate", { method: "POST", body: { target: $("#cgTarget").value, ...ctx } });
+  const r = await safe("/pq-codegen/generate", { method: "POST", body: { target: $("#cgTarget").value, ...ctx } });
   const box = $("#genOut");
   box.innerHTML = bind(r, (d) => {
     const code = d.code || d.snippet || d.content || (typeof d === "string" ? d : "");
@@ -6894,7 +6894,7 @@ ACTIONS.codegen = async () => {
       ? `<pre class="out" style="--pmax:520px">${H(code)}</pre>`
       : autoKV(d), { icon: I.terminal, sub: H(d.target || $("#cgTarget").value),
         act: code ? `<button class="btn xs" data-copy="${H(code)}">Copy</button>` : "" });
-  }, "/pqc-codegen/generate");
+  }, "/pq-codegen/generate");
   wire(box);
 };
 ACTIONS.hcCsr = async () => {
@@ -6913,7 +6913,7 @@ ACTIONS.hcGen = async () => {
 };
 ACTIONS.hcLibs = async () => {
   const r = await safe("/hybrid-cert/libraries");
-  r.ok ? drawer("PQC library support", "/hybrid-cert/libraries", table([
+  r.ok ? drawer("Post-quantum library support", "/hybrid-cert/libraries", table([
     { h: "Library", f: x => `<b>${H(x.name || x.id)}</b>` },
     { h: "Language", f: x => H(x.language || "—") },
     { h: "Algorithms", f: x => `<span class="m">${H((x.algorithms || []).join(", ").slice(0, 60))}</span>` },
@@ -7336,7 +7336,7 @@ VIEWS.operations = async (host) => {
       <div class="g g-1-2">
         ${card("KMS health check", `
           <p style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:0 0 14px">
-            Verify key-management backends are reachable, keys are rotating on schedule, and algorithms are PQC-capable.</p>
+            Verify key-management backends are reachable, keys are rotating on schedule, and algorithms are post-quantum-capable.</p>
           <div class="row">${actBtn("Run health check", "kmsCheck", { cls: "btn sm pri", icon: I.key })}</div>
           <div id="kmsOut" style="margin-top:14px"></div>`, { icon: I.key })}
         ${bind(kms, (d) => card("Check history", table([
@@ -8076,8 +8076,8 @@ ACTIONS.badge = async () => {
       The token exposes only the score — never your inventory.</p>
     ${kvList([["Token", `<span class="mono" style="font-size:11px">${H(tok)}</span>`], ["Badge URL", `<span class="mono" style="font-size:11px">${H(url)}</span>`]])}
     <div style="height:14px"></div>
-    ${card("Markdown", `<pre class="out">![PQC readiness](${H(url)})</pre>`, { lift: false,
-      act: `<button class="btn xs" data-copy="![PQC readiness](${H(url)})">Copy</button>` })}`);
+    ${card("Markdown", `<pre class="out">![Post-quantum readiness](${H(url)})</pre>`, { lift: false,
+      act: `<button class="btn xs" data-copy="![Post-quantum readiness](${H(url)})">Copy</button>` })}`);
 };
 
 /* ==========================================================================
@@ -8131,7 +8131,7 @@ VIEWS.vendors = async (host) => {
   const invites = att.ok ? rows(att.data, "invites").length : 0;
   S.vendorIndex = Object.fromEntries(V.map(v => [String(v.id || v.name), v]));
   const dims = vendorDimensions(V);
-  const tierCounts = ["PQC Ready", "In Progress", "Early Stage", "Not Started"].map(t => [t, V.filter(v => v.readiness_tier === t).length]);
+  const tierCounts = ["Post-Quantum Ready", "In Progress", "Early Stage", "Not Started"].map(t => [t, V.filter(v => v.readiness_tier === t).length]);
   const avg = V.length ? V.reduce((a, v) => a + (Number(v.composite_score) || 0), 0) / V.length : null;
   const dimAvg = dims.map(([k, label]) => [k, label, V.reduce((a, v) => a + (vendorScore(v, k) ?? 0), 0) / Math.max(1, V.length)]);
   const weakest = [...dimAvg].sort((a, b) => a[2] - b[2])[0];
@@ -8139,7 +8139,7 @@ VIEWS.vendors = async (host) => {
 
   host.innerHTML = `${viewLead("Supply Chain / Third Party", "Which suppliers can carry the migration with you.",
     "Post-quantum readiness for the vendors your cryptography depends on: algorithm support, key exchange, HSM and KMS, roadmap, standards work and customer tooling.",
-    [["Vendors scored", NUM(V.length)], ["PQC ready", NUM(V.filter(v => /ready/i.test(v.readiness_tier || "")).length)], ["Average score", avg == null ? "—" : NUM(avg, 1)]])}
+    [["Vendors scored", NUM(V.length)], ["Post-quantum ready", NUM(V.filter(v => /ready/i.test(v.readiness_tier || "")).length)], ["Average score", avg == null ? "—" : NUM(avg, 1)]])}
 
     ${V.length ? `<section class="vendSummary">
       <div>
@@ -8193,7 +8193,7 @@ VIEWS.vendors = async (host) => {
           ${actBtn("Send", "vendAct", { cls: "btn xs", data: { id: x.id, op: "send" } })}
           ${actBtn("Score", "vendAct", { cls: "btn xs", data: { id: x.id, op: "score" } })}
           ${actBtn("Del", "vendDel", { cls: "btn xs danger", data: { id: x.id } })}</div>` },
-      ], A, { max: "460px", empty: "No vendor assessments. Send a questionnaire to gather PQC readiness evidence from suppliers." }),
+      ], A, { max: "460px", empty: "No vendor assessments. Send a questionnaire to gather post-quantum readiness evidence from suppliers." }),
         { flush: true, lift: false }), "/vendor-assessments")}
     </div>
 
@@ -8231,7 +8231,7 @@ VIEWS.vendors = async (host) => {
     <div data-pane="vd" data-key="prov" hidden>
       ${bind(prov, (d) => {
         const list = Object.entries(d.providers || {});
-        return card("Provider PQC capability matrix", list.length ? table([
+        return card("Provider post-quantum capability matrix", list.length ? table([
           { h: "Provider", w: "16%", f: ([k, p]) => `<b>${H(TITLE(k))}</b><span class="sub">${H(TITLE(p.category || ""))}</span>` },
           { h: "Hybrid TLS", w: "18%", f: ([, p]) => rawPill(p.hybrid_tls) },
           { h: "What you can do now", f: ([, p]) => `<span class="provText">${H(p.direct_customer_action || "—")}</span>` },
@@ -8436,7 +8436,7 @@ VIEWS.integrations = async (host) => {
           ${bind(cfZones, (d) => card("Zones", table([
             { h: "Zone", f: z => `<b>${H(z.name || z.zone || z.id)}</b><span class="sub mono">${H(String(z.id || "").slice(0, 20))}</span>` },
             { h: "Status", f: z => pill(z.status) },
-            { h: "PQC", f: z => z.pqc_enabled != null ? (z.pqc_enabled ? `<span class="pill ok">Enabled</span>` : `<span class="pill bad">Off</span>`) : "—" },
+            { h: "post-quantum", f: z => z.pq_enabled != null ? (z.pq_enabled ? `<span class="pill ok">Enabled</span>` : `<span class="pill bad">Off</span>`) : "—" },
             { h: "", w: "1%", f: z => actBtn("Apply policy", "cfApply", { cls: "btn xs pri", data: { id: z.id } }) },
           ], rows(d, "zones", "result"), { max: "320px", empty: "No zones — connect a Cloudflare token first" }), {
             icon: I.layers, flush: true, act: actBtn("Mock apply", "cfMock", { cls: "btn xs ghost" }) }), "/integrations/cloudflare/zones")}
@@ -8635,14 +8635,14 @@ ACTIONS.tikCfgGo = async () => {
   if (!r.ok) return err(r.err);
   $("#overlay").innerHTML = ""; ok("Ticketing configured"); retry();
 };
-ACTIONS.tikNew  = async () => igOut("#chatOut", await safe("/tickets/create", { method: "POST", body: { title: "PQC remediation required", severity: "high" } }), "/tickets/create", "Ticket created", I.file);
+ACTIONS.tikNew  = async () => igOut("#chatOut", await safe("/tickets/create", { method: "POST", body: { title: "Post-quantum remediation required", severity: "high" } }), "/tickets/create", "Ticket created", I.file);
 ACTIONS.tikList = async () => igOut("#chatOut", await safe("/tickets"), "/tickets", "Tickets", I.file);
 ACTIONS.jiraTmpl = async () => igOut("#chatOut", await safe("/integrations/jira/template"), "/integrations/jira/template", "Jira issue template", I.file);
 ACTIONS.jiraNew  = async () => igOut("#chatOut", await safe("/integrations/jira/create-issue", { method: "POST", body: {} }), "/integrations/jira/create-issue", "Jira issue", I.file);
 ACTIONS.jiraBulk = async () => igOut("#chatOut", await safe("/integrations/jira/create-issues", { method: "POST", body: {} }), "/integrations/jira/create-issues", "Jira bulk create", I.file);
 ACTIONS.snowBulk = async () => igOut("#chatOut", await safe("/integrations/servicenow/create-incidents", { method: "POST", body: {} }), "/integrations/servicenow/create-incidents", "ServiceNow incidents", I.file);
 ACTIONS.hookNew = () => modal("New webhook", `<div class="col">
-  <div class="field"><label for="whUrl">Endpoint URL</label><input class="inp mono" id="whUrl" placeholder="https://example.com/pqc-hook"></div>
+  <div class="field"><label for="whUrl">Endpoint URL</label><input class="inp mono" id="whUrl" placeholder="https://example.com/morrow-hook"></div>
   <div class="field"><label for="whEvents">Events (comma separated)</label><input class="inp mono" id="whEvents" placeholder="scan.completed,finding.created"></div>
 </div>`, `<button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="hookNewGo" type="button">Create webhook</button>`);
 ACTIONS.hookNewGo = async () => {
@@ -8740,7 +8740,7 @@ ACTIONS.setEditGo = async () => {
    VIEW: KNOWLEDGE — KB, search, assistant, FIPS classification
    ========================================================================== */
 VIEWS.knowledge = async (host) => {
-  const [kb, prov, fips] = await all(["/kb/articles", "/providers/capabilities", "/fips-pqc/report"]);
+  const [kb, prov, fips] = await all(["/kb/articles", "/providers/capabilities", "/fips-pq/report"]);
   const A = kb.ok ? rows(kb.data, "articles") : [];
   const cats = {};
   A.forEach(a => { const c = a.category || "General"; cats[c] = (cats[c] || 0) + 1; });
@@ -8755,7 +8755,7 @@ VIEWS.knowledge = async (host) => {
 
     <div class="row" style="margin:18px 0 14px">
       <div class="tabs" data-tabs="kn">
-        ${[["kb", "Knowledge base"], ["ask", "PQC assistant"], ["fips", "FIPS classification"], ["prov", "Provider matrix"]]
+        ${[["kb", "Knowledge base"], ["ask", "Post-quantum assistant"], ["fips", "FIPS classification"], ["prov", "Provider matrix"]]
           .map(([k, l], i) => `<button class="tab ${i ? "" : "on"}" data-key="${k}">${l}</button>`).join("")}
       </div>
     </div>
@@ -8787,14 +8787,14 @@ VIEWS.knowledge = async (host) => {
             { k: "FIPS 204", v: "ML-DSA — digital signatures (was CRYSTALS-Dilithium)" },
             { k: "FIPS 205", v: "SLH-DSA — hash-based signatures (was SPHINCS+)" },
             { k: "SP 800-208", v: "Stateful hash-based signatures (LMS, XMSS)" },
-            { k: "CNSA 2.0", v: "NSA commercial algorithm suite with PQC deadlines" },
+            { k: "CNSA 2.0", v: "NSA commercial algorithm suite with post-quantum deadlines" },
           ]), { icon: I.book, flush: true })}
         </div>
       </div>
     </div>
 
     <div data-pane="kn" data-key="ask" hidden>
-      ${card("PQC assistant", `
+      ${card("Post-quantum assistant", `
         <div id="chatLog" style="min-height:180px;max-height:420px;overflow-y:auto;display:grid;gap:11px;margin-bottom:14px">
           <div class="banner info">${I.info}<div><b>Ask about your own estate</b>
             <span class="bx">The assistant has context on your inventory, findings and policies — try
@@ -8815,7 +8815,7 @@ VIEWS.knowledge = async (host) => {
           <div id="fipsOut" style="margin-top:12px"></div>`, { icon: I.scale, sub: "Is it FIPS-approved and quantum-safe?" })}
         ${bind(fips, (d) => card("FIPS posture report", autoKV(d, { limit: 30 })
           + `<div style="height:12px"></div><pre class="out" style="--pmax:300px">${H(JSON.stringify(d, null, 2))}</pre>`,
-          { icon: I.shield, sub: "Estate-wide FIPS and PQC conformance" }), "/fips-pqc/report")}
+          { icon: I.shield, sub: "Estate-wide FIPS and post-quantum conformance" }), "/fips-pq/report")}
       </div>
     </div>
 
@@ -8910,11 +8910,11 @@ ACTIONS.askSend = async () => {
 };
 ACTIONS.fipsClassify = async () => {
   const box = $("#fipsOut"); box.innerHTML = skel(1, 30);
-  const r = await safe("/fips-pqc/classify", { method: "POST", body: { algorithm: $("#fpAlgo").value } });
-  box.innerHTML = bind(r, (d) => `<div class="banner ${d.quantum_safe || d.pqc ? "ok" : "bad"}">
-    ${d.quantum_safe || d.pqc ? I.check : I.alert}<div><b>${H(TITLE(d.classification || d.category || (d.quantum_safe ? "quantum safe" : "classical")))}</b>
+  const r = await safe("/fips-pq/classify", { method: "POST", body: { algorithm: $("#fpAlgo").value } });
+  box.innerHTML = bind(r, (d) => `<div class="banner ${d.quantum_safe || d.pq ? "ok" : "bad"}">
+    ${d.quantum_safe || d.pq ? I.check : I.alert}<div><b>${H(TITLE(d.classification || d.category || (d.quantum_safe ? "quantum safe" : "classical")))}</b>
     <span class="bx">${H(d.rationale || d.detail || d.note || "")}</span></div></div>
-    <div style="height:12px"></div>${autoKV(d, { limit: 20 })}`, "/fips-pqc/classify");
+    <div style="height:12px"></div>${autoKV(d, { limit: 20 })}`, "/fips-pq/classify");
   wire(box);
 };
 
@@ -9070,7 +9070,7 @@ VIEWS.admin = async (host) => {
 
     <div data-pane="ad" data-key="plat" hidden>
       ${platOff ? `<div class="banner warn" style="margin-bottom:14px">${I.lock}<div><b>Platform admin endpoints are unavailable</b>
-        <span class="bx">These need <span class="mono">PQC_PLATFORM_ADMIN_KEY</span> set on the server <b>and</b> the matching
+        <span class="bx">These need <span class="mono">MORROW_PLATFORM_ADMIN_KEY</span> set on the server <b>and</b> the matching
         key supplied here — they are gated by their own <span class="mono">x-platform-key</span> header rather than your user
         identity. ${S.platKey ? "A key is currently set in this browser; the server rejected it or has none configured."
           : "No key is set in this browser."}</span>
@@ -9213,8 +9213,8 @@ function readinessPanel(C, cfg, health, e2e, plat) {
   const platOff = plat.ok === false || /disabled/i.test(JSON.stringify(plat.data || ""));
   const w = (re) => warns.find(x => re.test(x));
 
-  const authModeWarn = w(/PQC_AUTH_MODE=headers/i);
-  const roleWarn     = w(/PQC_DEFAULT_ROLE=admin/i);
+  const authModeWarn = w(/MORROW_AUTH_MODE=headers/i);
+  const roleWarn     = w(/MORROW_DEFAULT_ROLE=admin/i);
   const sentryWarn   = w(/SENTRY_DSN/i);
   const hs256Warn    = w(/HS256/i);
   const corsWarn     = w(/CORS/i);
@@ -9223,19 +9223,19 @@ function readinessPanel(C, cfg, health, e2e, plat) {
   const items = [
     authModeWarn
       ? chkRow("bad", "Authentication mode",
-          `Running in <code>headers</code> mode: any caller can choose their own role. Set <code>PQC_AUTH_MODE=jwt</code> and <code>PQC_AUTH_REQUIRED=1</code>.`)
+          `Running in <code>headers</code> mode: any caller can choose their own role. Set <code>MORROW_AUTH_MODE=jwt</code> and <code>MORROW_AUTH_REQUIRED=1</code>.`)
       : chkRow("ok", "Authentication mode",
           `<code>${H(C.auth_mode || cfg.mode || "jwt")}</code>${cfg.required ? " and required" : ""}.`),
     roleWarn
       ? chkRow("bad", "Default role for anonymous requests",
-          `<code>PQC_DEFAULT_ROLE=admin</code> — unauthenticated requests inherit admin. Set it to <code>viewer</code>.`)
+          `<code>MORROW_DEFAULT_ROLE=admin</code> — unauthenticated requests inherit admin. Set it to <code>viewer</code>.`)
       : chkRow("ok", "Default role", "Anonymous requests do not inherit admin."),
     hs256Warn
       ? chkRow("warn", "JWT signing algorithm",
-          `HS256 is a shared secret. Production expects RS256 with a JWKS URL — see <code>PQC_AUTH_JWT_ALGORITHMS</code>.`)
+          `HS256 is a shared secret. Production expects RS256 with a JWKS URL — see <code>MORROW_AUTH_JWT_ALGORITHMS</code>.`)
       : chkRow("ok", "JWT signing algorithm", `Accepted: <code>${H((cfg.mode === "jwt" ? "configured" : "n/a"))}</code>.`),
     corsWarn
-      ? chkRow("bad", "CORS", `Wildcard CORS is set. Restrict <code>PQC_CORS_ORIGINS</code> to approved domains.`)
+      ? chkRow("bad", "CORS", `Wildcard CORS is set. Restrict <code>MORROW_CORS_ORIGINS</code> to approved domains.`)
       : chkRow("ok", "CORS", "No wildcard origin configured."),
     sentryWarn
       ? chkRow("warn", "Error reporting", `<code>SENTRY_DSN</code> is unset, so runtime exceptions are not reported anywhere.`)
@@ -9249,7 +9249,7 @@ function readinessPanel(C, cfg, health, e2e, plat) {
       : chkRow("ok", "Subsystem probes", `${NUM(probes.length || 0)} checks reporting healthy.`),
     platOff
       ? chkRow("warn", "Platform admin endpoints",
-          `Disabled. Set <code>PQC_PLATFORM_ADMIN_KEY</code> to enable customer management, incidents and autopatch review.`)
+          `Disabled. Set <code>MORROW_PLATFORM_ADMIN_KEY</code> to enable customer management, incidents and autopatch review.`)
       : chkRow("ok", "Platform admin endpoints", "Enabled."),
     e2e.ok
       ? chkRow("ok", "End-to-end readiness", "The scan-to-remediation cycle reports reachable.")
@@ -9276,23 +9276,23 @@ function readinessPanel(C, cfg, health, e2e, plat) {
     <div style="height:14px"></div>
     <div class="g g2">
       ${card("Recommended production environment", `<pre class="out" style="--pmax:320px">${H(
-`PQC_ENVIRONMENT=production
-PQC_AUTH_MODE=jwt
-PQC_AUTH_REQUIRED=1
-PQC_DEFAULT_ROLE=viewer
-PQC_AUTH_JWT_ALGORITHMS=RS256
-PQC_AUTH_JWT_ISSUER=https://your-idp/
-PQC_AUTH_JWT_AUDIENCE=pqc-scanner
-PQC_AUTH_JWT_JWKS_URL=https://your-idp/.well-known/jwks.json
-PQC_ADMIN_PASSWORD=<strong unique value>
-PQC_VAULT_MASTER_KEY=<Fernet key>
-PQC_PLATFORM_ADMIN_KEY=<random value>
-PQC_CORS_ORIGINS=https://console.example.com
+`MORROW_ENVIRONMENT=production
+MORROW_AUTH_MODE=jwt
+MORROW_AUTH_REQUIRED=1
+MORROW_DEFAULT_ROLE=viewer
+MORROW_AUTH_JWT_ALGORITHMS=RS256
+MORROW_AUTH_JWT_ISSUER=https://your-idp/
+MORROW_AUTH_JWT_AUDIENCE=morrow
+MORROW_AUTH_JWT_JWKS_URL=https://your-idp/.well-known/jwks.json
+MORROW_ADMIN_PASSWORD=<strong unique value>
+MORROW_VAULT_MASTER_KEY=<Fernet key>
+MORROW_PLATFORM_ADMIN_KEY=<random value>
+MORROW_CORS_ORIGINS=https://console.example.com
 DATABASE_URL=postgresql://...
 CELERY_BROKER_URL=redis://:PASSWORD@host:6379/0
 SENTRY_DSN=https://...`)}</pre>`,
         { icon: I.terminal, sub: "The server refuses to boot in production without most of these",
-          act: `<button class="btn xs" data-copy="PQC_ENVIRONMENT=production">Copy first line</button>` })}
+          act: `<button class="btn xs" data-copy="MORROW_ENVIRONMENT=production">Copy first line</button>` })}
       ${card("Server advisories", warns.length
         ? `<div class="stack">${warns.map(x => `<div class="banner warn" style="font-size:11.5px;padding:9px 11px">${I.alert}
             <div><span class="bx">${H(x)}</span></div></div>`).join("")}</div>`
@@ -9313,7 +9313,7 @@ ACTIONS.platKey = () => modal("Platform operator key", `
     <div class="banner info">${I.info}<div><b>Separate from your user identity</b>
       <span class="bx"><span class="mono">/platform/*</span> endpoints manage the whole deployment
       (customers, incidents, abuse, autopatches) and are gated by
-      <span class="mono">PQC_PLATFORM_ADMIN_KEY</span> on the server, sent as
+      <span class="mono">MORROW_PLATFORM_ADMIN_KEY</span> on the server, sent as
       <span class="mono">x-platform-key</span>. Being an org admin is not sufficient.</span></div></div>
     <div class="field"><label for="pkVal">Operator key</label>
       <input class="inp mono" id="pkVal" type="password" autocomplete="off" data-autofocus value="${H(S.platKey)}" placeholder="Platform credential for this tab" spellcheck="false"></div>
@@ -9374,7 +9374,7 @@ ACTIONS.orgNewGo = async () => {
   $("#overlay").innerHTML = ""; ok("Organization created"); await loadOrgs(); retry();
 };
 ACTIONS.orgUse = async (b) => {
-  S.org = b.dataset.id; LS.set("pqc_org", S.org);
+  S.org = b.dataset.id; LS.set("pq_org", S.org);
   ok("Active organization switched"); await loadOrgs(); retry();
 };
 ACTIONS.orgMembers = async (b) => {
@@ -9509,14 +9509,14 @@ const CATALOG = [
   ["Quantum Airlock", ["/airlock/architecture", "/airlock/enterprise-readiness", "/airlock/policy", "/airlock/agent-package", "/airlock/evidence", "/airlock/flight-recorder", "/airlock/flight-recorder/submit", "/airlock/change-simulator", "/airlock/remediation-pr-factory", "/trust-passport", "/trust-passport/share", "/privacy-cbom/fingerprint", "/remediation/proof-package", "/firmware/proof", "/compliance-ledger/credential", "/crypto-kill-switch/policy", "/runtime-handshake/proof", "/vendor-trust/passport", "/sovereign-copilot/redaction-policy", "/sovereign-copilot/redact"]],
   ["Autonomous Mesh", ["/autonomous-mesh/blueprint", "/autonomous-mesh/capability-truth", "/autonomous-mesh/ebpf-package", "/binary/entropy-hunt", "/autonomous-mesh/contagion/multi-hop", "/q-intel/dynamic-countdown", "/autopilot/multi-variant-pr", "/autopilot/canary-traffic-shift", "/hardware/hsm-virtualization", "/hardware/hsm-collector-package", "/hardware/crypto-bridge/collector-package", "/hardware/crypto-drift/observations", "/hardware/crypto-drift/enforce", "/crypto-anomaly/detect", "/crypto-anomaly/siem-package", "/zk-compliance/continuous-proof", "/insurance/underwriting-export", "/insurance/proof-of-agility", "/insurance/proof-of-agility/verify"]],
   ["Quantum risk", ["/hndl/dashboard", "/hndl/timeline", "/hndl-canaries", "/qday/countdown", "/qday-forecast", "/qday-forecast/milestones", "/qday-forecast/threat-actors", "/q-intel/feed", "/q-intel/model", "/dark-matter/map", "/quantum-sim/graph", "/contagion/graph", "/blast-radius/graph", "/blast-radius/custom-edges", "/blast-radius/export"]],
-  ["Remediation", ["/remediations", "/remediation-feed", "/fix-next", "/migration-tasks", "/migration-velocity", "/playbooks", "/playbooks/progress/assets", "/autopilot/tasks", "/pqc-codegen/targets", "/hybrid-cert/libraries", "/remediations/branches/cleanup/status", "/validation/sandbox-profile", "/work/remediation-feed"]],
+  ["Remediation", ["/remediations", "/remediation-feed", "/fix-next", "/migration-tasks", "/migration-velocity", "/playbooks", "/playbooks/progress/assets", "/autopilot/tasks", "/pq-codegen/targets", "/hybrid-cert/libraries", "/remediations/branches/cleanup/status", "/validation/sandbox-profile", "/work/remediation-feed"]],
   ["Governance", ["/policies", "/policies/active", "/policies/templates", "/policies/results/history", "/compliance/frameworks", "/compliance/export.csv", "/compliance-mapping", "/compliance-mapping/frameworks", "/evidence/frameworks", "/regulatory/frameworks", "/regulatory/filings", "/maturity/domains", "/maturity/assessments", "/security-intents", "/security-intents/stored", "/security-intents/bundle", "/security-truth/policy-bundle", "/governance/certificates", "/governance/shadow-it"]],
   ["Board & analytics", ["/executive-dashboard", "/board-risk", "/board-risk/weather", "/board-risk/leaderboard", "/board-risk/regulatory", "/crypto-agility", "/crypto-mesh", "/crypto-mesh/profiles", "/peer-benchmark", "/peer-benchmark/sectors", "/roi-calculator/sectors", "/roi-calculator/effort-catalog", "/actuarial/individual", "/observatory/dashboard", "/qtisn/dashboard", "/qtisn/history", "/qtisn/membership", "/canaries", "/canaries/dashboard", "/canaries/tiers", "/badge/token"]],
   ["Scanners", ["/sast/rules", "/dep-scan/signatures", "/binary/scans", "/mobile-iot/scans", "/mobile-iot/stats", "/dev/findings", "/dev/stats", "/dev/teams", "/dev/requests"]],
   ["Operations", ["/drift/status", "/drift/events", "/drift-prevention/plan", "/sla/status", "/sla/config", "/sla/breaches", "/telemetry/stats", "/telemetry/kpis", "/telemetry/events", "/notifications/config", "/notifications/log", "/push/subscriptions", "/push/webhooks", "/push/log", "/kms/history", "/digest/config", "/digest/snapshots", "/tickets", "/tickets/config"]],
   ["Integrations", ["/integrations/settings", "/integrations/github/pr-events", "/integrations/github/status-publishes", "/integrations/github-app/status", "/integrations/github-app/installations", "/integrations/cloudflare/status", "/integrations/cloudflare/zones", "/integrations/cloudflare/summary", "/integrations/cloudflare/policy", "/integrations/cloudflare/policy-preview", "/integrations/cloudflare/enforcement", "/integrations/cloudflare/audit", "/integrations/cloudflare/my-ip", "/integrations/slack/settings", "/integrations/jira/template", "/integrations/webhooks", "/integrations/webhooks/failures", "/integrations/webhook-events", "/integrations/rules", "/integrations/findings", "/integrations/secret-backend", "/webhooks", "/cicd-gate/scans", "/cicd-gate/generate-yaml", "/cicd-gate/generate-script", "/vault/credentials"]],
   ["Third party", ["/vendor-assessments", "/vendor-scorecard", "/vendor-attestations/invites", "/providers/capabilities", "/zk-compliance/proofs", "/zk-compliance/standards"]],
-  ["Knowledge", ["/kb/articles", "/kb/search?q=kyber", "/fips-pqc/report"]],
+  ["Knowledge", ["/kb/articles", "/kb/search?q=kyber", "/fips-pq/report"]],
   ["Admin & platform", ["/organizations", "/admin/orgs", "/admin/platform", "/admin/audit-log", "/admin/postgres-rls/plan", "/audit/logs", "/audit/logs/export.csv", "/auth/access-policy", "/platform/health", "/platform/metrics", "/platform/readiness", "/platform/customers", "/platform/incidents", "/platform/abuse", "/platform/traffic/summary", "/platform/traffic/events", "/platform/traffic/export.ndjson", "/platform/traffic/otel", "/platform/state/coverage", "/platform/state/migrate", "/platform/logins", "/platform/admin-events", "/platform/admin-mode", "/platform/autopatches", "/platform/observability", "/platform/go-live-gate", "/platform/security-truth", "/platform/rls-plan", "/platform/retention/policy", "/readiness/e2e", "/readiness/e2e/export", "/org/compliance-report", "/org/quantum-readiness-report.html"]],
 ];
 /* ==========================================================================
@@ -9629,7 +9629,7 @@ const GUIDE = [
       <p><b>Any model provider.</b> The assistant is provider-agnostic: Anthropic, OpenAI, Azure OpenAI,
       Google Gemini, any OpenAI-compatible endpoint (Groq, OpenRouter, Together, vLLM, LM Studio,
       llama.cpp), a local Ollama, or an operator's own adapter. The operator picks one with
-      <code>PQC_LLM_PROVIDER</code>; with none of those variables set, the server keeps its original
+      <code>MORROW_LLM_PROVIDER</code>; with none of those variables set, the server keeps its original
       behaviour: Claude when <code>ANTHROPIC_API_KEY</code> is present, otherwise OpenAI with
       <code>OPENAI_API_KEY</code>, otherwise the built-in rules. Your organization can supply its own
       provider and key under <b>Data Control &gt; Model provider</b>, and prove it works with <b>Send a
@@ -9639,7 +9639,7 @@ const GUIDE = [
       <p><b>Good to know:</b> the assistant runs on the server. With no provider configured, or when
       the provider is unreachable, CipherLens still answers with built-in guidance (status summary,
       quantum-safety basics, where to go next) and adds a small note under the answer saying why. An
-      operator can turn model calls off entirely with <code>PQC_LLM_DISABLED=1</code>, which no
+      operator can turn model calls off entirely with <code>MORROW_LLM_DISABLED=1</code>, which no
       organization setting can override. Treat answers as advice: check them against the screens they
       refer to. Full configuration reference: <code>docs/AI_PROVIDERS.md</code>.</p>` },
     { id: "notices", n: "Notices and maintenance", i: I.alert, body: `
@@ -9724,7 +9724,7 @@ const GUIDE = [
       development server only, <b>Seed local sample</b> adds a tagged sample asset for trying things out;
       it does not appear on staging or production servers.</p>
       <p><b>Tabs:</b> Posture (one row per endpoint) · Findings (rule hits with remediation) ·
-      Certificates · TLS support matrix · PQC guidance · Baseline diff · Migration plan · Raw JSON.</p>
+      Certificates · TLS support matrix · post-quantum guidance · Baseline diff · Migration plan · Raw JSON.</p>
       <p><b>Baselines:</b> press <b>Set baseline</b> after a scan you consider correct. Later scans
       diff against it, which is what turns drift detection on.</p>` },
     { id: "g-assets", n: "Asset Inventory", i: I.server, body: `
@@ -9742,7 +9742,7 @@ const GUIDE = [
       machine-readable answer to "what cryptography do you run?"</p>
       <p><b>How to use it:</b> download JSON or CSV for auditors and customers, ingest a CBOM from
       another tool, or import an SBOM to inherit dependency data. The <b>Quantum</b> column marks
-      each component PQC or Classical.</p>
+      each component post-quantum or Classical.</p>
       <p><b>Use it when</b> a customer security questionnaire asks for a cryptographic inventory.
       This is the artifact to send.</p>` },
   ]},
@@ -9834,7 +9834,7 @@ const GUIDE = [
       <p><b>What it is:</b> everything beyond TLS. Classical cryptography hides in source code,
       dependencies, binaries, mobile apps and infrastructure definitions.</p>
       <p><b>Scanners:</b> <b>SAST</b> (hardcoded keys, weak primitives) · <b>Secrets</b> (long-lived
-      keys in AWS/Azure/Vault/env) · <b>Dependencies</b> (packages with no PQC path) ·
+      keys in AWS/Azure/Vault/env) · <b>Dependencies</b> (packages with no post-quantum path) ·
       <b>Binaries</b> (embedded certs and linked crypto libraries) · <b>Mobile/IoT</b> (pinned certs
       in APKs and firmware) · <b>IaC</b> (weak TLS policies before deployment) ·
       <b>Developer portal</b> (route findings to the team that owns the code).</p>
@@ -9884,14 +9884,14 @@ const GUIDE = [
       never your inventory.</p>` },
     { id: "g-vendors", n: "Third Party", i: I.truck, body: `
       <p><b>What it is:</b> your suppliers' cryptography is part of your risk surface.</p>
-      <p><b>What it does:</b> scores your vendors on PQC readiness, sends assessment questionnaires,
+      <p><b>What it does:</b> scores your vendors on post-quantum readiness, sends assessment questionnaires,
       collects signed attestations, and shows a provider capability matrix (what each CDN and cloud
       actually supports today — often the real constraint on your own migration).</p>
       <p><b>Where scores come from:</b> only your own assessments and attestations. The screen starts
       empty (<b>No vendor scores yet</b>); it does not ship with scores for named companies. Press
       <b>New assessment</b> to send a questionnaire, or <b>Invite vendor</b> on the <b>Attestations</b>
       tab to request a signed attestation.</p>
-      <p><b>Tabs:</b> <b>Scorecards</b> (readiness split into PQC Ready, In Progress, Early Stage and Not
+      <p><b>Tabs:</b> <b>Scorecards</b> (readiness split into post-quantum Ready, In Progress, Early Stage and Not
       Started, with averages per dimension; the weakest is in amber) · <b>Assessments</b> ·
       <b>Attestations</b> · <b>Provider capabilities</b>. Use <b>Compare vendors</b> to put scores side
       by side.</p>
@@ -9908,7 +9908,7 @@ const GUIDE = [
       the rest is convenience.</p>` },
     { id: "g-knowledge", n: "Knowledge", i: I.book, body: `
       <p><b>What it is:</b> federated search across your estate, plus reference material.</p>
-      <p><b>What it has:</b> a knowledge base on PQC algorithms and migration, an assistant grounded
+      <p><b>What it has:</b> a knowledge base on post-quantum algorithms and migration, an assistant grounded
       in <em>your</em> data (ask "which assets are most exposed to HNDL?"), FIPS algorithm
       classification, and the provider capability matrix.</p>` },
     { id: "g-admin", n: "Administration", i: I.shield, body: `
@@ -10033,7 +10033,7 @@ const GUIDE = [
         <li><b>headers mode</b> — identity comes from request headers. Convenient locally,
           <b>unsafe in production</b>: any caller can claim any role.</li>
         <li><b>jwt mode</b> — a bearer token carries identity. Set
-          <code>PQC_AUTH_REQUIRED=1</code> to reject unauthenticated requests.</li>
+          <code>MORROW_AUTH_REQUIRED=1</code> to reject unauthenticated requests.</li>
         <li><b>SAML / OIDC</b> — used when an external identity provider is configured.</li>
       </ul>
       <p>Expired access tokens are refreshed transparently once; if that fails you are returned to
@@ -10042,9 +10042,9 @@ const GUIDE = [
     { id: "g-trouble", n: "Troubleshooting", i: I.alert, body: `
       <details class="faq" open><summary>A panel says "Endpoint unavailable"</summary>
         <p>That feature is disabled or misconfigured server-side. The message includes the status and
-        path. Common causes: <code>/platform/*</code> needs <code>PQC_PLATFORM_ADMIN_KEY</code>;
+        path. Common causes: <code>/platform/*</code> needs <code>MORROW_PLATFORM_ADMIN_KEY</code>;
         vault-backed features need <code>DATABASE_URL</code> (Postgres) and
-        <code>PQC_VAULT_MASTER_KEY</code>. Panels degrade individually and never take the screen down.</p></details>
+        <code>MORROW_VAULT_MASTER_KEY</code>. Panels degrade individually and never take the screen down.</p></details>
       <details class="faq"><summary>"429 · Organization API rate limit exceeded" or "scan limit exceeded"</summary>
         <p>Your organization reached a limit. Wait the number of seconds in the message and try again. See
         <b>Rate limits</b>.</p></details>
@@ -10063,7 +10063,7 @@ const GUIDE = [
       <details class="faq"><summary>"Cross-origin API base" warning</summary>
         <p>The page is served with a Content-Security-Policy that restricts <code>connect-src</code>,
         so the browser blocks requests to other origins. Serve the console from the same origin as
-        the API, or widen <code>PQC_CSP_VALUE</code>.</p></details>
+        the API, or widen <code>MORROW_CSP_VALUE</code>.</p></details>
       <details class="faq"><summary>I cannot sign in — password sign-in unavailable</summary>
         <p>With authentication enforced, this server does not exempt <code>/auth/login</code> from the
         auth wall on older builds. Use single sign-on, paste a token from your identity provider, or
@@ -10174,7 +10174,7 @@ VIEWS.api = async (host) => {
   } else {
     box.innerHTML = `<div class="banner warn">${I.alert}<div><b>Schema endpoint disabled on this server</b>
       <span class="bx"><span class="mono">/openapi.json</span> returned <span class="mono">${H(String(spec.err || "no schema").slice(0, 80))}</span>,
-      so route counts cannot be verified from the UI. Set <span class="mono">PQC_ENABLE_DOCS=1</span> (or equivalent) to enable it.</span></div></div>`;
+      so route counts cannot be verified from the UI. Set <span class="mono">MORROW_ENABLE_DOCS=1</span> (or equivalent) to enable it.</span></div></div>`;
   }
   wire(box);
   navBadge("api", "");

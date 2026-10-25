@@ -25,20 +25,20 @@ mkdir -p "$OUT"
 echo "[$(date -u +%FT%TZ)] backup $STAMP starting"
 
 # --clean --if-exists so the dump can be restored over an existing database without hand-editing.
-$COMPOSE exec -T db pg_dump -U "${POSTGRES_USER:-pqc}" -d "${POSTGRES_DB:-pqc}" --clean --if-exists \
+$COMPOSE exec -T db pg_dump -U "${POSTGRES_USER:-pq}" -d "${POSTGRES_DB:-pq}" --clean --if-exists \
 	| gzip -9 > "${OUT}/pg-${STAMP}.sql.gz"
 gzip -t "${OUT}/pg-${STAMP}.sql.gz"
 
 # The SQLite feature store is a live file, so it is copied with sqlite3's own backup rather than
 # cp: copying the file while a write is in flight produces an archive that restores to a corrupt
 # database, and you find out at the worst possible moment.
-if $COMPOSE exec -T api sh -c 'test -f /data/pqc_scanner.db'; then
+if $COMPOSE exec -T api sh -c 'test -f /data/morrow.db'; then
 	$COMPOSE exec -T api sh -c \
-		'sqlite3 /data/pqc_scanner.db ".backup /tmp/backup.db" && gzip -9 -c /tmp/backup.db && rm -f /tmp/backup.db' \
+		'sqlite3 /data/morrow.db ".backup /tmp/backup.db" && gzip -9 -c /tmp/backup.db && rm -f /tmp/backup.db' \
 		> "${OUT}/sqlite-${STAMP}.db.gz"
 	gzip -t "${OUT}/sqlite-${STAMP}.db.gz"
 else
-	echo "note: no /data/pqc_scanner.db in the api container -- nothing to back up there"
+	echo "note: no /data/morrow.db in the api container -- nothing to back up there"
 fi
 
 # .env.prod holds the keys that decrypt everything else, so a backup of the database without it is
@@ -49,7 +49,7 @@ if [ -n "${BACKUP_GPG_RECIPIENT:-}" ] && [ -f "$ENV_FILE" ]; then
 		--output "${OUT}/env-${STAMP}.gpg" "$ENV_FILE"
 else
 	echo "WARNING: BACKUP_GPG_RECIPIENT is not set, so $ENV_FILE is not in this backup."
-	echo "         PQC_VAULT_MASTER_KEY is in that file. Without it a restored database"
+	echo "         MORROW_VAULT_MASTER_KEY is in that file. Without it a restored database"
 	echo "         cannot decrypt stored credentials. Keep a copy somewhere else, by hand."
 fi
 

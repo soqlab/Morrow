@@ -64,7 +64,7 @@ def create_invite_landing_router(deps: Any) -> APIRouter:
     def platform_invitation_email_status(request: Request):
         guard(request, READ)
         return JSONResponse({"api_version": "v1", "email_configured": _mail.configured(),
-                             "detail": "" if _mail.configured() else "Email isn't configured on this server (set PQC_SMTP_HOST)."},
+                             "detail": "" if _mail.configured() else "Email isn't configured on this server (set MORROW_SMTP_HOST)."},
                             headers={"Cache-Control": "no-store"})
 
     @router.post("/platform/customers/{organization_id}/invitations/{invite_id}/email")
@@ -73,7 +73,7 @@ def create_invite_landing_router(deps: Any) -> APIRouter:
         if not deps.org_exists(organization_id):
             raise HTTPException(status_code=404, detail="Customer organization not found.")
         if not _mail.configured():
-            raise HTTPException(status_code=503, detail="Email isn't configured on this server. Set PQC_SMTP_HOST and PQC_SMTP_FROM, "
+            raise HTTPException(status_code=503, detail="Email isn't configured on this server. Set MORROW_SMTP_HOST and MORROW_SMTP_FROM, "
                                                         "or copy the invite link and send it yourself.")
         invitation = await run_in_threadpool(_links.pending_token, organization_id, invite_id)
         if not invitation:

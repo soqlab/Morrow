@@ -400,8 +400,8 @@ _Q_DAY_PROBS: Dict[str, Dict[int, float]] = {
     "ecc384":           {2027: 0.01, 2028: 0.02, 2029: 0.06, 2030: 0.14, 2031: 0.28, 2032: 0.45, 2033: 0.63, 2034: 0.78, 2035: 0.90},
     "x25519":           {2027: 0.02, 2028: 0.05, 2029: 0.11, 2030: 0.22, 2031: 0.38, 2032: 0.56, 2033: 0.72, 2034: 0.85, 2035: 0.94},
     "dh_classical":     {2027: 0.02, 2028: 0.06, 2029: 0.14, 2030: 0.28, 2031: 0.46, 2032: 0.64, 2033: 0.78, 2034: 0.89, 2035: 0.96},
-    "pqc_hybrid":       {2027: 0.00, 2028: 0.00, 2029: 0.00, 2030: 0.00, 2031: 0.00, 2032: 0.00, 2033: 0.01, 2034: 0.01, 2035: 0.02},
-    "pqc_pure":         {2027: 0.00, 2028: 0.00, 2029: 0.00, 2030: 0.00, 2031: 0.00, 2032: 0.00, 2033: 0.00, 2034: 0.01, 2035: 0.01},
+    "pq_hybrid":       {2027: 0.00, 2028: 0.00, 2029: 0.00, 2030: 0.00, 2031: 0.00, 2032: 0.00, 2033: 0.01, 2034: 0.01, 2035: 0.02},
+    "pq_pure":         {2027: 0.00, 2028: 0.00, 2029: 0.00, 2030: 0.00, 2031: 0.00, 2032: 0.00, 2033: 0.00, 2034: 0.01, 2035: 0.01},
     "tls10_or_ssl":     {2027: 0.05, 2028: 0.10, 2029: 0.20, 2030: 0.35, 2031: 0.52, 2032: 0.68, 2033: 0.80, 2034: 0.90, 2035: 0.97},
     "unknown_classical":{2027: 0.02, 2028: 0.05, 2029: 0.12, 2030: 0.24, 2031: 0.40, 2032: 0.57, 2033: 0.72, 2034: 0.84, 2035: 0.93},
 }
@@ -506,7 +506,7 @@ def _classify_algorithm(
     no cipher and no key it fell through to ``unknown_classical`` and got a dollar figure.
 
     ``key_exchange`` is the negotiated TLS 1.3 group (see scanner._probe_tls13_key_exchange_group).
-    It is the only field that can reach the ``pqc_hybrid`` and ``pqc_pure`` buckets, because a
+    It is the only field that can reach the ``pq_hybrid`` and ``pq_pure`` buckets, because a
     TLS 1.3 suite name such as TLS_AES_256_GCM_SHA384 never names the key exchange.
     """
     tv = str(tls_version or "").lower()
@@ -523,19 +523,19 @@ def _classify_algorithm(
 
     # The negotiated group, where the scanner could observe it, decides the key exchange outright.
     if kx:
-        pqc = any(x in kx for x in ("mlkem", "kyber", "ntru", "bike", "hqc", "frodo"))
-        if pqc:
+        pq = any(x in kx for x in ("mlkem", "kyber", "ntru", "bike", "hqc", "frodo"))
+        if pq:
             hybrid = any(x in kx for x in ("x25519", "x448", "p256", "p384", "p521", "secp"))
-            return "pqc_hybrid" if hybrid else "pqc_pure"
+            return "pq_hybrid" if hybrid else "pq_pure"
 
     if "1.0" in tv or "ssl" in tv:
         return "tls10_or_ssl"
     if any(x in cn for x in ("kyber", "mlkem", "ml-kem", "ntru", "bike", "hqc")):
         if any(x in cn for x in ("x25519", "p256", "p384")):
-            return "pqc_hybrid"
-        return "pqc_pure"
+            return "pq_hybrid"
+        return "pq_pure"
     if any(x in cn for x in ("dilithium", "mldsa", "falcon", "sphincs")):
-        return "pqc_pure"
+        return "pq_pure"
     if "rsa" in kt or "rsa" in cn:
         if kb >= 4096:
             return "rsa4096"

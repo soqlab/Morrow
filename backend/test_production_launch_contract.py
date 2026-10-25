@@ -63,11 +63,11 @@ def test_no_expiry_escape_hatch_cannot_bypass_production(monkeypatch):
     monkeypatch.setattr(app, "PRODUCTION_ENVIRONMENT", True)
     monkeypatch.setattr(app, "AUTH_JWT_ALGORITHMS", ["HS256"])
     monkeypatch.setattr(app, "AUTH_JWT_SECRET", secret)
-    monkeypatch.setenv("PQC_JWT_ALLOW_NO_EXP", "1")
+    monkeypatch.setenv("MORROW_JWT_ALLOW_NO_EXP", "1")
     token = jwt.encode({"sub": "test-admin", "role": "admin"}, secret, algorithm="HS256")
     payload, error = app._verified_jwt_payload_from_auth_header("Bearer " + token)
     assert payload == {} and "expiry" in error
-    assert any("PQC_JWT_ALLOW_NO_EXP" in item for item in app._production_startup_blockers())
+    assert any("MORROW_JWT_ALLOW_NO_EXP" in item for item in app._production_startup_blockers())
 
 
 def test_launch_gate_includes_startup_safety_and_override(monkeypatch):
@@ -78,7 +78,7 @@ def test_launch_gate_includes_startup_safety_and_override(monkeypatch):
     monkeypatch.setattr(app, "_production_startup_blockers", lambda: ["Test unsafe setting"])
     assert not app._platform_go_live_gate_result()["go_live_allowed"]
     monkeypatch.setattr(app, "_production_startup_blockers", lambda: [])
-    monkeypatch.setenv("PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
+    monkeypatch.setenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
     assert not app._platform_go_live_gate_result()["go_live_allowed"]
 
 
@@ -105,7 +105,7 @@ def test_jwks_size_and_redirect_controls(monkeypatch):
 
 
 def _ps(script, *args):
-    env = {k: v for k, v in os.environ.items() if k not in {"PQC_PLATFORM_ADMIN_KEY", "PQC_OPERATOR_SESSION"}}
+    env = {k: v for k, v in os.environ.items() if k not in {"MORROW_PLATFORM_ADMIN_KEY", "MORROW_OPERATOR_SESSION"}}
     return subprocess.run([SHELL, "-NoProfile", "-File", str(ROOT / "scripts" / script), *args],
                           cwd=ROOT, env=env, capture_output=True, timeout=45)
 
@@ -156,7 +156,7 @@ def test_deployment_verification_uses_session_and_fails_closed(redirect):
         result = _ps("verify-cloud-deployment.ps1", "-BaseUrl", f"http://127.0.0.1:{server.server_port}",
                      "-OperatorSession", "throwaway-test-session")
         assert result.returncode != 0
-        assert ("/platform/readiness", "pqc_admin_session=throwaway-test-session") in requests
+        assert ("/platform/readiness", "morrow_admin_session=throwaway-test-session") in requests
         assert not any(path == "/untrusted" for path, _ in requests)
         assert not any(cookie for path, cookie in requests if path in {"/status", "/health"})
     finally:
@@ -168,13 +168,13 @@ def test_deployment_verification_uses_session_and_fails_closed(redirect):
 @pytest.mark.skipif(not shutil.which("docker"), reason="Docker CLI is required for Compose interpolation")
 def test_production_compose_passes_customer_claims_operator_sso_and_ai_settings(tmp_path):
     envfile = tmp_path / "compose.env"
-    values = {"PQC_AUTH_ROLE_CLAIM": "https://tenant.invalid/role", "PQC_AUTH_ORG_ID_CLAIM": "https://tenant.invalid/org",
-              "PQC_ADMIN_OIDC_ISSUER": "https://staff.invalid", "PQC_ADMIN_OIDC_CLIENT_ID": "test-client",
-              "PQC_ADMIN_OPERATOR_ROLES": "test@staff.invalid=owner", "PQC_PUBLIC_BASE_URL": "https://app.invalid",
-              "PQC_AI_LOCAL_URL": "https://model.invalid/v1/chat/completions", "PQC_AI_LOCAL_MODEL": "test-local",
-              "PQC_AI_DEPLOYMENT_LOCATION": "customer", "OPENAI_AGENT_MODEL": "test-approved-model"}
+    values = {"MORROW_AUTH_ROLE_CLAIM": "https://tenant.invalid/role", "MORROW_AUTH_ORG_ID_CLAIM": "https://tenant.invalid/org",
+              "MORROW_ADMIN_OIDC_ISSUER": "https://staff.invalid", "MORROW_ADMIN_OIDC_CLIENT_ID": "test-client",
+              "MORROW_ADMIN_OPERATOR_ROLES": "test@staff.invalid=owner", "MORROW_PUBLIC_BASE_URL": "https://app.invalid",
+              "MORROW_AI_LOCAL_URL": "https://model.invalid/v1/chat/completions", "MORROW_AI_LOCAL_MODEL": "test-local",
+              "MORROW_AI_DEPLOYMENT_LOCATION": "customer", "OPENAI_AGENT_MODEL": "test-approved-model"}
     envfile.write_text("\n".join(f"{key}={value}" for key, value in values.items()), encoding="utf-8")
-    env = {key: value for key, value in os.environ.items() if not key.startswith(("PQC_", "OPENAI_", "ANTHROPIC_"))}
+    env = {key: value for key, value in os.environ.items() if not key.startswith(("MORROW_", "OPENAI_", "ANTHROPIC_"))}
     result = subprocess.run(["docker", "compose", "--env-file", str(envfile), "-f", str(ROOT / "docker-compose.prod.yml"), "config", "--format", "json"],
                             env=env, capture_output=True, timeout=30)
     assert result.returncode == 0
@@ -182,34 +182,34 @@ def test_production_compose_passes_customer_claims_operator_sso_and_ai_settings(
     for name in ("api", "worker", "beat"):
         config = services[name]["environment"]
         assert all(config[key] == value for key, value in values.items())
-        assert config["PQC_ADMIN_REQUIRE_MFA"] == "1"
-        assert config["PQC_ALLOW_BREAK_GLASS_KEY"] == "0"
+        assert config["MORROW_ADMIN_REQUIRE_MFA"] == "1"
+        assert config["MORROW_ALLOW_BREAK_GLASS_KEY"] == "0"
     assert services["api"]["ports"][0]["host_ip"] == "127.0.0.1"
 
 
 @pytest.mark.skipif(not SHELL, reason="PowerShell is required to execute launch scripts")
 @pytest.mark.parametrize("change,expected", [
     ({}, None),
-    ({"PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP": "1"}, "startup_override"),
-    ({"PQC_ADMIN_REQUIRE_MFA": "0"}, "operator_mfa"),
+    ({"MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP": "1"}, "startup_override"),
+    ({"MORROW_ADMIN_REQUIRE_MFA": "0"}, "operator_mfa"),
     ({"CELERY_RESULT_BACKEND": "rediss://:password@cache.invalid:6379/1?ssl_cert_reqs=none"}, "redis_tls:CELERY_RESULT_BACKEND"),
     ({"SENTRY_DSN": ""}, "sentry"),
 ])
 def test_strict_preflight_supports_ai_off_and_verified_redis_tls(tmp_path, change, expected):
     conf = {
-        "PQC_ENVIRONMENT": "production", "PQC_VAULT_MASTER_KEY": "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=",
-        "PQC_PLATFORM_ADMIN_KEY": "b" * 64, "PQC_AUTH_REQUIRED": "1", "PQC_AUTH_MODE": "jwt",
-        "PQC_AUTH_ISSUER_ENABLED": "0", "PQC_DEFAULT_ROLE": "viewer", "PQC_ALLOWED_HOSTS": "app.invalid",
-        "PQC_AIRLOCK_SIGNING_KEY": "c" * 64, "PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE": "1",
-        "PQC_AUTH_JWT_ISSUER": "https://login.invalid/", "PQC_AUTH_JWT_AUDIENCE": "airlock",
-        "PQC_AUTH_JWT_JWKS_URL": "https://login.invalid/keys", "PQC_CORS_ORIGINS": "https://app.invalid",
+        "MORROW_ENVIRONMENT": "production", "MORROW_VAULT_MASTER_KEY": "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=",
+        "MORROW_PLATFORM_ADMIN_KEY": "b" * 64, "MORROW_AUTH_REQUIRED": "1", "MORROW_AUTH_MODE": "jwt",
+        "MORROW_AUTH_ISSUER_ENABLED": "0", "MORROW_DEFAULT_ROLE": "viewer", "MORROW_ALLOWED_HOSTS": "app.invalid",
+        "MORROW_AIRLOCK_SIGNING_KEY": "c" * 64, "MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE": "1",
+        "MORROW_AUTH_JWT_ISSUER": "https://login.invalid/", "MORROW_AUTH_JWT_AUDIENCE": "airlock",
+        "MORROW_AUTH_JWT_JWKS_URL": "https://login.invalid/keys", "MORROW_CORS_ORIGINS": "https://app.invalid",
         "DATABASE_URL": "postgresql://runtime:password@db.invalid:5432/app?sslmode=require",
         "CELERY_BROKER_URL": "rediss://:password@cache.invalid:6379/0?ssl_cert_reqs=required",
         "CELERY_RESULT_BACKEND": "rediss://:password@cache.invalid:6379/1?ssl_cert_reqs=required",
-        "PQC_CSP_VALUE": "default-src 'self'", "SENTRY_DSN": "https://public@monitor.invalid/1",
-        "PQC_TRAFFIC_PERSIST_TO_DB": "1", "PQC_PUBLIC_BASE_URL": "https://app.invalid",
-        "PQC_ADMIN_OIDC_ISSUER": "https://staff.invalid", "PQC_ADMIN_OIDC_CLIENT_ID": "staff-client",
-        "PQC_ADMIN_OPERATOR_ROLES": "owner@company.invalid=owner", **change,
+        "MORROW_CSP_VALUE": "default-src 'self'", "SENTRY_DSN": "https://public@monitor.invalid/1",
+        "MORROW_TRAFFIC_PERSIST_TO_DB": "1", "MORROW_PUBLIC_BASE_URL": "https://app.invalid",
+        "MORROW_ADMIN_OIDC_ISSUER": "https://staff.invalid", "MORROW_ADMIN_OIDC_CLIENT_ID": "staff-client",
+        "MORROW_ADMIN_OPERATOR_ROLES": "owner@company.invalid=owner", **change,
     }
     target = tmp_path / "launch.env"
     target.write_text("\n".join(f"{key}={value}" for key, value in conf.items()), encoding="utf-8")

@@ -375,7 +375,7 @@ Current scan output includes a staged quantum migration plan:
 1. inventory public cryptography
 2. classify data sensitivity and confidentiality lifetime
 3. prepare crypto agility with TLS/certificate hardening
-4. check hybrid/PQC support for the provider or TLS terminator
+4. check hybrid/post-quantum support for the provider or TLS terminator
 5. create a validated migration pull request
 6. verify the external posture and monitor drift
 
@@ -411,7 +411,7 @@ Morrow checks those public systems and looks for crypto and TLS posture issues.
 
 TLS is the technology behind HTTPS. When you see a padlock in the browser, TLS is part of what makes that work.
 
-PQC means post-quantum cryptography.
+Post-quantum means post-quantum cryptography.
 
 Post-quantum cryptography is about preparing for a future where quantum computers may break some older cryptographic systems. Most companies are not fully ready for that yet. Morrow helps them understand where they are and move toward safer, more flexible crypto setups.
 
@@ -1785,7 +1785,7 @@ Clear the stored token in the browser and log in again.
 In the browser console:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -2009,7 +2009,7 @@ Important fields include:
 - `key_type`
 - `sig_algorithm`
 - `findings`
-- `pqc_recommendation`
+- `pq_recommendation`
 - `quantum_risk_score`
 
 Use scans to establish current exposure and to build historical trends.
@@ -2284,7 +2284,7 @@ Important limitation:
 
 Optional Docker isolation can run Terraform validation in a separate per-job container with network disabled, dropped capabilities, and CPU/memory limits. This is stronger than default workspace mode, but still should not be treated as a micro-VM hostile-code boundary.
 
-Set `PQC_VALIDATION_ISOLATION_MODE=docker` and configure `PQC_VALIDATION_DOCKER_IMAGE` if your runtime has Docker access and you want this stricter mode.
+Set `MORROW_VALIDATION_ISOLATION_MODE=docker` and configure `MORROW_VALIDATION_DOCKER_IMAGE` if your runtime has Docker access and you want this stricter mode.
 
 For Terraform, the platform runs:
 
@@ -2327,7 +2327,7 @@ After a remediation is approved and validation has passed, create the PR.
 Invoke-RestMethod -Method Post -Uri "http://localhost:8000/remediations/1/create-pr" `
   -Headers @{"x-user-role"="operator";"x-user-id"="operator-user";"x-org-id"="org-alpha"} `
   -ContentType "application/json" `
-  -Body '{"github_credential_id":15,"branch_prefix":"fix/pqc-remediation","allow_unvalidated":false}'
+  -Body '{"github_credential_id":15,"branch_prefix":"fix/pq-remediation","allow_unvalidated":false}'
 ```
 
 ### Notes
@@ -2501,7 +2501,7 @@ Use it if you want to:
 - verify token access
 - preview or dry-run policy application
 
-This is optional and not required for the core PQC remediation workflow.
+This is optional and not required for the core post-quantum remediation workflow.
 
 ## 22. Deployment and configuration reference
 
@@ -2511,44 +2511,44 @@ This section covers the main runtime settings you are likely to change.
 
 | Variable | Meaning |
 |---|---|
-| `PQC_MAIN_DB_BACKEND` | Main app database backend. Use `postgres` for shared/cloud mode or local SQLite flow when appropriate. |
-| `PQC_PRODUCT_DATABASE_URL` | Main Postgres connection string for app data. |
+| `MORROW_MAIN_DB_BACKEND` | Main app database backend. Use `postgres` for shared/cloud mode or local SQLite flow when appropriate. |
+| `MORROW_PRODUCT_DATABASE_URL` | Main Postgres connection string for app data. |
 | `DATABASE_URL` | General database URL used by some integrations and older paths. |
 | `CELERY_BROKER_URL` | Redis broker for background jobs. |
 | `CELERY_RESULT_BACKEND` | Redis result backend for background tasks. |
-| `PQC_VAULT_MASTER_KEY` | Encryption root for stored vault secrets. |
+| `MORROW_VAULT_MASTER_KEY` | Encryption root for stored vault secrets. |
 | `OPENAI_API_KEY` | Required for remediation suggestion generation. |
 | `OPENAI_MODEL` | Optional override for the model used in remediation generation. |
-| `PQC_API_KEY` | Optional API key protection for scan routes and docs. |
-| `PQC_DEFAULT_ORG_ID` | Default organization id in non-hosted or simplified local setups. |
-| `PQC_DEFAULT_ROLE` | Default role when using local header mode. |
+| `MORROW_API_KEY` | Optional API key protection for scan routes and docs. |
+| `MORROW_DEFAULT_ORG_ID` | Default organization id in non-hosted or simplified local setups. |
+| `MORROW_DEFAULT_ROLE` | Default role when using local header mode. |
 
 ### Auth
 
 | Variable | Meaning |
 |---|---|
-| `PQC_AUTH_MODE` | `headers` for local/dev, `jwt` for hosted auth. |
-| `PQC_AUTH_REQUIRED` | Force authenticated access when true. |
-| `PQC_AUTH_PROVIDER_NAME` | Label shown in the UI, such as `Auth0`. |
-| `PQC_AUTH_LOGIN_URL` | Hosted login URL used by the UI. |
-| `PQC_AUTH_LOGOUT_URL` | Hosted logout URL used by the UI. |
-| `PQC_AUTH_TOKEN_HELP` | Helper text shown in the UI. |
-| `PQC_AUTH_JWT_ISSUER` | Expected JWT issuer. |
-| `PQC_AUTH_JWT_AUDIENCE` | Expected JWT audience. |
-| `PQC_AUTH_JWT_JWKS_URL` | JWKS endpoint for RS256 token verification. |
-| `PQC_AUTH_JWT_SECRET` | Shared secret if using HS256 instead of JWKS. |
-| `PQC_AUTH_USER_ID_CLAIM` | User id claim name, usually `sub`. |
-| `PQC_AUTH_ROLE_CLAIM` | Role claim name. |
-| `PQC_AUTH_ORG_ID_CLAIM` | Organization id claim name. |
-| `PQC_AUTH_JWT_ALGORITHMS` | Allowed JWT algorithms. |
-| `PQC_AUTH_CLOCK_SKEW_SECONDS` | JWT clock skew tolerance. |
+| `MORROW_AUTH_MODE` | `headers` for local/dev, `jwt` for hosted auth. |
+| `MORROW_AUTH_REQUIRED` | Force authenticated access when true. |
+| `MORROW_AUTH_PROVIDER_NAME` | Label shown in the UI, such as `Auth0`. |
+| `MORROW_AUTH_LOGIN_URL` | Hosted login URL used by the UI. |
+| `MORROW_AUTH_LOGOUT_URL` | Hosted logout URL used by the UI. |
+| `MORROW_AUTH_TOKEN_HELP` | Helper text shown in the UI. |
+| `MORROW_AUTH_JWT_ISSUER` | Expected JWT issuer. |
+| `MORROW_AUTH_JWT_AUDIENCE` | Expected JWT audience. |
+| `MORROW_AUTH_JWT_JWKS_URL` | JWKS endpoint for RS256 token verification. |
+| `MORROW_AUTH_JWT_SECRET` | Shared secret if using HS256 instead of JWKS. |
+| `MORROW_AUTH_USER_ID_CLAIM` | User id claim name, usually `sub`. |
+| `MORROW_AUTH_ROLE_CLAIM` | Role claim name. |
+| `MORROW_AUTH_ORG_ID_CLAIM` | Organization id claim name. |
+| `MORROW_AUTH_JWT_ALGORITHMS` | Allowed JWT algorithms. |
+| `MORROW_AUTH_CLOCK_SKEW_SECONDS` | JWT clock skew tolerance. |
 
 ### Scan / API limits
 
 | Variable | Meaning |
 |---|---|
-| `PQC_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window length. |
-| `PQC_RATE_LIMIT_MAX_REQUESTS` | Max requests allowed in that window. |
+| `MORROW_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window length. |
+| `MORROW_RATE_LIMIT_MAX_REQUESTS` | Max requests allowed in that window. |
 | `PER_TARGET_TIMEOUT` | Target-level scan timeout. |
 
 ### Local Docker defaults
@@ -2617,7 +2617,7 @@ Do not mix many naming styles for the same responsibility.
 Clear the stored UI token and log in again:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -3105,7 +3105,7 @@ What it checks:
 - chain confidence
 - legacy TLS support
 - weak cipher posture
-- PQC-readiness signals
+- post-quantum-readiness signals
 
 ### Set Baseline
 
@@ -4056,7 +4056,7 @@ clear the old session in the browser.
 Open the browser console and run:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -4121,7 +4121,7 @@ After it finishes, inspect:
 - risk level
 - TLS version
 - certificate details
-- PQC recommendation
+- post-quantum recommendation
 
 ## 12. Open the asset
 
@@ -4525,7 +4525,7 @@ That is normal. Those are environment setup tasks, not day-to-day user tasks.
 Clear the stored browser token and log in again:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -4641,7 +4641,7 @@ Go to the backend folder.
 Example on Windows:
 
 ```powershell
-cd C:\Users\Samsung\Desktop\pqc-scanner\backend
+cd C:\Users\Samsung\Desktop\morrow\backend
 ```
 
 ## 3. Start the app
@@ -4920,7 +4920,7 @@ If you are in local mode, refresh the page.
 If the UI has stale login data, open browser console and run:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -4946,7 +4946,7 @@ If you want the shortest possible path, do exactly this:
 2. run:
 
 ```powershell
-cd C:\Users\Samsung\Desktop\pqc-scanner\backend
+cd C:\Users\Samsung\Desktop\morrow\backend
 docker compose up -d
 ```
 
@@ -5032,7 +5032,7 @@ Morrow is an end-to-end remediation loop, not only a TLS scanner.
 
 It does all of the following:
 
-- scans public endpoints for TLS, certificate, and PQC-readiness posture
+- scans public endpoints for TLS, certificate, and post-quantum-readiness posture
 - stores current and historical scan results
 - tracks asset ownership and business metadata
 - links assets to repositories
@@ -5158,7 +5158,7 @@ Behavior:
 
 - validates target list
 - creates a durable scan row
-- enqueues Celery task `pqc.run_scan_task`
+- enqueues Celery task `pq.run_scan_task`
 - worker updates progress and stores results
 - results are fetched later via `/scans/{scan_id}` and `/scans/{scan_id}/results`
 
@@ -5218,8 +5218,8 @@ Important output fields include:
 - `risk_level`
 - `quantum_risk_level`
 - `quantum_risk_score`
-- `pqc_relevance`
-- `pqc_recommendation`
+- `pq_relevance`
+- `pq_recommendation`
 
 ### 4.2 Policy engine
 
@@ -5233,7 +5233,7 @@ The policy layer turns scanner facts into:
 - severity
 - risk level
 - risk score
-- PQC relevance
+- post-quantum relevance
 - aggregate summaries
 
 Rule areas include:
@@ -5457,7 +5457,7 @@ Purpose:
 
 Implemented as Celery task:
 
-- `pqc.correlate_assets`
+- `pq.correlate_assets`
 
 Purpose:
 
@@ -5522,7 +5522,7 @@ Security boundary note:
 
 - default mode is an ephemeral validation workspace inside the API/worker container
 - optional Docker mode runs Terraform validation in a separate per-job container with `--network none`, dropped Linux capabilities, no-new-privileges, CPU/memory limits, and a scrubbed environment
-- Docker mode is enabled with `PQC_VALIDATION_ISOLATION_MODE=docker` and requires Docker access plus `PQC_VALIDATION_DOCKER_IMAGE`
+- Docker mode is enabled with `MORROW_VALIDATION_ISOLATION_MODE=docker` and requires Docker access plus `MORROW_VALIDATION_DOCKER_IMAGE`
 - Docker mode is stronger than the default workspace mode, but it is still not a micro-VM or kernel-level hostile-code boundary
 
 Current validator types:
@@ -5553,7 +5553,7 @@ Behavior:
 - PR is opened
 - remediation moves to `pr_created`
 - branch, base branch, and GitHub credential metadata are stored for later branch cleanup
-- PR body can include a link back to the remediation dashboard when `PQC_APP_BASE_URL` or `PQC_PUBLIC_APP_URL` is set
+- PR body can include a link back to the remediation dashboard when `MORROW_APP_BASE_URL` or `MORROW_PUBLIC_APP_URL` is set
 
 Current branch naming pattern:
 
@@ -5561,7 +5561,7 @@ Current branch naming pattern:
 
 The timestamp and suffix make normal PR retries collision-resistant while preserving readable branch names.
 
-After a remediation reaches `verified_closed`, `pqc.cleanup_remediation_branches` can delete the remediation branch from GitHub. The cleanup skips protected/default branches and records cleanup status, timestamp, error text, and attempt count on the remediation.
+After a remediation reaches `verified_closed`, `pq.cleanup_remediation_branches` can delete the remediation branch from GitHub. The cleanup skips protected/default branches and records cleanup status, timestamp, error text, and attempt count on the remediation.
 
 ### 4.19 Merge tracking and verified closure
 
@@ -5628,7 +5628,7 @@ Built-in event types include:
 - `scan.failed`
 - `cert.expired`
 - `cert.expiring_soon`
-- `pqc.not_ready`
+- `pq.not_ready`
 - `scan.regression`
 - `validation.failed`
 - `remediation.merged`
@@ -5686,7 +5686,7 @@ Current prototype rules:
 - `IAC_AWS_S3_PUBLIC_ACCESS_BLOCK_DISABLED`
   - detects incomplete S3 public access block controls
 
-The remediation validation sandbox includes this policy check after generic/Terraform validation. This demonstrates that the same golden loop can validate non-crypto infrastructure fixes, not only PQC/TLS migrations.
+The remediation validation sandbox includes this policy check after generic/Terraform validation. This demonstrates that the same golden loop can validate non-crypto infrastructure fixes, not only post-quantum/TLS migrations.
 
 ### 4.23.2 MCP interface
 
@@ -5725,7 +5725,7 @@ Runtime observability includes:
 - optional Sentry exception capture through `SENTRY_DSN`
 - Cloud Logging-compatible exception logs when Sentry is not configured
 - `/health/deep` for Postgres and Redis connectivity checks
-- optional deep `/health` behavior with `PQC_HEALTH_DEEP=1`
+- optional deep `/health` behavior with `MORROW_HEALTH_DEEP=1`
 
 ### 4.26 Organization lifecycle
 
@@ -6757,7 +6757,7 @@ Fields:
 - `risk_level`
 - `quantum_score`
 - `findings_count`
-- `pqc_relevance`
+- `pq_relevance`
 - `tls_version`
 - `key_type`
 - `sig_algorithm`
@@ -7037,7 +7037,7 @@ Fields:
 
 Secrets are encrypted using:
 
-- `PQC_VAULT_MASTER_KEY`
+- `MORROW_VAULT_MASTER_KEY`
 
 ## 4. Org-scoped vs global data
 
@@ -7111,40 +7111,40 @@ Security caveat:
 
 ### 5.1 Database and backend selection
 
-- `PQC_MAIN_DB_BACKEND`
-- `PQC_PRODUCT_DATABASE_URL`
+- `MORROW_MAIN_DB_BACKEND`
+- `MORROW_PRODUCT_DATABASE_URL`
 - `DATABASE_URL`
-- `PQC_SCANNER_DB`
+- `MORROW_SCANNER_DB`
 
 ### 5.2 Vault
 
-- `PQC_VAULT_MASTER_KEY`
+- `MORROW_VAULT_MASTER_KEY`
 
 ### 5.3 Auth
 
-- `PQC_AUTH_MODE`
-- `PQC_AUTH_REQUIRED`
-- `PQC_AUTH_PROVIDER_NAME`
-- `PQC_AUTH_LOGIN_URL`
-- `PQC_AUTH_LOGOUT_URL`
-- `PQC_AUTH_TOKEN_HELP`
-- `PQC_AUTH_JWT_ISSUER`
-- `PQC_AUTH_JWT_AUDIENCE`
-- `PQC_AUTH_JWT_JWKS_URL`
-- `PQC_AUTH_JWT_SECRET`
-- `PQC_AUTH_USER_ID_CLAIM`
-- `PQC_AUTH_ROLE_CLAIM`
-- `PQC_AUTH_ORG_ID_CLAIM`
-- `PQC_AUTH_CLOCK_SKEW_SECONDS`
-- `PQC_AUTH_JWT_ALGORITHMS`
+- `MORROW_AUTH_MODE`
+- `MORROW_AUTH_REQUIRED`
+- `MORROW_AUTH_PROVIDER_NAME`
+- `MORROW_AUTH_LOGIN_URL`
+- `MORROW_AUTH_LOGOUT_URL`
+- `MORROW_AUTH_TOKEN_HELP`
+- `MORROW_AUTH_JWT_ISSUER`
+- `MORROW_AUTH_JWT_AUDIENCE`
+- `MORROW_AUTH_JWT_JWKS_URL`
+- `MORROW_AUTH_JWT_SECRET`
+- `MORROW_AUTH_USER_ID_CLAIM`
+- `MORROW_AUTH_ROLE_CLAIM`
+- `MORROW_AUTH_ORG_ID_CLAIM`
+- `MORROW_AUTH_CLOCK_SKEW_SECONDS`
+- `MORROW_AUTH_JWT_ALGORITHMS`
 
 ### 5.4 Defaults and request limits
 
-- `PQC_DEFAULT_ROLE`
-- `PQC_DEFAULT_ORG_ID`
-- `PQC_API_KEY`
-- `PQC_RATE_LIMIT_WINDOW_SECONDS`
-- `PQC_RATE_LIMIT_MAX_REQUESTS`
+- `MORROW_DEFAULT_ROLE`
+- `MORROW_DEFAULT_ORG_ID`
+- `MORROW_API_KEY`
+- `MORROW_RATE_LIMIT_WINDOW_SECONDS`
+- `MORROW_RATE_LIMIT_MAX_REQUESTS`
 
 ### 5.5 AI
 
@@ -7181,12 +7181,12 @@ Security caveat:
 - `CORRELATE_ASSET_LIMIT`
 - `GCP_SYNC_CREDENTIAL_ID`
 - `GCP_SYNC_PROJECT_ID`
-- `PQC_WEBHOOK_DRAIN_LIMIT`
-- `PQC_WEBHOOK_MAX_ATTEMPTS`
-- `PQC_WEBHOOK_LEASE_SECONDS`
-- `PQC_DRIFT_CHECK_LIMIT`
-- `PQC_GITHUB_DRIFT_CREDENTIAL_ID`
-- `PQC_BRANCH_CLEANUP_LIMIT`
+- `MORROW_WEBHOOK_DRAIN_LIMIT`
+- `MORROW_WEBHOOK_MAX_ATTEMPTS`
+- `MORROW_WEBHOOK_LEASE_SECONDS`
+- `MORROW_DRIFT_CHECK_LIMIT`
+- `MORROW_GITHUB_DRIFT_CREDENTIAL_ID`
+- `MORROW_BRANCH_CLEANUP_LIMIT`
 - `CORRELATE_DEEP_SCAN`
 - `CORRELATE_DEEP_SCAN_MAX_FILES`
 - `CORRELATE_DEEP_SCAN_MAX_DEPTH`
@@ -7194,32 +7194,32 @@ Security caveat:
 
 ### 5.10 Validation isolation
 
-- `PQC_VALIDATION_ISOLATION_MODE`
+- `MORROW_VALIDATION_ISOLATION_MODE`
   - `workspace` by default
   - `docker` to run Terraform validation in a per-job Docker container
-- `PQC_VALIDATION_DOCKER_IMAGE`
+- `MORROW_VALIDATION_DOCKER_IMAGE`
   - Docker image used for isolated Terraform validation
   - default: `ghcr.io/opentofu/opentofu:1.8.6`
-- `PQC_VALIDATION_DOCKER_CPUS`
+- `MORROW_VALIDATION_DOCKER_CPUS`
   - CPU limit for the validation container
-- `PQC_VALIDATION_DOCKER_MEMORY`
+- `MORROW_VALIDATION_DOCKER_MEMORY`
   - memory limit for the validation container
 
 ### 5.11 Observability
 
-- `PQC_STRUCTURED_LOGS`
+- `MORROW_STRUCTURED_LOGS`
   - defaults to enabled; emits JSON logs for Cloud Logging
-- `PQC_LOG_LEVEL`
+- `MORROW_LOG_LEVEL`
   - root log level for API and worker logs
 - `SENTRY_DSN`
   - optional Sentry DSN for exception capture
 - `SENTRY_TRACES_SAMPLE_RATE`
   - optional Sentry tracing sample rate
-- `PQC_ENVIRONMENT`
+- `MORROW_ENVIRONMENT`
   - environment label attached to Sentry events
-- `PQC_HEALTH_DEEP`
+- `MORROW_HEALTH_DEEP`
   - if enabled, `/health` also verifies Postgres and Redis; `/health/deep` always performs deep checks
-- `PQC_APP_BASE_URL` / `PQC_PUBLIC_APP_URL`
+- `MORROW_APP_BASE_URL` / `MORROW_PUBLIC_APP_URL`
   - public UI base URL used for GitHub PR link-back metadata
 
 ## 6. Local Docker deployment
@@ -7342,7 +7342,7 @@ Terraform wires hosted auth config into Cloud Run using variables such as:
 ### 9.1 Minimum health checks
 
 - GET /health for the default liveness check
-- GET /health/deep or PQC_HEALTH_DEEP=1 for Postgres and Redis probing
+- GET /health/deep or MORROW_HEALTH_DEEP=1 for Postgres and Redis probing
 - `GET /auth/config`
 - UI load on `/ui/`
 
@@ -7397,7 +7397,7 @@ Most common hosted auth issue:
 Current browser-side reset:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -7452,7 +7452,7 @@ It reports:
 - engineering hours saved total
 - engineering hours saved per 100 remediations
 - target attainment against 200 hours per 100 remediations
-- MTTR reduction versus `PQC_ROI_MANUAL_MTTR_HOURS`
+- MTTR reduction versus `MORROW_ROI_MANUAL_MTTR_HOURS`
 - drift events caught
 - drift follow-ups created
 - manual non-compliant changes reverted
@@ -7550,7 +7550,7 @@ Additional machine-communication development:
 - Local controlled demo repository template: `demo/customer-edge-infra/`.
 - Content-based ownership discovery through `repository_files` on `/v1/repositories/discover-ownership`.
 - Provider migration playbooks through `/v1/providers/{provider}/playbook`.
-- Evidence integrity envelopes with `evidence_hash` and optional HMAC signing through `PQC_EVIDENCE_SIGNING_KEY`.
+- Evidence integrity envelopes with `evidence_hash` and optional HMAC signing through `MORROW_EVIDENCE_SIGNING_KEY`.
 - Autonomous remediation candidates through `/v1/remediation-candidates`.
 - Policy evaluation and optional policy events through `/v1/policy/evaluate`.
 
@@ -7907,7 +7907,7 @@ It opens a complete proof package for one asset:
 - key type
 - signature algorithm
 - HNDL / quantum readiness
-- provider and PQC support status
+- provider and post-quantum support status
 - policy decision
 - remediation records
 - latest validation status
@@ -7936,7 +7936,7 @@ Each expanded scan result row includes asset workflow actions:
 - `Create / Update Asset`
   - creates or updates the asset record from the scan result
   - uses Settings defaults for owner, team, environment, criticality, and confidentiality
-  - adds default tags: `internet`, `tls`, `pqc`
+  - adds default tags: `internet`, `tls`, `pq`
 
 - `Open Evidence`
   - creates/loads the asset if needed
@@ -8025,7 +8025,7 @@ Current product claim boundary:
 - The platform helps manage quantum-readiness migration.
 - It discovers quantum-relevant crypto exposure, assigns ownership, maps risk to repositories, creates safe remediation candidates, validates supported fixes, tracks PRs, verifies closure, and monitors drift.
 - It should not claim that every website can be made fully quantum-proof today.
-- Some migration depends on cloud/CDN/browser/provider support for hybrid or PQC-enabled protocols.
+- Some migration depends on cloud/CDN/browser/provider support for hybrid or post-quantum-enabled protocols.
 
 ## 5. Repository crypto discovery safety classes
 
@@ -8212,7 +8212,7 @@ The practical result:
 - clean repositories return `merge_gate: allowed`
 - violating repositories return `merge_gate: blocked`
 - GitHub status/check publishing includes actionable violation text
-- branch protection can use `pqc-scanner/security-policy` as the required check context
+- branch protection can use `morrow/security-policy` as the required check context
 
 ## Certificate lifecycle and Shadow IT update
 
@@ -8372,14 +8372,14 @@ The builder is `services/model_basis.py`. Endpoints that carry it:
 
 Generated artifacts no longer carry placeholder domains or identifiers. Set these in the environment (see `.env.prod.example`); when unset, the value is omitted:
 
-- `PQC_PUBLIC_BASE_URL` — links in CI workflows and SARIF, credential JSON-LD context, fallback did:web domain.
-- `PQC_DID_WEB_DOMAIN` — did:web issuer domain for verifiable credentials.
-- `PQC_STATUS_PAGE_URL` — status page in incident communication templates.
-- `PQC_PRIVATE_ENTERPRISE_OID` — OID (under your IANA Private Enterprise Number) for the hybrid-certificate PQC extension.
+- `MORROW_PUBLIC_BASE_URL` — links in CI workflows and SARIF, credential JSON-LD context, fallback did:web domain.
+- `MORROW_DID_WEB_DOMAIN` — did:web issuer domain for verifiable credentials.
+- `MORROW_STATUS_PAGE_URL` — status page in incident communication templates.
+- `MORROW_PRIVATE_ENTERPRISE_OID` — OID (under your IANA Private Enterprise Number) for the hybrid-certificate post-quantum extension.
 
 ### Demo Lab
 
-`POST /demo/lab/seed` works only when `PQC_ENVIRONMENT` is `local`, `dev`, `development`, `test` or `testing`; `PQC_ALLOW_DEMO_IN_PRODUCTION` does not re-enable it. `GET /auth/config` exposes `environment` (`local`, `staging` or `production`) and `demo_lab_available`. Seeded records are marked with source `demo-lab` (asset tag and metadata, scan id prefix `demo-lab-`, remediation `origin_kind: demo_lab`, validation job prefix `demo-lab-validation-`, audit actor `demo-lab`).
+`POST /demo/lab/seed` works only when `MORROW_ENVIRONMENT` is `local`, `dev`, `development`, `test` or `testing`; `MORROW_ALLOW_DEMO_IN_PRODUCTION` does not re-enable it. `GET /auth/config` exposes `environment` (`local`, `staging` or `production`) and `demo_lab_available`. Seeded records are marked with source `demo-lab` (asset tag and metadata, scan id prefix `demo-lab-`, remediation `origin_kind: demo_lab`, validation job prefix `demo-lab-validation-`, audit actor `demo-lab`).
 
 ## Operator SSO, MFA and break-glass
 
@@ -8388,8 +8388,8 @@ The vendor admin portal (`/vendor-admin/`) signs operators in three ways. Code: 
 | Method | `auth_method` | Identity in the audit trail | Where it is allowed |
 |---|---|---|---|
 | SSO (OpenID Connect, authorization code + PKCE) | `sso` | the operator's email | everywhere; the production default |
-| Named operator key (`PQC_PLATFORM_OPERATORS`) | `operator_key` | the operator name | everywhere; needs MFA when MFA is required |
-| Shared key (`PQC_PLATFORM_ADMIN_KEY`) | `shared_key` locally, `break_glass` in production/staging | `platform-admin` | local/test as before; production/staging only with `PQC_ALLOW_BREAK_GLASS_KEY=1` |
+| Named operator key (`MORROW_PLATFORM_OPERATORS`) | `operator_key` | the operator name | everywhere; needs MFA when MFA is required |
+| Shared key (`MORROW_PLATFORM_ADMIN_KEY`) | `shared_key` locally, `break_glass` in production/staging | `platform-admin` | local/test as before; production/staging only with `MORROW_ALLOW_BREAK_GLASS_KEY=1` |
 
 Every platform admin event now records `auth_method` and `email` (under `details.operator`).
 
@@ -8397,8 +8397,8 @@ Every platform admin event now records `auth_method` and `email` (under `details
 
 1. `GET /vendor-admin/sso/start` loads the issuer's discovery document, stores a single-use state (hashed), nonce and PKCE verifier server-side for 10 minutes, binds the state to the browser in an HttpOnly `SameSite=Lax` cookie scoped to `/vendor-admin/sso`, and redirects to the IdP.
 2. `GET /vendor-admin/sso/callback` requires the state to match the cookie and the stored row, exchanges the code with the PKCE verifier (client secret via `client_secret_basic`, or `client_secret_post` if that is all the IdP supports), and verifies the ID token against the issuer's JWKS: RS/PS/ES algorithms only, `iss`, `aud` (and `azp` for multi-audience tokens), `exp`/`iat` with 60 s leeway, `nonce`, and `email_verified`.
-3. The email must be on `PQC_ADMIN_OPERATOR_ROLES` (and inside `PQC_ADMIN_OIDC_ALLOWED_DOMAINS` when set). With no roster, members of the allowed domains get `PQC_ADMIN_OIDC_DOMAIN_ROLE` (default `auditor`). Nobody is provisioned; unknown emails are refused and audited as `platform.operator_sign_in_denied`. The role is re-read from the roster on every request, so removing an email ends that person's access at once.
-4. A session row is created (only the SHA-256 of the session id is stored) and two cookies are set: `pqc_admin_session` (HttpOnly, `SameSite=Strict`, `Path=/`, `Secure` except on localhost) and `pqc_admin_csrf` (readable). Sessions expire after `PQC_ADMIN_SESSION_ABSOLUTE_SECONDS` (8 h) or `PQC_ADMIN_SESSION_IDLE_SECONDS` (30 min) without a request.
+3. The email must be on `MORROW_ADMIN_OPERATOR_ROLES` (and inside `MORROW_ADMIN_OIDC_ALLOWED_DOMAINS` when set). With no roster, members of the allowed domains get `MORROW_ADMIN_OIDC_DOMAIN_ROLE` (default `auditor`). Nobody is provisioned; unknown emails are refused and audited as `platform.operator_sign_in_denied`. The role is re-read from the roster on every request, so removing an email ends that person's access at once.
+4. A session row is created (only the SHA-256 of the session id is stored) and two cookies are set: `morrow_admin_session` (HttpOnly, `SameSite=Strict`, `Path=/`, `Secure` except on localhost) and `morrow_admin_csrf` (readable). Sessions expire after `MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS` (8 h) or `MORROW_ADMIN_SESSION_IDLE_SECONDS` (30 min) without a request.
 5. Cookie-authenticated writes must send `x-csrf-token`, which equals the CSRF cookie and is also returned by `GET /platform/whoami`. A request that carries `x-platform-key` is authenticated by the key and ignores the cookie.
 
 `POST /platform/session/logout` ends the session (CSRF-checked while the session is valid) and clears the cookies. `GET /platform/operator-sessions` lists console sessions (also returned as `operator_sessions` by `GET /platform/sessions`), and `POST /platform/operator-sessions/{session_ref}/revoke` with a reason ends one.
@@ -8407,7 +8407,7 @@ Every platform admin event now records `auth_method` and `email` (under `details
 
 ### MFA (TOTP)
 
-RFC 6238: HMAC-SHA1, 30-second steps, 6 digits, implemented with the Python standard library. The secret is encrypted at rest with the vault key (`vault_crypto`, Fernet over `PQC_VAULT_MASTER_KEY`), so MFA needs that key but not Postgres. Codes are accepted one step either side of now; a step that was already used is refused (replay protection); 5 failed attempts in 5 minutes lock the identity until the window passes (`platform.mfa_rate_limited`, severity high). Ten recovery codes are issued at enrolment, stored as SHA-256 hashes, and each works once.
+RFC 6238: HMAC-SHA1, 30-second steps, 6 digits, implemented with the Python standard library. The secret is encrypted at rest with the vault key (`vault_crypto`, Fernet over `MORROW_VAULT_MASTER_KEY`), so MFA needs that key but not Postgres. Codes are accepted one step either side of now; a step that was already used is refused (replay protection); 5 failed attempts in 5 minutes lock the identity until the window passes (`platform.mfa_rate_limited`, severity high). Ten recovery codes are issued at enrolment, stored as SHA-256 hashes, and each works once.
 
 | Route | Purpose |
 |---|---|
@@ -8419,13 +8419,13 @@ RFC 6238: HMAC-SHA1, 30-second steps, 6 digits, implemented with the Python stan
 | `GET /platform/mfa/operators` | owner: every enrolment |
 | `POST /platform/mfa/reset` `{identity, reason}` | owner with step-up: removes another operator's MFA and ends their sessions (`platform.mfa_reset`) |
 
-Policy: `PQC_ADMIN_REQUIRE_MFA` defaults to on when `PQC_ENVIRONMENT` is `production`/`prod`/`staging`, off otherwise. When MFA is required, or the identity has enrolled, an SSO session is only elevated after a code; until then only whoami, the MFA routes and logout answer (`401` with `mfa_enrolment_required` or `mfa_required`). A named operator key counts as verified for 8 hours after `POST /platform/mfa/verify` with that key.
+Policy: `MORROW_ADMIN_REQUIRE_MFA` defaults to on when `MORROW_ENVIRONMENT` is `production`/`prod`/`staging`, off otherwise. When MFA is required, or the identity has enrolled, an SSO session is only elevated after a code; until then only whoami, the MFA routes and logout answer (`401` with `mfa_enrolment_required` or `mfa_required`). A named operator key counts as verified for 8 hours after `POST /platform/mfa/verify` with that key.
 
-Step-up: purge, a deleting retention run, state migration, org-wide session revocation, API key rotation, a customer plan change and MFA reset call `require_step_up()`, which answers `403` `mfa_step_up_required` unless a code was verified within `PQC_ADMIN_STEP_UP_SECONDS` (15 min). The console prompts for a code and retries. The shared key has no identity and is not asked for step-up; in production it is break-glass only and audited.
+Step-up: purge, a deleting retention run, state migration, org-wide session revocation, API key rotation, a customer plan change and MFA reset call `require_step_up()`, which answers `403` `mfa_step_up_required` unless a code was verified within `MORROW_ADMIN_STEP_UP_SECONDS` (15 min). The console prompts for a code and retries. The shared key has no identity and is not asked for step-up; in production it is break-glass only and audited.
 
 ### Break-glass
 
-In production and staging the shared `PQC_PLATFORM_ADMIN_KEY` is refused with `403 break_glass_disabled` unless `PQC_ALLOW_BREAK_GLASS_KEY=1`. With the flag, every write and the first read of each route per minute records `platform.break_glass_used` with severity high (method, path, client address, user agent), and `GET /platform/notifications` raises a critical `break_glass` item for 24 hours. The alert dispatcher computes the go-live gate in-process and never uses the shared key. Locally and in test the shared key behaves as before.
+In production and staging the shared `MORROW_PLATFORM_ADMIN_KEY` is refused with `403 break_glass_disabled` unless `MORROW_ALLOW_BREAK_GLASS_KEY=1`. With the flag, every write and the first read of each route per minute records `platform.break_glass_used` with severity high (method, path, client address, user agent), and `GET /platform/notifications` raises a critical `break_glass` item for 24 hours. The alert dispatcher computes the go-live gate in-process and never uses the shared key. Locally and in test the shared key behaves as before.
 
 `GET /platform/go-live-gate` requires three more checks: `admin_sso` (issuer, client id and a roster or domains), `admin_mfa_required`, and `admin_break_glass_disabled`.
 
@@ -8433,11 +8433,11 @@ In production and staging the shared `PQC_PLATFORM_ADMIN_KEY` is refused with `4
 
 Register a web application with redirect URI `https://<your host>/vendor-admin/sso/callback`, scopes `openid email profile`, and grant type authorization code (PKCE S256).
 
-| IdP | `PQC_ADMIN_OIDC_ISSUER` | Notes |
+| IdP | `MORROW_ADMIN_OIDC_ISSUER` | Notes |
 |---|---|---|
 | Okta | `https://<org>.okta.com` (org server) or `https://<org>.okta.com/oauth2/default` | Web app integration; assign the operators' group. |
-| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Use the tenant-specific issuer, never `common`. Add the optional `email` claim, or set `PQC_ADMIN_OIDC_EMAIL_CLAIM=preferred_username` and `PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=0` (Entra does not emit `email_verified`). |
-| Google Workspace | `https://accounts.google.com` | OAuth client of type Web application, consent screen Internal; set `PQC_ADMIN_OIDC_ALLOWED_DOMAINS` to your Workspace domain. |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant-id>/v2.0` | Use the tenant-specific issuer, never `common`. Add the optional `email` claim, or set `MORROW_ADMIN_OIDC_EMAIL_CLAIM=preferred_username` and `MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=0` (Entra does not emit `email_verified`). |
+| Google Workspace | `https://accounts.google.com` | OAuth client of type Web application, consent screen Internal; set `MORROW_ADMIN_OIDC_ALLOWED_DOMAINS` to your Workspace domain. |
 
 ### Environment files with a byte order mark
 
@@ -8445,12 +8445,12 @@ Register a web application with redirect URI `https://<your host>/vendor-admin/s
 
 ### Rotating the vault master key
 
-`PQC_VAULT_MASTER_KEY` seals: vault credentials (`credentials.secret_enc`, Postgres), gateway site keys (`gateway_sites.data.sealed_key`), operator TOTP secrets (`platform_operator_mfa.secret_enc`), GitHub OAuth tokens (`github_tokens.access_token`, with the key derivation in `services/github_oauth.py`) and alert channel targets (`platform_alert_channels.target_sealed`, `fernet:` prefix; email recipient lists are stored `plain:`). `scripts/rotate-vault-master-key.py` re-encrypts all of them.
+`MORROW_VAULT_MASTER_KEY` seals: vault credentials (`credentials.secret_enc`, Postgres), gateway site keys (`gateway_sites.data.sealed_key`), operator TOTP secrets (`platform_operator_mfa.secret_enc`), GitHub OAuth tokens (`github_tokens.access_token`, with the key derivation in `services/github_oauth.py`) and alert channel targets (`platform_alert_channels.target_sealed`, `fernet:` prefix; email recipient lists are stored `plain:`). `scripts/rotate-vault-master-key.py` re-encrypts all of them.
 
 1. Put the portal in maintenance mode or stop the API and workers, and take a database backup.
-2. Provide the keys in the environment only: `PQC_VAULT_MASTER_KEY` (current) and `PQC_VAULT_MASTER_KEY_NEW`. To generate the new key instead, pass `--generate-new-key-file PATH`: the file is created exclusively with owner-only permissions and the key is never printed.
+2. Provide the keys in the environment only: `MORROW_VAULT_MASTER_KEY` (current) and `MORROW_VAULT_MASTER_KEY_NEW`. To generate the new key instead, pass `--generate-new-key-file PATH`: the file is created exclusively with owner-only permissions and the key is never printed.
 3. Dry run (the default): `backend/.venv/Scripts/python.exe scripts/rotate-vault-master-key.py`. Every value is decrypted with the old key, re-encrypted, re-read and decrypted with the new key inside open transactions, which are then rolled back. The JSON report lists row counts per target. Exit code 2 lists row ids that do not decrypt with the current key; nothing is changed.
 4. Apply: add `--apply`. Each database is one transaction (`BEGIN IMMEDIATE` on SQLite, row locks on Postgres). With several databases, all are prepared and verified before any commits; if a later commit fails, earlier ones are restored to their original ciphertexts (exit code 3).
-5. Store the new key as `PQC_VAULT_MASTER_KEY` in the secret manager, restart every API and worker replica, check a vault read, a gateway and an MFA sign-in, then destroy the old key and the key file.
+5. Store the new key as `MORROW_VAULT_MASTER_KEY` in the secret manager, restart every API and worker replica, check a vault read, a gateway and an MFA sign-in, then destroy the old key and the key file.
 
-Not re-encryptable, because the vault key is used as an HMAC key rather than to encrypt: SAML-issued session tokens (users sign in again), the HS256 fallback in the JWT verifier, security-journal subject references (new events get new pseudonyms, so correlation with older events by subject reference breaks), and evidence signatures when `PQC_EVIDENCE_SIGNING_KEY` is unset (older evidence no longer verifies; set a dedicated evidence key before rotating).
+Not re-encryptable, because the vault key is used as an HMAC key rather than to encrypt: SAML-issued session tokens (users sign in again), the HS256 fallback in the JWT verifier, security-journal subject references (new events get new pseudonyms, so correlation with older events by subject reference breaks), and evidence signatures when `MORROW_EVIDENCE_SIGNING_KEY` is unset (older evidence no longer verifies; set a dedicated evidence key before rotating).

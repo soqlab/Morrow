@@ -1,8 +1,8 @@
-"""Public demo mode (PQC_DEMO_MODE=1).
+"""Public demo mode (MORROW_DEMO_MODE=1).
 
 Each visitor gets a private, throwaway workspace filled with the fictional Example Financial
 Group estate. No signup, no email; the workspace and its account are deleted after
-PQC_DEMO_TTL_SECONDS. The process cannot open network connections to anything but itself, so the
+MORROW_DEMO_TTL_SECONDS. The process cannot open network connections to anything but itself, so the
 demo can never be used to scan or contact third parties, and only an allowlist of write
 actions is accepted.
 
@@ -24,12 +24,12 @@ from collections import defaultdict, deque
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 
-log = logging.getLogger("pqc.demo")
+log = logging.getLogger("morrow.demo")
 
-ENABLED = os.getenv("PQC_DEMO_MODE", "").strip() == "1"
-TTL_SECONDS = int(os.getenv("PQC_DEMO_TTL_SECONDS", "3600"))
-MAX_WORKSPACES = int(os.getenv("PQC_DEMO_MAX_WORKSPACES", "40"))
-STARTS_PER_IP_PER_HOUR = int(os.getenv("PQC_DEMO_STARTS_PER_IP_HOUR", "5"))
+ENABLED = os.getenv("MORROW_DEMO_MODE", "").strip() == "1"
+TTL_SECONDS = int(os.getenv("MORROW_DEMO_TTL_SECONDS", "3600"))
+MAX_WORKSPACES = int(os.getenv("MORROW_DEMO_MAX_WORKSPACES", "40"))
+STARTS_PER_IP_PER_HOUR = int(os.getenv("MORROW_DEMO_STARTS_PER_IP_HOUR", "5"))
 ORG_RE = re.compile(r"^demo-(\d{10})-[0-9a-f]{12}$")
 ORG_COLUMNS = ("organization_id", "org_id", "org", "tenant_id")
 
@@ -79,7 +79,7 @@ def _is_local(host) -> bool:
 
 def install_network_guard() -> None:
     """Refuse every IP connection and DNS lookup except to this machine."""
-    if not ENABLED or getattr(socket, "_pqc_demo_guard", False):
+    if not ENABLED or getattr(socket, "_pq_demo_guard", False):
         return
     orig_connect, orig_connect_ex = socket.socket.connect, socket.socket.connect_ex
     orig_sendto, orig_getaddrinfo = socket.socket.sendto, socket.getaddrinfo
@@ -111,8 +111,8 @@ def install_network_guard() -> None:
     socket.socket.connect_ex = connect_ex
     socket.socket.sendto = sendto
     socket.getaddrinfo = getaddrinfo
-    socket._pqc_demo_guard = True
-    log.warning("[PQC DEMO] demo mode: outbound network restricted to this machine")
+    socket._pq_demo_guard = True
+    log.warning("[Post-quantum DEMO] demo mode: outbound network restricted to this machine")
 
 
 # ---------------------------------------------------------------- request policy
@@ -162,14 +162,14 @@ def _client_ip(request) -> str:
 # ---------------------------------------------------------------- workspaces
 def _db_path() -> str:
     import db as dbmod
-    return os.environ.get("PQC_SCANNER_DB", dbmod.DB_PATH)
+    return os.environ.get("MORROW_SCANNER_DB", dbmod.DB_PATH)
 
 
 def _db_files() -> list[str]:
     main = _db_path()
     dirs = {os.path.dirname(os.path.abspath(main))}
-    if os.getenv("PQC_DATA_DIR"):
-        dirs.add(os.path.abspath(os.environ["PQC_DATA_DIR"]))
+    if os.getenv("MORROW_DATA_DIR"):
+        dirs.add(os.path.abspath(os.environ["MORROW_DATA_DIR"]))
     files = {os.path.abspath(main)}
     for d in dirs:
         for pattern in ("*.db", "*.sqlite", "*.sqlite3"):
@@ -223,8 +223,8 @@ def purge_workspace(org_id: str) -> int:
                 tables = [r[0] for r in conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")]
                 user_ids = []
-                if "pqc_users" in tables:
-                    user_ids = [r[0] for r in conn.execute("SELECT id FROM pqc_users WHERE org_id=?", (org_id,))]
+                if "morrow_users" in tables:
+                    user_ids = [r[0] for r in conn.execute("SELECT id FROM morrow_users WHERE org_id=?", (org_id,))]
                 for t in tables:
                     cols = {r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')}
                     for c in ORG_COLUMNS:
@@ -259,9 +259,9 @@ def purge_expired() -> None:
         if exp is not None and exp <= now:
             try:
                 n = purge_workspace(org_id)
-                log.info("[PQC DEMO] deleted expired workspace %s (%d rows)", org_id, n)
+                log.info("[Post-quantum DEMO] deleted expired workspace %s (%d rows)", org_id, n)
             except Exception:
-                log.exception("[PQC DEMO] could not delete workspace %s", org_id)
+                log.exception("[Post-quantum DEMO] could not delete workspace %s", org_id)
 
 
 PROCESS_STARTED = int(time.time())
@@ -283,7 +283,7 @@ def _cleanup_loop() -> None:
                 first = False
             purge_expired()
         except Exception:
-            log.exception("[PQC DEMO] cleanup pass failed")
+            log.exception("[Post-quantum DEMO] cleanup pass failed")
         time.sleep(120)
 
 
@@ -321,7 +321,7 @@ def _seed(org_id: str, token: str) -> None:
     def call(method, path, body=None):
         r = s.request(method, base + path, json=body, timeout=120)
         if r.status_code >= 300:
-            log.warning("[PQC DEMO] seed %s %s -> %s %s", method, path, r.status_code, r.text[:200])
+            log.warning("[Post-quantum DEMO] seed %s %s -> %s %s", method, path, r.status_code, r.text[:200])
         return r
 
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -360,7 +360,7 @@ def _seed(org_id: str, token: str) -> None:
         for asset_key, repo, path, title, fix, status in E.REMEDIATION_PLAN:
             original = f"# {path}\nmin_tls_version = \"1.2\"\nkey_algorithm   = \"rsa-2048\"\ncrypto_owner    = \"\"\n"
             suggested = (f"# {path}\nmin_tls_version = \"1.3\"\nkey_algorithm   = \"rsa-3072\"\n"
-                         f"crypto_owner    = \"platform-security\"\npqc_stage       = \"hybrid-group-pending\"\n")
+                         f"crypto_owner    = \"platform-security\"\npq_stage       = \"hybrid-group-pending\"\n")
             row = dbmod.create_remediation(
                 asset_key, repo_ids.get(repo, 0), path, title, fix,
                 original_content=original, suggested_content=suggested, status=status,
@@ -377,7 +377,7 @@ def _seed(org_id: str, token: str) -> None:
                                             stdout="Validation passed.\n", stderr="", exit_code=0, finished=True)
 
         with closing(sqlite3.connect(_db_path(), timeout=30)) as conn:
-            conn.execute("UPDATE pqc_users SET full_name=? WHERE org_id=?", ("Demo visitor", org_id))
+            conn.execute("UPDATE morrow_users SET full_name=? WHERE org_id=?", ("Demo visitor", org_id))
             for host, port, *rest in E.ESTATE:
                 seen = now - timedelta(days=E.SCAN_SPACING_DAYS * (E.SCAN_COUNT - 1 - min(rest[-1], 4)))
                 conn.execute("UPDATE assets SET updated_at=? WHERE asset_key=? AND organization_id=?",
@@ -389,7 +389,7 @@ def _seed(org_id: str, token: str) -> None:
                           "updated_at": (created + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")}
                 if status in {"pr_created", "verified_closed"}:
                     fields["pr_url"] = f"https://github.com/example-financial/repo/pull/{100 + rid}"
-                    fields["pr_branch"] = f"pqc/remediation-{rid}"
+                    fields["pr_branch"] = f"morrow/remediation-{rid}"
                     fields["pr_base_branch"] = "main"
                 if status == "verified_closed":
                     merged = created + timedelta(days=9)
@@ -450,7 +450,7 @@ def attach(app) -> None:
             try:
                 out = await run_in_threadpool(create_workspace)
             except Exception:
-                log.exception("[PQC DEMO] could not create a workspace")
+                log.exception("[Post-quantum DEMO] could not create a workspace")
                 return JSONResponse({"detail": "Could not create a demo workspace. Try again shortly."},
                                     status_code=500)
             return JSONResponse(out, headers={"Cache-Control": "no-store"})
@@ -469,5 +469,5 @@ def attach(app) -> None:
             return JSONResponse({"detail": NOT_IN_DEMO}, status_code=403)
         return await call_next(request)
 
-    threading.Thread(target=_cleanup_loop, name="pqc-demo-cleanup", daemon=True).start()
-    log.warning("[PQC DEMO] demo mode on: workspaces live %ds, at most %d at once", TTL_SECONDS, MAX_WORKSPACES)
+    threading.Thread(target=_cleanup_loop, name="pq-demo-cleanup", daemon=True).start()
+    log.warning("[Post-quantum DEMO] demo mode on: workspaces live %ds, at most %d at once", TTL_SECONDS, MAX_WORKSPACES)

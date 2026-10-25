@@ -114,7 +114,7 @@ def _ecc_logical(n: int) -> float:
     return float(9 * n + 2 * math.ceil(math.log2(n)) + 10)  # Roetteler et al. 2017 (arXiv:1706.06752)
 
 
-# pqc_* are sentinels: Shor's algorithm does not apply, so the model never
+# pq_* are sentinels: Shor's algorithm does not apply, so the model never
 # assigns them a meaningful break probability.
 _ALGO_LOGICAL_QUBITS_REQUIRED: Dict[str, float] = {
     "rsa2048":           _rsa_logical(2048),
@@ -124,8 +124,8 @@ _ALGO_LOGICAL_QUBITS_REQUIRED: Dict[str, float] = {
     "ecc384":            _ecc_logical(384),
     "x25519":            _ecc_logical(255),
     "dh_classical":      _rsa_logical(2048),
-    "pqc_hybrid":        1e12,
-    "pqc_pure":          1e12,
+    "pq_hybrid":        1e12,
+    "pq_pure":          1e12,
     "unknown_classical": _rsa_logical(2048),
 }
 

@@ -25,13 +25,13 @@ def api(tmp_path, monkeypatch):
     import app
 
     db_path = str(tmp_path / "usage.db")
-    monkeypatch.setenv("PQC_SCANNER_DB", db_path)
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", SECRET)
-    for name in ("REDIS_URL", "CELERY_BROKER_URL", "PQC_ORG_DEFAULT_API_CALLS_PER_MIN", "PQC_ORG_DEFAULT_SCANS_PER_HOUR",
-                 "PQC_ORG_RATE_LIMITS_ENABLED", "PQC_ORG_RATE_LIMIT_CACHE_SECONDS", "PQC_PLATFORM_OPERATORS",
-                 "PQC_PLATFORM_ADMIN_KEY_ROLE"):
+    monkeypatch.setenv("MORROW_SCANNER_DB", db_path)
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", SECRET)
+    for name in ("REDIS_URL", "CELERY_BROKER_URL", "MORROW_ORG_DEFAULT_API_CALLS_PER_MIN", "MORROW_ORG_DEFAULT_SCANS_PER_HOUR",
+                 "MORROW_ORG_RATE_LIMITS_ENABLED", "MORROW_ORG_RATE_LIMIT_CACHE_SECONDS", "MORROW_PLATFORM_OPERATORS",
+                 "MORROW_PLATFORM_ADMIN_KEY_ROLE"):
         monkeypatch.delenv(name, raising=False)
     for name, value in {
         "AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_JWT_ALGORITHMS": ["HS256"], "AUTH_JWT_SECRET": SECRET,
@@ -243,9 +243,9 @@ def test_admin_api_reports_enforcement_and_applies_immediately(api):
 
 def test_platform_defaults_apply_without_override(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setenv("PQC_ORG_DEFAULT_API_CALLS_PER_MIN", "2")
+    monkeypatch.setenv("MORROW_ORG_DEFAULT_API_CALLS_PER_MIN", "2")
     assert [client.get("/assets", headers=bearer("org-default")).status_code for _ in range(3)] == [200, 200, 429]
-    monkeypatch.setenv("PQC_ORG_RATE_LIMITS_ENABLED", "0")
+    monkeypatch.setenv("MORROW_ORG_RATE_LIMITS_ENABLED", "0")
     assert client.get("/assets", headers=bearer("org-default")).status_code == 200
 
 
@@ -276,12 +276,12 @@ def test_admin_api_and_portal_name_the_real_limit_source(api, monkeypatch):
     over = client.get("/platform/customers/org-over/rate-limits", headers=owner()).json()
     assert over["limit_source"] == "override" and over["limit_source_label"] == "operator override" and "operator override" in over["note"]
 
-    monkeypatch.setenv("PQC_ORG_DEFAULT_SCANS_PER_HOUR", "50")
+    monkeypatch.setenv("MORROW_ORG_DEFAULT_SCANS_PER_HOUR", "50")
     default = client.get("/platform/customers/org-default/rate-limits", headers=owner()).json()
     assert default["limit_source"] == "default" and default["limit_source_label"] == "platform default"
-    assert "PQC_ORG_DEFAULT_" in default["note"]
+    assert "MORROW_ORG_DEFAULT_" in default["note"]
 
-    monkeypatch.delenv("PQC_ORG_DEFAULT_SCANS_PER_HOUR")
+    monkeypatch.delenv("MORROW_ORG_DEFAULT_SCANS_PER_HOUR")
     free = client.get("/platform/customers/org-free/rate-limits", headers=owner()).json()
     assert free["limit_source"] == "none" and free["limit_source_label"] == "not limited" and free["enforced"] is False
 
@@ -357,7 +357,7 @@ def test_redis_sliding_window_when_configured(api, monkeypatch):
     set_override(db_path, "org-r", 2, 100)
     codes = [client.get("/assets", headers=bearer("org-r")).status_code for _ in range(3)]
     assert codes == [200, 200, 429]
-    assert len(fake.z["pqc:orglimit:api:org-r"]) == 2  # the rejected hit is removed again
+    assert len(fake.z["morrow:orglimit:api:org-r"]) == 2  # the rejected hit is removed again
     # A broken Redis falls back to the in-process window rather than failing requests.
     monkeypatch.setattr(org_rate_limits, "_redis_client", lambda url: (_ for _ in ()).throw(ConnectionError("down")))
     assert client.get("/assets", headers=bearer("org-r2")).status_code == 200

@@ -13,7 +13,7 @@ Threat levels (computed over local signals):
   WATCH   — 1 trigger in the last 24h
   WARNING — 2-4 triggers in a sector within 48h
   ALERT   — 5+ triggers within 24h
-  CRITICAL— an omega (PQC control) canary was triggered
+  CRITICAL— an omega (Post-quantum control) canary was triggered
 """
 
 from __future__ import annotations
@@ -295,7 +295,7 @@ def get_network_dashboard(org_id: str) -> Dict[str, Any]:
 
 def _network_message(level: str, count_24h: int) -> str:
     if level == "CRITICAL":
-        return ("CRITICAL: An omega-tier (PQC control) canary signal is recorded in this deployment. "
+        return ("CRITICAL: An omega-tier (Post-quantum control) canary signal is recorded in this deployment. "
                 "Investigate the trigger and verify the canary configuration before drawing conclusions.")
     if level == "ALERT":
         return (f"ALERT: {count_24h} canary signals recorded in this deployment in 24 hours. "

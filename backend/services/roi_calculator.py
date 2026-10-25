@@ -1,7 +1,7 @@
 """
-PQC Migration ROI Calculator
+Post-Quantum Migration ROI Calculator
 
-A planning model for the financial case for PQC migration:
+A planning model for the financial case for post-quantum migration:
 - Expected breach cost, anchored to the IBM Cost of a Data Breach Report 2024
   where a sector figure was verified, otherwise that report's global average
 - Migration investment (engineer-days, tooling, testing) from stated effort assumptions
@@ -105,7 +105,7 @@ _MIGRATION_EFFORT: Dict[str, Dict[str, Any]] = {
         "label": "SSH Host Key",
         "engineer_days": 0.5,
         "complexity": "very_low",
-        "notes": "Recent OpenSSH releases offer hybrid PQC key exchange; mostly configuration",
+        "notes": "Recent OpenSSH releases offer hybrid post-quantum key exchange; mostly configuration",
     },
     "code_signing": {
         "label": "Code Signing Pipeline",
@@ -199,7 +199,7 @@ def compute_roi(
     hndl_interception_pct: float = 10.0,
 ) -> Dict[str, Any]:
     """
-    Compute PQC migration ROI.
+    Compute post-quantum migration ROI.
 
     Returns NPV of avoiding a HNDL-then-decrypt breach vs migration cost.
     """
@@ -332,7 +332,7 @@ def _roi_summary(npv: float, roi_pct: float, cost: float, payback_year: Optional
         )
     py = f"payback by {payback_year}" if payback_year else "payback within analysis window"
     return (
-        f"Under this model, PQC migration has a positive NPV of ${npv:,.0f} ({roi_pct:.0f}% ROI), {py}: "
+        f"Under this model, post-quantum migration has a positive NPV of ${npv:,.0f} ({roi_pct:.0f}% ROI), {py}: "
         f"${cost:,.0f} of migration cost against ${npv + cost:,.0f} of modelled, risk-adjusted breach exposure."
     )
 

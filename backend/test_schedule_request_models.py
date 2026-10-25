@@ -18,8 +18,8 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def client(tmp_path):
-    old_db = os.environ.get("PQC_SCANNER_DB")
-    os.environ["PQC_SCANNER_DB"] = str(tmp_path / "schedules.db")
+    old_db = os.environ.get("MORROW_SCANNER_DB")
+    os.environ["MORROW_SCANNER_DB"] = str(tmp_path / "schedules.db")
 
     import importlib
     import app as fastapi_app
@@ -33,9 +33,9 @@ def client(tmp_path):
         yield c
 
     if old_db is None:
-        os.environ.pop("PQC_SCANNER_DB", None)
+        os.environ.pop("MORROW_SCANNER_DB", None)
     else:
-        os.environ["PQC_SCANNER_DB"] = old_db
+        os.environ["MORROW_SCANNER_DB"] = old_db
     importlib.reload(fastapi_app)
 
 

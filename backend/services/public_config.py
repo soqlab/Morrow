@@ -6,10 +6,10 @@ templates must not carry placeholder domains or made-up identifiers. Each value
 here comes from configuration and is empty when not configured, in which case
 callers omit the field rather than invent one.
 
-  PQC_PUBLIC_BASE_URL          https://app.your-domain.com — links in generated files
-  PQC_DID_WEB_DOMAIN           did:web domain for issued credentials (defaults to the base URL host)
-  PQC_STATUS_PAGE_URL          public status page linked from incident templates
-  PQC_PRIVATE_ENTERPRISE_OID   OID for the hybrid-certificate PQC public-key extension,
+  MORROW_PUBLIC_BASE_URL          https://app.your-domain.com — links in generated files
+  MORROW_DID_WEB_DOMAIN           did:web domain for issued credentials (defaults to the base URL host)
+  MORROW_STATUS_PAGE_URL          public status page linked from incident templates
+  MORROW_PRIVATE_ENTERPRISE_OID   OID for the hybrid-certificate post-quantum public-key extension,
                                under your IANA Private Enterprise Number (1.3.6.1.4.1.<PEN>.<n>)
 """
 
@@ -25,7 +25,7 @@ _EXAMPLE_PEN_ARCS = ("1.3.6.1.4.1.99999", "1.3.6.1.4.1.32473")  # 32473 is IANA'
 
 
 def public_base_url() -> str:
-    raw = str(os.getenv("PQC_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+    raw = str(os.getenv("MORROW_PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
     if not raw:
         return ""
     parsed = urlparse(raw)
@@ -41,7 +41,7 @@ def public_host() -> str:
 
 def did_web_domain() -> str:
     """did:web method-specific id for this deployment (port encoded as %3A), or ''."""
-    configured = str(os.getenv("PQC_DID_WEB_DOMAIN", "") or "").strip().strip("/")
+    configured = str(os.getenv("MORROW_DID_WEB_DOMAIN", "") or "").strip().strip("/")
     if configured:
         return configured.replace(":", "%3A") if "%3A" not in configured else configured
     base = public_base_url()
@@ -63,7 +63,7 @@ def did_web_identifier(*path_segments: str) -> str:
 
 
 def status_page_url() -> str:
-    raw = str(os.getenv("PQC_STATUS_PAGE_URL", "") or "").strip()
+    raw = str(os.getenv("MORROW_STATUS_PAGE_URL", "") or "").strip()
     parsed = urlparse(raw) if raw else None
     if not parsed or parsed.scheme not in ("http", "https") or not parsed.netloc:
         return ""
@@ -71,8 +71,8 @@ def status_page_url() -> str:
 
 
 def private_enterprise_oid() -> str:
-    """Configured OID for the private PQC extension, or '' (extension omitted)."""
-    raw = str(os.getenv("PQC_PRIVATE_ENTERPRISE_OID", "") or "").strip()
+    """Configured OID for the private post-quantum extension, or '' (extension omitted)."""
+    raw = str(os.getenv("MORROW_PRIVATE_ENTERPRISE_OID", "") or "").strip()
     if not raw or not _OID_RE.match(raw):
         return ""
     if not raw.startswith(_IANA_PEN_ARC):

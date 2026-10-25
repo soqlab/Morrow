@@ -28,7 +28,7 @@ The module supports a two-phase flow:
 1. `deploy_runtime = false`
    - create network, database, Redis, Artifact Registry, and Secret Manager containers
    - build/push the backend image to the created private registry
-   - add secret versions for `openai-api-key` and `pqc-vault-master-key`
+   - add secret versions for `openai-api-key` and `morrow-vault-master-key`
 2. `deploy_runtime = true`
    - deploy API, worker, and beat using the private image and private dependencies
 

@@ -9,7 +9,7 @@ from services import gateway
 from services.postgres_rls import build_rls_sql, quote_ident
 
 
-@pytest.mark.skipif(not os.getenv("PQC_TEST_PG_DSN"), reason="PQC_TEST_PG_DSN is required for real Postgres isolation tests")
+@pytest.mark.skipif(not os.getenv("MORROW_TEST_PG_DSN"), reason="MORROW_TEST_PG_DSN is required for real Postgres isolation tests")
 def test_gateway_with_real_postgres_restricted_role(monkeypatch):
     import psycopg2
     from psycopg2.extensions import make_dsn
@@ -18,15 +18,15 @@ def test_gateway_with_real_postgres_restricted_role(monkeypatch):
 
     suffix = uuid.uuid4().hex
     database, role = "gateway_test_" + suffix, "gateway_role_" + suffix
-    admin = psycopg2.connect(os.environ["PQC_TEST_PG_DSN"])
+    admin = psycopg2.connect(os.environ["MORROW_TEST_PG_DSN"])
     admin.autocommit = True
     with admin.cursor() as cursor:
         cursor.execute(sql.SQL("CREATE DATABASE {} TEMPLATE template0").format(sql.Identifier(database)))
     try:
         with admin.cursor() as cursor:
             cursor.execute(sql.SQL("CREATE ROLE {} NOLOGIN NOSUPERUSER NOBYPASSRLS").format(sql.Identifier(role)))
-        monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "postgres")
-        monkeypatch.setattr(db_feature_store, "_feature_dsn", lambda: make_dsn(os.environ["PQC_TEST_PG_DSN"], dbname=database))
+        monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "postgres")
+        monkeypatch.setattr(db_feature_store, "_feature_dsn", lambda: make_dsn(os.environ["MORROW_TEST_PG_DSN"], dbname=database))
         gateway.init_tables()
         with db_feature_store.feature_conn() as conn:
             conn.execute(build_rls_sql(app_role=role, tables=["gateway_sites", "gateway_history"]))

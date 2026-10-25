@@ -38,7 +38,7 @@ $requiredFiles = @(
   @{ path = "backend\static\privacy.html"; phrases = @("Counsel review required", "Data We Do Not Collect By Default", "Quantum Airlock") },
   @{ path = "backend\static\terms.html"; phrases = @("Authorization To Scan", "Acceptable Use", "Remediation Workflow") },
   @{ path = "docs\DATA_BOUNDARY_AND_PRIVACY.md"; phrases = @("Default Principle", "Quantum Airlock Boundary", "Redaction Guarantees") },
-  @{ path = "docs\AUTH_AND_ACCESS_POLICY.md"; phrases = @("No-login is allowed only", "Traffic Data Boundary", "PQC_TRUST_PROXY_HEADERS") },
+  @{ path = "docs\AUTH_AND_ACCESS_POLICY.md"; phrases = @("No-login is allowed only", "Traffic Data Boundary", "MORROW_TRUST_PROXY_HEADERS") },
   @{ path = "docs\CAM_TRANSPARENT_PROXY_DEPLOYMENT.md"; phrases = @("CAM/API Transparent Proxy Deployment", "zero application code changes", "Production Guardrails") },
   @{ path = "docs\BUYER_SECURITY_FAQ.md"; phrases = @("Quantum Airlock", "What data does the platform need", "What should not be promised") }
 )

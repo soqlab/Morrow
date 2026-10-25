@@ -1,7 +1,7 @@
 """
-Vendor PQC Scorecard
+Vendor post-quantum Scorecard
 
-Vendor PQC readiness is shown only from evidence your organization holds:
+Vendor post-quantum readiness is shown only from evidence your organization holds:
 its own vendor assessments and vendor attestations. The platform does not
 publish its own scores for named third-party companies — subjective ratings
 of real vendors are not sourced and are not presented.
@@ -76,7 +76,7 @@ def get_all_vendors(
     return {
         "vendors": [],
         "total": 0,
-        "pqc_ready_count": 0,
+        "pq_ready_count": 0,
         "avg_composite_score": None,
         "categories": [],
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -103,7 +103,7 @@ def compare_vendors(vendor_ids: List[str]) -> Dict[str, Any]:
 def get_scorecard_summary() -> Dict[str, Any]:
     return {
         "total_vendors": 0,
-        "pqc_ready": 0,
+        "pq_ready": 0,
         "in_progress": 0,
         "early_stage": 0,
         "not_started": 0,

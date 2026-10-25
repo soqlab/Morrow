@@ -32,7 +32,7 @@ def _risk_from_asset(asset: Dict[str, Any]) -> int:
 def _intent_keywords(intent: str) -> Dict[str, bool]:
     lower = intent.lower()
     return {
-        "pqc": any(k in lower for k in ("pqc", "quantum", "rsa", "ecc", "tls", "crypto", "certificate")),
+        "pq": any(k in lower for k in ("pq", "quantum", "rsa", "ecc", "tls", "crypto", "certificate")),
         "public_storage": any(k in lower for k in ("public bucket", "public storage", "s3", "blob public")),
         "iam": any(k in lower for k in ("iam", "admin role", "permission", "offboard", "identity", "okta", "azure ad")),
         "vendor": any(k in lower for k in ("vendor", "supplier", "attestation", "third party", "third-party")),
@@ -61,11 +61,11 @@ def evaluate_security_intent(
     audits_l = list(audit_events)
 
     controls: List[Dict[str, Any]] = []
-    if keys["pqc"] or not any(keys.values()):
+    if keys["pq"] or not any(keys.values()):
         controls.append({
-            "id": "pqc.crypto_agility",
+            "id": "pq.crypto_agility",
             "title": "Cryptographic agility baseline",
-            "check": "Flag critical or long-lived assets without verified PQC migration evidence.",
+            "check": "Flag critical or long-lived assets without verified post-quantum migration evidence.",
             "write_path": "Open validated remediation PRs for TLS/certificate policy and crypto inventory ownership.",
         })
     if keys["public_storage"]:
@@ -84,8 +84,8 @@ def evaluate_security_intent(
         })
     if keys["vendor"]:
         controls.append({
-            "id": "vendor.pqc_attestation",
-            "title": "Vendor PQC attestation credibility",
+            "id": "vendor.pq_attestation",
+            "title": "Vendor post-quantum attestation credibility",
             "check": "Score vendor claims against evidence, dates, standards, and customer asset dependency.",
             "write_path": "Create follow-up evidence requests and risk exceptions when proof is missing.",
         })
@@ -100,7 +100,7 @@ def evaluate_security_intent(
     targets: List[Dict[str, Any]] = []
     for asset in assets_l[:100]:
         score = _risk_from_asset(asset)
-        if score >= 55 or keys["pqc"]:
+        if score >= 55 or keys["pq"]:
             targets.append({
                 "kind": "asset",
                 "key": _text(asset.get("asset_key")),
@@ -248,10 +248,10 @@ def score_vendor_attestation(attestation: Dict[str, Any], *, dependent_assets: i
     text = " ".join(answers.values()).lower()
     score = 40
     evidence_gaps: List[str] = []
-    if any(k in text for k in ("pqc", "post-quantum", "nist", "ml-kem", "kyber")):
+    if any(k in text for k in ("pq", "post-quantum", "nist", "ml-kem", "kyber")):
         score += 20
     else:
-        evidence_gaps.append("No explicit PQC/NIST migration language.")
+        evidence_gaps.append("No explicit post-quantum/NIST migration language.")
     if any(k in text for k in ("roadmap", "date", "2026", "2027", "timeline")):
         score += 15
     else:
@@ -271,7 +271,7 @@ def score_vendor_attestation(attestation: Dict[str, Any], *, dependent_assets: i
         "dependent_assets": dependent_assets,
         "evidence_gaps": evidence_gaps,
         "required_follow_up": [
-            "Request dated PQC migration plan.",
+            "Request dated post-quantum migration plan.",
             "Request algorithm inventory/CBOM.",
             "Map vendor dependency to customer critical assets.",
         ][: max(1, len(evidence_gaps))],

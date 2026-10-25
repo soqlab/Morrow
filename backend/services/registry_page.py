@@ -62,7 +62,7 @@ _FOOTER_LINKS = (
 #: posture -> (badge fill, page accent class). Green for both post-quantum outcomes, amber for
 #: classical, grey for the two cases where nothing was established.
 _POSTURE_STYLE = {
-    _check.POSTURE_PQC_READY: ("#1a7f37", "ok"),
+    _check.POSTURE_MORROW_READY: ("#1a7f37", "ok"),
     _check.POSTURE_HYBRID: ("#2ea043", "part"),
     _check.POSTURE_CLASSICAL: ("#bf8700", "warn"),
     _check.POSTURE_UNREACHABLE: ("#6e7681", "none"),

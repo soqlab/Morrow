@@ -13,8 +13,8 @@ action is the one you get by accident.
 Two DSNs are involved and they are not interchangeable:
 
     --dsn         the *owner / migration* role. Only this role can ALTER TABLE ... ENABLE ROW LEVEL
-                  SECURITY and CREATE POLICY. Defaults to PQC_RLS_MIGRATION_DSN, then
-                  PQC_PRODUCT_DATABASE_URL, then DATABASE_URL.
+                  SECURITY and CREATE POLICY. Defaults to MORROW_RLS_MIGRATION_DSN, then
+                  MORROW_PRODUCT_DATABASE_URL, then DATABASE_URL.
     --app-role    the *runtime* role the application connects as. It must be NOSUPERUSER
                   NOBYPASSRLS: Postgres exempts superusers and BYPASSRLS roles from every policy, so
                   applying this plan over such a role protects nothing while looking like it worked.
@@ -59,8 +59,8 @@ def redact(dsn: str) -> str:
 def resolve_dsn(explicit: str) -> str:
     for candidate in (
         explicit,
-        os.getenv("PQC_RLS_MIGRATION_DSN"),
-        os.getenv("PQC_PRODUCT_DATABASE_URL"),
+        os.getenv("MORROW_RLS_MIGRATION_DSN"),
+        os.getenv("MORROW_PRODUCT_DATABASE_URL"),
         os.getenv("DATABASE_URL"),
     ):
         if str(candidate or "").strip():
@@ -99,16 +99,16 @@ def create_role_sql(app_role: str, password_env: str) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dsn", default="", help="owner/migration DSN (see module docstring)")
-    parser.add_argument("--app-role", default=os.getenv("PQC_APP_DB_ROLE", "pqc_app"),
-                        help="runtime role the policies are written for (default: pqc_app)")
+    parser.add_argument("--app-role", default=os.getenv("MORROW_APP_DB_ROLE", "morrow_app"),
+                        help="runtime role the policies are written for (default: morrow_app)")
     parser.add_argument("--apply", action="store_true",
                         help="actually execute the statements; without it nothing is changed")
     parser.add_argument("--dry-run", action="store_true", default=False,
                         help="explicit no-op form of the default behaviour")
     parser.add_argument("--verify-only", action="store_true", help="report the live state and exit")
     parser.add_argument("--create-role", action="store_true",
-                        help="also create/repair the runtime role (password from $PQC_APP_DB_PASSWORD)")
-    parser.add_argument("--password-env", default="PQC_APP_DB_PASSWORD",
+                        help="also create/repair the runtime role (password from $MORROW_APP_DB_PASSWORD)")
+    parser.add_argument("--password-env", default="MORROW_APP_DB_PASSWORD",
                         help="environment variable holding the role password for --create-role")
     parser.add_argument("--verify-dsn", default="",
                         help="DSN to verify with; defaults to --dsn. Point it at the *app* role to "
@@ -119,7 +119,7 @@ def main(argv=None) -> int:
 
     dsn = resolve_dsn(args.dsn)
     if not dsn:
-        print("No DSN. Pass --dsn or set PQC_RLS_MIGRATION_DSN / PQC_PRODUCT_DATABASE_URL / DATABASE_URL.",
+        print("No DSN. Pass --dsn or set MORROW_RLS_MIGRATION_DSN / MORROW_PRODUCT_DATABASE_URL / DATABASE_URL.",
               file=sys.stderr)
         return 2
     verify_dsn = str(args.verify_dsn or "").strip() or dsn

@@ -45,9 +45,9 @@
     state.channels = d.items || [];
     const s = d.settings || {}, job = d.dispatcher || {};
     const warnings = [];
-    if (!d.secret_storage_configured) warnings.push(`<div class="notice warn"><b>Secret storage is not configured.</b> Set PQC_VAULT_MASTER_KEY to add Slack, PagerDuty or webhook channels; their targets are stored encrypted.</div>`);
-    if (!d.email_configured) warnings.push(`<div class="notice warn"><b>Email isn't configured.</b> Email channels can be saved, but sends fail until PQC_SMTP_HOST and PQC_SMTP_FROM are set.</div>`);
-    if (s.dispatch_enabled === false) warnings.push(`<div class="notice bad"><b>The dispatcher is off.</b> PQC_ALERT_DISPATCH_ENABLED=0, so nothing is sent automatically. Test sends still work.</div>`);
+    if (!d.secret_storage_configured) warnings.push(`<div class="notice warn"><b>Secret storage is not configured.</b> Set MORROW_VAULT_MASTER_KEY to add Slack, PagerDuty or webhook channels; their targets are stored encrypted.</div>`);
+    if (!d.email_configured) warnings.push(`<div class="notice warn"><b>Email isn't configured.</b> Email channels can be saved, but sends fail until MORROW_SMTP_HOST and MORROW_SMTP_FROM are set.</div>`);
+    if (s.dispatch_enabled === false) warnings.push(`<div class="notice bad"><b>The dispatcher is off.</b> MORROW_ALERT_DISPATCH_ENABLED=0, so nothing is sent automatically. Test sends still work.</div>`);
     if (job.last_error) warnings.push(`<div class="notice bad"><b>Last dispatch run reported a problem.</b> ${esc(job.last_error)}</div>`);
     $("alertsSettings").innerHTML = warnings.join("") + `<p class="copy">Dispatcher ${statusPill(job.status || "unknown")} · last run ${esc(fmtTime(job.last_run_at, "never"))} · every ${esc(fmt.format(Number(s.interval_seconds || 60)))}s · renotify after ${esc(fmt.format(Number(s.renotify_hours || 24)))}h · at most ${esc(fmt.format(Number(s.rate_cap || 20)))} messages per ${esc(fmt.format(Number(s.rate_window_minutes || 10)))} min per channel, then one digest.</p>`;
     body.innerHTML = state.channels.length ? state.channels.map(c => `<tr data-record-id="${esc(c.id)}">

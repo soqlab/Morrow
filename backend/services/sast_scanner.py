@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional, Tuple
 _RULES: List[Dict[str, Any]] = [
     # Hardcoded key material
     {
-        "rule_id": "PQC-001",
+        "rule_id": "MORROW-001",
         "name": "Hardcoded RSA Private Key",
         "severity": "critical",
         "cwe": "CWE-321",
@@ -42,18 +42,18 @@ _RULES: List[Dict[str, Any]] = [
         "fix": "Remove key from source, store in secrets manager, ensure quantum-vulnerable algorithm is replaced",
     },
     {
-        "rule_id": "PQC-002",
+        "rule_id": "MORROW-002",
         "name": "Hardcoded Certificate",
         "severity": "high",
         "cwe": "CWE-295",
         "pattern": r"-----BEGIN CERTIFICATE-----",
         "extensions": None,
         "description": "Hardcoded certificate detected — may be quantum-vulnerable",
-        "fix": "If this is a pinned cert, migrate to PQC certificate before pinning",
+        "fix": "If this is a pinned cert, migrate to post-quantum certificate before pinning",
     },
     # RSA / ECC key generation
     {
-        "rule_id": "PQC-010",
+        "rule_id": "MORROW-010",
         "name": "RSA Key Generation (Python)",
         "severity": "critical",
         "cwe": "CWE-327",
@@ -63,7 +63,7 @@ _RULES: List[Dict[str, Any]] = [
         "fix": "Replace with ML-KEM-768 (FIPS 203) or hybrid mode: RSA + ML-KEM",
     },
     {
-        "rule_id": "PQC-011",
+        "rule_id": "MORROW-011",
         "name": "ECC Key Generation (Python)",
         "severity": "high",
         "cwe": "CWE-327",
@@ -73,7 +73,7 @@ _RULES: List[Dict[str, Any]] = [
         "fix": "Replace with ML-DSA-65 (FIPS 204) for signing or ML-KEM-768 for key exchange",
     },
     {
-        "rule_id": "PQC-012",
+        "rule_id": "MORROW-012",
         "name": "RSA Key Generation (JavaScript)",
         "severity": "critical",
         "cwe": "CWE-327",
@@ -83,7 +83,7 @@ _RULES: List[Dict[str, Any]] = [
         "fix": "Use @noble/post-quantum or webcrypto with ML-KEM-768",
     },
     {
-        "rule_id": "PQC-013",
+        "rule_id": "MORROW-013",
         "name": "RSA Key Generation (Go)",
         "severity": "critical",
         "cwe": "CWE-327",
@@ -93,18 +93,18 @@ _RULES: List[Dict[str, Any]] = [
         "fix": "Replace with golang.org/x/crypto post-quantum bindings when available",
     },
     {
-        "rule_id": "PQC-014",
+        "rule_id": "MORROW-014",
         "name": "RSA Key Generation (Java)",
         "severity": "critical",
         "cwe": "CWE-327",
         "pattern": r'KeyPairGenerator\.getInstance\s*\(\s*"RSA"',
         "extensions": [".java", ".kt", ".kts"],
         "description": "Java RSA KeyPairGenerator",
-        "fix": "Migrate to Bouncy Castle PQC (bcprov-jdk15on ≥ 1.74 with CRYSTALS-Kyber)",
+        "fix": "Migrate to Bouncy Castle post-quantum (bcprov-jdk15on ≥ 1.74 with CRYSTALS-Kyber)",
     },
     # Weak key sizes
     {
-        "rule_id": "PQC-020",
+        "rule_id": "MORROW-020",
         "name": "Small RSA Key Size",
         "severity": "critical",
         "cwe": "CWE-326",
@@ -114,7 +114,7 @@ _RULES: List[Dict[str, Any]] = [
         "fix": "Minimum RSA-3072 for classical security; migrate to ML-KEM-768 for quantum safety",
     },
     {
-        "rule_id": "PQC-021",
+        "rule_id": "MORROW-021",
         "name": "RSA-2048 Key Size",
         "severity": "high",
         "cwe": "CWE-326",
@@ -125,17 +125,17 @@ _RULES: List[Dict[str, Any]] = [
     },
     # JWT / Token algorithms
     {
-        "rule_id": "PQC-030",
+        "rule_id": "MORROW-030",
         "name": "JWT RS256/RS384/RS512 Algorithm",
         "severity": "high",
         "cwe": "CWE-327",
         "pattern": r'["\']algorithm["\']\s*:\s*["\']RS(256|384|512)["\']|algorithm\s*=\s*["\']RS(256|384|512)["\']',
         "extensions": [".py", ".js", ".ts", ".go", ".java", ".rb", ".json", ".yaml", ".yml"],
         "description": "JWT with RSA-based signing — quantum-vulnerable",
-        "fix": "Migrate to ML-DSA-based JWT signing when JOSE PQC RFC is finalized; interim: EdDSA is safer",
+        "fix": "Migrate to ML-DSA-based JWT signing when JOSE post-quantum RFC is finalized; interim: EdDSA is safer",
     },
     {
-        "rule_id": "PQC-031",
+        "rule_id": "MORROW-031",
         "name": "JWT ES256/ES384/ES512 Algorithm",
         "severity": "high",
         "cwe": "CWE-327",
@@ -146,7 +146,7 @@ _RULES: List[Dict[str, Any]] = [
     },
     # TLS configuration
     {
-        "rule_id": "PQC-040",
+        "rule_id": "MORROW-040",
         "name": "Deprecated TLS Version in Config",
         "severity": "medium",
         "cwe": "CWE-326",
@@ -156,7 +156,7 @@ _RULES: List[Dict[str, Any]] = [
         "fix": "Require TLS 1.3 minimum; configure X25519Kyber768 hybrid key exchange",
     },
     {
-        "rule_id": "PQC-041",
+        "rule_id": "MORROW-041",
         "name": "Weak TLS Cipher Suite",
         "severity": "medium",
         "cwe": "CWE-326",
@@ -167,28 +167,28 @@ _RULES: List[Dict[str, Any]] = [
     },
     # SSH configuration
     {
-        "rule_id": "PQC-050",
+        "rule_id": "MORROW-050",
         "name": "RSA Host Key in SSH Config",
         "severity": "high",
         "cwe": "CWE-327",
         "pattern": r"HostKey\s+/etc/ssh/ssh_host_rsa_key",
         "extensions": [".conf", ".cfg"],
         "description": "SSH RSA host key configured — quantum-vulnerable",
-        "fix": "Add ssh-ed25519 and future PQC host keys; disable RSA host key",
+        "fix": "Add ssh-ed25519 and future post-quantum host keys; disable RSA host key",
     },
     {
-        "rule_id": "PQC-051",
+        "rule_id": "MORROW-051",
         "name": "Weak SSH KexAlgorithms",
         "severity": "medium",
         "cwe": "CWE-326",
         "pattern": r"KexAlgorithms.*diffie-hellman-group(1|14)-sha(1|256)",
         "extensions": [".conf", ".cfg"],
         "description": "Weak Diffie-Hellman key exchange in SSH config",
-        "fix": "Remove classical DH; prefer curve25519-sha256 until PQC SSH KEX is standardized",
+        "fix": "Remove classical DH; prefer curve25519-sha256 until post-quantum SSH KEX is standardized",
     },
     # Docker / Container
     {
-        "rule_id": "PQC-060",
+        "rule_id": "MORROW-060",
         "name": "Secret Copied into Container Layer",
         "severity": "critical",
         "cwe": "CWE-321",
@@ -399,7 +399,7 @@ def _to_sarif(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
         })
 
     from services.public_config import public_base_url
-    driver: Dict[str, Any] = {"name": "PQC Scanner SAST"}
+    driver: Dict[str, Any] = {"name": "Morrow SAST"}
     base_url = public_base_url()
     if base_url:  # informationUri is optional in SARIF; omit rather than use a placeholder
         driver["informationUri"] = base_url

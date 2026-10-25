@@ -4,7 +4,7 @@ Invitations live in admin_invitations (services/admin_console.py), keyed by thei
 services/platform_access.py adds the non-secret invite id (a SHA-256 prefix of the token) and
 revocation, which deletes the row and writes a revoke_invitation audit row naming that id.
 
-Link format: {PQC_PUBLIC_BASE_URL or the request origin}/invite#token=<token>. The token rides in
+Link format: {MORROW_PUBLIC_BASE_URL or the request origin}/invite#token=<token>. The token rides in
 the URL fragment, which browsers never send to a server or put in a Referer header.
 
 preview() tells the landing page what an invitation is for without revealing anything a token
@@ -54,14 +54,14 @@ def invite_link(token: str, request: Any = None) -> str:
 
 
 class PublicBaseUrlMissing(RuntimeError):
-    """PQC_PUBLIC_BASE_URL is not configured and the link is about to leave the process."""
+    """MORROW_PUBLIC_BASE_URL is not configured and the link is about to leave the process."""
 
 
 def external_invite_link(token: str) -> str:
     """A link that will be EMAILED. The origin must be configured, never taken from the request.
 
     base_url() falls back to request.base_url, which is the Host header. TrustedHostMiddleware is
-    only installed when PQC_ALLOWED_HOSTS is not '*', so on a default deployment an attacker who can
+    only installed when MORROW_ALLOWED_HOSTS is not '*', so on a default deployment an attacker who can
     reach the API can set Host to a site they control, ask for an invitation to be emailed, and have
     the server send the real invitee a real invitation token pointed at the attacker's origin. A
     link that leaves the process has to come from configuration.
@@ -69,7 +69,7 @@ def external_invite_link(token: str) -> str:
     base = public_base_url_only()
     if not base:
         raise PublicBaseUrlMissing(
-            "Set PQC_PUBLIC_BASE_URL before emailing invitations: the link in the email must come "
+            "Set MORROW_PUBLIC_BASE_URL before emailing invitations: the link in the email must come "
             "from configuration, not from the Host header of whoever made the request."
         )
     return base + invite_path(token)

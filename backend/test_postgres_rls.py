@@ -6,9 +6,9 @@ have". This file builds a disposable database with the full schema, applies the 
 connects as a NOSUPERUSER NOBYPASSRLS role -- the only kind of role the policies constrain -- and
 checks the boundary from the outside.
 
-Skipped unless PQC_TEST_PG_DSN names a disposable server whose role may create databases and roles:
+Skipped unless MORROW_TEST_PG_DSN names a disposable server whose role may create databases and roles:
 
-    PQC_TEST_PG_DSN=postgresql://pqc:pqctest@127.0.0.1:55432/pqc_test \
+    MORROW_TEST_PG_DSN=postgresql://morrow:pqtest@127.0.0.1:55432/pq_test \
         python -m pytest -q test_postgres_rls.py
 """
 
@@ -21,8 +21,8 @@ import uuid
 
 import pytest
 
-PG_DSN = os.getenv("PQC_TEST_PG_DSN", "").strip()
-pytestmark = pytest.mark.skipif(not PG_DSN, reason="set PQC_TEST_PG_DSN to run against a real Postgres")
+PG_DSN = os.getenv("MORROW_TEST_PG_DSN", "").strip()
+pytestmark = pytest.mark.skipif(not PG_DSN, reason="set MORROW_TEST_PG_DSN to run against a real Postgres")
 
 BACKEND = pathlib.Path(__file__).resolve().parent
 if str(BACKEND) not in sys.path:
@@ -116,8 +116,8 @@ def rls(tmp_path_factory):
     """A database with the full schema, the plan applied, and a role the policies actually bind."""
     from psycopg2.extensions import make_dsn
 
-    db_name = "pqc_rls_" + uuid.uuid4().hex[:10]
-    role = "pqc_rls_app_" + uuid.uuid4().hex[:8]
+    db_name = "pq_rls_" + uuid.uuid4().hex[:10]
+    role = "pq_rls_app_" + uuid.uuid4().hex[:8]
     password = "rls-test-" + uuid.uuid4().hex[:12]
 
     admin = _admin_conn()
@@ -130,12 +130,12 @@ def rls(tmp_path_factory):
     mp = pytest.MonkeyPatch()
     sqlite_side = str(tmp_path_factory.mktemp("rls") / "sqlite-side.db")
     for key, value in {
-        "PQC_MAIN_DB_BACKEND": "postgres",
-        "PQC_FEATURE_STORE_BACKEND": "postgres",
+        "MORROW_MAIN_DB_BACKEND": "postgres",
+        "MORROW_FEATURE_STORE_BACKEND": "postgres",
         "DATABASE_URL": owner_dsn,
-        "PQC_PRODUCT_DATABASE_URL": owner_dsn,
-        "PQC_SCANNER_DB": sqlite_side,
-        "PQC_ENVIRONMENT": "local",
+        "MORROW_PRODUCT_DATABASE_URL": owner_dsn,
+        "MORROW_SCANNER_DB": sqlite_side,
+        "MORROW_ENVIRONMENT": "local",
     }.items():
         mp.setenv(key, value)
 
@@ -324,7 +324,7 @@ def test_a_pooled_connection_cannot_carry_a_tenant_between_requests(rls):
     saved = (db_postgres._POOL_MIN, db_postgres._POOL_MAX)
     db_postgres._POOL_MIN, db_postgres._POOL_MAX = 1, 1
     try:
-        os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
+        os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
 
         token = db.set_current_organization_id(ORG_A)
         try:
@@ -392,7 +392,7 @@ def test_a_pooled_connection_cannot_carry_a_tenant_between_requests(rls):
     finally:
         db_postgres.close_pools()
         db_postgres._POOL_MIN, db_postgres._POOL_MAX = saved
-        os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
+        os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
 
 
 # --------------------------------------------------------------------------- #
@@ -467,7 +467,7 @@ def test_background_writers_still_work_under_forced_rls(rls):
     import db_postgres
     from services import security_journal, tenant_scope, usage_rollups
 
-    os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
+    os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
     os.environ["DATABASE_URL"] = rls["app_dsn"]
     db_postgres.close_pools()
     tenant_scope.reset_audit_log()
@@ -494,7 +494,7 @@ def test_background_writers_still_work_under_forced_rls(rls):
         assert "usage rollups" in reasons
     finally:
         db_postgres.close_pools()
-        os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
+        os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
         os.environ["DATABASE_URL"] = rls["owner_dsn"]
 
 
@@ -504,7 +504,7 @@ def test_api_key_verification_works_before_a_tenant_is_known(rls):
     import db_postgres
     from services import api_keys, tenant_scope
 
-    os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
+    os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
     os.environ["DATABASE_URL"] = rls["app_dsn"]
     db_postgres.close_pools()
     api_keys._VERIFY_CACHE.clear()
@@ -524,7 +524,7 @@ def test_api_key_verification_works_before_a_tenant_is_known(rls):
         assert any("api-key verification" in e["reason"] for e in tenant_scope.escape_events())
     finally:
         db_postgres.close_pools()
-        os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
+        os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
         os.environ["DATABASE_URL"] = rls["owner_dsn"]
 
 
@@ -546,13 +546,13 @@ def test_the_startup_warning_is_silent_once_the_plan_is_applied(rls):
     assert result["uncovered_tables"] == [], "an org-scoped table exists that the plan does not cover"
     assert result["inert_policy"] == []
 
-    saved = os.environ.get("PQC_PRODUCT_DATABASE_URL")
-    os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
+    saved = os.environ.get("MORROW_PRODUCT_DATABASE_URL")
+    os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["app_dsn"]
     app_module._RLS_POSTURE_CACHE.update(expires_at=0.0, warnings=[])
     try:
         assert app_module._rls_posture_warnings_uncached() == []
     finally:
-        os.environ["PQC_PRODUCT_DATABASE_URL"] = saved or rls["owner_dsn"]
+        os.environ["MORROW_PRODUCT_DATABASE_URL"] = saved or rls["owner_dsn"]
         app_module._RLS_POSTURE_CACHE.update(expires_at=0.0, warnings=[])
 
 
@@ -561,15 +561,15 @@ def test_the_startup_warning_is_specific_when_the_role_can_bypass_rls(rls):
     of it does anything. The message has to name that, not just say "not fully enforced"."""
     import app as app_module
 
-    saved = os.environ.get("PQC_PRODUCT_DATABASE_URL")
-    os.environ["PQC_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
+    saved = os.environ.get("MORROW_PRODUCT_DATABASE_URL")
+    os.environ["MORROW_PRODUCT_DATABASE_URL"] = rls["owner_dsn"]
     app_module._RLS_POSTURE_CACHE.update(expires_at=0.0, warnings=[])
     try:
         warnings = app_module._rls_posture_warnings_uncached()
         assert warnings
         assert any("BYPASSRLS" in w for w in warnings)
     finally:
-        os.environ["PQC_PRODUCT_DATABASE_URL"] = saved or rls["owner_dsn"]
+        os.environ["MORROW_PRODUCT_DATABASE_URL"] = saved or rls["owner_dsn"]
         app_module._RLS_POSTURE_CACHE.update(expires_at=0.0, warnings=[])
 
 

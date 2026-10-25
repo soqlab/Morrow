@@ -1,6 +1,6 @@
 """
 Wave 15 — Policy-as-Code Engine
-Define org PQC policies in YAML. Evaluate them against live scan/remediation data.
+Define org post-quantum policies in YAML. Evaluate them against live scan/remediation data.
 No external deps — uses stdlib yaml-alike (json for storage, simple evaluator).
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 _DDL = [
-    """CREATE TABLE IF NOT EXISTS pqc_policies (
+    """CREATE TABLE IF NOT EXISTS morrow_policies (
         id TEXT PRIMARY KEY,
         organization_id TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -87,11 +87,11 @@ POLICY_TEMPLATES = [
     },
     {
         "name": "CRYSTALS-Kyber or Dilithium required post-2025",
-        "description": "Assets must use NIST PQC approved algorithms: CRYSTALS-Kyber or CRYSTALS-Dilithium.",
+        "description": "Assets must use NIST post-quantum approved algorithms: CRYSTALS-Kyber or CRYSTALS-Dilithium.",
         "definition": {
             "rules": [
                 {
-                    "id": "pqc_algorithm",
+                    "id": "pq_algorithm",
                     "description": "Must use CRYSTALS-Kyber (ML-KEM) or CRYSTALS-Dilithium (ML-DSA)",
                     "field": "sig_algorithm",
                     "operator": "contains_any",
@@ -133,7 +133,7 @@ def create_policy(conn: sqlite3.Connection, org_id: str, name: str,
     policy_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
-        """INSERT INTO pqc_policies (id, organization_id, name, description, definition, enabled, created_at, updated_at)
+        """INSERT INTO morrow_policies (id, organization_id, name, description, definition, enabled, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         (policy_id, org_id, name, description, json.dumps(definition), 1 if enabled else 0, now, now),
     )
@@ -143,7 +143,7 @@ def create_policy(conn: sqlite3.Connection, org_id: str, name: str,
 
 def get_policy(conn: sqlite3.Connection, policy_id: str) -> Optional[Dict]:
     row = conn.execute(
-        "SELECT id, organization_id, name, description, definition, enabled, created_at, updated_at FROM pqc_policies WHERE id=?",
+        "SELECT id, organization_id, name, description, definition, enabled, created_at, updated_at FROM morrow_policies WHERE id=?",
         (policy_id,),
     ).fetchone()
     if not row:
@@ -158,7 +158,7 @@ def get_policy(conn: sqlite3.Connection, policy_id: str) -> Optional[Dict]:
 def list_policies(conn: sqlite3.Connection, org_id: str) -> List[Dict]:
     rows = conn.execute(
         """SELECT id, organization_id, name, description, definition, enabled, created_at, updated_at
-           FROM pqc_policies WHERE organization_id=? ORDER BY created_at DESC""",
+           FROM morrow_policies WHERE organization_id=? ORDER BY created_at DESC""",
         (org_id,),
     ).fetchall()
     cols = ["id", "organization_id", "name", "description", "definition", "enabled", "created_at", "updated_at"]
@@ -182,14 +182,14 @@ def update_policy(conn: sqlite3.Connection, policy_id: str, org_id: str,
     if enabled is not None: sets.append("enabled=?"); vals.append(1 if enabled else 0)
     sets.append("updated_at=?"); vals.append(now)
     vals.extend([policy_id, org_id])
-    conn.execute(f"UPDATE pqc_policies SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)
+    conn.execute(f"UPDATE morrow_policies SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)
     conn.commit()
     return get_policy(conn, policy_id)
 
 
 def delete_policy(conn: sqlite3.Connection, policy_id: str, org_id: str) -> bool:
     cur = conn.execute(
-        "DELETE FROM pqc_policies WHERE id=? AND organization_id=?", (policy_id, org_id)
+        "DELETE FROM morrow_policies WHERE id=? AND organization_id=?", (policy_id, org_id)
     )
     conn.commit()
     return cur.rowcount > 0
@@ -349,7 +349,7 @@ def get_policy_results(conn: sqlite3.Connection, org_id: str, limit: int = 50) -
             """SELECT r.id, r.policy_id, p.name, r.passed, r.violation_count,
                       r.asset_count, r.evaluated_at
                FROM policy_results r
-               JOIN pqc_policies p ON r.policy_id = p.id
+               JOIN morrow_policies p ON r.policy_id = p.id
                WHERE r.organization_id=? ORDER BY r.evaluated_at DESC LIMIT ?""",
             (org_id, limit),
         ).fetchall()

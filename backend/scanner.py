@@ -20,7 +20,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import AuthorityInformationAccessOID
 from cryptography.x509 import ocsp as x509_ocsp
 
-from policy import evaluate_tls_findings, derive_risk_and_score, derive_pqc_relevance, derive_quantum_readiness
+from policy import evaluate_tls_findings, derive_risk_and_score, derive_pq_relevance, derive_quantum_readiness
 
 DEFAULT_TIMEOUT = 6
 
@@ -385,7 +385,7 @@ def _probe_tls12_accepted_ciphers(host: str, port: int) -> Dict[str, Any]:
 # library, no new dependency and no completed handshake: the server's answer to "here are the
 # groups I support, which do you choose?" is in the clear, in the first flight. A server that
 # prefers a group we did not send a key share for replies with a HelloRetryRequest that names it,
-# which is exactly the case a PQC-enabled server hits, so both branches are covered.
+# which is exactly the case a post-quantum-enabled server hits, so both branches are covered.
 #
 # Everything here is advisory. Any failure leaves the field unobserved rather than guessed, and the
 # probe never blocks the certificate scan.
@@ -405,7 +405,7 @@ TLS_NAMED_GROUPS: Dict[int, str] = {
     0x001D: "x25519", 0x001E: "x448",
     0x0100: "ffdhe2048", 0x0101: "ffdhe3072", 0x0102: "ffdhe4096",
     0x0103: "ffdhe6144", 0x0104: "ffdhe8192",
-    # Hybrid PQC key exchange (RFC 9794 naming; 0x11EB-0x11ED are the standardised ML-KEM hybrids).
+    # Hybrid post-quantum key exchange (RFC 9794 naming; 0x11EB-0x11ED are the standardised ML-KEM hybrids).
     0x11EB: "SecP256r1MLKEM768",
     0x11EC: "X25519MLKEM768",
     0x11ED: "SecP384r1MLKEM1024",
@@ -418,7 +418,7 @@ TLS_NAMED_GROUPS: Dict[int, str] = {
 }
 
 #: Names that identify a group as post-quantum, and as hybrid rather than pure.
-_PQC_GROUP_TOKENS = ("mlkem", "ml-kem", "kyber", "ntru", "bike", "hqc", "frodo")
+_MORROW_GROUP_TOKENS = ("mlkem", "ml-kem", "kyber", "ntru", "bike", "hqc", "frodo")
 _CLASSICAL_GROUP_TOKENS = ("x25519", "x448", "secp", "p256", "p384", "p521", "ffdhe")
 
 #: Offered in preference order, post-quantum first, so a server that supports hybrid selects it.
@@ -434,12 +434,12 @@ _HRR_RANDOM = bytes.fromhex(
 
 
 def classify_key_exchange_group(group_name: str) -> str:
-    """"pqc_hybrid", "pqc_pure", "classical", or "" when nothing was observed."""
+    """"pq_hybrid", "pq_pure", "classical", or "" when nothing was observed."""
     g = str(group_name or "").lower().replace("-", "").replace("_", "")
     if not g:
         return ""
-    if any(tok.replace("-", "") in g for tok in _PQC_GROUP_TOKENS):
-        return "pqc_hybrid" if any(t in g for t in _CLASSICAL_GROUP_TOKENS) else "pqc_pure"
+    if any(tok.replace("-", "") in g for tok in _MORROW_GROUP_TOKENS):
+        return "pq_hybrid" if any(t in g for t in _CLASSICAL_GROUP_TOKENS) else "pq_pure"
     return "classical"
 
 
@@ -655,7 +655,7 @@ def _pk_details(cert: x509.Certificate) -> Dict[str, Any]:
     reported with key_type "Ed25519PublicKey", which matches no algorithm table in the product.
     Every consumer therefore classified it "unknown", and "unknown" reads downstream as *not*
     quantum-vulnerable: the endpoint scored crypto_agility 90, harvest-now-decrypt-later "unknown",
-    pqc_relevance LOW. EdDSA over Curve25519 is broken by Shor exactly like ECDSA, so that was the
+    pq_relevance LOW. EdDSA over Curve25519 is broken by Shor exactly like ECDSA, so that was the
     most dangerous answer the scanner could give. Named algorithms now come back named.
 
     key_bits is reported as an integer because everything downstream (HNDL Q-Day buckets, the CBOM
@@ -1136,7 +1136,7 @@ def _finalise_scan_status(facts: Dict[str, Any]) -> None:
     version and no key, the rule set still fired "No CRL distribution points advertised", "No OCSP
     responder advertised" and "Certificate chain short or unavailable" -- three assertions about a
     certificate that was never retrieved -- and the endpoint came out at quantum_risk_level "low",
-    pqc_relevance "LOW". An unreachable host therefore looked *safer* than a scanned RSA one.
+    pq_relevance "LOW". An unreachable host therefore looked *safer* than a scanned RSA one.
 
     scan_status distinguishes the two, and the rules and scoring below consult it.
     """
@@ -1244,8 +1244,8 @@ def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
         "risk": "low",
         "quantum_risk_score": 0,
         "quantum_risk_level": "low",
-        "pqc_relevance": "LOW",
-        "pqc_recommendation": "",
+        "pq_relevance": "LOW",
+        "pq_recommendation": "",
     }
 
     # Primary handshake (verified)
@@ -1383,7 +1383,7 @@ def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
     # Findings + scoring
     findings = evaluate_tls_findings(facts)
     scoring = derive_risk_and_score(findings)
-    pqc = derive_pqc_relevance(findings)
+    pq = derive_pq_relevance(findings)
     quantum_readiness = derive_quantum_readiness(facts, findings)
 
     facts["findings"] = findings
@@ -1391,8 +1391,8 @@ def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
     facts["risk"] = scoring["risk_label"]
     facts["quantum_risk_score"] = scoring["quantum_risk_score"]
     facts["quantum_risk_level"] = scoring["quantum_risk_level"]
-    facts["pqc_relevance"] = pqc["pqc_relevance"]
-    facts["pqc_recommendation"] = pqc["pqc_recommendation"]
+    facts["pq_relevance"] = pq["pq_relevance"]
+    facts["pq_recommendation"] = pq["pq_recommendation"]
     facts.update(quantum_readiness)
 
     return facts

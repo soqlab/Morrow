@@ -148,7 +148,7 @@ Fields:
 - `risk_level`
 - `quantum_score`
 - `findings_count`
-- `pqc_relevance`
+- `pq_relevance`
 - `tls_version`
 - `key_type`
 - `sig_algorithm`
@@ -428,7 +428,7 @@ Fields:
 
 Secrets are encrypted using:
 
-- `PQC_VAULT_MASTER_KEY`
+- `MORROW_VAULT_MASTER_KEY`
 
 ## 4. Org-scoped vs global data
 
@@ -502,40 +502,40 @@ Security caveat:
 
 ### 5.1 Database and backend selection
 
-- `PQC_MAIN_DB_BACKEND`
-- `PQC_PRODUCT_DATABASE_URL`
+- `MORROW_MAIN_DB_BACKEND`
+- `MORROW_PRODUCT_DATABASE_URL`
 - `DATABASE_URL`
-- `PQC_SCANNER_DB`
+- `MORROW_SCANNER_DB`
 
 ### 5.2 Vault
 
-- `PQC_VAULT_MASTER_KEY`
+- `MORROW_VAULT_MASTER_KEY`
 
 ### 5.3 Auth
 
-- `PQC_AUTH_MODE`
-- `PQC_AUTH_REQUIRED`
-- `PQC_AUTH_PROVIDER_NAME`
-- `PQC_AUTH_LOGIN_URL`
-- `PQC_AUTH_LOGOUT_URL`
-- `PQC_AUTH_TOKEN_HELP`
-- `PQC_AUTH_JWT_ISSUER`
-- `PQC_AUTH_JWT_AUDIENCE`
-- `PQC_AUTH_JWT_JWKS_URL`
-- `PQC_AUTH_JWT_SECRET`
-- `PQC_AUTH_USER_ID_CLAIM`
-- `PQC_AUTH_ROLE_CLAIM`
-- `PQC_AUTH_ORG_ID_CLAIM`
-- `PQC_AUTH_CLOCK_SKEW_SECONDS`
-- `PQC_AUTH_JWT_ALGORITHMS`
+- `MORROW_AUTH_MODE`
+- `MORROW_AUTH_REQUIRED`
+- `MORROW_AUTH_PROVIDER_NAME`
+- `MORROW_AUTH_LOGIN_URL`
+- `MORROW_AUTH_LOGOUT_URL`
+- `MORROW_AUTH_TOKEN_HELP`
+- `MORROW_AUTH_JWT_ISSUER`
+- `MORROW_AUTH_JWT_AUDIENCE`
+- `MORROW_AUTH_JWT_JWKS_URL`
+- `MORROW_AUTH_JWT_SECRET`
+- `MORROW_AUTH_USER_ID_CLAIM`
+- `MORROW_AUTH_ROLE_CLAIM`
+- `MORROW_AUTH_ORG_ID_CLAIM`
+- `MORROW_AUTH_CLOCK_SKEW_SECONDS`
+- `MORROW_AUTH_JWT_ALGORITHMS`
 
 ### 5.4 Defaults and request limits
 
-- `PQC_DEFAULT_ROLE`
-- `PQC_DEFAULT_ORG_ID`
-- `PQC_API_KEY`
-- `PQC_RATE_LIMIT_WINDOW_SECONDS`
-- `PQC_RATE_LIMIT_MAX_REQUESTS`
+- `MORROW_DEFAULT_ROLE`
+- `MORROW_DEFAULT_ORG_ID`
+- `MORROW_API_KEY`
+- `MORROW_RATE_LIMIT_WINDOW_SECONDS`
+- `MORROW_RATE_LIMIT_MAX_REQUESTS`
 
 ### 5.5 AI
 
@@ -572,12 +572,12 @@ Security caveat:
 - `CORRELATE_ASSET_LIMIT`
 - `GCP_SYNC_CREDENTIAL_ID`
 - `GCP_SYNC_PROJECT_ID`
-- `PQC_WEBHOOK_DRAIN_LIMIT`
-- `PQC_WEBHOOK_MAX_ATTEMPTS`
-- `PQC_WEBHOOK_LEASE_SECONDS`
-- `PQC_DRIFT_CHECK_LIMIT`
-- `PQC_GITHUB_DRIFT_CREDENTIAL_ID`
-- `PQC_BRANCH_CLEANUP_LIMIT`
+- `MORROW_WEBHOOK_DRAIN_LIMIT`
+- `MORROW_WEBHOOK_MAX_ATTEMPTS`
+- `MORROW_WEBHOOK_LEASE_SECONDS`
+- `MORROW_DRIFT_CHECK_LIMIT`
+- `MORROW_GITHUB_DRIFT_CREDENTIAL_ID`
+- `MORROW_BRANCH_CLEANUP_LIMIT`
 - `CORRELATE_DEEP_SCAN`
 - `CORRELATE_DEEP_SCAN_MAX_FILES`
 - `CORRELATE_DEEP_SCAN_MAX_DEPTH`
@@ -585,32 +585,32 @@ Security caveat:
 
 ### 5.10 Validation isolation
 
-- `PQC_VALIDATION_ISOLATION_MODE`
+- `MORROW_VALIDATION_ISOLATION_MODE`
   - `workspace` by default
   - `docker` to run Terraform validation in a per-job Docker container
-- `PQC_VALIDATION_DOCKER_IMAGE`
+- `MORROW_VALIDATION_DOCKER_IMAGE`
   - Docker image used for isolated Terraform validation
   - default: `ghcr.io/opentofu/opentofu:1.8.6`
-- `PQC_VALIDATION_DOCKER_CPUS`
+- `MORROW_VALIDATION_DOCKER_CPUS`
   - CPU limit for the validation container
-- `PQC_VALIDATION_DOCKER_MEMORY`
+- `MORROW_VALIDATION_DOCKER_MEMORY`
   - memory limit for the validation container
 
 ### 5.11 Observability
 
-- `PQC_STRUCTURED_LOGS`
+- `MORROW_STRUCTURED_LOGS`
   - defaults to enabled; emits JSON logs for Cloud Logging
-- `PQC_LOG_LEVEL`
+- `MORROW_LOG_LEVEL`
   - root log level for API and worker logs
 - `SENTRY_DSN`
   - optional Sentry DSN for exception capture
 - `SENTRY_TRACES_SAMPLE_RATE`
   - optional Sentry tracing sample rate
-- `PQC_ENVIRONMENT`
+- `MORROW_ENVIRONMENT`
   - environment label attached to Sentry events
-- `PQC_HEALTH_DEEP`
+- `MORROW_HEALTH_DEEP`
   - if enabled, `/health` also verifies Postgres and Redis; `/health/deep` always performs deep checks
-- `PQC_APP_BASE_URL` / `PQC_PUBLIC_APP_URL`
+- `MORROW_APP_BASE_URL` / `MORROW_PUBLIC_APP_URL`
   - public UI base URL used for GitHub PR link-back metadata
 
 ## 6. Local Docker deployment
@@ -733,7 +733,7 @@ Terraform wires hosted auth config into Cloud Run using variables such as:
 ### 9.1 Minimum health checks
 
 - GET /health for the default liveness check
-- GET /health/deep or PQC_HEALTH_DEEP=1 for Postgres and Redis probing
+- GET /health/deep or MORROW_HEALTH_DEEP=1 for Postgres and Redis probing
 - `GET /auth/config`
 - UI load on `/ui/`
 
@@ -788,7 +788,7 @@ Most common hosted auth issue:
 Current browser-side reset:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -843,7 +843,7 @@ It reports:
 - engineering hours saved total
 - engineering hours saved per 100 remediations
 - target attainment against 200 hours per 100 remediations
-- MTTR reduction versus `PQC_ROI_MANUAL_MTTR_HOURS`
+- MTTR reduction versus `MORROW_ROI_MANUAL_MTTR_HOURS`
 - drift events caught
 - drift follow-ups created
 - manual non-compliant changes reverted

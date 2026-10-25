@@ -7,9 +7,9 @@
 // exists" note instead. Records this smoke needs are created through the API and removed again.
 const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
-const base = (process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
-const key = process.env.PQC_E2E_PLATFORM_KEY;
-if (!key) throw new Error("PQC_E2E_PLATFORM_KEY is required for the deep-link smoke.");
+const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const key = process.env.MORROW_E2E_PLATFORM_KEY;
+if (!key) throw new Error("MORROW_E2E_PLATFORM_KEY is required for the deep-link smoke.");
 
 const HEADERS = { "x-platform-key": key, "x-platform-admin-role": "owner" };
 const hashOf = page => page.evaluate(() => location.hash);

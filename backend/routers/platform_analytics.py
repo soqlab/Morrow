@@ -28,7 +28,7 @@ OWNER = _operators.OWNER_ROLES
 
 #: In-process TTL for the endpoints that still aggregate on the request (customer 360 and usage).
 #: The overview no longer uses it: it is served from a stored snapshot whose own refresh interval
-#: is PQC_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS. A TTL shorter than the computation behind it can
+#: is MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS. A TTL shorter than the computation behind it can
 #: never hold an answer, which is what made every overview request recompute.
 ANALYTICS_TTL = 20.0
 NOTIFICATIONS_TTL = 15.0
@@ -171,7 +171,7 @@ def create_platform_analytics_router(deps: Any) -> APIRouter:
         if not loaded or cache.get("state") is None:
             return {}
         try:
-            ttl = max(1.0, float(os.getenv("PQC_MAINTENANCE_CACHE_SECONDS", "5") or 5))
+            ttl = max(1.0, float(os.getenv("MORROW_MAINTENANCE_CACHE_SECONDS", "5") or 5))
         except ValueError:
             ttl = 5.0
         loaded_wall = datetime.now(timezone.utc) - timedelta(seconds=max(0.0, time.monotonic() - loaded))

@@ -20,7 +20,7 @@ from db import (
 
 def _setup_tmp_db():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     init_db()
@@ -163,7 +163,7 @@ def test_roi_metrics_and_ci_status_check():
         result = {
             "host": "app.example",
             "port": 443,
-            "findings": [{"rule_id": "PQC_RSA_ENDPOINT", "severity": "critical"}],
+            "findings": [{"rule_id": "MORROW_RSA_ENDPOINT", "severity": "critical"}],
             "risk_level": "critical",
             "quantum_score": 95.0,
         }

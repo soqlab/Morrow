@@ -4,10 +4,10 @@ step-up for destructive actions, and the break-glass policy for the shared platf
 Credential model (see also services/platform_operators.py):
 
   * SSO operator session (auth_method "sso"). OpenID Connect authorization code flow with PKCE
-    against PQC_ADMIN_OIDC_ISSUER. The ID token is verified against the issuer's JWKS (RS/PS/ES
+    against MORROW_ADMIN_OIDC_ISSUER. The ID token is verified against the issuer's JWKS (RS/PS/ES
     algorithms only), with iss, aud, exp, nonce and email_verified checked. The email must be on the
-    operator roster (PQC_ADMIN_OPERATOR_ROLES="alice@corp.com=owner,...") or, when no roster is set,
-    in PQC_ADMIN_OIDC_ALLOWED_DOMAINS (role PQC_ADMIN_OIDC_DOMAIN_ROLE, default auditor). Nothing is
+    operator roster (MORROW_ADMIN_OPERATOR_ROLES="alice@corp.com=owner,...") or, when no roster is set,
+    in MORROW_ADMIN_OIDC_ALLOWED_DOMAINS (role MORROW_ADMIN_OIDC_DOMAIN_ROLE, default auditor). Nothing is
     provisioned: unknown emails are denied. The role is re-read from the roster on every request, so
     removing someone from the roster ends their access immediately.
     A successful sign-in creates a server-side session row (only a SHA-256 of the session id is
@@ -16,18 +16,18 @@ Credential model (see also services/platform_operators.py):
     (double submit: the token is HMAC(session id), also set as a readable cookie and returned by
     /platform/whoami).
   * Named operator key (auth_method "operator_key"): unchanged, plus MFA when required.
-  * Shared PQC_PLATFORM_ADMIN_KEY: in production and staging it is break-glass only. It is refused
-    unless PQC_ALLOW_BREAK_GLASS_KEY=1, and every use is audited with severity high.
+  * Shared MORROW_PLATFORM_ADMIN_KEY: in production and staging it is break-glass only. It is refused
+    unless MORROW_ALLOW_BREAK_GLASS_KEY=1, and every use is audited with severity high.
 
 MFA is TOTP (RFC 6238, SHA-1, 30 s, 6 digits) implemented with the standard library. Secrets are
-encrypted at rest with the platform vault key (vault_crypto: Fernet over PQC_VAULT_MASTER_KEY);
+encrypted at rest with the platform vault key (vault_crypto: Fernet over MORROW_VAULT_MASTER_KEY);
 recovery codes are stored as SHA-256 hashes and are single use. Verification accepts one step either
 side, refuses a step that was already used, and allows 5 failed attempts per 5 minutes per identity.
 
-Policy: PQC_ADMIN_REQUIRE_MFA (default on in production/staging, off elsewhere). When MFA is
+Policy: MORROW_ADMIN_REQUIRE_MFA (default on in production/staging, off elsewhere). When MFA is
 required, or the identity has enrolled, a session is "elevated" only after a TOTP check; until then
 only the identity, MFA and sign-out endpoints answer. Destructive actions call require_step_up(),
-which needs a TOTP check in the last PQC_ADMIN_STEP_UP_SECONDS (default 900).
+which needs a TOTP check in the last MORROW_ADMIN_STEP_UP_SECONDS (default 900).
 """
 
 from __future__ import annotations
@@ -54,9 +54,9 @@ from services import platform_operators as _operators
 
 logger = logging.getLogger(__name__)
 
-SESSION_COOKIE = "pqc_admin_session"
-CSRF_COOKIE = "pqc_admin_csrf"
-SSO_STATE_COOKIE = "pqc_admin_sso"
+SESSION_COOKIE = "morrow_admin_session"
+CSRF_COOKIE = "morrow_admin_csrf"
+SSO_STATE_COOKIE = "morrow_admin_sso"
 CSRF_HEADER = "x-csrf-token"
 SSO_CALLBACK_PATH = "/vendor-admin/sso/callback"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -139,7 +139,7 @@ def _int_env(name: str, default: int, minimum: int = 1) -> int:
 
 
 def environment() -> str:
-    return _env("PQC_ENVIRONMENT", "local").lower() or "local"
+    return _env("MORROW_ENVIRONMENT", "local").lower() or "local"
 
 
 def strict_environment() -> bool:
@@ -147,30 +147,30 @@ def strict_environment() -> bool:
 
 
 def mfa_required() -> bool:
-    explicit = _flag("PQC_ADMIN_REQUIRE_MFA")
+    explicit = _flag("MORROW_ADMIN_REQUIRE_MFA")
     return strict_environment() if explicit is None else explicit
 
 
 def break_glass_allowed() -> bool:
-    return (not strict_environment()) or bool(_flag("PQC_ALLOW_BREAK_GLASS_KEY"))
+    return (not strict_environment()) or bool(_flag("MORROW_ALLOW_BREAK_GLASS_KEY"))
 
 
 def session_absolute_seconds() -> int:
-    return _int_env("PQC_ADMIN_SESSION_ABSOLUTE_SECONDS", 8 * 3600, 60)
+    return _int_env("MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS", 8 * 3600, 60)
 
 
 def session_idle_seconds() -> int:
-    return _int_env("PQC_ADMIN_SESSION_IDLE_SECONDS", 30 * 60, 30)
+    return _int_env("MORROW_ADMIN_SESSION_IDLE_SECONDS", 30 * 60, 30)
 
 
 def step_up_seconds() -> int:
-    return _int_env("PQC_ADMIN_STEP_UP_SECONDS", 15 * 60, 30)
+    return _int_env("MORROW_ADMIN_STEP_UP_SECONDS", 15 * 60, 30)
 
 
 def operator_roster() -> Dict[str, str]:
-    """PQC_ADMIN_OPERATOR_ROLES="alice@corp.com=owner,bob@corp.com=operator" -> {email: role}."""
+    """MORROW_ADMIN_OPERATOR_ROLES="alice@corp.com=owner,bob@corp.com=operator" -> {email: role}."""
     roster: Dict[str, str] = {}
-    for part in _env("PQC_ADMIN_OPERATOR_ROLES").replace(";", ",").replace("\n", ",").split(","):
+    for part in _env("MORROW_ADMIN_OPERATOR_ROLES").replace(";", ",").replace("\n", ",").split(","):
         if "=" not in part:
             continue
         email, _, role = part.partition("=")
@@ -184,20 +184,20 @@ def operator_roster() -> Dict[str, str]:
 
 
 def allowed_domains() -> List[str]:
-    return [d.strip().lower().lstrip("@") for d in _env("PQC_ADMIN_OIDC_ALLOWED_DOMAINS").split(",") if d.strip()]
+    return [d.strip().lower().lstrip("@") for d in _env("MORROW_ADMIN_OIDC_ALLOWED_DOMAINS").split(",") if d.strip()]
 
 
 def oidc_settings() -> Dict[str, Any]:
-    base = _env("PQC_PUBLIC_BASE_URL").rstrip("/")
+    base = _env("MORROW_PUBLIC_BASE_URL").rstrip("/")
     return {
-        "issuer": _env("PQC_ADMIN_OIDC_ISSUER").rstrip("/"),
-        "client_id": _env("PQC_ADMIN_OIDC_CLIENT_ID"),
-        "client_secret": _env("PQC_ADMIN_OIDC_CLIENT_SECRET"),
-        "redirect_uri": _env("PQC_ADMIN_OIDC_REDIRECT_URI") or (f"{base}{SSO_CALLBACK_PATH}" if base else ""),
-        "scopes": _env("PQC_ADMIN_OIDC_SCOPES", "openid email profile"),
-        "email_claim": _env("PQC_ADMIN_OIDC_EMAIL_CLAIM", "email") or "email",
-        "require_email_verified": _flag("PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED") is not False,
-        "domain_role": _operators.normalize_role(_env("PQC_ADMIN_OIDC_DOMAIN_ROLE", "auditor")) or "auditor",
+        "issuer": _env("MORROW_ADMIN_OIDC_ISSUER").rstrip("/"),
+        "client_id": _env("MORROW_ADMIN_OIDC_CLIENT_ID"),
+        "client_secret": _env("MORROW_ADMIN_OIDC_CLIENT_SECRET"),
+        "redirect_uri": _env("MORROW_ADMIN_OIDC_REDIRECT_URI") or (f"{base}{SSO_CALLBACK_PATH}" if base else ""),
+        "scopes": _env("MORROW_ADMIN_OIDC_SCOPES", "openid email profile"),
+        "email_claim": _env("MORROW_ADMIN_OIDC_EMAIL_CLAIM", "email") or "email",
+        "require_email_verified": _flag("MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED") is not False,
+        "domain_role": _operators.normalize_role(_env("MORROW_ADMIN_OIDC_DOMAIN_ROLE", "auditor")) or "auditor",
     }
 
 
@@ -237,7 +237,7 @@ def role_for_email(email: str) -> Optional[str]:
 
 
 def _db_identity() -> str:
-    return f"{os.getenv('PQC_FEATURE_STORE_BACKEND', '')}|{os.getenv('PQC_MAIN_DB_BACKEND', '')}|{os.getenv('PQC_SCANNER_DB', '')}"
+    return f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_MAIN_DB_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}"
 
 
 def init_tables() -> None:
@@ -546,7 +546,7 @@ def cookie_secure(request: Any) -> bool:
 
 
 def csrf_token_for(raw_session_id: str) -> str:
-    return hmac.new(str(raw_session_id).encode("utf-8"), b"pqc-admin-csrf-v1", hashlib.sha256).hexdigest()
+    return hmac.new(str(raw_session_id).encode("utf-8"), b"morrow-admin-csrf-v1", hashlib.sha256).hexdigest()
 
 
 def create_session(operator: str, role: str, auth_method: str, *, email: str = "", subject: str = "",
@@ -756,7 +756,7 @@ def _encrypt(secret: bytes) -> str:
         return encrypt_secret(base32_secret(secret))
     except Exception as exc:
         raise OperatorAuthError(503, "mfa_vault_unavailable",
-                                "MFA needs PQC_VAULT_MASTER_KEY (a Fernet key) to encrypt enrolment secrets.") from exc
+                                "MFA needs MORROW_VAULT_MASTER_KEY (a Fernet key) to encrypt enrolment secrets.") from exc
 
 
 def _decrypt(token: str) -> str:
@@ -808,7 +808,7 @@ def mfa_status(identity: str) -> Dict[str, Any]:
 
 
 #: How long an owner's approval to enrol stays usable.
-ENROLMENT_APPROVAL_SECONDS = int(os.getenv("PQC_ADMIN_ENROLMENT_APPROVAL_SECONDS", "3600") or 3600)
+ENROLMENT_APPROVAL_SECONDS = int(os.getenv("MORROW_ADMIN_ENROLMENT_APPROVAL_SECONDS", "3600") or 3600)
 
 
 def enrolled_identities(exclude: str = "") -> List[str]:
@@ -1152,7 +1152,7 @@ def apply_key_policy(request: Any, credential: Dict[str, Any], actor: Dict[str, 
                 raise HTTPException(status_code=403, detail={
                     "code": "break_glass_disabled",
                     "message": f"The shared platform key is disabled in {environment()}. Sign in with SSO; "
-                               "break-glass access needs PQC_ALLOW_BREAK_GLASS_KEY=1.",
+                               "break-glass access needs MORROW_ALLOW_BREAK_GLASS_KEY=1.",
                 })
             _audit_break_glass(request, actor, record_event)
         else:
@@ -1233,7 +1233,7 @@ def _audit_break_glass(request: Any, actor: Dict[str, Any], record_event: Option
 
 
 def require_step_up(actor: Optional[Dict[str, Any]] = None, action: str = "") -> None:
-    """Destructive actions: a TOTP check within PQC_ADMIN_STEP_UP_SECONDS. Raises fastapi.HTTPException."""
+    """Destructive actions: a TOTP check within MORROW_ADMIN_STEP_UP_SECONDS. Raises fastapi.HTTPException."""
     from fastapi import HTTPException
 
     actor = actor or _operators.CURRENT_OPERATOR.get() or {}
@@ -1295,17 +1295,17 @@ def go_live_checks() -> List[Dict[str, Any]]:
     """Checks for /platform/go-live-gate: SSO configured, MFA required, break-glass disabled."""
     sso = sso_enabled()
     required = mfa_required()
-    glass = bool(_flag("PQC_ALLOW_BREAK_GLASS_KEY"))
+    glass = bool(_flag("MORROW_ALLOW_BREAK_GLASS_KEY"))
     return [
         {"key": "admin_sso", "label": "Operator SSO", "status": "pass" if sso else "fail",
          "detail": "Operator SSO (OIDC) is configured with a roster or allowed domains." if sso else
          "Operator SSO is not configured; the portal relies on keys.",
-         "fix": "Set PQC_ADMIN_OIDC_ISSUER, PQC_ADMIN_OIDC_CLIENT_ID and PQC_ADMIN_OPERATOR_ROLES (or PQC_ADMIN_OIDC_ALLOWED_DOMAINS)."},
+         "fix": "Set MORROW_ADMIN_OIDC_ISSUER, MORROW_ADMIN_OIDC_CLIENT_ID and MORROW_ADMIN_OPERATOR_ROLES (or MORROW_ADMIN_OIDC_ALLOWED_DOMAINS)."},
         {"key": "admin_mfa_required", "label": "Operator MFA required", "status": "pass" if required else "fail",
          "detail": "Operators must pass TOTP before the console unlocks." if required else "Operator MFA is not required.",
-         "fix": "Set PQC_ENVIRONMENT=production (MFA defaults on) and do not set PQC_ADMIN_REQUIRE_MFA=0."},
+         "fix": "Set MORROW_ENVIRONMENT=production (MFA defaults on) and do not set MORROW_ADMIN_REQUIRE_MFA=0."},
         {"key": "admin_break_glass_disabled", "label": "Shared key is break-glass only", "status": "fail" if glass else "pass",
-         "detail": "PQC_ALLOW_BREAK_GLASS_KEY=1: the shared platform key is accepted (every use audited)." if glass else
+         "detail": "MORROW_ALLOW_BREAK_GLASS_KEY=1: the shared platform key is accepted (every use audited)." if glass else
          "The shared platform key is refused in production/staging unless break-glass is enabled.",
-         "fix": "Unset PQC_ALLOW_BREAK_GLASS_KEY once the emergency is over."},
+         "fix": "Unset MORROW_ALLOW_BREAK_GLASS_KEY once the emergency is over."},
     ]

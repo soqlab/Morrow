@@ -23,11 +23,11 @@ class AzureOpenAIProvider(OpenAIShaped):
         base = (self.settings.base_url or "").rstrip("/")
         if not base:
             raise LLMError(CONFIG, "Azure OpenAI needs the resource endpoint.", provider=self.id,
-                           remedy="Set PQC_LLM_BASE_URL to https://<resource>.openai.azure.com")
+                           remedy="Set MORROW_LLM_BASE_URL to https://<resource>.openai.azure.com")
         deployment = self.settings.deployment or self.settings.model
         if not deployment:
             raise LLMError(CONFIG, "Azure OpenAI needs a deployment name.", provider=self.id,
-                           remedy="Set PQC_LLM_AZURE_DEPLOYMENT (or PQC_LLM_MODEL) to the deployment name.")
+                           remedy="Set MORROW_LLM_AZURE_DEPLOYMENT (or MORROW_LLM_MODEL) to the deployment name.")
         version = self.settings.api_version or DEFAULT_API_VERSION
         if "/openai/deployments/" in base:
             return f"{base}?api-version={version}"
@@ -45,10 +45,10 @@ class AzureOpenAIProvider(OpenAIShaped):
     def check(self) -> Dict[str, Any]:
         missing: List[str] = []
         if not self.settings.base_url:
-            missing.append("PQC_LLM_BASE_URL")
+            missing.append("MORROW_LLM_BASE_URL")
         if not (self.settings.deployment or self.settings.model):
-            missing.append("PQC_LLM_AZURE_DEPLOYMENT")
+            missing.append("MORROW_LLM_AZURE_DEPLOYMENT")
         if not self.settings.api_key:
-            missing.append("PQC_LLM_API_KEY")
+            missing.append("MORROW_LLM_API_KEY")
         return {"ready": not missing, "missing": missing,
                 "detail": "configured" if not missing else "set " + ", ".join(missing)}

@@ -13,7 +13,7 @@ The dashboard is now served from a stored snapshot instead:
   * one row per (scope, range) in ``platform_analytics_snapshots``, holding the payload the
     overview produced and the instant it was computed;
   * a scheduled refresher (``maintain``) recomputes each range in turn, one at a time, at most
-    once per ``PQC_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS``;
+    once per ``MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS``;
   * a read serves the last stored snapshot and says, in the payload, exactly when it was
     computed -- so the console can show "as of", not "refreshed" (which only ever meant "when
     your browser asked");
@@ -87,13 +87,13 @@ def _parse(value: Any) -> Optional[datetime]:
 
 
 def enabled() -> bool:
-    return str(os.getenv("PQC_ANALYTICS_SNAPSHOTS_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    return str(os.getenv("MORROW_ANALYTICS_SNAPSHOTS_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def interval_seconds() -> float:
     """How often a range is recomputed. Also the age past which a snapshot reads as stale."""
     try:
-        return max(30.0, float(os.getenv("PQC_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS", "300") or 300))
+        return max(30.0, float(os.getenv("MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS", "300") or 300))
     except ValueError:
         return 300.0
 
@@ -106,7 +106,7 @@ def inline_max_rows() -> int:
     blocks a request. 0 disables inline computation entirely.
     """
     try:
-        return max(0, int(os.getenv("PQC_ANALYTICS_INLINE_MAX_ROWS", "200000") or 200000))
+        return max(0, int(os.getenv("MORROW_ANALYTICS_INLINE_MAX_ROWS", "200000") or 200000))
     except ValueError:
         return 200000
 
@@ -219,7 +219,7 @@ def refresh(range_key: str, force: bool = False) -> Optional[Dict[str, Any]]:
     if store.postgres_enabled():
         with store.feature_conn() as conn:
             got = conn.execute("SELECT pg_try_advisory_lock(hashtext(?))",
-                               ("pqc_analytics_snapshot:" + str(range_key),)).fetchone()
+                               ("pq_analytics_snapshot:" + str(range_key),)).fetchone()
             if not (got and got[0]):
                 return None  # another replica is computing this range right now
             try:
@@ -234,7 +234,7 @@ def refresh(range_key: str, force: bool = False) -> Optional[Dict[str, Any]]:
             finally:
                 try:
                     conn.execute("SELECT pg_advisory_unlock(hashtext(?))",
-                                 ("pqc_analytics_snapshot:" + str(range_key),))
+                                 ("pq_analytics_snapshot:" + str(range_key),))
                     conn.commit()
                 except Exception:
                     pass

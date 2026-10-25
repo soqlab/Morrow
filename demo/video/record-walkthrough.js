@@ -15,12 +15,12 @@ const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
 
-const BASE = process.env.PQC_DEMO_BASE || "http://127.0.0.1:8049";
+const BASE = process.env.MORROW_DEMO_BASE || "http://127.0.0.1:8049";
 const EMAIL = "avery.chen@example.com";
 const PASSWORD = "Airlock-Demo-Recording-8049";
 const OUT = path.resolve(__dirname);
 const RAW = path.join(OUT, "raw");
-const PACE = Number(process.env.PQC_DEMO_PACE || 1);
+const PACE = Number(process.env.MORROW_DEMO_PACE || 1);
 
 // ---------------------------------------------------------------- helpers
 const wait = (p, ms) => p.waitForTimeout(Math.round(ms * PACE));
@@ -386,9 +386,9 @@ const stamp = (s) => {
     recordVideo: { dir: RAW, size: { width: 1920, height: 1080 } },
   });
   await ctx.addInitScript((a) => {
-    localStorage.setItem("pqc_token", a.access_token);
-    localStorage.setItem("pqc_refresh", a.refresh_token);
-    localStorage.setItem("pqc_theme", "dark");
+    localStorage.setItem("morrow_token", a.access_token);
+    localStorage.setItem("morrow_refresh", a.refresh_token);
+    localStorage.setItem("morrow_theme", "dark");
   }, auth);
   await ctx.addInitScript(OVERLAY);
 

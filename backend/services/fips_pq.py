@@ -1,7 +1,7 @@
 """
-FIPS 203/204/205 PQC Compliance Checker
+FIPS 203/204/205 post-quantum Compliance Checker
 
-NIST published three PQC standards in August 2024:
+NIST published three post-quantum standards in August 2024:
   FIPS 203 — ML-KEM   (Module-Lattice Key Encapsulation, aka Kyber)
   FIPS 204 — ML-DSA   (Module-Lattice Digital Signature, aka Dilithium)
   FIPS 205 — SLH-DSA  (Stateless Hash-Based Digital Signature, aka SPHINCS+)
@@ -90,7 +90,7 @@ _QUANTUM_VULNERABLE: Dict[str, Dict[str, Any]] = {
     "ECC": {"risk": "critical", "reason": "Elliptic-curve key; Shor's algorithm breaks ECDLP on a CRQC", "migrate_to": "ML-KEM-768 / ML-DSA-65"},
 }
 
-# Classically broken / deprecated (not PQC-specific but flagged)
+# Classically broken / deprecated (not post-quantum-specific but flagged)
 _DEPRECATED: Dict[str, str] = {
     "RC4": "Classically broken stream cipher",
     "DES": "56-bit key; classically broken",

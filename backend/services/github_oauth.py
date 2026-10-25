@@ -12,7 +12,7 @@ Env vars required:
   GITHUB_CLIENT_ID      — from GitHub OAuth App settings
   GITHUB_CLIENT_SECRET  — from GitHub OAuth App settings
   GITHUB_CALLBACK_URL   — full callback URL, e.g. https://yourapp.com/auth/github/callback
-  PQC_VAULT_MASTER_KEY  — existing 32-byte base64 key used for Fernet encryption
+  MORROW_VAULT_MASTER_KEY  — existing 32-byte base64 key used for Fernet encryption
 """
 
 from __future__ import annotations
@@ -40,12 +40,12 @@ GITHUB_CLIENT_SECRET = (os.getenv("GITHUB_CLIENT_SECRET") or "").strip()
 GITHUB_CALLBACK_URL = (os.getenv("GITHUB_CALLBACK_URL") or "http://localhost:8000/auth/github/callback").strip()
 _SCOPES = "repo,read:org,read:user"
 
-_VAULT_KEY_RAW = (os.getenv("PQC_VAULT_MASTER_KEY") or "").strip()
+_VAULT_KEY_RAW = (os.getenv("MORROW_VAULT_MASTER_KEY") or "").strip()
 
 
 def _get_fernet() -> Fernet:
     if not _VAULT_KEY_RAW:
-        raise RuntimeError("PQC_VAULT_MASTER_KEY not set — cannot encrypt GitHub tokens.")
+        raise RuntimeError("MORROW_VAULT_MASTER_KEY not set — cannot encrypt GitHub tokens.")
     try:
         raw = base64.b64decode(_VAULT_KEY_RAW)
     except Exception:
@@ -172,7 +172,7 @@ def get_authorization_url(state: str = "") -> str:
         "client_id": GITHUB_CLIENT_ID,
         "redirect_uri": GITHUB_CALLBACK_URL,
         "scope": _SCOPES,
-        "state": state or "pqc-scout",
+        "state": state or "pq-scout",
     }
     return "https://github.com/login/oauth/authorize?" + urllib.parse.urlencode(params)
 
@@ -211,7 +211,7 @@ def exchange_code(code: str) -> Dict[str, Any]:
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "pqc-scout/1.0",
+            "User-Agent": "pq-scout/1.0",
         },
     )
     with urllib.request.urlopen(user_req, timeout=15) as resp:

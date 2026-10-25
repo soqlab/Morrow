@@ -49,7 +49,7 @@ Adjust the region/repository in both the command and `terraform.tfvars`.
 ## 2. Create your tfvars file
 
 ```powershell
-cd C:\Users\Samsung\Desktop\pqc-scanner\infra\gcp\cloudrun
+cd C:\Users\Samsung\Desktop\morrow\infra\gcp\cloudrun
 Copy-Item terraform.tfvars.example terraform.tfvars
 ```
 
@@ -96,11 +96,11 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 Then add secret versions:
 
 ```powershell
-gcloud secrets versions add pqc-pqc-vault-master-key --data-file=-
-gcloud secrets versions add pqc-openai-api-key --data-file=-
+gcloud secrets versions add pq-morrow-vault-master-key --data-file=-
+gcloud secrets versions add pq-openai-api-key --data-file=-
 ```
 
-Paste the generated Fernet key for the first command, and your OpenAI key for the second command. The secret names use the default `name_prefix = "pqc"` from `terraform.tfvars.example`; adjust if you changed the prefix. The GitHub webhook secret is generated automatically as `${name_prefix}-github-webhook-secret`.
+Paste the generated Fernet key for the first command, and your OpenAI key for the second command. The secret names use the default `name_prefix = "pq"` from `terraform.tfvars.example`; adjust if you changed the prefix. The GitHub webhook secret is generated automatically as `${name_prefix}-github-webhook-secret`.
 
 ## 5. Second Terraform apply: deploy runtime
 
@@ -131,7 +131,7 @@ settings are missing.
 
 ```powershell
 $api = terraform output -raw api_url
-$platformKey = gcloud secrets versions access latest --secret pqc-platform-admin-key
+$platformKey = gcloud secrets versions access latest --secret morrow-platform-admin-key
 ..\..\..\scripts\verify-cloud-deployment.ps1 -BaseUrl $api -PlatformKey $platformKey
 ..\..\..\scripts\go-live-report.ps1 -BaseUrl $api -PlatformKey $platformKey
 ```
@@ -146,7 +146,7 @@ Once `deploy_runtime = true` is applied:
 1. Read the generated webhook secret:
 
 ```powershell
-gcloud secrets versions access latest --secret pqc-github-webhook-secret
+gcloud secrets versions access latest --secret pq-github-webhook-secret
 ```
 
 2. In GitHub App settings:

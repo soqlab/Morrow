@@ -1,5 +1,5 @@
 """
-Autonomous PQC Migration Autopilot
+Autonomous post-quantum Migration Autopilot
 
 The only tool that goes beyond telling you what's wrong and actually fixes it.
 Given a scan result, the autopilot:
@@ -12,7 +12,7 @@ Given a scan result, the autopilot:
 Cipher targets (NIST FIPS 203/204/205 + hybrid transition):
   Immediate hardening (available today):
     TLS 1.3 only, ECDHE-only (no RSA key exchange), PFS mandatory
-  Full PQC (OQS provider / BoringSSL-OQS / liboqs):
+  Full post-quantum (OQS provider / BoringSSL-OQS / liboqs):
     X25519MLKEM768 (hybrid), MLKEM768 (pure), P384_MLKEM1024 (FIPS)
 """
 
@@ -31,7 +31,7 @@ from typing import Any, Dict, List, Optional
 # ── Config templates ──────────────────────────────────────────────────────────
 
 _NGINX_PATCH = """\
-# PQC Migration Autopilot — generated patch
+# Post-Quantum Migration Autopilot — generated patch
 # Apply inside your server {} block
 
 # PHASE 1: Immediate hardening (deploy today — no library changes)
@@ -44,13 +44,13 @@ ssl_session_cache shared:MozSSL:10m;
 ssl_session_tickets off;
 add_header Strict-Transport-Security "max-age=63072000" always;
 
-# PHASE 2: Full PQC (deploy when nginx is built with OQS provider)
+# PHASE 2: Full post-quantum (deploy when nginx is built with OQS provider)
 # ssl_ecdh_curve X25519MLKEM768:X25519:prime256v1;
 # ssl_ciphers TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256;
 """
 
 _APACHE_PATCH = """\
-# PQC Migration Autopilot — generated patch
+# Post-Quantum Migration Autopilot — generated patch
 # Apply inside your VirtualHost block
 
 # PHASE 1: Immediate hardening
@@ -61,12 +61,12 @@ SSLSessionTickets off
 SSLUseStapling on
 Header always set Strict-Transport-Security "max-age=63072000"
 
-# PHASE 2: Full PQC (mod_ssl with OQS provider)
+# PHASE 2: Full post-quantum (mod_ssl with OQS provider)
 # SSLOpenSSLConfCmd Curves X25519MLKEM768:X25519:P-256
 """
 
 _ENVOY_PATCH = """\
-# PQC Migration Autopilot — generated patch
+# Post-Quantum Migration Autopilot — generated patch
 # Apply to your transport_socket TLS context
 
 transport_socket:
@@ -82,7 +82,7 @@ transport_socket:
           - X25519
           - P-256
           - P-384
-        # PHASE 2: PQC hybrid (add when Envoy supports OQS)
+        # PHASE 2: post-quantum hybrid (add when Envoy supports OQS)
         # ecdh_curves:
         #   - X25519MLKEM768
         #   - X25519
@@ -92,7 +92,7 @@ transport_socket:
 """
 
 _HAPROXY_PATCH = """\
-# PQC Migration Autopilot — generated patch
+# Post-Quantum Migration Autopilot — generated patch
 # Apply to your frontend or defaults section
 
 # PHASE 1: Immediate hardening
@@ -105,7 +105,7 @@ ssl-default-bind-options ssl-min-ver TLSv1.3 no-tls-tickets
 """
 
 _OPENSSL_CONF_PATCH = """\
-# PQC Migration Autopilot — openssl.cnf patch
+# Post-Quantum Migration Autopilot — openssl.cnf patch
 [system_default_sect]
 MinProtocol = TLSv1.3
 CipherString = TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
@@ -217,7 +217,7 @@ def create_github_pr(
         "Authorization": f"token {github_token}",
         "Accept": "application/vnd.github.v3+json",
         "Content-Type": "application/json",
-        "User-Agent": "PQC-Scanner-Autopilot/1.0",
+        "User-Agent": "Morrow-Autopilot/1.0",
     }
     api = "https://api.github.com"
 
@@ -236,7 +236,7 @@ def create_github_pr(
     base_sha = branch_data["object"]["sha"]
 
     # Create new branch
-    branch_name = f"pqc-autopilot/{asset_key.replace(':', '-').replace('.', '-')}-{secrets.token_hex(4)}"
+    branch_name = f"pq-autopilot/{asset_key.replace(':', '-').replace('.', '-')}-{secrets.token_hex(4)}"
     gh("POST", f"/repos/{repo_full_name}/git/refs", {
         "ref": f"refs/heads/{branch_name}", "sha": base_sha,
     })
@@ -251,7 +251,7 @@ def create_github_pr(
     import base64
     content_b64 = base64.b64encode(patch_content.encode()).decode()
     update_body: Dict[str, Any] = {
-        "message": f"PQC Autopilot: harden TLS on {asset_key} [{server_type}]",
+        "message": f"Post-Quantum Autopilot: harden TLS on {asset_key} [{server_type}]",
         "content": content_b64, "branch": branch_name,
     }
     if file_sha:
@@ -260,16 +260,16 @@ def create_github_pr(
 
     # Create PR
     pr = gh("POST", f"/repos/{repo_full_name}/pulls", {
-        "title": f"[PQC Autopilot] Quantum-harden TLS: {asset_key}",
+        "title": f"[Post-Quantum Autopilot] Quantum-harden TLS: {asset_key}",
         "head": branch_name, "base": base_branch,
         "body": (
-            f"## PQC Migration Autopilot\n\n"
+            f"## Post-Quantum Migration Autopilot\n\n"
             f"**Asset:** `{asset_key}`\n"
             f"**Server type:** `{server_type}`\n\n"
             f"### What this changes\n"
             f"- Enforces TLS 1.3 exclusively\n"
             f"- Removes RSA key exchange (forward secrecy only)\n"
-            f"- Prepares config for Phase 2 PQC hybrid (X25519+ML-KEM-768)\n\n"
+            f"- Prepares config for Phase 2 post-quantum hybrid (X25519+ML-KEM-768)\n\n"
             f"### Phase 1 (this PR)\n"
             f"Immediate hardening — no library changes required.\n\n"
             f"### Phase 2 (follow-up PR)\n"
@@ -301,7 +301,7 @@ def create_jira_issue(
     payload = {
         "fields": {
             "project": {"key": project_key},
-            "summary": f"[PQC] Quantum-harden TLS: {asset_key}",
+            "summary": f"[post-quantum] Quantum-harden TLS: {asset_key}",
             "description": {
                 "type": "doc", "version": 1,
                 "content": [{
@@ -315,7 +315,7 @@ def create_jira_issue(
             },
             "issuetype": {"name": "Task"},
             "priority": {"name": jira_priority},
-            "labels": ["pqc-migration", "security", "autopilot"],
+            "labels": ["pq-migration", "security", "autopilot"],
         }
     }
 
@@ -369,15 +369,15 @@ def analyze_and_generate_patch(
     asset_key   = f"{host}:{port}"
     patch       = _SERVER_PATCHES.get(server_type, _NGINX_PATCH)
 
-    # Already PQC?
+    # Already post-quantum?
     kt = key_type.lower()
-    is_pqc = any(x in kt for x in ("ml-kem", "kyber", "dilithium", "slh", "falcon"))
+    is_pq = any(x in kt for x in ("ml-kem", "kyber", "dilithium", "slh", "falcon"))
     is_tls13 = "1.3" in tls_ver
 
     migration_phases: List[str] = []
     if not is_tls13:
         migration_phases.append("Upgrade to TLS 1.3")
-    if not is_pqc:
+    if not is_pq:
         migration_phases.append("Deploy hybrid X25519+ML-KEM-768 key exchange")
         migration_phases.append("Replace RSA/ECC certificate with ML-DSA or hybrid")
     if key_bits and key_bits < 3072 and "rsa" in kt:
@@ -409,7 +409,7 @@ def analyze_and_generate_patch(
         "current_key_type": key_type,
         "current_key_bits": key_bits,
         "current_tls_version": tls_ver,
-        "is_already_pqc": is_pqc,
+        "is_already_pq": is_pq,
         "migration_phases": migration_phases,
         "estimated_effort_days": effort_days,
         "config_patch": patch,

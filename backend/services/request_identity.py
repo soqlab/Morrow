@@ -5,9 +5,9 @@ the result is an organization id, an actor id, a role and whether the identity w
 reads bodies, query strings or token material beyond the claims the auth middleware already verified.
 
 Rules, in order:
-  1. A verified credential (request.state.authenticated with auth_claims: a JWT in PQC_AUTH_MODE=jwt, or an
+  1. A verified credential (request.state.authenticated with auth_claims: a JWT in MORROW_AUTH_MODE=jwt, or an
      organization API key in any mode) -> its organization and subject.
-  2. PQC_AUTH_MODE=headers, where the x-user-id / x-org-id headers *are* the identity contract (development
+  2. MORROW_AUTH_MODE=headers, where the x-user-id / x-org-id headers *are* the identity contract (development
      and trusted-proxy deployments; production requires jwt) -> the resolved organization and x-user-id.
      Vendor-operator routes (/platform, /vendor-admin) are not customer usage and stay unattributed.
   3. Anything else is anonymous: no organization, no actor.

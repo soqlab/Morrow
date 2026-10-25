@@ -10,7 +10,7 @@ sidecar.
 
 ## What It Does
 
-- Inbound: the CAM ingress gateway accepts TLS 1.3 with the requested hybrid/PQC group when the
+- Inbound: the CAM ingress gateway accepts TLS 1.3 with the requested hybrid/post-quantum group when the
   Envoy runtime supports it, then forwards raw TCP to the original upstream.
 - Outbound: the CAM egress sidecar uses Linux `iptables` redirection to capture selected TCP flows
   and wrap them in a TLS tunnel to the CAM ingress gateway.
@@ -34,11 +34,11 @@ This is still no application code change. It is not zero infrastructure change.
 
 ## Generated Artifacts
 
-- `pqc-cam/envoy/ingress-gateway.yaml`
-- `pqc-cam/envoy/sidecar-egress.yaml`
-- `pqc-cam/scripts/transparent-egress-enable.sh`
-- `pqc-cam/scripts/transparent-egress-disable.sh`
-- `pqc-cam/telemetry/cam_telemetry_agent.py`
+- `morrow-cam/envoy/ingress-gateway.yaml`
+- `morrow-cam/envoy/sidecar-egress.yaml`
+- `morrow-cam/scripts/transparent-egress-enable.sh`
+- `morrow-cam/scripts/transparent-egress-disable.sh`
+- `morrow-cam/telemetry/cam_telemetry_agent.py`
 - `docker-compose.transparent.yml`
 - `kubernetes-ingress-gateway.yaml`
 - `kubernetes-transparent-sidecar.yaml`
@@ -53,7 +53,7 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8001/crypto-mesh/middlewar
   -Headers @{"x-user-role"="operator";"x-user-id"="operator";"x-org-id"="org-alpha"} `
   -ContentType "application/json" `
   -Body '{
-    "name": "pqc-agility-middleware",
+    "name": "morrow-agility-middleware",
     "deployment_mode": "transparent_sidecar",
     "emergency_algorithm": "X25519MLKEM768",
     "outbound_capture_port": 15001,
@@ -62,7 +62,7 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8001/crypto-mesh/middlewar
       "upstream_host": "payments-upstream",
       "upstream_port": 8443,
       "listen_port": 15443,
-      "gateway_host": "payments-pqc-gateway",
+      "gateway_host": "payments-pq-gateway",
       "destination_cidr": "10.42.10.15/32"
     }]
   }'

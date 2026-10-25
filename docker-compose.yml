@@ -22,23 +22,23 @@ services:
     environment:
       # The Dockerfile defaults this to postgres for production. Override it:
       # the point of this file is that nothing else has to be running.
-      PQC_MAIN_DB_BACKEND: sqlite
-      PQC_SCANNER_DB: /data/pqc_scanner.db
-      PQC_ENVIRONMENT: local
+      MORROW_MAIN_DB_BACKEND: sqlite
+      MORROW_SCANNER_DB: /data/morrow.db
+      MORROW_ENVIRONMENT: local
 
       # Local-only auth. Any caller can claim any role via request headers, so
       # never expose this port to a network you do not control. /health/deep
       # warns about both of these on purpose.
-      PQC_AUTH_MODE: headers
-      PQC_AUTH_REQUIRED: "0"
-      PQC_DEFAULT_ROLE: admin
-      PQC_CORS_ALLOW_ALL: "1"
+      MORROW_AUTH_MODE: headers
+      MORROW_AUTH_REQUIRED: "0"
+      MORROW_DEFAULT_ROLE: admin
+      MORROW_CORS_ALLOW_ALL: "1"
 
       # Creates a signed-in account on first start so the console has a real
       # workspace and the seeder below can log in. Throwaway credentials for a
       # throwaway local database.
-      PQC_ADMIN_EMAIL: avery.chen@example.com
-      PQC_ADMIN_PASSWORD: Airlock-Demo-Recording-8049
+      MORROW_ADMIN_EMAIL: avery.chen@example.com
+      MORROW_ADMIN_PASSWORD: Airlock-Demo-Recording-8049
 
       # Applies the Alembic revisions on boot. Convenient here, never in prod.
       AUTO_MIGRATE: "1"
@@ -75,16 +75,16 @@ services:
       # Must match the app service. The seeder imports backend/db.py directly for
       # the few rows that have no API, and the Dockerfile defaults this to
       # postgres -- so without it the seeder authenticated fine over HTTP and then
-      # raised "PQC_PRODUCT_DATABASE_URL is required for Postgres cutover" on its
+      # raised "MORROW_PRODUCT_DATABASE_URL is required for Postgres cutover" on its
       # first direct write.
-      PQC_MAIN_DB_BACKEND: sqlite
-      PQC_SCANNER_DB: /data/pqc_scanner.db
+      MORROW_MAIN_DB_BACKEND: sqlite
+      MORROW_SCANNER_DB: /data/morrow.db
       # The backend is at /app in the image, with no repo root above it.
-      PQC_BACKEND_DIR: /app
-      PQC_DEMO_DB: /data/pqc_scanner.db
-      PQC_DEMO_BASE: http://app:8000
-      PQC_DEMO_EMAIL: avery.chen@example.com
-      PQC_DEMO_PASSWORD: Airlock-Demo-Recording-8049
+      MORROW_BACKEND_DIR: /app
+      MORROW_DEMO_DB: /data/morrow.db
+      MORROW_DEMO_BASE: http://app:8000
+      MORROW_DEMO_EMAIL: avery.chen@example.com
+      MORROW_DEMO_PASSWORD: Airlock-Demo-Recording-8049
     volumes:
       - airlock_data:/data
       # The image contains only backend/, so the seeder is mounted from the

@@ -17,11 +17,11 @@ The source of truth for feature status is `GET /autonomous-mesh/capability-truth
 | Canary traffic shifting | `POST /autopilot/canary-traffic-shift` | Generates Cloudflare Worker, Argo Rollout, monitor, rollback policy, and ZIP bundle |
 | HSM/TPM virtualization | `POST /hardware/hsm-virtualization` | Maps hardware crypto capacity to workload requirements |
 | HSM/TPM collector package | `POST /hardware/hsm-collector-package` | Generates customer-boundary collector that exports capability metadata only |
-| HSM/KMS quantum-drift enforcer | `POST /hardware/crypto-drift/enforce` | Blocks key intents when submitted KMS/HSM observations lack native PQC, hardware backing, or approved fallback |
+| HSM/KMS quantum-drift enforcer | `POST /hardware/crypto-drift/enforce` | Blocks key intents when submitted KMS/HSM observations lack native post-quantum, hardware backing, or approved fallback |
 | Hardware crypto bridge collector | `POST /hardware/crypto-bridge/collector-package` | Generates AWS/GCP/Azure/PKCS#11/YubiHSM/TPM metadata collector; no keys exported |
-| Crypto-anomaly detection | `POST /crypto-anomaly/detect` | Scores packet/TLS metadata for HNDL harvesting, encrypted blob exfiltration, and PQC-size shifts |
+| Crypto-anomaly detection | `POST /crypto-anomaly/detect` | Scores packet/TLS metadata for HNDL harvesting, encrypted blob exfiltration, and post-quantum-size shifts |
 | SIEM/XDR package | `POST /crypto-anomaly/siem-package` | Generates Splunk, Datadog, Microsoft Sentinel, and Sigma artifacts from findings |
-| Continuous compliance proof | `POST /zk-compliance/continuous-proof` | Hash-commitment proof of aggregate PQC threshold without raw identifiers |
+| Continuous compliance proof | `POST /zk-compliance/continuous-proof` | Hash-commitment proof of aggregate post-quantum threshold without raw identifiers |
 | Insurance export | `POST /insurance/underwriting-export` | Structured underwriting metrics with no raw asset identifiers |
 | Insurance proof-of-agility | `POST /insurance/proof-of-agility` and `/verify` | Signed privacy-preserving proof bundle for underwriter verification |
 
@@ -34,7 +34,7 @@ The source of truth for feature status is `GET /autonomous-mesh/capability-truth
 - HSM/TPM collection reports capability metadata only. It must never export key material.
 - Multi-hop contagion requires supplied nodes and edges. The API does not use a sample graph for production risk claims.
 - Canary traffic shifting requires explicit upstream URLs. Empty/example defaults are rejected.
-- Hybrid certificate generation is blocked unless a real PQC library is installed. Placeholder PQC keys are not returned by the API.
+- Hybrid certificate generation is blocked unless a real post-quantum library is installed. Placeholder post-quantum keys are not returned by the API.
 - HSM/KMS drift enforcement evaluates submitted observations. It does not hard-code AWS/Azure/GCP/Thales/Utimaco/YubiHSM support claims.
 - Crypto-anomaly detection consumes packet/TLS metadata only. It does not require packet payloads, plaintext, source code, or private keys.
 - Underwriter proofs expose aggregate scores and hashes by default; raw asset IDs and vendor names are not included.

@@ -45,7 +45,7 @@ def simulation_model_basis() -> Dict[str, Any]:
         assumptions=[
             "Key break times (scenario): " + ", ".join(
                 f"{k} {v // 60} min" for k, v in _KEY_BREAK_SECONDS.items() if v is not None
-            ) + "; PQC keys are not broken.",
+            ) + "; post-quantum keys are not broken.",
             "Cascade delays after a break (scenario): certificates +2 min, services +10 min, infrastructure +30 min, data stores +45 min.",
             "Nodes without an exposure figure are counted at: " + ", ".join(
                 f"{k} ${v:,}" for k, v in _DEFAULT_EXPOSURE_USD.items()
@@ -72,7 +72,7 @@ _KEY_BREAK_SECONDS: Dict[str, int] = {
     "x25519":    2_700,     # 45 min
     "dh_classical": 10_800, # 3 hr
     "unknown":   5_400,     # 1.5 hr
-    "pqc":       None,      # not breakable
+    "pq":       None,      # not breakable
 }
 
 # Color palette for the simulation
@@ -91,8 +91,8 @@ _EVENT_COLORS = {
 def _classify_key(key_type: str, key_bits: int) -> str:
     kt = (key_type or "").lower().replace("-", "").replace("_", "")
     bits = int(key_bits or 0)
-    if any(x in kt for x in ("mlkem", "kyber", "dilithium", "slh", "falcon", "pqc")):
-        return "pqc"
+    if any(x in kt for x in ("mlkem", "kyber", "dilithium", "slh", "falcon", "pq")):
+        return "pq"
     if "rsa" in kt:
         if bits <= 1024: return "rsa1024"
         if bits <= 2048: return "rsa2048"

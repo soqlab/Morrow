@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rotate PQC_VAULT_MASTER_KEY: re-encrypt every value sealed with it, verify, and commit.
+"""Rotate MORROW_VAULT_MASTER_KEY: re-encrypt every value sealed with it, verify, and commit.
 
 What is encrypted with the vault key (Fernet):
 
@@ -11,17 +11,17 @@ What is encrypted with the vault key (Fernet):
                                                                      email recipient lists are not encrypted)
   * github_tokens.access_token             main SQLite database      services/github_oauth.py (derived key)
 
-Other uses of PQC_VAULT_MASTER_KEY are keyed hashes and signatures, not ciphertexts, so there is nothing
-to re-encrypt: HS256 SSO JWTs (short-lived), evidence signatures (unless PQC_EVIDENCE_SIGNING_KEY is
-set), security-journal subject references and usage actor hashes (unless PQC_USAGE_ACTOR_SALT is set).
+Other uses of MORROW_VAULT_MASTER_KEY are keyed hashes and signatures, not ciphertexts, so there is nothing
+to re-encrypt: HS256 SSO JWTs (short-lived), evidence signatures (unless MORROW_EVIDENCE_SIGNING_KEY is
+set), security-journal subject references and usage actor hashes (unless MORROW_USAGE_ACTOR_SALT is set).
 
-The feature store is SQLite (PQC_SCANNER_DB) unless PQC_FEATURE_STORE_BACKEND / PQC_MAIN_DB_BACKEND
-select Postgres, in which case it lives in PQC_PRODUCT_DATABASE_URL / DATABASE_URL.
+The feature store is SQLite (MORROW_SCANNER_DB) unless MORROW_FEATURE_STORE_BACKEND / MORROW_MAIN_DB_BACKEND
+select Postgres, in which case it lives in MORROW_PRODUCT_DATABASE_URL / DATABASE_URL.
 
 Keys are read from the environment and never printed:
 
-  PQC_VAULT_MASTER_KEY       the current key (required)
-  PQC_VAULT_MASTER_KEY_NEW   the new key; or pass --generate-new-key-file PATH to create one. The
+  MORROW_VAULT_MASTER_KEY       the current key (required)
+  MORROW_VAULT_MASTER_KEY_NEW   the new key; or pass --generate-new-key-file PATH to create one. The
                              file is created exclusively (never overwritten) with owner-only
                              permissions, before anything is committed.
 
@@ -35,7 +35,7 @@ old key (nothing changed), 3 commit or restore failure (read the report).
 
 Usage (from the repository root, with the service stopped or in maintenance mode):
 
-  set PQC_VAULT_MASTER_KEY / PQC_VAULT_MASTER_KEY_NEW in the environment
+  set MORROW_VAULT_MASTER_KEY / MORROW_VAULT_MASTER_KEY_NEW in the environment
   backend/.venv/Scripts/python.exe scripts/rotate-vault-master-key.py            # dry run
   backend/.venv/Scripts/python.exe scripts/rotate-vault-master-key.py --apply    # commit
 """
@@ -189,14 +189,14 @@ def _truthy(name: str) -> Optional[bool]:
 
 def discover_stores(args: argparse.Namespace) -> Dict[str, Store]:
     """Return {"main": Store, "feature": Store, "vault": Store?}; identical targets share one Store."""
-    sqlite_path = args.sqlite or os.getenv("PQC_SCANNER_DB") or ""
+    sqlite_path = args.sqlite or os.getenv("MORROW_SCANNER_DB") or ""
     if not sqlite_path:
         try:
             from db import DB_PATH  # noqa: WPS433
 
             sqlite_path = DB_PATH
         except Exception:
-            sqlite_path = os.path.join(BACKEND, "pqc_scanner.db")
+            sqlite_path = os.path.join(BACKEND, "morrow.db")
     stores: Dict[str, Store] = {}
     by_target: Dict[str, Store] = {}
 
@@ -207,13 +207,13 @@ def discover_stores(args: argparse.Namespace) -> Dict[str, Store]:
         stores[role] = by_target[key]
 
     store("main", "main SQLite database", "sqlite", sqlite_path)
-    feature_pg = _truthy("PQC_FEATURE_STORE_BACKEND")
+    feature_pg = _truthy("MORROW_FEATURE_STORE_BACKEND")
     if feature_pg is None:
-        feature_pg = str(os.getenv("PQC_MAIN_DB_BACKEND") or "").strip().lower() in {"postgres", "postgresql", "pg"}
+        feature_pg = str(os.getenv("MORROW_MAIN_DB_BACKEND") or "").strip().lower() in {"postgres", "postgresql", "pg"}
     if feature_pg:
-        dsn = os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
+        dsn = os.getenv("MORROW_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
         if not dsn:
-            raise RotationError(1, "The feature store is Postgres but no PQC_PRODUCT_DATABASE_URL / DATABASE_URL is set.")
+            raise RotationError(1, "The feature store is Postgres but no MORROW_PRODUCT_DATABASE_URL / DATABASE_URL is set.")
         store("feature", "feature-store Postgres", "pg", dsn)
     else:
         store("feature", "feature-store SQLite (same file as main)", "sqlite", sqlite_path)
@@ -332,20 +332,20 @@ def restore(store: Store) -> int:
 
 
 def run(args: argparse.Namespace, out: Callable[[str], None] = print) -> Dict[str, Any]:
-    old_key = str(os.getenv("PQC_VAULT_MASTER_KEY") or "").strip()
+    old_key = str(os.getenv("MORROW_VAULT_MASTER_KEY") or "").strip()
     if not old_key:
-        raise RotationError(1, "PQC_VAULT_MASTER_KEY (the current key) is not set.")
-    check_key("PQC_VAULT_MASTER_KEY", old_key)
-    new_key = str(os.getenv("PQC_VAULT_MASTER_KEY_NEW") or "").strip()
+        raise RotationError(1, "MORROW_VAULT_MASTER_KEY (the current key) is not set.")
+    check_key("MORROW_VAULT_MASTER_KEY", old_key)
+    new_key = str(os.getenv("MORROW_VAULT_MASTER_KEY_NEW") or "").strip()
     generated = False
     if new_key:
         if args.generate_new_key_file:
-            raise RotationError(1, "Use either PQC_VAULT_MASTER_KEY_NEW or --generate-new-key-file, not both.")
-        check_key("PQC_VAULT_MASTER_KEY_NEW", new_key)
+            raise RotationError(1, "Use either MORROW_VAULT_MASTER_KEY_NEW or --generate-new-key-file, not both.")
+        check_key("MORROW_VAULT_MASTER_KEY_NEW", new_key)
     elif args.generate_new_key_file:
         new_key, generated = Fernet.generate_key().decode("ascii"), True
     elif args.apply:
-        raise RotationError(1, "Set PQC_VAULT_MASTER_KEY_NEW or pass --generate-new-key-file PATH to apply a rotation.")
+        raise RotationError(1, "Set MORROW_VAULT_MASTER_KEY_NEW or pass --generate-new-key-file PATH to apply a rotation.")
     else:
         new_key = Fernet.generate_key().decode("ascii")  # dry run: a throwaway key, never shown or saved
     if new_key == old_key:
@@ -382,7 +382,7 @@ def run(args: argparse.Namespace, out: Callable[[str], None] = print) -> Dict[st
         bad = {name: t["undecryptable"] for name, t in report["targets"].items() if t.get("undecryptable")}
         if bad:
             report["undecryptable"] = bad
-            raise RotationError(2, "Some values do not decrypt with PQC_VAULT_MASTER_KEY; nothing was changed. "
+            raise RotationError(2, "Some values do not decrypt with MORROW_VAULT_MASTER_KEY; nothing was changed. "
                                    "Row ids are listed under 'undecryptable'.")
         report["verified"] = sum(verify_store(s, fernets) for s in unique)
         if not args.apply:
@@ -423,11 +423,11 @@ def run(args: argparse.Namespace, out: Callable[[str], None] = print) -> Dict[st
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Re-encrypt everything sealed with PQC_VAULT_MASTER_KEY under a new key.")
+    parser = argparse.ArgumentParser(description="Re-encrypt everything sealed with MORROW_VAULT_MASTER_KEY under a new key.")
     parser.add_argument("--apply", action="store_true", help="commit the rotation (default is a dry run)")
     parser.add_argument("--generate-new-key-file", metavar="PATH",
                         help="generate the new key and write it only to PATH (created exclusively, owner-only)")
-    parser.add_argument("--sqlite", metavar="PATH", help="main SQLite database (default: PQC_SCANNER_DB or backend/pqc_scanner.db)")
+    parser.add_argument("--sqlite", metavar="PATH", help="main SQLite database (default: MORROW_SCANNER_DB or backend/morrow.db)")
     parser.add_argument("--skip-postgres-vault", action="store_true", help="do not touch the Postgres credentials table")
     args = parser.parse_args(argv)
     report: Dict[str, Any] = {}
@@ -439,7 +439,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         code = exc.code
     print(json.dumps(report, indent=2, default=str))
     if code == 0 and args.apply:
-        print("\nNext: store the new key as PQC_VAULT_MASTER_KEY in your secret manager, restart every API and worker "
+        print("\nNext: store the new key as MORROW_VAULT_MASTER_KEY in your secret manager, restart every API and worker "
               "replica, confirm the vault and MFA work, then destroy the old key and any key file.", file=sys.stderr)
     return code
 

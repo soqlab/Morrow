@@ -6,10 +6,10 @@ import sqlite3
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
-DB_FILE = os.environ.get("PQC_SCANNER_DB", "")
+DB_FILE = os.environ.get("MORROW_SCANNER_DB", "")
 if not DB_FILE:
-    DB_FILE = "/tmp/pqc_scanner_test_excerpts.db"
-    os.environ["PQC_SCANNER_DB"] = DB_FILE
+    DB_FILE = "/tmp/morrow_test_excerpts.db"
+    os.environ["MORROW_SCANNER_DB"] = DB_FILE
 
 
 def _free_port() -> int:
@@ -71,7 +71,7 @@ def _read_row(row_id: int):
 
 
 def main() -> None:
-    # Import after env var is set so db.py picks up PQC_SCANNER_DB at import time.
+    # Import after env var is set so db.py picks up MORROW_SCANNER_DB at import time.
     import db
     import events
 

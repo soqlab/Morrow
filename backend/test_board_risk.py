@@ -100,7 +100,7 @@ def test_crypto_weather_maps_signals_to_assets():
                 "classical_crypto_dependency": True,
                 "classical_algorithm": "RSA-2048",
                 "provider_guess": "unknown",
-                "provider_pqc_support_status": "unknown",
+                "provider_pq_support_status": "unknown",
             }
         ]
     }
@@ -123,7 +123,7 @@ def test_crypto_weather_accepts_policy_advisories():
                 "cipher": "TLS_AES_256_GCM_SHA384",
                 "classical_algorithm": "RSA-2048",
                 "provider_guess": "cloudflare",
-                "provider_pqc_support_status": "available",
+                "provider_pq_support_status": "available",
             }
         ]
     }

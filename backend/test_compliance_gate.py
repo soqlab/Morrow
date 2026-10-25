@@ -14,7 +14,7 @@ def seed_critical_scan(asset_key: str):
             """
             INSERT INTO scan_results (
                 asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                pqc_relevance, tls_version, key_type, sig_algorithm,
+                pq_relevance, tls_version, key_type, sig_algorithm,
                 owner, team, environment, criticality
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
@@ -41,7 +41,7 @@ def seed_critical_scan(asset_key: str):
 def test_compliance_gate_fail():
     # isolated temp DB
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
 
     # disable startup hooks
     fastapi_app.app.router.on_startup.clear()

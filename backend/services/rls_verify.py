@@ -132,7 +132,7 @@ def evaluate_rls_state(
 
 def verify_postgres_rls(dsn: str, expected_tables: Iterable[str] = ORG_SCOPED_TABLES) -> Dict[str, Any]:
     if not str(dsn or "").strip():
-        return {"status": "fail", "failures": ["DATABASE_URL/PQC_PRODUCT_DATABASE_URL is not set"]}
+        return {"status": "fail", "failures": ["DATABASE_URL/MORROW_PRODUCT_DATABASE_URL is not set"]}
     expected = [str(t) for t in expected_tables]
     # closing(), not just `with conn`: psycopg2's connection context manager commits or rolls back
     # the transaction and leaves the connection OPEN. This function is called from the health path
@@ -179,7 +179,7 @@ def verify_postgres_rls(dsn: str, expected_tables: Iterable[str] = ORG_SCOPED_TA
 
 
 def main() -> int:
-    dsn = os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
+    dsn = os.getenv("MORROW_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
     result = verify_postgres_rls(dsn)
     print(json.dumps(result, indent=2, default=str))
     return 0 if result.get("status") == "pass" else 2

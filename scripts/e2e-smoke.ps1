@@ -1,12 +1,12 @@
 param(
   [string]$BaseUrl = "http://localhost:8000",
-  [string]$PlatformKey = $env:PQC_PLATFORM_ADMIN_KEY
+  [string]$PlatformKey = $env:MORROW_PLATFORM_ADMIN_KEY
 )
 
 $ErrorActionPreference = "Stop"
-$env:PQC_E2E_BASE_URL = $BaseUrl
+$env:MORROW_E2E_BASE_URL = $BaseUrl
 if ($PlatformKey) {
-  $env:PQC_E2E_PLATFORM_KEY = $PlatformKey
+  $env:MORROW_E2E_PLATFORM_KEY = $PlatformKey
 }
 
 if (-not (Test-Path ".tools\video\node_modules\playwright")) {

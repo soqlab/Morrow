@@ -2,16 +2,16 @@
 
 Two kinds of credential authenticate /platform/*:
 
-  * Named operators (preferred). PQC_PLATFORM_OPERATORS is a JSON list of
+  * Named operators (preferred). MORROW_PLATFORM_OPERATORS is a JSON list of
     {"name": "alice", "role": "operator", "key_sha256": "<64 hex>"}. Only the SHA-256
     of each key is configured, so the environment never holds a usable secret for
     them. The role is bound to the key: the caller cannot raise it, and a request
     without an x-platform-admin-role header runs with exactly that role. The header
     may still narrow it (an owner can look at the portal as an auditor).
 
-  * The legacy shared key, PQC_PLATFORM_ADMIN_KEY. It keeps working so existing
+  * The legacy shared key, MORROW_PLATFORM_ADMIN_KEY. It keeps working so existing
     scripts and the go-live gate are not broken. Its ceiling is
-    PQC_PLATFORM_ADMIN_KEY_ROLE (owner when unset, which is what it has always been).
+    MORROW_PLATFORM_ADMIN_KEY_ROLE (owner when unset, which is what it has always been).
     Because anyone holding a shared key is anonymous, a request that does not say
     which role it wants gets the least-privileged role (auditor) rather than the
     ceiling; write calls must ask for owner/operator explicitly. Unknown role names
@@ -62,7 +62,7 @@ LEGACY_OPERATOR_NAME = "platform-admin"
 #: endpoint, in the same context as the audit write that follows it, so the audit trail can name the
 #: operator without every call site passing it along.
 CURRENT_OPERATOR: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar(
-    "pqc_platform_operator", default=None
+    "morrow_platform_operator", default=None
 )
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@+-]{0,79}$")
@@ -83,19 +83,19 @@ def normalize_role(value: Any) -> Optional[str]:
 
 
 def legacy_key_role() -> str:
-    raw = str(os.getenv("PQC_PLATFORM_ADMIN_KEY_ROLE") or "").strip()
+    raw = str(os.getenv("MORROW_PLATFORM_ADMIN_KEY_ROLE") or "").strip()
     if not raw:
         return "owner"
     role = normalize_role(raw)
     if not role:
         # Fail closed: a typo must not leave the shared key with more power than intended.
-        logger.warning("[platform-operators] PQC_PLATFORM_ADMIN_KEY_ROLE is not a known role; using auditor")
+        logger.warning("[platform-operators] MORROW_PLATFORM_ADMIN_KEY_ROLE is not a known role; using auditor")
         return LEAST_PRIVILEGED_ROLE
     return role
 
 
 def load_operators() -> List[Dict[str, str]]:
-    raw = os.getenv("PQC_PLATFORM_OPERATORS", "") or ""
+    raw = os.getenv("MORROW_PLATFORM_OPERATORS", "") or ""
     if raw == _CACHE["raw"]:
         return _CACHE["operators"]
     operators: List[Dict[str, str]] = []
@@ -106,9 +106,9 @@ def load_operators() -> List[Dict[str, str]]:
             data = json.loads(text)
         except ValueError:
             data = []
-            errors.append("PQC_PLATFORM_OPERATORS is not valid JSON; no named operators loaded.")
+            errors.append("MORROW_PLATFORM_OPERATORS is not valid JSON; no named operators loaded.")
         if not isinstance(data, list):
-            errors.append("PQC_PLATFORM_OPERATORS must be a JSON list.")
+            errors.append("MORROW_PLATFORM_OPERATORS must be a JSON list.")
             data = []
         seen = set()
         for index, entry in enumerate(data):
@@ -226,7 +226,7 @@ def _main() -> None:  # pragma: no cover - operator tooling
     key, entry = new_operator_entry(args.name, args.role)
     print("Give this key to the operator through a secret manager; it is not stored anywhere:")
     print(key)
-    print("Add this entry to the PQC_PLATFORM_OPERATORS JSON list:")
+    print("Add this entry to the MORROW_PLATFORM_OPERATORS JSON list:")
     print(json.dumps(entry))
 
 

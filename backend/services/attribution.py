@@ -61,7 +61,7 @@ def _geoip_with_asn(ip: str) -> Dict[str, Any]:
         return {}
     try:
         url = f"http://ip-api.com/json/{ip}?fields=status,country,countryCode,org,isp,as,query,city,timezone"
-        req = urllib.request.Request(url, headers={"User-Agent": "PQC-Scanner/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Morrow/1.0"})
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode())
         if data.get("status") == "fail":

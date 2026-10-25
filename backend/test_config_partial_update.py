@@ -24,9 +24,9 @@ ORG = "00000000-0000-0000-0000-000000000001"
 
 @pytest.fixture()
 def client():
-    os.environ["PQC_SCANNER_DB"] = os.path.join(tempfile.mkdtemp(), "cfg.db")
-    os.environ.setdefault("PQC_AUTH_MODE", "header")
-    os.environ.setdefault("PQC_DEFAULT_ROLE", "admin")
+    os.environ["MORROW_SCANNER_DB"] = os.path.join(tempfile.mkdtemp(), "cfg.db")
+    os.environ.setdefault("MORROW_AUTH_MODE", "header")
+    os.environ.setdefault("MORROW_DEFAULT_ROLE", "admin")
     import importlib
     import db
     importlib.reload(db)

@@ -130,7 +130,7 @@ def _create_check_run(
     owner: str,
     repo: str,
     head_sha: str,
-    check_name: str = "PQC Crypto Gate",
+    check_name: str = "Post-Quantum Crypto Gate",
 ) -> int:
     """Create a new in-progress Check Run; return its ID."""
     payload = {
@@ -196,7 +196,7 @@ def review_pr(
     head_sha: str,
     block_on_critical: bool = True,
     post_review_comment: bool = True,
-    check_name: str = "PQC Crypto Gate",
+    check_name: str = "Post-Quantum Crypto Gate",
 ) -> Dict[str, Any]:
     """
     Fetch the PR diff, run the crypto gate, and post inline annotations
@@ -240,7 +240,7 @@ def review_pr(
             "title":            f"[{f.get('severity','').upper()}] {f.get('pattern_id','')}",
             "message":          f.get("description","Quantum-vulnerable crypto pattern detected."),
             "raw_details":      f"Pattern: `{f.get('pattern','')}` matched on line {f.get('line','')}.\n\n"
-                                f"**Fix:** {f.get('fix','Replace with a NIST-approved PQC algorithm (ML-KEM-768, ML-DSA-65).')}",
+                                f"**Fix:** {f.get('fix','Replace with a NIST-approved post-quantum algorithm (ML-KEM-768, ML-DSA-65).')}",
         })
 
     # 5. Determine conclusion
@@ -252,7 +252,7 @@ def review_pr(
     else:
         conclusion = "success"
 
-    title   = f"PQC Gate: {'BLOCKED' if conclusion=='failure' else 'PASSED' if conclusion=='success' else 'WARNINGS'} — {len(findings)} finding(s)"
+    title   = f"Post-Quantum Gate: {'BLOCKED' if conclusion=='failure' else 'PASSED' if conclusion=='success' else 'WARNINGS'} — {len(findings)} finding(s)"
     summary = _build_summary(findings, gate_passed)
 
     # 6. Complete Check Run
@@ -287,7 +287,7 @@ def review_pr(
 
 def _build_summary(findings: List[Dict], gate_passed: bool) -> str:
     if not findings:
-        return ("## ✅ PQC Crypto Gate — Passed\n\n"
+        return ("## ✅ post-quantum Crypto Gate — Passed\n\n"
                 "No quantum-vulnerable cryptographic patterns were detected in this PR.\n\n"
                 "_Checked by Morrow_")
 
@@ -296,7 +296,7 @@ def _build_summary(findings: List[Dict], gate_passed: bool) -> str:
     low      = [f for f in findings if f.get("severity") in ("low","info")]
 
     icon = "🚫" if critical else "⚠️"
-    header = f"## {icon} PQC Crypto Gate — {'BLOCKED' if critical else 'WARNINGS'}\n\n"
+    header = f"## {icon} post-quantum Crypto Gate — {'BLOCKED' if critical else 'WARNINGS'}\n\n"
     body = f"**{len(findings)} quantum-vulnerable pattern(s) detected** in this PR.\n\n"
 
     if critical:
@@ -312,7 +312,7 @@ def _build_summary(findings: List[Dict], gate_passed: bool) -> str:
 
     body += (
         "\n\n### Remediation\n"
-        "Replace quantum-vulnerable algorithms with NIST-approved PQC alternatives:\n"
+        "Replace quantum-vulnerable algorithms with NIST-approved post-quantum alternatives:\n"
         "- **Key Encapsulation:** ML-KEM-768 (formerly Kyber-768)\n"
         "- **Digital Signatures:** ML-DSA-65 (formerly Dilithium3) or SLH-DSA\n"
         "- **TLS:** Enable `X25519Kyber768` or `P256Kyber768` hybrid key exchange\n\n"

@@ -29,7 +29,7 @@ IGNORED = {
     # Output directories a script creates on its first run.
     "reports",
     # The private sibling repository, named on purpose so an operator knows where the rest went.
-    "../pqc-scanner-private",
+    "../morrow-private",
 }
 
 #: (document, reference) pairs that look like paths into this repository and are not. Each one is

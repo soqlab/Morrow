@@ -10,7 +10,7 @@
 # is broken for newcomers.
 #
 # Tests that need a real Postgres, Redis or third-party API must skip cleanly rather than
-# fail -- PQC_TEST_PG_DSN and PQC_TEST_REDIS_URL are deliberately not set here.
+# fail -- MORROW_TEST_PG_DSN and MORROW_TEST_REDIS_URL are deliberately not set here.
 
 name: Tests
 
@@ -49,13 +49,13 @@ jobs:
       PYTHONPATH: .
       # SQLite needs nothing installed. backend/conftest.py redirects the database to a
       # temporary file per session, so no repository file is written.
-      PQC_MAIN_DB_BACKEND: sqlite
-      PQC_ENVIRONMENT: local
-      PQC_AUTH_REQUIRED: "0"
-      PQC_DEFAULT_ROLE: admin
+      MORROW_MAIN_DB_BACKEND: sqlite
+      MORROW_ENVIRONMENT: local
+      MORROW_AUTH_REQUIRED: "0"
+      MORROW_DEFAULT_ROLE: admin
       # No external model is contacted: with no provider credential the AI layer falls back
       # to its offline rule engine, and this forbids an outbound call outright.
-      PQC_LLM_DISABLED: "1"
+      MORROW_LLM_DISABLED: "1"
 
     steps:
       - uses: actions/checkout@v4

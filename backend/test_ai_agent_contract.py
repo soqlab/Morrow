@@ -1,4 +1,4 @@
-"""Contract tests for the PQC Scout agent's Claude requests.
+"""Contract tests for the post-quantum Scout agent's Claude requests.
 
 services/ai_agent.py is the platform's analyst -- 50 tools, a large system prompt,
 a multi-round tool-calling loop -- and had no test coverage at all. These tests do
@@ -34,9 +34,9 @@ def agent(monkeypatch, tmp_path):
     import importlib
     import services.ai_agent as module
     importlib.reload(module)
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "agent-privacy.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "agent-privacy.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
     from services import ai_privacy as privacy
     from db import current_organization_id
     conf = {**privacy.default_policy(), "mode": "approved_external", "provider": "anthropic", "workflows": ["assistant"], "free_text": True}

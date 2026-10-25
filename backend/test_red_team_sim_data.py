@@ -26,8 +26,8 @@ import pytest
 def seeded(monkeypatch):
     """A database with real scan_results rows, wired the way production is."""
     path = os.path.join(tempfile.mkdtemp(), "rt.db")
-    monkeypatch.setenv("PQC_SCANNER_DB", path)
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_SCANNER_DB", path)
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
 
     import importlib
     import db
@@ -45,7 +45,7 @@ def seeded(monkeypatch):
     for asset_key, risk, key_type, sig, when in rows:
         conn.execute(
             "INSERT INTO scan_results (organization_id, asset_key, scan_id, scanned_at, risk_level,"
-            " quantum_score, findings_count, pqc_relevance, tls_version, key_type, sig_algorithm,"
+            " quantum_score, findings_count, pq_relevance, tls_version, key_type, sig_algorithm,"
             " owner, team, environment, criticality)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (org, asset_key, "scan-1", when, risk, 80.0, 2, "high", "TLSv1.3", key_type, sig,

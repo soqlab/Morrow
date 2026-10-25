@@ -16,7 +16,7 @@ env:
   REGION: ${{ vars.GCP_REGION || 'us-central1' }}
   PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
   ARTIFACT_REGISTRY: ${{ vars.GCP_ARTIFACT_REGISTRY }}
-  IMAGE_NAME: pqc-scanner
+  IMAGE_NAME: morrow
 
 jobs:
   build-and-push:
@@ -82,7 +82,7 @@ jobs:
 
       - name: Run migrations via Cloud Run Job
         run: |
-          gcloud run jobs execute ${{ vars.GCP_MIGRATE_JOB_NAME || 'pqc-migrate' }} \
+          gcloud run jobs execute ${{ vars.GCP_MIGRATE_JOB_NAME || 'pq-migrate' }} \
             --region=${{ env.REGION }} \
             --update-env-vars=APP_COMPONENT=migrate \
             --wait
@@ -110,7 +110,7 @@ jobs:
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v2
         with:
-          service: ${{ vars.GCP_API_SERVICE_NAME || 'pqc-scanner-api' }}
+          service: ${{ vars.GCP_API_SERVICE_NAME || 'morrow-api' }}
           region: ${{ env.REGION }}
           image: ${{ needs.build-and-push.outputs.image }}
 

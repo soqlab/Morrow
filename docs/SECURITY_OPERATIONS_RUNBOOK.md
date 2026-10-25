@@ -30,7 +30,7 @@ Use customer-level feature flags to disable risky workflows without shipping cod
 - `github_pr_creation` controls GitHub PR creation from remediations.
 - `demo_lab` controls Demo Lab seeding.
 
-Default behavior is backwards-compatible unless `PQC_FEATURE_FLAGS_STRICT=1` is enabled. For production enterprise pilots, enable strict mode only after each customer has explicit flags configured.
+Default behavior is backwards-compatible unless `MORROW_FEATURE_FLAGS_STRICT=1` is enabled. For production enterprise pilots, enable strict mode only after each customer has explicit flags configured.
 
 ## Incident Response
 
@@ -43,9 +43,9 @@ Default behavior is backwards-compatible unless `PQC_FEATURE_FLAGS_STRICT=1` is 
 
 ## Secret Rotation
 
-- Rotate `PQC_PLATFORM_ADMIN_KEY` after any operator offboarding or suspected exposure.
+- Rotate `MORROW_PLATFORM_ADMIN_KEY` after any operator offboarding or suspected exposure.
 - Rotate GitHub webhook secrets on integration compromise.
-- Rotate `PQC_VAULT_MASTER_KEY` only with a tested re-encryption plan.
+- Rotate `MORROW_VAULT_MASTER_KEY` only with a tested re-encryption plan.
 - Rotate OpenAI/API provider keys through Secret Manager and restart services.
 
 ## Security Review Cadence

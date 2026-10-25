@@ -865,7 +865,7 @@ Vault credential operations are scoped to the active organization context. The s
 
 - `GET /v1/providers/capabilities`
   - viewer/operator/admin
-  - returns provider PQC/hybrid TLS capability guidance for Cloudflare, AWS, Google, Azure, Fastly, Akamai, self-managed TLS, and unknown providers
+  - returns provider post-quantum/hybrid TLS capability guidance for Cloudflare, AWS, Google, Azure, Fastly, Akamai, self-managed TLS, and unknown providers
 
 - `GET /v1/providers/{provider}/playbook`
   - viewer/operator/admin

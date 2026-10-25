@@ -12,7 +12,7 @@ variable "region" {
 variable "name_prefix" {
   description = "Short prefix for all deployed resources."
   type        = string
-  default     = "pqc"
+  default     = "pq"
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{1,20}[a-z0-9]$", var.name_prefix))

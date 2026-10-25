@@ -24,8 +24,8 @@ from events import emit_platform_event
 @pytest.fixture()
 def client():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
-    os.environ["PQC_MAIN_DB_BACKEND"] = ""
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_MAIN_DB_BACKEND"] = ""
     os.environ["GITHUB_WEBHOOK_SECRET"] = ""
 
     fastapi_app.app.router.on_startup.clear()
@@ -75,7 +75,7 @@ def test_slack_webhook_can_be_enabled_without_vault_secret(client):
     rows = list_webhook_events(limit=10)
     matching = [row for row in rows if str(row.get("event_type") or "") == "validation.failed"]
     assert matching
-    assert str((matching[0].get("payload") or {}).get("text") or "").startswith("[PQC] validation failed")
+    assert str((matching[0].get("payload") or {}).get("text") or "").startswith("[post-quantum] validation failed")
 
 
 def test_validation_failure_emits_notification_and_audit(client, monkeypatch):

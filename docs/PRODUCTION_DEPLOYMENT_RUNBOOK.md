@@ -5,9 +5,9 @@ This runbook is for a production-like Cloud Run deployment of Morrow.
 ## 1. Preflight
 
 - Confirm `backend/.env.production.example` has been copied into your cloud secret/deployment variables.
-- Confirm `PQC_AUTH_MODE=jwt`, `PQC_AUTH_REQUIRED=1`, and `PQC_DEFAULT_ROLE=viewer`.
+- Confirm `MORROW_AUTH_MODE=jwt`, `MORROW_AUTH_REQUIRED=1`, and `MORROW_DEFAULT_ROLE=viewer`.
 - Confirm Auth0/SAML/JWT issuer, audience, JWKS URL, role claim, and org claim are configured.
-- Confirm `PQC_PLATFORM_ADMIN_KEY` is stored in Secret Manager, not source control. In production it is a
+- Confirm `MORROW_PLATFORM_ADMIN_KEY` is stored in Secret Manager, not source control. In production it is a
   break-glass credential only; operators sign in with SSO (see section 5a).
 - Confirm managed Postgres and Redis are available.
 
@@ -32,14 +32,14 @@ What it covers, and what a failure there actually means:
 
 | Area | Checked | Why it matters |
 | --- | --- | --- |
-| `auth` | `PQC_AUTH_JWT_SECRET` present and at least 32 characters | Support sessions and issued tokens are signed with it. A short one is guessable; a missing one means nobody can hold a session. |
-| `vault` | `PQC_VAULT_MASTER_KEY` is a valid Fernet key and round-trips a probe value | It seals customer scanner credentials, operator MFA secrets and recovery codes, alert channel targets and gateway site secrets. A changed key makes all of them unreadable. |
-| `sso` | Issuer reachable, discovery document valid and self-consistent, client id and secret present, redirect URI consistent with `PQC_PUBLIC_BASE_URL`, operator roster parsed, MFA policy and break-glass flag | A redirect URI that does not match the public URL is refused by the IdP at sign-in, not at configuration time. |
+| `auth` | `MORROW_AUTH_JWT_SECRET` present and at least 32 characters | Support sessions and issued tokens are signed with it. A short one is guessable; a missing one means nobody can hold a session. |
+| `vault` | `MORROW_VAULT_MASTER_KEY` is a valid Fernet key and round-trips a probe value | It seals customer scanner credentials, operator MFA secrets and recovery codes, alert channel targets and gateway site secrets. A changed key makes all of them unreadable. |
+| `sso` | Issuer reachable, discovery document valid and self-consistent, client id and secret present, redirect URI consistent with `MORROW_PUBLIC_BASE_URL`, operator roster parsed, MFA policy and break-glass flag | A redirect URI that does not match the public URL is refused by the IdP at sign-in, not at configuration time. |
 | `alerts` | Channels read from the database: kind, enabled state, and whether the sealed target still decrypts | A channel whose target no longer decrypts is silently dead: the incident is raised and nothing leaves the building. |
 | `redis` | Reachable, and whether rate limits and counters are shared across replicas | Without Redis each replica enforces its own limits, so the effective limit is multiplied by the replica count. |
 | `postgres` | Reachable, the app role is `NOSUPERUSER NOBYPASSRLS`, and whether row-level security is applied | A role with `BYPASSRLS` makes every tenant isolation policy decorative. |
 | `ai` | Which provider CipherLens will use (`ANTHROPIC_API_KEY`, else `OPENAI_API_KEY`), validated with `--check-ai` | Otherwise the first customer question is where you find out the key was revoked. |
-| `deployment` | `PQC_ENVIRONMENT`, `PQC_PUBLIC_BASE_URL`, and the public contact (`PQC_STATUS_PAGE_URL`, `PQC_SMTP_FROM`) | Generated evidence, incident templates and the SSO redirect all point at the public base URL. |
+| `deployment` | `MORROW_ENVIRONMENT`, `MORROW_PUBLIC_BASE_URL`, and the public contact (`MORROW_STATUS_PAGE_URL`, `MORROW_SMTP_FROM`) | Generated evidence, incident templates and the SSO redirect all point at the public base URL. |
 
 Rules it keeps, so it is safe to run against production and to paste the output into a ticket:
 
@@ -94,7 +94,7 @@ First apply may create secret containers only. Add secret versions, set `deploy_
   The third step must report `"failed": []`. Once the runtime role is hardened it has no DDL
   rights, so anything missed here can never be created at runtime.
 - Apply row-level security (section 4a).
-- Run tenant-isolation tests against staging: `PQC_TEST_PG_DSN=<staging-owner-dsn> python -m pytest -q backend/test_postgres_rls.py`.
+- Run tenant-isolation tests against staging: `MORROW_TEST_PG_DSN=<staging-owner-dsn> python -m pytest -q backend/test_postgres_rls.py`.
 
 ### 4a. Row-level security: the tenant boundary
 
@@ -108,15 +108,15 @@ easy to get wrong and impossible to notice: Postgres exempts superusers and `BYP
 *every* policy, on every table, silently. Apply the whole plan over such a role and every check
 passes, every policy is listed by `\d+`, and nothing whatsoever is enforced. Managed-Postgres default
 users (RDS `postgres`, Cloud SQL `postgres`, Supabase `postgres`) are usually superusers, so a
-deployment that simply points `PQC_PRODUCT_DATABASE_URL` at the account the provider handed over has
+deployment that simply points `MORROW_PRODUCT_DATABASE_URL` at the account the provider handed over has
 no isolation at all. The application must connect as a role created for it:
 
 ```sql
-CREATE ROLE pqc_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD '…';
+CREATE ROLE morrow_app LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE PASSWORD '…';
 ```
 
-Keep the owner/migration role for DDL only, and point `PQC_PRODUCT_DATABASE_URL` / `DATABASE_URL` at
-`pqc_app`. The generated SQL refuses to run at all if the role it is given is a superuser or holds
+Keep the owner/migration role for DDL only, and point `MORROW_PRODUCT_DATABASE_URL` / `DATABASE_URL` at
+`morrow_app`. The generated SQL refuses to run at all if the role it is given is a superuser or holds
 `BYPASSRLS`, rather than appearing to succeed.
 
 Then apply the plan, with the **owner** DSN (only the owner can `ALTER TABLE … ENABLE ROW LEVEL
@@ -130,8 +130,8 @@ python scripts/apply-postgres-rls.py --dsn $OWNER_DSN
 python scripts/apply-postgres-rls.py --dsn $OWNER_DSN --apply --verify-dsn $APP_DSN
 ```
 
-`--create-role` will create or repair `pqc_app` for you, taking the password from
-`$PQC_APP_DB_PASSWORD` so it never reaches shell history. `--verify-dsn` matters: verifying with the
+`--create-role` will create or repair `morrow_app` for you, taking the password from
+`$MORROW_APP_DB_PASSWORD` so it never reaches shell history. `--verify-dsn` matters: verifying with the
 owner role always reports the role check as failing, because that role is a superuser — the answer
 you want is the one the application sees.
 
@@ -174,7 +174,7 @@ turn it on:**
 3. API-key verification, which has to find the key row before any tenant is known — the key's
    organization is the answer it returns. Every other operation on API keys is tenant-scoped.
 
-Every entry is recorded: an INFO log line (`[PQC RLS] cross-tenant scope entered: reason=… actor=…`)
+Every entry is recorded: an INFO log line (`[Post-quantum RLS] cross-tenant scope entered: reason=… actor=…`)
 plus a bounded in-process ledger, on top of the existing operator audit trail in
 `platform_admin_events` for case 1.
 
@@ -211,7 +211,7 @@ isolated by query filters only. The list is in `docker-compose.prod.yml`.
   code. In production the shared platform key is refused unless break-glass is on.
 - Open **Security › Launch readiness** (or `/platform/readiness` and `/platform/go-live-gate`) and fix every
   failed check, including **Operator SSO**, **Operator MFA required** and **Shared key is break-glass only**.
-- `scripts/check-go-live-gate.ps1` falls back to `PQC_PLATFORM_ADMIN_KEY` from `backend\.env`, and in
+- `scripts/check-go-live-gate.ps1` falls back to `MORROW_PLATFORM_ADMIN_KEY` from `backend\.env`, and in
   production that credential is **refused** (`break_glass_disabled`). Pass a named operator key
   instead, and verify MFA for it once first, or every call answers 401 `mfa_enrolment_required`:
 
@@ -222,7 +222,7 @@ isolated by query filters only. The list is in `docker-compose.prod.yml`.
 
   `/platform/whoami`, `/platform/auth-config` and the `/platform/mfa/*` routes are the only ones a
   key may use before MFA elevation.
-- Run the checklist in `docs/pqc-full-test-plan.pdf`.
+- Run the checklist in `docs/pq-full-test-plan.pdf`.
 
 ## 5a. Operator Console Production Settings
 
@@ -232,35 +232,35 @@ break-glass" in [COMPLETE_DOCUMENTATION.md](COMPLETE_DOCUMENTATION.md).
 
 **Operator SSO and MFA (required by the go-live gate)**
 
-- `PQC_ENVIRONMENT=production` (or `staging`): MFA defaults on and the shared key is refused.
-- `PQC_ADMIN_OIDC_ISSUER`, `PQC_ADMIN_OIDC_CLIENT_ID`, `PQC_ADMIN_OIDC_CLIENT_SECRET` (empty for a public PKCE
-  client), and `PQC_ADMIN_OPERATOR_ROLES` (`email=role` roster) or `PQC_ADMIN_OIDC_ALLOWED_DOMAINS`.
+- `MORROW_ENVIRONMENT=production` (or `staging`): MFA defaults on and the shared key is refused.
+- `MORROW_ADMIN_OIDC_ISSUER`, `MORROW_ADMIN_OIDC_CLIENT_ID`, `MORROW_ADMIN_OIDC_CLIENT_SECRET` (empty for a public PKCE
+  client), and `MORROW_ADMIN_OPERATOR_ROLES` (`email=role` roster) or `MORROW_ADMIN_OIDC_ALLOWED_DOMAINS`.
 - Register the redirect URI `https://<console host>/vendor-admin/sso/callback` (or set
-  `PQC_ADMIN_OIDC_REDIRECT_URI`); `PQC_PUBLIC_BASE_URL` must be the public URL.
-- Do not set `PQC_ADMIN_REQUIRE_MFA=0`.
+  `MORROW_ADMIN_OIDC_REDIRECT_URI`); `MORROW_PUBLIC_BASE_URL` must be the public URL.
+- Do not set `MORROW_ADMIN_REQUIRE_MFA=0`.
 - Test SSO sign-in, a denied non-roster account, MFA enrolment and a step-up prompt against the real identity
   provider in staging. This has only been tested with a mocked provider.
 
 **Break-glass off**
 
-- Leave `PQC_ALLOW_BREAK_GLASS_KEY` unset. Keep `PQC_PLATFORM_ADMIN_KEY` in the secret manager for emergencies
-  only; lower `PQC_PLATFORM_ADMIN_KEY_ROLE` once named operators exist. If break-glass is used, remove the flag,
+- Leave `MORROW_ALLOW_BREAK_GLASS_KEY` unset. Keep `MORROW_PLATFORM_ADMIN_KEY` in the secret manager for emergencies
+  only; lower `MORROW_PLATFORM_ADMIN_KEY_ROLE` once named operators exist. If break-glass is used, remove the flag,
   restart and rotate the shared key afterwards.
 
 **Secrets that new features depend on**
 
-- `PQC_AUTH_JWT_SECRET`: required for vendor support sessions (without it, starting one answers 503).
-- `PQC_VAULT_MASTER_KEY`: required for operator MFA secrets and for Slack, PagerDuty and webhook alert channel
+- `MORROW_AUTH_JWT_SECRET`: required for vendor support sessions (without it, starting one answers 503).
+- `MORROW_VAULT_MASTER_KEY`: required for operator MFA secrets and for Slack, PagerDuty and webhook alert channel
   targets (those channel types cannot be saved without it).
-- `PQC_USAGE_ACTOR_SALT`: set a long random value and keep it stable, so rotating the vault or JWT key does not
+- `MORROW_USAGE_ACTOR_SALT`: set a long random value and keep it stable, so rotating the vault or JWT key does not
   reset distinct-user counts.
 
 **Alert dispatcher**
 
-- Runs inside each API process every 60 seconds by default (`PQC_ALERT_DISPATCH_ENABLED=1`,
-  `PQC_ALERT_DISPATCH_INTERVAL_SECONDS`); only one server dispatches at a time.
-- For email channels and "Email the invite": `PQC_SMTP_HOST`, `PQC_SMTP_PORT`, `PQC_SMTP_USER`,
-  `PQC_SMTP_PASSWORD`, `PQC_SMTP_FROM`, `PQC_SMTP_STARTTLS` (or `PQC_PLATFORM_SMTP_ORG_ID`).
+- Runs inside each API process every 60 seconds by default (`MORROW_ALERT_DISPATCH_ENABLED=1`,
+  `MORROW_ALERT_DISPATCH_INTERVAL_SECONDS`); only one server dispatches at a time.
+- For email channels and "Email the invite": `MORROW_SMTP_HOST`, `MORROW_SMTP_PORT`, `MORROW_SMTP_USER`,
+  `MORROW_SMTP_PASSWORD`, `MORROW_SMTP_FROM`, `MORROW_SMTP_STARTTLS` (or `MORROW_PLATFORM_SMTP_ORG_ID`).
 - After deploy, add a channel in **Operations › Alert routing**, press **Send test**, and check the
   **Alert routing dispatcher** row in **Operations › Background jobs**.
 
@@ -268,12 +268,12 @@ break-glass" in [COMPLETE_DOCUMENTATION.md](COMPLETE_DOCUMENTATION.md).
 
 - Set `REDIS_URL` (or `CELERY_BROKER_URL`) whenever more than one API replica runs. Every replica then shares
   the per-organization limits (`admin_rate_limits` and plan limits), the per-organization request cap
-  (`PQC_RATE_LIMIT_MAX_REQUESTS`) and the per-IP limits (`PQC_RATE_LIMIT_*`). Without it each replica counts
+  (`MORROW_RATE_LIMIT_MAX_REQUESTS`) and the per-IP limits (`MORROW_RATE_LIMIT_*`). Without it each replica counts
   separately and N replicas allow up to N times every limit.
 - A Redis outage falls back to per-replica counting and does not block requests; each replica retries Redis
   after 5 seconds.
 - The other short-lived caches do not need Redis: each replica re-reads token revocations (10 s,
-  `PQC_TOKEN_REVOCATION_CACHE_SECONDS`), API key verifications (15 s, `PQC_API_KEY_CACHE_SECONDS`), support
+  `MORROW_TOKEN_REVOCATION_CACHE_SECONDS`), API key verifications (15 s, `MORROW_API_KEY_CACHE_SECONDS`), support
   sessions (at most 5 s), operator sessions (5 s in the middleware, checked in full on every console route) and
   maintenance mode (5 s) from Postgres. A revocation takes effect at once on the replica that handled it and
   within that window everywhere else. The alert dispatcher lease is a Postgres row, so one replica dispatches.
@@ -286,12 +286,12 @@ their own database, and use Redis DB index 1):
 
 ```bash
 cd backend
-PQC_TEST_PG_DSN=postgresql://pqc:pqctest@127.0.0.1:55432/pqc_test PQC_TEST_REDIS_URL=redis://127.0.0.1:56379/1 \
+MORROW_TEST_PG_DSN=postgresql://morrow:pqtest@127.0.0.1:55432/pq_test MORROW_TEST_REDIS_URL=redis://127.0.0.1:56379/1 \
   .venv/Scripts/python.exe -m pytest -q test_postgres_integration.py test_redis_integration.py test_sql_schema_conformance.py
 ```
 
-Start the servers with `docker run -d --name pqc-test-pg -e POSTGRES_USER=pqc -e POSTGRES_PASSWORD=pqctest -e
-POSTGRES_DB=pqc_test -p 55432:5432 postgres:16-alpine` and `docker run -d --name pqc-test-redis -p 56379:6379
+Start the servers with `docker run -d --name pq-test-pg -e POSTGRES_USER=morrow -e POSTGRES_PASSWORD=pqtest -e
+POSTGRES_DB=pq_test -p 55432:5432 postgres:16-alpine` and `docker run -d --name pq-test-redis -p 56379:6379
 redis:7-alpine`. Without the variables those tests are skipped.
 
 **Vault key rotation**
@@ -299,7 +299,7 @@ redis:7-alpine`. Without the variables those tests are skipped.
 - `scripts/rotate-vault-master-key.py` re-encrypts integration credentials, gateway site keys, operator MFA
   secrets, GitHub tokens and alert channel targets (Slack, PagerDuty and webhook). Rehearse without `--apply`,
   then apply in a maintenance window with a backup. Afterwards press **Send test** on one alert channel.
-- Set `PQC_EVIDENCE_SIGNING_KEY` before rotating so existing evidence keeps verifying.
+- Set `MORROW_EVIDENCE_SIGNING_KEY` before rotating so existing evidence keeps verifying.
 
 ## 6. Rollback
 

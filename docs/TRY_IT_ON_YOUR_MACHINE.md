@@ -48,7 +48,7 @@ Go to the backend folder.
 Example on Windows:
 
 ```powershell
-cd C:\Users\Samsung\Desktop\pqc-scanner\backend
+cd C:\Users\Samsung\Desktop\morrow\backend
 ```
 
 ## 3. Start the app
@@ -327,7 +327,7 @@ If you are in local mode, refresh the page.
 If the UI has stale login data, open browser console and run:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -353,7 +353,7 @@ If you want the shortest possible path, do exactly this:
 2. run:
 
 ```powershell
-cd C:\Users\Samsung\Desktop\pqc-scanner\backend
+cd C:\Users\Samsung\Desktop\morrow\backend
 docker compose up -d
 ```
 

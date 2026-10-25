@@ -77,7 +77,7 @@ class TestScanPipeline:
 
 class TestComplianceAndRisk:
     def test_fips_report(self, client, auth):
-        r = client.get("/v1/fips-pqc/report", headers=auth)
+        r = client.get("/v1/fips-pq/report", headers=auth)
         # 500 is acceptable here when scan_results table is empty/missing columns in test DB
         assert r.status_code in (200, 500)
 
@@ -125,8 +125,8 @@ class TestComplianceAndRisk:
         r = client.get("/v1/roi-calculator/sectors", headers=auth)
         assert r.status_code == 200
 
-    def test_pqc_codegen_targets(self, client, auth):
-        r = client.get("/v1/pqc-codegen/targets", headers=auth)
+    def test_pq_codegen_targets(self, client, auth):
+        r = client.get("/v1/pq-codegen/targets", headers=auth)
         assert r.status_code == 200
 
 

@@ -1,9 +1,9 @@
 // Read-only UI checks against real logs. Does not create users or manufacture API data.
 const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
-const base = (process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
-const key = process.env.PQC_E2E_PLATFORM_KEY;
-if (!key) throw new Error("PQC_E2E_PLATFORM_KEY is required.");
+const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const key = process.env.MORROW_E2E_PLATFORM_KEY;
+if (!key) throw new Error("MORROW_E2E_PLATFORM_KEY is required.");
 
 async function main() {
   let browser;
@@ -44,7 +44,7 @@ async function main() {
     assert.ok((await page.locator("#eventsBody").innerText()).includes("/status"));
     const download = page.waitForEvent("download");
     await page.locator("#exportNdjsonBtn").click();
-    assert.equal((await download).suggestedFilename(), "pqc-traffic-events.ndjson");
+    assert.equal((await download).suggestedFilename(), "pq-traffic-events.ndjson");
     for (const path of ["/vendor-admin/#activity", "/vendor-admin/traffic.html"]) {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(base + path);

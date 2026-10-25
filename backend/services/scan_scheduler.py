@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-log = logging.getLogger("pqc.scheduler")
+log = logging.getLogger("morrow.scheduler")
 
 # ── In-memory schedule registry (backed by DB) ──────────────────────────────
 _LOOP_TASK: Optional[asyncio.Task] = None  # set by start_scheduler()

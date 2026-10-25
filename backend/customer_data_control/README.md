@@ -11,9 +11,9 @@ Explicit console workflows retain their own authorization checks.
 - **Off:** this application's model gateway refuses AI dispatch. This does not
   disable other platform integrations or prevent data submitted to the platform.
 - **Customer-hosted:** deploy the platform and an OpenAI-compatible model endpoint
-  in YOUR environment. Set `PQC_AI_DEPLOYMENT_LOCATION=customer`,
-  `PQC_AI_LOCAL_URL` (full chat-completions URL), `PQC_AI_LOCAL_MODEL`, and optionally
-  `PQC_AI_LOCAL_API_KEY` in your secret manager. HTTPS is required except loopback.
+  in YOUR environment. Set `MORROW_AI_DEPLOYMENT_LOCATION=customer`,
+  `MORROW_AI_LOCAL_URL` (full chat-completions URL), `MORROW_AI_LOCAL_MODEL`, and optionally
+  `MORROW_AI_LOCAL_API_KEY` in your secret manager. HTTPS is required except loopback.
   The location is operator-declared, not remotely attested. No model is bundled.
 - **Approved external:** approve a configured provider, exact endpoint and model,
   workflows and data permissions. Endpoint/model changes require reapproval.
@@ -43,7 +43,7 @@ inspect your filesystem, applications or production traffic.
    `python customer_data_gate.py preview --input metadata.json --endpoint https://your-platform.example --policy-version 1`
 
 4. Review the displayed destination and exact minimized payload. Set
-   `PQC_CUSTOMER_GATE_TOKEN` locally to your tenant-scoped bearer token. Never put
+   `MORROW_CUSTOMER_GATE_TOKEN` locally to your tenant-scoped bearer token. Never put
    tokens in the JSON file, command line, screenshots or support tickets.
 5. Send only after approving the printed digest:
 
@@ -82,7 +82,7 @@ Install `cryptography` in the independent verifier's environment, then run:
 Export pages contain at most 1,000 records, newest first. Use `next_before` to
 request older pages. Save the key and verified head externally. A retained export
 may start after a pruned prefix: verification covers only the supplied segment.
-Ed25519 provides conventional authenticity; it is NOT a PQC signature, zero-knowledge
+Ed25519 provides conventional authenticity; it is NOT a post-quantum signature, zero-knowledge
 proof, third-party attestation or proof that no other traffic left the system.
 The platform holds the signing keys; independent anchoring is necessary to detect
 a compromised platform replacing its entire account of events.
@@ -94,7 +94,7 @@ provider logs, scan records or other platform audit journals.
 
 ## Deployment checklist (operator action required)
 
-- Set and protect `PQC_VAULT_MASTER_KEY`; back it up separately from the database.
+- Set and protect `MORROW_VAULT_MASTER_KEY`; back it up separately from the database.
   Existing vault rotation tooling also rotates encrypted receipt signing keys.
 - In PostgreSQL, run the existing schema/RLS migration before switching to the
   restricted runtime role. All three `ai_privacy_*` tables are tenant scoped.

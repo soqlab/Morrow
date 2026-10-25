@@ -1,9 +1,9 @@
 """Redis-backed rate limiting against a real Redis server.
 
-Skipped unless PQC_TEST_REDIS_URL points at a disposable Redis (use a DB index nothing else needs):
+Skipped unless MORROW_TEST_REDIS_URL points at a disposable Redis (use a DB index nothing else needs):
 
-    docker run -d --name pqc-test-redis -p 56379:6379 redis:7-alpine
-    PQC_TEST_REDIS_URL=redis://127.0.0.1:56379/1 python -m pytest -q test_redis_integration.py
+    docker run -d --name pq-test-redis -p 56379:6379 redis:7-alpine
+    MORROW_TEST_REDIS_URL=redis://127.0.0.1:56379/1 python -m pytest -q test_redis_integration.py
 
 Covers services/org_rate_limits.py (the per-organization sliding windows): window correctness against the
 in-process implementation, one shared counter across separate processes, atomicity under concurrency,
@@ -21,8 +21,8 @@ import uuid
 
 import pytest
 
-REDIS_URL = os.getenv("PQC_TEST_REDIS_URL", "").strip()
-pytestmark = pytest.mark.skipif(not REDIS_URL, reason="set PQC_TEST_REDIS_URL to run against a real Redis")
+REDIS_URL = os.getenv("MORROW_TEST_REDIS_URL", "").strip()
+pytestmark = pytest.mark.skipif(not REDIS_URL, reason="set MORROW_TEST_REDIS_URL to run against a real Redis")
 
 BACKEND = os.path.dirname(os.path.abspath(__file__))
 
@@ -50,7 +50,7 @@ def rl(monkeypatch):
 
     yield org_rate_limits, client, org
     for name in created:
-        client.delete(f"pqc:orglimit:api:{name}", f"pqc:orglimit:scan:{name}")
+        client.delete(f"morrow:orglimit:api:{name}", f"morrow:orglimit:scan:{name}")
     org_rate_limits.reset()
     org_rate_limits._clock = time.time
     org_rate_limits._redis.update(client=None, url=None, script=None, script_client=None)
@@ -84,7 +84,7 @@ def test_boundary_and_retry_after(rl, monkeypatch):
     _at(module, monkeypatch, 1030.5)
     denied = module.hit("api", name, 3, 60.0)
     assert denied == {"allowed": False, "remaining": 0, "retry_after": pytest.approx(29.5), "backend": "redis"}
-    assert client.zcard(f"pqc:orglimit:api:{name}") == 3  # a rejected request never takes a slot
+    assert client.zcard(f"morrow:orglimit:api:{name}") == 3  # a rejected request never takes a slot
     _at(module, monkeypatch, 1059.999)
     assert not module.hit("api", name, 3, 60.0)["allowed"]
     _at(module, monkeypatch, 1060.0)  # the 1000.0 entry is exactly one window old: expired
@@ -99,19 +99,19 @@ def test_keys_expire_and_do_not_accumulate(rl):
     for name in names:
         started = time.monotonic()
         assert module.hit("api", name, 2, 1.0)["backend"] == "redis"
-        ttl = client.pttl(f"pqc:orglimit:api:{name}")
+        ttl = client.pttl(f"morrow:orglimit:api:{name}")
         # TTL() rounds down to zero during the final second. A descheduled test
         # may even observe expiry; neither is an unbounded/persistent key (-1).
         assert ttl == -2 or 0 <= ttl <= 2000
         if ttl == -2:
             assert time.monotonic() - started >= 1.0
     time.sleep(2.2)
-    assert all(not client.exists(f"pqc:orglimit:api:{name}") for name in names)
+    assert all(not client.exists(f"morrow:orglimit:api:{name}") for name in names)
     # A busy key stays bounded by the limit, however many requests arrive.
     busy = org()
     for _ in range(200):
         module.hit("api", busy, 7, 60.0)
-    assert client.zcard(f"pqc:orglimit:api:{busy}") == 7
+    assert client.zcard(f"morrow:orglimit:api:{busy}") == 7
 
 
 def test_concurrent_threads_cannot_share_the_last_slot(rl):
@@ -130,12 +130,12 @@ def test_concurrent_threads_cannot_share_the_last_slot(rl):
         thread.join()
     assert all(r["backend"] == "redis" for r in results)
     assert sum(1 for r in results if r["allowed"]) == 10
-    assert client.zcard(f"pqc:orglimit:api:{name}") == 10
+    assert client.zcard(f"morrow:orglimit:api:{name}") == 10
 
 
 _WORKER = r"""
 import json, os, sys, threading
-sys.path.insert(0, os.environ["PQC_BACKEND_DIR"])
+sys.path.insert(0, os.environ["MORROW_BACKEND_DIR"])
 from services import org_rate_limits as o
 import redis
 client = redis.Redis.from_url(os.environ["REDIS_URL"], socket_connect_timeout=10, socket_timeout=10)
@@ -163,7 +163,7 @@ def test_two_processes_share_one_counter(rl):
 
     _, client, org = rl
     name, limit = org(), 12
-    env = {**os.environ, "REDIS_URL": REDIS_URL, "PQC_BACKEND_DIR": BACKEND}
+    env = {**os.environ, "REDIS_URL": REDIS_URL, "MORROW_BACKEND_DIR": BACKEND}
     env.pop("CELERY_BROKER_URL", None)
     start = time.time() + 4.0
     procs = [subprocess.Popen([sys.executable, "-c", _WORKER, name, str(limit), str(limit), str(start)],
@@ -176,7 +176,7 @@ def test_two_processes_share_one_counter(rl):
         outputs.append(json.loads(stdout.strip().splitlines()[-1]))
     assert all(o["backends"] == ["redis"] for o in outputs)
     assert sum(o["allowed"] for o in outputs) == limit
-    assert client.zcard(f"pqc:orglimit:api:{name}") == limit
+    assert client.zcard(f"morrow:orglimit:api:{name}") == limit
 
 
 def test_redis_going_away_falls_back_without_errors(rl, monkeypatch):
@@ -260,7 +260,7 @@ def test_app_per_org_counter_is_shared_and_expires(monkeypatch):
         # Not /health: probe and static paths deliberately skip per-request accounting now, so they
         # never reach the per-organization counter this test is about.
         codes = [http.get("/qday/countdown").status_code for _ in range(5)]
-        keys = client.keys(f"pqc:rate:{org_id}:*")
+        keys = client.keys(f"morrow:rate:{org_id}:*")
         # A window boundary can fall between requests; each window still admits at most 3.
         assert codes.count(429) >= 1 and len(keys) in (1, 2)
         assert all(0 < client.ttl(k) <= app.RATE_LIMIT_WINDOW_SECONDS + 5 for k in keys)
@@ -274,6 +274,6 @@ def test_app_per_org_counter_is_shared_and_expires(monkeypatch):
         assert app._REDIS_RATE_DOWN_UNTIL[0] > time.monotonic()
     finally:
         app._REDIS_RATE_DOWN_UNTIL[0] = 0.0
-        for k in client.keys(f"pqc:rate:{org_id}:*"):
+        for k in client.keys(f"morrow:rate:{org_id}:*"):
             client.delete(k)
         http.close()

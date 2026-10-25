@@ -1,6 +1,6 @@
 project_id     = "YOUR_CUSTOMER_PROJECT"
 region         = "europe-west1"
-name_prefix    = "pqc-ent"
+name_prefix    = "pq-ent"
 image_tag      = "latest"
 deploy_runtime = false
 

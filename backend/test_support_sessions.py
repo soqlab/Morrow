@@ -33,32 +33,32 @@ def _sha(value):
 def api(tmp_path, monkeypatch):
     import app
 
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "support.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", SECRET)
-    monkeypatch.setenv("PQC_ADMIN_PASSWORD", PASSWORD)
-    monkeypatch.setenv("PQC_ADMIN_EMAIL", "support-admin@example.test")
-    monkeypatch.setenv("PQC_SUPPORT_SESSION_CACHE_SECONDS", "0")
-    monkeypatch.setenv("PQC_PLATFORM_OPERATORS", json.dumps([
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "support.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", SECRET)
+    monkeypatch.setenv("MORROW_ADMIN_PASSWORD", PASSWORD)
+    monkeypatch.setenv("MORROW_ADMIN_EMAIL", "support-admin@example.test")
+    monkeypatch.setenv("MORROW_SUPPORT_SESSION_CACHE_SECONDS", "0")
+    monkeypatch.setenv("MORROW_PLATFORM_OPERATORS", json.dumps([
         {"name": "alice", "role": "owner", "key_sha256": _sha(ALICE)},
         {"name": "olga", "role": "operator", "key_sha256": _sha(OLGA)},
         {"name": "sam", "role": "support", "key_sha256": _sha(SAM)},
         {"name": "audrey", "role": "auditor", "key_sha256": _sha(AUDREY)},
     ]))
-    monkeypatch.delenv("PQC_PLATFORM_ADMIN_KEY_ROLE", raising=False)
+    monkeypatch.delenv("MORROW_PLATFORM_ADMIN_KEY_ROLE", raising=False)
     for name, value in {
         "AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_ISSUER_ENABLED": True,
         "AUTH_JWT_ALGORITHMS": ["HS256"], "AUTH_JWT_SECRET": SECRET,
-        "AUTH_JWT_ISSUER": "pqc-scanner", "AUTH_JWT_AUDIENCE": "pqc-scanner",
+        "AUTH_JWT_ISSUER": "morrow", "AUTH_JWT_AUDIENCE": "morrow",
         "AUTH_USER_ID_CLAIM": "sub", "AUTH_ROLE_CLAIM": "role", "AUTH_ORG_ID_CLAIM": "org_id",
         "_PLATFORM_ADMIN_KEY": LEGACY, "API_KEY": "", "PRODUCTION_ENVIRONMENT": False,
         "RATE_LIMIT_MAX_REQUESTS": 100000,
     }.items():
         monkeypatch.setattr(app, name, value)
     monkeypatch.setattr(auth_issuer, "_SECRET", SECRET)
-    monkeypatch.setattr(auth_issuer, "_ISSUER", "pqc-scanner")
-    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "pqc-scanner")
+    monkeypatch.setattr(auth_issuer, "_ISSUER", "morrow")
+    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "morrow")
     monkeypatch.setattr(auth_issuer, "_ENABLED", True)
     monkeypatch.setattr(app.limiter, "enabled", False)
     app.init_db()
@@ -225,7 +225,7 @@ def test_only_a_hash_of_the_code_is_stored(api):
 def test_token_claims_are_distinct_and_bounded_by_the_session(api):
     client, _ = api
     session, token = open_session(client, minutes=15)
-    claims = jwt.decode(token, SECRET, algorithms=["HS256"], audience="pqc-scanner", issuer="pqc-scanner")
+    claims = jwt.decode(token, SECRET, algorithms=["HS256"], audience="morrow", issuer="morrow")
     assert claims["typ"] == "support_view"
     assert claims["sid"] == session["id"]
     assert claims["role"] == "viewer"
@@ -316,7 +316,7 @@ def test_revocation_is_enforced(api):
 
 def test_revocation_takes_effect_within_the_cache_window(api, monkeypatch):
     client, _ = api
-    monkeypatch.setenv("PQC_SUPPORT_SESSION_CACHE_SECONDS", "30")
+    monkeypatch.setenv("MORROW_SUPPORT_SESSION_CACHE_SECONDS", "30")
     assert support._cache_seconds() == 5.0  # capped
     session, token = open_session(client)
     assert client.get("/assets", headers=bearer(token)).status_code == 200
@@ -340,7 +340,7 @@ def test_expired_jwt_is_rejected(api):
     session, _ = open_session(client)
     now = int(time.time())
     stale = jwt.encode({"typ": "support_view", "sid": session["id"], "sub": "support:x", "role": "viewer", "org_id": ORG,
-                        "iss": "pqc-scanner", "aud": "pqc-scanner", "iat": now - 4000, "exp": now - 10}, SECRET, algorithm="HS256")
+                        "iss": "morrow", "aud": "morrow", "iat": now - 4000, "exp": now - 10}, SECRET, algorithm="HS256")
     assert client.get("/assets", headers=bearer(stale)).status_code == 401
 
 
@@ -348,10 +348,10 @@ def test_forged_or_tampered_tokens_are_rejected(api):
     client, _ = api
     session, token = open_session(client)
     forged = jwt.encode({"typ": "support_view", "sid": session["id"], "sub": "x", "role": "admin", "org_id": ORG,
-                         "iss": "pqc-scanner", "aud": "pqc-scanner", "exp": int(time.time()) + 600}, "wrong-key", algorithm="HS256")
+                         "iss": "morrow", "aud": "morrow", "exp": int(time.time()) + 600}, "wrong-key", algorithm="HS256")
     assert client.get("/assets", headers=bearer(forged)).status_code == 401
     other_org = jwt.encode({"typ": "support_view", "sid": session["id"], "sub": "x", "role": "viewer", "org_id": OTHER,
-                            "iss": "pqc-scanner", "aud": "pqc-scanner", "exp": int(time.time()) + 600}, SECRET, algorithm="HS256")
+                            "iss": "morrow", "aud": "morrow", "exp": int(time.time()) + 600}, SECRET, algorithm="HS256")
     assert client.get("/assets", headers=bearer(other_org)).status_code == 401
 
 

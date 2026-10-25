@@ -1,8 +1,8 @@
 const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
-const base = (process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
-const key = process.env.PQC_E2E_PLATFORM_KEY;
-if (!key) throw new Error("PQC_E2E_PLATFORM_KEY is required for authenticated workspace checks.");
+const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const key = process.env.MORROW_E2E_PLATFORM_KEY;
+if (!key) throw new Error("MORROW_E2E_PLATFORM_KEY is required for authenticated workspace checks.");
 
 // The portal's navigation is grouped dropdown menus; open the group, then pick the page.
 async function openPage(page, group, route) {
@@ -88,11 +88,11 @@ async function main() {
     await page.unroute("**/platform/health");
     await openOperatorMenu(page);
     await page.locator("#saveBtn").click();
-    await page.waitForFunction(() => !!sessionStorage.getItem("pqc_platform_admin_key"));
-    assert.equal(await page.evaluate(() => localStorage.getItem("pqc_platform_key") || localStorage.getItem("pqc_platform_admin_key")), null);
+    await page.waitForFunction(() => !!sessionStorage.getItem("morrow_platform_admin_key"));
+    assert.equal(await page.evaluate(() => localStorage.getItem("morrow_platform_key") || localStorage.getItem("morrow_platform_admin_key")), null);
     await openOperatorMenu(page);
     await page.locator("#clearBtn").click();
-    await page.waitForFunction(() => !sessionStorage.getItem("pqc_platform_admin_key") && document.querySelector("#mCustomers").textContent === "--");
+    await page.waitForFunction(() => !sessionStorage.getItem("morrow_platform_admin_key") && document.querySelector("#mCustomers").textContent === "--");
     assert.equal(await page.locator("#customersBody .customerRow").count(), 0);
     assert.equal(await page.locator("#platformKey").inputValue(), "");
     console.log("Admin navigation, real gate, dependency failure, cancellation, and sign-out checks passed.");
@@ -108,10 +108,10 @@ async function main() {
     await page.waitForFunction(() => document.querySelector("#status").textContent.startsWith("Snapshot"));
     assert.ok((await page.locator("#eventsBody").innerText()).includes("No matching events"), "Refresh preserves event filters");
     await page.locator("#saveBtn").click();
-    await page.waitForFunction(() => !!sessionStorage.getItem("pqc_platform_admin_key"));
-    assert.equal(await page.evaluate(() => localStorage.getItem("pqc_platform_key")), null);
+    await page.waitForFunction(() => !!sessionStorage.getItem("morrow_platform_admin_key"));
+    assert.equal(await page.evaluate(() => localStorage.getItem("morrow_platform_key")), null);
     await page.locator("#signOutBtn").click();
-    await page.waitForFunction(() => !sessionStorage.getItem("pqc_platform_admin_key") && document.querySelector("#mEvents").textContent === "--");
+    await page.waitForFunction(() => !sessionStorage.getItem("morrow_platform_admin_key") && document.querySelector("#mEvents").textContent === "--");
     console.log("Traffic filters and credential cleanup checks passed.");
 
     for (const path of ["/", "/ui/", "/vendor-admin/", "/vendor-admin/traffic.html", "/security", "/pricing", "/enterprise-admin", "/trust-passport-demo"]) {

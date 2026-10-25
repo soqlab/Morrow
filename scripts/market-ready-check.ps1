@@ -1,8 +1,8 @@
 param(
   [string]$BaseUrl = "http://127.0.0.1:8001",
   [string]$EnvFile = "backend\.env",
-  [string]$PlatformKey = $env:PQC_PLATFORM_ADMIN_KEY,
-  [string]$Token = $env:PQC_MARKET_READY_TOKEN,
+  [string]$PlatformKey = $env:MORROW_PLATFORM_ADMIN_KEY,
+  [string]$Token = $env:MORROW_MARKET_READY_TOKEN,
   [switch]$StartLocal,
   [switch]$SkipScanSmoke,
   [switch]$SkipAirlockSmoke,
@@ -64,7 +64,7 @@ function Get-EnvValue {
 }
 
 if (-not $PlatformKey) {
-  $PlatformKey = Get-EnvValue -Name "PQC_PLATFORM_ADMIN_KEY"
+  $PlatformKey = Get-EnvValue -Name "MORROW_PLATFORM_ADMIN_KEY"
 }
 
 $checks = New-Object System.Collections.Generic.List[object]
@@ -140,7 +140,7 @@ if ($SkipAirlockSmoke) {
     $ready = Invoke-RestMethod -Uri "$BaseUrl/airlock/enterprise-readiness" -Headers $headers -TimeoutSec 20
     if (-not $ready.kind) { throw "Airlock readiness did not return a valid response" }
     $agent = Invoke-RestMethod -Uri "$BaseUrl/airlock/agent-package" -Method Post -Headers $headers -ContentType "application/json" -Body '{"customer_id":"market-ready","deployment_mode":"read_only","allow_write_actions":false}' -TimeoutSec 30
-    if (-not $agent.artifacts.'pqc_airlock_agent.py') { throw "Airlock agent package did not include collector source" }
+    if (-not $agent.artifacts.'morrow_airlock_agent.py') { throw "Airlock agent package did not include collector source" }
     $sim = Invoke-RestMethod -Uri "$BaseUrl/airlock/change-simulator" -Method Post -Headers $headers -ContentType "application/json" -Body '{"rollout_percent":10,"services":[{"name":"legacy-api","algorithm":"TLS_RSA_WITH_AES_128_CBC_SHA","supports_hybrid_tls":false}]}' -TimeoutSec 30
     if ($sim.payload.no_change_applied -ne $true) { throw "Airlock simulator must be no-change by default" }
   }))
@@ -154,9 +154,9 @@ if ($SkipAirlockSmoke) {
   })
 }
 
-if ($PlatformKey -or $env:PQC_OPERATOR_SESSION) {
+if ($PlatformKey -or $env:MORROW_OPERATOR_SESSION) {
   $checks.Add((Invoke-CommandCheck "go_live_gate" {
-    Invoke-LaunchScript -ScriptPath (Join-Path $PSScriptRoot "check-go-live-gate.ps1") -Arguments @("-BaseUrl", $BaseUrl) -PlatformKey $PlatformKey -OperatorSession $env:PQC_OPERATOR_SESSION
+    Invoke-LaunchScript -ScriptPath (Join-Path $PSScriptRoot "check-go-live-gate.ps1") -Arguments @("-BaseUrl", $BaseUrl) -PlatformKey $PlatformKey -OperatorSession $env:MORROW_OPERATOR_SESSION
   }))
 } else {
   $checks.Add([pscustomobject]@{
@@ -164,7 +164,7 @@ if ($PlatformKey -or $env:PQC_OPERATOR_SESSION) {
     status = "skip"
     duration_seconds = 0
     output = ""
-    error = "PQC_PLATFORM_ADMIN_KEY not available"
+    error = "MORROW_PLATFORM_ADMIN_KEY not available"
   })
 }
 
@@ -176,14 +176,14 @@ if ($SkipReleaseEvidence) {
     output = ""
     error = "Skipped by -SkipReleaseEvidence"
   })
-} elseif ($PlatformKey -or $env:PQC_OPERATOR_SESSION) {
+} elseif ($PlatformKey -or $env:MORROW_OPERATOR_SESSION) {
   $checks.Add((Invoke-CommandCheck "release_evidence_bundle" {
     $args = @(
       "-BaseUrl", $BaseUrl
     )
     if ($RunBrowserSmoke) { $args += "-RunBrowserSmoke" }
     if (-not $IsLocalBaseUrl) { $args += "-ExpectHsts" }
-    Invoke-LaunchScript -ScriptPath (Join-Path $PSScriptRoot "release-evidence-bundle.ps1") -Arguments $args -PlatformKey $PlatformKey -OperatorSession $env:PQC_OPERATOR_SESSION
+    Invoke-LaunchScript -ScriptPath (Join-Path $PSScriptRoot "release-evidence-bundle.ps1") -Arguments $args -PlatformKey $PlatformKey -OperatorSession $env:MORROW_OPERATOR_SESSION
   }))
 } else {
   $checks.Add([pscustomobject]@{
@@ -191,7 +191,7 @@ if ($SkipReleaseEvidence) {
     status = "skip"
     duration_seconds = 0
     output = ""
-    error = "PQC_PLATFORM_ADMIN_KEY not available"
+    error = "MORROW_PLATFORM_ADMIN_KEY not available"
   })
 }
 

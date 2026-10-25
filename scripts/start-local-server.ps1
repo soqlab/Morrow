@@ -10,7 +10,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $BackendDir = Join-Path $RepoRoot "backend"
 $Python = Join-Path $BackendDir ".venv\Scripts\python.exe"
-$PidFile = Join-Path $BackendDir ".pqc-server.pid"
+$PidFile = Join-Path $BackendDir ".pq-server.pid"
 $OutLog = Join-Path $BackendDir "uvicorn-$Port.out.log"
 $ErrLog = Join-Path $BackendDir "uvicorn-$Port.err.log"
 $EnvPath = Join-Path $RepoRoot $EnvFile
@@ -94,7 +94,7 @@ function Stop-ExistingServer {
   }
   foreach ($target in ($targets | Sort-Object Id -Unique)) {
     if (Get-Process -Id $target.Id -ErrorAction SilentlyContinue) {
-      Write-Host "Stopping managed PQC server process $($target.Id)"
+      Write-Host "Stopping managed post-quantum server process $($target.Id)"
       Stop-Process -Id $target.Id -Force -ErrorAction SilentlyContinue
     }
   }

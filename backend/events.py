@@ -88,35 +88,35 @@ def _notification_text(event_type: str, payload: Dict[str, Any]) -> str:
 
     if event_type == "validation.failed":
         return (
-            f"[PQC] validation failed for remediation #{rid or '?'} "
+            f"[post-quantum] validation failed for remediation #{rid or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'} "
             f"exit={exit_code if exit_code is not None else '?'}"
         )
     if event_type == "remediation.merged":
         return (
-            f"[PQC] remediation merged #{rid or '?'} "
+            f"[post-quantum] remediation merged #{rid or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'} "
             f"{pr_url or ''}"
         ).strip()
     if event_type == "remediation.drifted":
         return (
-            f"[PQC] drift detected for remediation #{rid or '?'} "
+            f"[post-quantum] drift detected for remediation #{rid or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'} "
             f"{pr_url or ''}"
         ).strip()
     if event_type == "remediation.drift_followup_created":
         followup_id = str(payload.get("followup_remediation_id") or "").strip()
         return (
-            f"[PQC] drift follow-up created parent=#{rid or '?'} followup=#{followup_id or '?'} "
+            f"[post-quantum] drift follow-up created parent=#{rid or '?'} followup=#{followup_id or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'}"
         ).strip()
     if event_type == "remediation.drift_acknowledged":
         actor_id = str(payload.get("actor_id") or "").strip()
         return (
-            f"[PQC] drift acknowledged for remediation #{rid or '?'} "
+            f"[post-quantum] drift acknowledged for remediation #{rid or '?'} "
             f"asset={asset_key or '-'} by={actor_id or '-'}"
         ).strip()
-    return f"[PQC] {event_type}: {json.dumps(payload, sort_keys=True)[:400]}"
+    return f"[post-quantum] {event_type}: {json.dumps(payload, sort_keys=True)[:400]}"
 
 
 def _delivery_payload(webhook: Dict[str, Any], event_type: str, dedupe_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -287,13 +287,13 @@ def build_events_for_scan(scan_id: str) -> List[Dict[str, Any]]:
                 },
             })
 
-        # pqc.not_ready
-        if "PQC_RSA_ENDPOINT" in rule_ids or "PQC_EC_ENDPOINT" in rule_ids:
-            sigs = sorted([x for x in ("PQC_RSA_ENDPOINT", "PQC_EC_ENDPOINT") if x in rule_ids])
+        # pq.not_ready
+        if "MORROW_RSA_ENDPOINT" in rule_ids or "MORROW_EC_ENDPOINT" in rule_ids:
+            sigs = sorted([x for x in ("MORROW_RSA_ENDPOINT", "MORROW_EC_ENDPOINT") if x in rule_ids])
             fp = ",".join(sigs)
             events.append({
-                "event_type": "pqc.not_ready",
-                "dedupe_key": _sha256_hex(f"pqc.not_ready:{ak}:{fp}"),
+                "event_type": "pq.not_ready",
+                "dedupe_key": _sha256_hex(f"pq.not_ready:{ak}:{fp}"),
                 "payload": {"scan_id": scan_id, "asset_key": ak, "host": host, "port": port, "signals": sigs, "finding_ids": sorted(rule_ids)},
             })
 
@@ -404,12 +404,12 @@ def _event_matches_rule(event_type: str, payload: Dict[str, Any], rule: Dict[str
 
 def _effective_fire_mode(event_type: str, rule: Dict[str, Any]) -> str:
     # Point 3: if a rule hasn't been updated with fire_mode yet,
-    # default cert/pqc/regression style events to state_change to reduce noise.
+    # default cert/pq/regression style events to state_change to reduce noise.
     mode = str(rule.get("fire_mode") or "").strip().lower()
     if not mode or mode == "always":
         if event_type.startswith("cert."):
             return "state_change"
-        if event_type in ("scan.regression", "pqc.not_ready"):
+        if event_type in ("scan.regression", "pq.not_ready"):
             return "state_change"
         return "always"
     return mode
@@ -452,9 +452,9 @@ def _post_json(
     - For 2xx responses, we still read up to max_read_bytes so we can capture a snippet for debugging.
     - For non-2xx responses urllib raises HTTPError; callers should handle it and can still read the body.
     """
-    headers = {"Content-Type": "application/json", "X-PQC-Event": event_type}
+    headers = {"Content-Type": "application/json", "X-Morrow-Event": event_type}
     if secret:
-        headers["X-PQC-Signature"] = _hmac_sig(secret, body)
+        headers["X-Morrow-Signature"] = _hmac_sig(secret, body)
     req = request.Request(url, data=body, headers=headers, method="POST")
     with request.urlopen(req, timeout=timeout_s) as resp:
         code = int(getattr(resp, "status", 200) or 200)
@@ -515,7 +515,7 @@ def drain_webhook_delivery_queue(limit: int = 200, max_attempts: int = 5) -> Dic
         worker_id = "worker"
         _os = None  # type: ignore
     try:
-        lease_seconds = int((_os.getenv("PQC_WEBHOOK_LEASE_SECONDS", "600") if _os else "600"))
+        lease_seconds = int((_os.getenv("MORROW_WEBHOOK_LEASE_SECONDS", "600") if _os else "600"))
     except Exception:
         lease_seconds = 600
 

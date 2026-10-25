@@ -2,7 +2,7 @@
 Cloud Asset Discovery — AWS · GCP · Azure
 
 Discovers TLS-bearing endpoints from cloud provider APIs and returns
-them as a list of targets ready for PQC scanning.
+them as a list of targets ready for post-quantum scanning.
 
 All implementations use only stdlib (urllib + hashlib + hmac + base64).
 boto3 / google-auth / azure-identity are NOT required.

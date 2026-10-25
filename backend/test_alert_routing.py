@@ -137,12 +137,12 @@ def net(monkeypatch):
 def api(tmp_path, monkeypatch, net):
     import app
 
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "alerts.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.delenv("PQC_PLATFORM_OPERATORS", raising=False)
-    monkeypatch.delenv("PQC_PLATFORM_ADMIN_KEY_ROLE", raising=False)
-    for name in ("PQC_ALERT_RATE_CAP", "PQC_ALERT_RENOTIFY_HOURS", "PQC_ALERT_RATE_WINDOW_MINUTES", "PQC_SMTP_HOST", "PQC_PUBLIC_BASE_URL"):
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "alerts.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.delenv("MORROW_PLATFORM_OPERATORS", raising=False)
+    monkeypatch.delenv("MORROW_PLATFORM_ADMIN_KEY_ROLE", raising=False)
+    for name in ("MORROW_ALERT_RATE_CAP", "MORROW_ALERT_RENOTIFY_HOURS", "MORROW_ALERT_RATE_WINDOW_MINUTES", "MORROW_SMTP_HOST", "MORROW_PUBLIC_BASE_URL"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(app, "_PLATFORM_ADMIN_KEY", LEGACY)
     monkeypatch.setattr(app, "PRODUCTION_ENVIRONMENT", False)
@@ -246,10 +246,10 @@ def test_secrets_are_encrypted_at_rest_and_never_returned(api):
 
 def test_secret_channels_need_the_vault_key(api, monkeypatch):
     client, _ = api
-    monkeypatch.delenv("PQC_VAULT_MASTER_KEY", raising=False)
+    monkeypatch.delenv("MORROW_VAULT_MASTER_KEY", raising=False)
     res = client.post("/platform/alert-channels", headers=headers("operator"),
                       json={"kind": "slack_webhook", "name": "S", "target": SLACK_URL, "reason": "route"})
-    assert res.status_code == 503 and "PQC_VAULT_MASTER_KEY" in res.json()["detail"]
+    assert res.status_code == 503 and "MORROW_VAULT_MASTER_KEY" in res.json()["detail"]
     email = client.post("/platform/alert-channels", headers=headers("operator"),
                         json={"kind": "email", "name": "Mail", "target": ["oncall@example.com"], "reason": "route"})
     assert email.status_code == 200, email.text
@@ -333,7 +333,7 @@ def test_dispatcher_dedupes_and_renotifies_after_the_window(api, net):
 
 def test_renotify_window_is_configurable(api, net, monkeypatch):
     client, _ = api
-    monkeypatch.setenv("PQC_ALERT_RENOTIFY_HOURS", "2")
+    monkeypatch.setenv("MORROW_ALERT_RENOTIFY_HOURS", "2")
     make_channel(client)
     items = [item("sla_breach:1")]
     ar.run_once(snapshot(items), now=NOW)
@@ -448,7 +448,7 @@ def test_a_resolve_that_fails_on_delete_is_retried_by_the_dispatcher(api, net, m
 
 def test_a_resolve_is_given_up_on_after_the_attempt_limit(api, net, monkeypatch):
     client, _ = api
-    monkeypatch.setenv("PQC_ALERT_RESOLVE_MAX_ATTEMPTS", "2")
+    monkeypatch.setenv("MORROW_ALERT_RESOLVE_MAX_ATTEMPTS", "2")
     channel = make_channel(client, kind="pagerduty", name="PD", target=PD_KEY, min_severity="warn")
     ar.run_once(snapshot([item("sla_breach:7")]), now=NOW)
     fail_resolves(net, monkeypatch)
@@ -509,7 +509,7 @@ def test_deleting_a_non_pagerduty_channel_resolves_nothing(api, net, kind, targe
 
 def test_rate_cap_sends_one_digest_for_the_overflow(api, net, monkeypatch):
     client, _ = api
-    monkeypatch.setenv("PQC_ALERT_RATE_CAP", "5")
+    monkeypatch.setenv("MORROW_ALERT_RATE_CAP", "5")
     make_channel(client)
     items = [item(f"security_finding:{i}", severity="critical" if i < 3 else "warn", kind="security_finding",
                   created_at=f"2026-09-16T10:{i:02d}:00Z") for i in range(12)]
@@ -593,8 +593,8 @@ def test_kinds_filter_and_disabled_channels(api, net):
 
 def test_email_channel_sends_a_plain_message(api, net, monkeypatch):
     client, _ = api
-    monkeypatch.setenv("PQC_SMTP_HOST", "smtp.example.test")
-    monkeypatch.setenv("PQC_SMTP_FROM", "alerts@example.test")
+    monkeypatch.setenv("MORROW_SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("MORROW_SMTP_FROM", "alerts@example.test")
     make_channel(client, kind="email", name="Mail", target=["oncall@example.com", "sec@example.com"])
     ar.run_once(snapshot([item("sla_breach:1")]), now=NOW)
     assert len(net.emails) == 1

@@ -25,17 +25,17 @@ SERVICE_TESTS = ["test_integration_secrets.py", "test_redis_integration.py"]
 
 
 def run(suite="postgres"):
-    directory = Path(tempfile.mkdtemp(prefix="pqc-production-check-"))
+    directory = Path(tempfile.mkdtemp(prefix="pq-production-check-"))
     containers = []
     password = secrets.token_urlsafe(32)
     env = {key: value for key, value in os.environ.items()
-           if not key.upper().startswith(("PQC_", "OPENAI_", "ANTHROPIC_", "CELERY_", "SENTRY_", "OTEL_",
+           if not key.upper().startswith(("MORROW_", "OPENAI_", "ANTHROPIC_", "CELERY_", "SENTRY_", "OTEL_",
                                           "GITHUB_", "AWS_", "AZURE_", "GOOGLE_", "GCLOUD_", "CLOUDSDK_", "PG"))}
     env.update({"POSTGRES_PASSWORD": password, "PYTHON_DOTENV_DISABLED": "1", "DATABASE_URL": "",
-                "REDIS_URL": "", "PQC_PRODUCT_DATABASE_URL": "", "PQC_ENVIRONMENT": "test",
-                "PQC_MAIN_DB_BACKEND": "sqlite", "PQC_FEATURE_STORE_BACKEND": "sqlite",
-                "PQC_SCANNER_DB": str(directory / "unit-tests.db"), "PQC_AUTH_MODE": "headers",
-                "PQC_AUTH_REQUIRED": "0", "OPENAI_API_KEY": "", "ANTHROPIC_API_KEY": ""})
+                "REDIS_URL": "", "MORROW_PRODUCT_DATABASE_URL": "", "MORROW_ENVIRONMENT": "test",
+                "MORROW_MAIN_DB_BACKEND": "sqlite", "MORROW_FEATURE_STORE_BACKEND": "sqlite",
+                "MORROW_SCANNER_DB": str(directory / "unit-tests.db"), "MORROW_AUTH_MODE": "headers",
+                "MORROW_AUTH_REQUIRED": "0", "OPENAI_API_KEY": "", "ANTHROPIC_API_KEY": ""})
     print(json.dumps({"suite": suite, "artifacts": str(directory), "status": "running"}), flush=True)
 
     def docker(*args, timeout=120):
@@ -49,16 +49,16 @@ def run(suite="postgres"):
 
     try:
         docker("info", "--format", "{{.ServerVersion}}")
-        container = docker("run", "--detach", "--name", "pqc-check-" + uuid.uuid4().hex,
-                           "--label", "pqc.purpose=disposable-production-check", "--publish", "127.0.0.1::5432",
-                           "--env", "POSTGRES_PASSWORD", "--env", "POSTGRES_DB=pqc_check", "postgres:16-alpine")
+        container = docker("run", "--detach", "--name", "pq-check-" + uuid.uuid4().hex,
+                           "--label", "pq.purpose=disposable-production-check", "--publish", "127.0.0.1::5432",
+                           "--env", "POSTGRES_PASSWORD", "--env", "POSTGRES_DB=pq_check", "postgres:16-alpine")
         if not re.fullmatch(r"[a-f0-9]{64}", container):
             raise RuntimeError("Unexpected Docker container ID; manual cleanup may be needed")
         containers.append(container)
         port = docker("port", container, "5432/tcp").split(":")[-1]
         for attempt in range(10):
             try:
-                probe = subprocess.run(["docker", "exec", container, "pg_isready", "-U", "postgres", "-d", "pqc_check"],
+                probe = subprocess.run(["docker", "exec", container, "pg_isready", "-U", "postgres", "-d", "pq_check"],
                                        capture_output=True, timeout=30, check=False)
                 if not probe.returncode:
                     break
@@ -67,12 +67,12 @@ def run(suite="postgres"):
             if attempt == 9:
                 raise RuntimeError("Disposable PostgreSQL did not become ready")
             time.sleep(1)
-        env["PQC_TEST_PG_DSN"] = f"postgresql://postgres:{password}@127.0.0.1:{port}/pqc_check?connect_timeout=10"
+        env["MORROW_TEST_PG_DSN"] = f"postgresql://postgres:{password}@127.0.0.1:{port}/pq_check?connect_timeout=10"
         if suite == "services":
-            env.update({"DATABASE_URL": env["PQC_TEST_PG_DSN"], "PQC_DEFAULT_ROLE": "admin",
+            env.update({"DATABASE_URL": env["MORROW_TEST_PG_DSN"], "MORROW_DEFAULT_ROLE": "admin",
                         "REDIS_PASSWORD": secrets.token_urlsafe(32)})
-            redis_container = docker("run", "--detach", "--name", "pqc-redis-check-" + uuid.uuid4().hex,
-                                     "--label", "pqc.purpose=disposable-production-check",
+            redis_container = docker("run", "--detach", "--name", "pq-redis-check-" + uuid.uuid4().hex,
+                                     "--label", "pq.purpose=disposable-production-check",
                                      "--publish", "127.0.0.1::6379", "--env", "REDIS_PASSWORD",
                                      "redis:7-alpine", "sh", "-c",
                                      'exec redis-server --requirepass "$REDIS_PASSWORD" --save "" --appendonly no')
@@ -90,7 +90,7 @@ def run(suite="postgres"):
                 if attempt == 9:
                     raise RuntimeError("Disposable Redis did not become ready")
                 time.sleep(1)
-            env["PQC_TEST_REDIS_URL"] = f"redis://:{env['REDIS_PASSWORD']}@127.0.0.1:{redis_port}/1"
+            env["MORROW_TEST_REDIS_URL"] = f"redis://:{env['REDIS_PASSWORD']}@127.0.0.1:{redis_port}/1"
         tests = PG_TESTS if suite == "postgres" else SERVICE_TESTS if suite == "services" else []
         xml = directory / "tests.xml"
         with (directory / "pytest.log").open("wb") as output:

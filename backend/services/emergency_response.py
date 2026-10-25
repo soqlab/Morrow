@@ -45,7 +45,7 @@ _EMERGENCY_TYPES: Dict[str, Dict[str, Any]] = {
     },
     "regulatory": {
         "name": "Regulatory Mandate",
-        "description": "Emergency PQC compliance mandate issued (e.g., CISA emergency directive)",
+        "description": "Emergency post-quantum compliance mandate issued (e.g., CISA emergency directive)",
         "severity": "high",
         "color": "#facc15",
         "urgency": "Compliance required by mandate deadline; non-compliance = sanctions",
@@ -224,7 +224,7 @@ def _build_phases(
             "deadline": "Within 4 hours",
             "owner": "Security Engineering",
             "tasks": [
-                f"Generate replacement configs for top {min(5, len(critical))} critical assets using PQC Config Generator",
+                f"Generate replacement configs for top {min(5, len(critical))} critical assets using post-quantum Config Generator",
                 "Identify which assets carry long-lived sensitive data (HNDL priority)",
                 "Assign migration owners per asset (max 3 assets per engineer)",
                 "Stand up test environment with X25519MLKEM768 TLS",
@@ -239,7 +239,7 @@ def _build_phases(
             "tasks": [
                 f"Migrate {len(critical)} critical-risk endpoints to X25519MLKEM768",
                 "Deploy ML-DSA-65 certificates on externally-facing services",
-                "Verify PQC negotiation with: openssl s_client -groups X25519MLKEM768",
+                "Verify post-quantum negotiation with: openssl s_client -groups X25519MLKEM768",
                 "Update canary tokens on migrated endpoints",
                 "Scan and confirm migration success via Morrow",
             ],
@@ -252,7 +252,7 @@ def _build_phases(
             "owner": "Engineering Team",
             "tasks": [
                 f"Migrate {len(high)} high-risk endpoints",
-                "Update all internal API-to-API communication to use PQC",
+                "Update all internal API-to-API communication to use post-quantum",
                 "Rotate all certificate authority (CA) keys if algorithm break type",
                 "Run compliance scan and update FIPS 203/204/205 report",
             ],
@@ -266,7 +266,7 @@ def _build_phases(
             "tasks": [
                 f"Migrate {len(medium)} medium-risk and {len(other)} remaining endpoints",
                 "Update developer documentation and internal runbooks",
-                "CI/CD gate enforcing PQC-only algorithms for new deployments",
+                "CI/CD gate enforcing post-quantum-only algorithms for new deployments",
                 "Board update: migration progress, remaining exposure, cost summary",
                 "Publish updated CBOM and compliance report",
             ],
@@ -304,7 +304,7 @@ def _build_comms(etype: str, vuln_count: int, event: Dict) -> List[Dict[str, Any
             "timing": "T+0h",
             "channel": "Slack / Teams war room channel",
             "message": "Crypto emergency declared. Freeze all RSA/ECDH deployments. "
-                       "Report to #pqc-emergency channel. Migration configs in Morrow.",
+                       "Report to #pq-emergency channel. Migration configs in Morrow.",
             "format": "Instant message + pinned instructions",
         },
         {

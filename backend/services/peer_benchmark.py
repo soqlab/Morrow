@@ -28,7 +28,7 @@ _SECTOR_LABELS: Dict[str, str] = {
 }
 
 _UNAVAILABLE_REASON = (
-    "Peer benchmarking is not available: no data source with other organizations' PQC posture is connected, "
+    "Peer benchmarking is not available: no data source with other organizations' Post-quantum posture is connected, "
     "so no percentile, quartile, or cross-organization comparison can be computed."
 )
 

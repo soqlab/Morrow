@@ -81,7 +81,7 @@ def _now() -> str:
 
 
 def _db_identity() -> str:
-    return str(os.getenv("PQC_SCANNER_DB", "") or os.getenv("DATABASE_URL", "") or "default")
+    return str(os.getenv("MORROW_SCANNER_DB", "") or os.getenv("DATABASE_URL", "") or "default")
 
 
 def init_tables() -> None:
@@ -314,7 +314,7 @@ def trial_caps() -> Tuple[int, int]:
         except (TypeError, ValueError):
             return default
 
-    return value("PQC_TRIAL_API_CALLS_PER_MIN", 0), value("PQC_TRIAL_SCANS_PER_HOUR", 0)
+    return value("MORROW_TRIAL_API_CALLS_PER_MIN", 0), value("MORROW_TRIAL_SCANS_PER_HOUR", 0)
 
 
 def approve(request_id: str, operator: str, organization_name: str = "", plan_type: str = "trial",

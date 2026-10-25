@@ -99,7 +99,7 @@ def _exposure_for_port(port: int, key_type: str = "") -> float:
     kt = (key_type or "").lower()
     if "rsa" in kt or "dh" in kt or "ecc" in kt or "ec" in kt:
         return base * 1.2
-    if "ml-kem" in kt or "kyber" in kt or "pqc" in kt:
+    if "ml-kem" in kt or "kyber" in kt or "pq" in kt:
         return base * 0.05
     return base
 
@@ -408,14 +408,14 @@ def export_graph_report(graph: Dict[str, Any], org_id: str = "") -> Dict[str, An
 _Q_DAY_PROBS_BR: Dict[str, Dict[int, float]] = {
     "rsa": {2027: 0.01, 2028: 0.03, 2029: 0.07, 2030: 0.15, 2031: 0.28, 2032: 0.45, 2033: 0.65, 2034: 0.80, 2035: 0.92},
     "ec":  {2027: 0.02, 2028: 0.05, 2029: 0.12, 2030: 0.25, 2031: 0.42, 2032: 0.62, 2033: 0.78, 2034: 0.90, 2035: 0.96},
-    "pqc": {2027: 0.00, 2028: 0.00, 2029: 0.00, 2030: 0.00, 2031: 0.01, 2032: 0.01, 2033: 0.02, 2034: 0.02, 2035: 0.02},
+    "pq": {2027: 0.00, 2028: 0.00, 2029: 0.00, 2030: 0.00, 2031: 0.01, 2032: 0.01, 2033: 0.02, 2034: 0.02, 2035: 0.02},
 }
 
 
 def _q_day_prob(key_type: str, q_day_year: int) -> float:
     kt = (key_type or "").lower()
     if "ml-kem" in kt or "kyber" in kt or "slh" in kt or "dilithium" in kt:
-        table = _Q_DAY_PROBS_BR["pqc"]
+        table = _Q_DAY_PROBS_BR["pq"]
     elif "ec" in kt or "ecdsa" in kt or "ecdh" in kt:
         table = _Q_DAY_PROBS_BR["ec"]
     else:

@@ -6,7 +6,7 @@ def test_evaluate_rls_state_passes_when_tables_and_role_are_safe():
         {"relname": "assets", "relrowsecurity": True, "relforcerowsecurity": True},
         {"relname": "scans", "relrowsecurity": True, "relforcerowsecurity": True},
     ]
-    role = {"role_name": "pqc_app", "rolsuper": False, "rolbypassrls": False}
+    role = {"role_name": "morrow_app", "rolsuper": False, "rolbypassrls": False}
 
     result = evaluate_rls_state(tables, role, expected_tables=["assets", "scans"])
 

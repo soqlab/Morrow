@@ -39,7 +39,7 @@ def test_python_rsa_keygen_is_detected():
 
     findings = scan_file("app.py", content)
 
-    assert "PQC-010" in _rule_ids(findings), f"RSA keygen not detected: {_rule_ids(findings)}"
+    assert "MORROW-010" in _rule_ids(findings), f"RSA keygen not detected: {_rule_ids(findings)}"
 
 
 def test_python_ec_keygen_is_detected():
@@ -50,7 +50,7 @@ def test_python_ec_keygen_is_detected():
 
     findings = scan_file("crypto.py", content)
 
-    assert "PQC-011" in _rule_ids(findings), f"EC keygen not detected: {_rule_ids(findings)}"
+    assert "MORROW-011" in _rule_ids(findings), f"EC keygen not detected: {_rule_ids(findings)}"
 
 
 def test_javascript_rsa_keygen_is_detected():
@@ -61,7 +61,7 @@ def test_javascript_rsa_keygen_is_detected():
 
     findings = scan_file("keys.js", content)
 
-    assert "PQC-012" in _rule_ids(findings), f"JS RSA keygen not detected: {_rule_ids(findings)}"
+    assert "MORROW-012" in _rule_ids(findings), f"JS RSA keygen not detected: {_rule_ids(findings)}"
 
 
 def test_go_rsa_keygen_is_detected():
@@ -69,7 +69,7 @@ def test_go_rsa_keygen_is_detected():
 
     findings = scan_file("main.go", content)
 
-    assert "PQC-013" in _rule_ids(findings), f"Go RSA keygen not detected: {_rule_ids(findings)}"
+    assert "MORROW-013" in _rule_ids(findings), f"Go RSA keygen not detected: {_rule_ids(findings)}"
 
 
 def test_java_rsa_keygen_is_detected():
@@ -77,14 +77,14 @@ def test_java_rsa_keygen_is_detected():
 
     findings = scan_file("K.java", content)
 
-    assert "PQC-014" in _rule_ids(findings), f"Java RSA keygen not detected: {_rule_ids(findings)}"
+    assert "MORROW-014" in _rule_ids(findings), f"Java RSA keygen not detected: {_rule_ids(findings)}"
 
 
 def test_undersized_key_is_detected():
     """A 1024-bit key is a different severity of problem from a 2048-bit one."""
     findings = scan_file("legacy.py", "key = rsa.generate_private_key(key_size=1024)\n")
 
-    assert "PQC-020" in _rule_ids(findings), f"1024-bit key not detected: {_rule_ids(findings)}"
+    assert "MORROW-020" in _rule_ids(findings), f"1024-bit key not detected: {_rule_ids(findings)}"
 
 
 def test_hardcoded_private_key_block_is_detected():
@@ -92,25 +92,25 @@ def test_hardcoded_private_key_block_is_detected():
 
     findings = scan_file("secrets.py", content)
 
-    assert "PQC-001" in _rule_ids(findings), f"embedded private key not detected: {_rule_ids(findings)}"
+    assert "MORROW-001" in _rule_ids(findings), f"embedded private key not detected: {_rule_ids(findings)}"
 
 
 def test_rs256_jwt_algorithm_is_detected():
     findings = scan_file("auth.json", '{ "algorithm": "RS256" }\n')
 
-    assert "PQC-030" in _rule_ids(findings), f"RS256 not detected: {_rule_ids(findings)}"
+    assert "MORROW-030" in _rule_ids(findings), f"RS256 not detected: {_rule_ids(findings)}"
 
 
 def test_weak_tls_cipher_configuration_is_detected():
     findings = scan_file("nginx.conf", "ssl_ciphers RC4:DES:3DES;\n")
 
-    assert "PQC-041" in _rule_ids(findings), f"weak ciphers not detected: {_rule_ids(findings)}"
+    assert "MORROW-041" in _rule_ids(findings), f"weak ciphers not detected: {_rule_ids(findings)}"
 
 
 def test_dockerfile_copying_a_private_key_is_detected():
     findings = scan_file("Dockerfile", "FROM alpine\nCOPY server.key /etc/ssl/private.key\n")
 
-    assert "PQC-060" in _rule_ids(findings), f"key COPY not detected: {_rule_ids(findings)}"
+    assert "MORROW-060" in _rule_ids(findings), f"key COPY not detected: {_rule_ids(findings)}"
 
 
 # =============================================================================================
@@ -129,7 +129,7 @@ def test_post_quantum_code_is_not_flagged_as_vulnerable():
         "key, ct = ML_KEM_768.encaps(ek)\n"
     )
 
-    findings = scan_file("pqc.py", content)
+    findings = scan_file("pq.py", content)
 
     assert not findings, f"post-quantum code was flagged: {findings}"
 
@@ -164,7 +164,7 @@ def test_python_rules_do_not_fire_on_other_languages():
 
     findings = scan_file("notes.md", python_only_source)
 
-    assert "PQC-010" not in _rule_ids(findings), (
+    assert "MORROW-010" not in _rule_ids(findings), (
         f"a Python-only rule fired on a Markdown file: {_rule_ids(findings)}"
     )
 
@@ -326,10 +326,10 @@ def test_benign_environment_variables_are_not_reported():
 
 
 def test_ast_scanner_does_not_flag_post_quantum_keygen_as_rsa():
-    """A PQC keygen call may be worth inventorying, but never as a quantum-vulnerable RSA finding."""
+    """A post-quantum keygen call may be worth inventorying, but never as a quantum-vulnerable RSA finding."""
     content = "from kyber_py.ml_kem import ML_KEM_768\nek, dk = ML_KEM_768.keygen()\n"
 
-    findings = scan_python_source("pqc.py", content)
+    findings = scan_python_source("pq.py", content)
 
     for f in findings:
         blob = f"{f.get('rule_name', '')} {f.get('recommendation', '')}".lower()

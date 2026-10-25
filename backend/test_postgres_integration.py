@@ -2,12 +2,12 @@
 routing, operator SSO/MFA, API keys, token revocation, announcements, invitations and vault key rotation.
 
 Everything else in the suite runs these modules on SQLite. This file runs the real functions with
-PQC_MAIN_DB_BACKEND=postgres and PQC_FEATURE_STORE_BACKEND=postgres against a private database created for the
+MORROW_MAIN_DB_BACKEND=postgres and MORROW_FEATURE_STORE_BACKEND=postgres against a private database created for the
 run (and dropped afterwards), including the concurrency paths SQLite cannot show: claim races, the dispatcher
-lease, and webhook claims. Skipped unless PQC_TEST_PG_DSN names a disposable server whose role may create
+lease, and webhook claims. Skipped unless MORROW_TEST_PG_DSN names a disposable server whose role may create
 databases:
 
-    PQC_TEST_PG_DSN=postgresql://pqc:pqctest@127.0.0.1:55432/pqc_test python -m pytest -q test_postgres_integration.py
+    MORROW_TEST_PG_DSN=postgresql://morrow:pqtest@127.0.0.1:55432/pq_test python -m pytest -q test_postgres_integration.py
 """
 
 import importlib.util
@@ -23,8 +23,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-PG_DSN = os.getenv("PQC_TEST_PG_DSN", "").strip()
-pytestmark = pytest.mark.skipif(not PG_DSN, reason="set PQC_TEST_PG_DSN to run against a real Postgres")
+PG_DSN = os.getenv("MORROW_TEST_PG_DSN", "").strip()
+pytestmark = pytest.mark.skipif(not PG_DSN, reason="set MORROW_TEST_PG_DSN to run against a real Postgres")
 
 BACKEND = pathlib.Path(__file__).resolve().parent
 UTC = timezone.utc
@@ -60,16 +60,16 @@ def _reset_module_caches():
 def pg(tmp_path_factory):
     from psycopg2.extensions import make_dsn
 
-    name = "pqc_it_" + uuid.uuid4().hex[:10]
+    name = "pq_it_" + uuid.uuid4().hex[:10]
     admin = _admin_conn()
     admin.cursor().execute(f"CREATE DATABASE {name}")
     admin.close()
     dsn = make_dsn(PG_DSN, dbname=name)
     mp = pytest.MonkeyPatch()
     sqlite_path = str(tmp_path_factory.mktemp("pg-it") / "sqlite-side.db")
-    for key, value in {"PQC_MAIN_DB_BACKEND": "postgres", "PQC_FEATURE_STORE_BACKEND": "postgres", "DATABASE_URL": dsn,
-                       "PQC_PRODUCT_DATABASE_URL": dsn, "PQC_SCANNER_DB": sqlite_path, "PQC_ENVIRONMENT": "local",
-                       "PQC_SUPPORT_SESSION_CACHE_SECONDS": "0", "PQC_API_KEY_CACHE_SECONDS": "0"}.items():
+    for key, value in {"MORROW_MAIN_DB_BACKEND": "postgres", "MORROW_FEATURE_STORE_BACKEND": "postgres", "DATABASE_URL": dsn,
+                       "MORROW_PRODUCT_DATABASE_URL": dsn, "MORROW_SCANNER_DB": sqlite_path, "MORROW_ENVIRONMENT": "local",
+                       "MORROW_SUPPORT_SESSION_CACHE_SECONDS": "0", "MORROW_API_KEY_CACHE_SECONDS": "0"}.items():
         mp.setenv(key, value)
     _reset_module_caches()
     import db
@@ -308,8 +308,8 @@ def test_usage_rollups_backfill_idempotent_and_concurrent(pg, monkeypatch):
     from db_feature_store import feature_conn
     from services import security_journal, usage_rollups
 
-    monkeypatch.setenv("PQC_TRAFFIC_RETENTION_DAYS", "30")
-    monkeypatch.setenv("PQC_AUTH_LOG_RETENTION_DAYS", "30")
+    monkeypatch.setenv("MORROW_TRAFFIC_RETENTION_DAYS", "30")
+    monkeypatch.setenv("MORROW_AUTH_LOG_RETENTION_DAYS", "30")
     security_journal.init_tables()
     usage_rollups.init_tables()
     with feature_conn() as conn:
@@ -390,7 +390,7 @@ def test_org_rate_limit_overrides_load_from_postgres(pg):
 def test_support_sessions_lifecycle_and_launch_code_race(pg, monkeypatch):
     from services import support_sessions as ss
 
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", "pg-integration-support-signing-key-0123456789")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", "pg-integration-support-signing-key-0123456789")
     ss.set_support_access("sup-org", True, "customer-admin-test")
     created = ss.create_session(organization_id="sup-org", operator_id="sam", operator_role="support", operator_display="Sam",
                                 reason="Investigating a customer ticket", minutes=30, ticket_ref="T-1")
@@ -416,7 +416,7 @@ def test_support_sessions_lifecycle_and_launch_code_race(pg, monkeypatch):
 
 _LEASE_WORKER = r"""
 import os, sys
-sys.path.insert(0, os.environ["PQC_BACKEND_DIR"])
+sys.path.insert(0, os.environ["MORROW_BACKEND_DIR"])
 from datetime import datetime, timezone
 import time
 from services import alert_routing as ar
@@ -465,7 +465,7 @@ def test_alert_routing_channels_ledger_deliveries_and_lease(pg, monkeypatch):
     with feature_conn() as conn:
         conn.execute("DELETE FROM platform_alert_dispatcher")
         conn.commit()
-    env = {**os.environ, "PQC_BACKEND_DIR": str(BACKEND)}
+    env = {**os.environ, "MORROW_BACKEND_DIR": str(BACKEND)}
     start = time.time() + 6.0
     procs = [subprocess.Popen([sys.executable, "-c", _LEASE_WORKER, str(start)], cwd=str(BACKEND), env=env,
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for _ in range(4)]
@@ -594,8 +594,8 @@ def test_vault_key_rotation_against_postgres(pg, tmp_path, monkeypatch, capsys):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     old_key, new_key = Fernet.generate_key().decode(), Fernet.generate_key().decode()
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY", old_key)
-    monkeypatch.delenv("PQC_VAULT_MASTER_KEY_NEW", raising=False)
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", old_key)
+    monkeypatch.delenv("MORROW_VAULT_MASTER_KEY_NEW", raising=False)
     old = Fernet(old_key.encode())
 
     import vault_db
@@ -638,7 +638,7 @@ def test_vault_key_rotation_against_postgres(pg, tmp_path, monkeypatch, capsys):
     assert targets["alert_channel_targets"]["rotated"] == 1 and targets["gateway_sealed_keys"]["rotated"] == 1
     assert report["verified"] == 5 and values() == before
 
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY_NEW", new_key)
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY_NEW", new_key)
     assert module.main(["--sqlite", str(sqlite_db), "--apply"]) == 0
     out = capsys.readouterr()
     assert new_key not in out.out + out.err and old_key not in out.out + out.err

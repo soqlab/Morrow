@@ -10,8 +10,8 @@ ALGORITHMS = frozenset({"RSA", "ECDSA", "ECDH", "ECDHE", "ECC", "DSA", "DH", "AE
     "SHA-512", "ML-KEM", "ML-KEM-512", "ML-KEM-768", "ML-KEM-1024", "ML-DSA", "ML-DSA-44", "ML-DSA-65",
     "ML-DSA-87", "SLH-DSA", "X25519MLKEM768", "UNKNOWN"})
 NUMBERS = frozenset({"key_size", "key_bits", "count", "total", "total_assets", "total_findings", "total_scans",
-    "critical", "high", "medium", "low", "info", "vulnerable", "quantum_safe", "risk_score", "pqc_ready",
-    "compliance_pct", "confidentiality_years", "migration_years", "cnt", "high_risk", "pqc_safe_count", "pqc_unsafe_count", "pqc_readiness_pct"})
+    "critical", "high", "medium", "low", "info", "vulnerable", "quantum_safe", "risk_score", "pq_ready",
+    "compliance_pct", "confidentiality_years", "migration_years", "cnt", "high_risk", "pq_safe_count", "pq_unsafe_count", "pq_readiness_pct"})
 CONTAINERS = frozenset({"crypto_metadata", "metadata", "assets", "findings", "components", "hosts", "results",
     "summary", "inventory", "posture", "data", "risk_breakdown", "top_algorithms", "severity_counts", "algorithms", "algorithm_counts"})
 ENUMS = {"algorithm": ALGORITHMS, "key_type": ALGORITHMS, "signature_algorithm": ALGORITHMS,

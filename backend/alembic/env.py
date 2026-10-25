@@ -49,7 +49,7 @@ def _widen_version_table(connection) -> None:
 
 def _database_url() -> str:
     return (
-        os.getenv("PQC_PRODUCT_DATABASE_URL")
+        os.getenv("MORROW_PRODUCT_DATABASE_URL")
         or os.getenv("DATABASE_URL")
         or config.get_main_option("sqlalchemy.url")
         or ""

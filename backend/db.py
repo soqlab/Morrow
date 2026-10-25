@@ -124,23 +124,23 @@ from scan_observation import scan_result_observation
 
 
 def _default_db_path() -> str:
-    env = os.environ.get("PQC_SCANNER_DB", "").strip()
+    env = os.environ.get("MORROW_SCANNER_DB", "").strip()
     if env:
         return env
     # If DATABASE_URL points at postgres, signal callers via env so get_connection uses PG
     db_url = os.environ.get("DATABASE_URL", "").strip()
     if db_url.startswith("postgresql"):
-        os.environ.setdefault("PQC_MAIN_DB_BACKEND", "postgres")
+        os.environ.setdefault("MORROW_MAIN_DB_BACKEND", "postgres")
     # Prefer /data if it exists (docker volume). Otherwise, fall back to local backend file.
-    data_dir = os.path.dirname("/data/pqc_scanner.db")
+    data_dir = os.path.dirname("/data/morrow.db")
     if os.path.isdir(data_dir):
-        return "/data/pqc_scanner.db"
-    return os.path.join(os.path.dirname(__file__), "pqc_scanner.db")
+        return "/data/morrow.db"
+    return os.path.join(os.path.dirname(__file__), "morrow.db")
 
 
 DB_PATH = _default_db_path()
-DEFAULT_ORG_ID = os.environ.get("PQC_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001").strip() or "00000000-0000-0000-0000-000000000001"
-_ORG_ID_CTX: contextvars.ContextVar[str] = contextvars.ContextVar("pqc_org_id", default=DEFAULT_ORG_ID)
+DEFAULT_ORG_ID = os.environ.get("MORROW_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001").strip() or "00000000-0000-0000-0000-000000000001"
+_ORG_ID_CTX: contextvars.ContextVar[str] = contextvars.ContextVar("pq_org_id", default=DEFAULT_ORG_ID)
 
 
 def current_organization_id() -> str:
@@ -188,18 +188,18 @@ class _PooledConnection(sqlite3.Connection):
 
 
 # Opt-in, single-path connection pool. The server enables it at startup for the database it serves
-# (see app._lifespan); anything that points PQC_SCANNER_DB elsewhere (tests with temp files that are
+# (see app._lifespan); anything that points MORROW_SCANNER_DB elsewhere (tests with temp files that are
 # deleted straight after use) gets plain connections that really close.
 _POOL_LOCK = threading.Lock()
 _POOL: Dict[str, Any] = {"path": None, "idle": []}
-_POOL_MAX_IDLE = max(0, int(os.environ.get("PQC_SQLITE_POOL_MAX_IDLE", "32") or 32))
+_POOL_MAX_IDLE = max(0, int(os.environ.get("MORROW_SQLITE_POOL_MAX_IDLE", "32") or 32))
 
 
 def enable_connection_pool(db_path: Optional[str] = None) -> Optional[str]:
     """Reuse SQLite connections for db_path (default: the current database). Returns the pooled path."""
-    if str(os.environ.get("PQC_SQLITE_POOL", "1") or "1").strip().lower() in {"0", "false", "no", "off"}:
+    if str(os.environ.get("MORROW_SQLITE_POOL", "1") or "1").strip().lower() in {"0", "false", "no", "off"}:
         return None
-    path = db_path or os.environ.get("PQC_SCANNER_DB", DB_PATH)
+    path = db_path or os.environ.get("MORROW_SCANNER_DB", DB_PATH)
     disable_connection_pool()
     with _POOL_LOCK:
         _POOL["path"] = path
@@ -279,7 +279,7 @@ _WEBHOOK_CLAIM_COLUMNS_READY: set = set()
 
 
 def _current_sqlite_path() -> str:
-    return os.environ.get('PQC_SCANNER_DB', DB_PATH)
+    return os.environ.get('MORROW_SCANNER_DB', DB_PATH)
 
 
 def schema_ensured(key: str) -> bool:
@@ -314,7 +314,7 @@ def get_connection():
     # Fresh (or pooled) connection per call; closing() callers manage lifetime.
     # WAL mode means concurrent connections are cheap and non-blocking.
     global _schema_initialized_db_path
-    db_path = os.environ.get('PQC_SCANNER_DB', DB_PATH)
+    db_path = os.environ.get('MORROW_SCANNER_DB', DB_PATH)
     pooled = _pool_checkout(db_path)
     if pooled is not None and _schema_initialized_db_path == db_path:
         return pooled
@@ -580,7 +580,7 @@ def _ensure_sprint5_tables(conn: sqlite3.Connection) -> None:
             risk_level TEXT NOT NULL,
             quantum_score REAL NOT NULL,
             findings_count INTEGER NOT NULL,
-            pqc_relevance TEXT NOT NULL,
+            pq_relevance TEXT NOT NULL,
             tls_version TEXT NOT NULL,
             key_type TEXT NOT NULL,
             sig_algorithm TEXT NOT NULL,
@@ -1669,7 +1669,7 @@ def init_db():
         ensure_postgres_core_schema()
         ensure_postgres_default_org(name="Default Organization")
         return
-    db_path = os.environ.get('PQC_SCANNER_DB', DB_PATH)
+    db_path = os.environ.get('MORROW_SCANNER_DB', DB_PATH)
     with closing(get_connection()) as conn:
         _ensure_columns(conn)
         _ensure_sprint5_tables(conn)
@@ -2552,7 +2552,7 @@ def latest_scan_results_for_assets(asset_keys: Sequence[str]) -> Dict[str, Dict[
         rows = conn.execute(
             f"""
             SELECT asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                   pqc_relevance, tls_version, key_type, sig_algorithm,
+                   pq_relevance, tls_version, key_type, sig_algorithm,
                    key_bits, key_curve, cipher_name, scan_status, key_exchange
             FROM scan_results
             WHERE organization_id = ? AND asset_key IN ({placeholders})
@@ -2573,7 +2573,7 @@ def latest_scan_result_for_asset(asset_key_str: str) -> Optional[Dict[str, Any]]
         row = conn.execute(
             """
             SELECT asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                   pqc_relevance, tls_version, key_type, sig_algorithm,
+                   pq_relevance, tls_version, key_type, sig_algorithm,
                    key_bits, key_curve, cipher_name, scan_status, key_exchange
             FROM scan_results
             WHERE organization_id = ? AND asset_key = ?
@@ -4788,7 +4788,7 @@ def save_scan_asset_summaries(scan_id: str, scanned_at_iso: str, results: list[d
             findings_count = len(findings) if isinstance(findings, list) else 0
             risk_level = str(r.get("risk") or r.get("risk_level") or "unknown")
             quantum_score = float(r.get("quantum_risk_score") or r.get("quantum_score") or r.get("score") or 0.0)
-            pqc_rel = str(r.get("pqc_relevance") or "")
+            pq_rel = str(r.get("pq_relevance") or "")
             tls_ver = str(r.get("tls_version") or "")
             key_type = str(r.get("key_type") or "")
             sig_alg = str(r.get("sig_algorithm") or "")
@@ -4812,13 +4812,13 @@ def save_scan_asset_summaries(scan_id: str, scanned_at_iso: str, results: list[d
                 INSERT INTO scan_results (
                     organization_id,
                     asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                    pqc_relevance, tls_version, key_type, sig_algorithm,
+                    pq_relevance, tls_version, key_type, sig_algorithm,
                     owner, team, environment, criticality,
                     key_bits, key_curve, cipher_name, scan_status, key_exchange
                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (org_id, ak, scan_id, scanned_at_iso, risk_level, quantum_score, findings_count,
-                 pqc_rel, tls_ver, key_type, sig_alg,
+                 pq_rel, tls_ver, key_type, sig_alg,
                  owner, team, env, crit,
                  observed["key_bits"], observed["key_curve"],
                  observed["cipher_name"], observed["scan_status"], observed["key_exchange"]),
@@ -4871,7 +4871,7 @@ def get_asset_history(asset_key_str: str, limit: int = 50) -> list[dict]:
         rows = conn.execute(
             """
             SELECT scanned_at, scan_id, risk_level, quantum_score, findings_count,
-                   pqc_relevance, tls_version, key_type, sig_algorithm,
+                   pq_relevance, tls_version, key_type, sig_algorithm,
                    owner, team, environment, criticality,
                    key_bits, key_curve, cipher_name, scan_status, key_exchange
             FROM scan_results
@@ -4925,7 +4925,7 @@ def list_scan_results(scan_id: str, owner: str = "", team: str = "", environment
         rows = conn.execute(
             f"""
             SELECT asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                   pqc_relevance, tls_version, key_type, sig_algorithm,
+                   pq_relevance, tls_version, key_type, sig_algorithm,
                    owner, team, environment, criticality,
                    key_bits, key_curve, cipher_name, scan_status, key_exchange
             FROM scan_results
@@ -4953,7 +4953,7 @@ def list_scan_results(scan_id: str, owner: str = "", team: str = "", environment
 #: below cannot drift apart.
 _SCAN_FACT_COLUMNS = (
     "asset_key", "scan_id", "scanned_at", "risk_level", "quantum_score", "findings_count",
-    "pqc_relevance", "tls_version", "key_type", "sig_algorithm",
+    "pq_relevance", "tls_version", "key_type", "sig_algorithm",
     "owner", "team", "environment", "criticality",
     "key_bits", "key_curve", "cipher_name", "scan_status", "key_exchange",
 )
@@ -5069,7 +5069,7 @@ def list_scan_results_since(since_iso: str, limit: int = 10000) -> list[dict]:
             rows = conn.execute(
                 """
                 SELECT asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                       pqc_relevance, tls_version, key_type, sig_algorithm,
+                       pq_relevance, tls_version, key_type, sig_algorithm,
                        owner, team, environment, criticality,
                        key_bits, key_curve, cipher_name, scan_status, key_exchange
                 FROM scan_results

@@ -272,7 +272,7 @@ const SHOTS = [
       "from the scans themselves, in <em>CycloneDX 1.6</em>."],
     pos: "bl", eyebrow: "CBOM · SBOM", secs: 7.0, trans: "fade",
     counts: [{ sel: ".vendSummary", at: [0.6, 2.6] }],
-    calls: [{ sel: ".vendSummary", shape: "bracket", label: "87 COMPONENTS · 2 POST-QUANTUM", side: "below", at: [2.4, 6.6] }],
+    calls: [{ sel: ".vendSummary", shape: "bracket", label: "87 COMPONENTS · 2 post-quantum", side: "below", at: [2.4, 6.6] }],
     verify: [{ sel: ".vendSummary", has: "87 components" }],
   },
   {
@@ -438,7 +438,7 @@ const SHOTS = [
     },
     cap: ["<em>Four:</em> the operators who run the platform sign in",
       "through an identity provider, with authenticator MFA."],
-    // Render this one with PQC_NO_GPU=1: on the GPU path Chrome stops
+    // Render this one with MORROW_NO_GPU=1: on the GPU path Chrome stops
     // answering a screenshot a few seconds into this page.
     pos: "bl", eyebrow: "Operator workspace", secs: 7.4, trans: "push",
     motion: { kind: "scroll", to: 150, secs: 4.6, lead: 1.2 },

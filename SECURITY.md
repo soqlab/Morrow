@@ -64,12 +64,12 @@ list before testing — most of it exists because the insecure thing is delibera
 warned about at runtime.
 
 - **The default local configuration.** `docker compose up` and an unconfigured server run with
-  `PQC_AUTH_MODE=headers` and `PQC_DEFAULT_ROLE=admin`, which means any caller can claim any role via
+  `MORROW_AUTH_MODE=headers` and `MORROW_DEFAULT_ROLE=admin`, which means any caller can claim any role via
   a request header and anonymous requests are admin. This is intentional so the quick start works
   without setup. The server logs a warning about both on every start, `GET /health/deep` reports
   them, and the README says not to expose it. "Anyone can become admin by setting `x-user-role`" is
   not a vulnerability in this mode; it is the mode.
-- Anything requiring `PQC_ENVIRONMENT` to be something other than `production` in order to work. A
+- Anything requiring `MORROW_ENVIRONMENT` to be something other than `production` in order to work. A
   production deployment refuses to start without external SSO, managed Postgres and Redis, a vault
   key and explicit allowed hosts.
 - Third-party dependency CVEs with no project-specific exploit path. Report those upstream; open a
@@ -101,7 +101,7 @@ Not a certification claim, just what is implemented, so you know where to look:
   / auditor) are bound to the credential rather than requested per call.
 - Postgres row-level security for tenant isolation, with a non-superuser application role.
   `GET /admin/postgres-rls/verify` reports whether it is genuinely active rather than assuming it.
-- Integration credentials sealed with Fernet under `PQC_VAULT_MASTER_KEY` before storage. Without a
+- Integration credentials sealed with Fernet under `MORROW_VAULT_MASTER_KEY` before storage. Without a
   key, features that store credentials refuse to save rather than writing plaintext.
 - An SSRF guard on outbound requests: HTTPS only, every resolved address must be public, IPv4-mapped
   and 6to4 forms unwrapped before the check, the connection pinned to the address that was checked so

@@ -39,7 +39,7 @@ VAULT_KEY = "kRQ7wRwQ2n0Xy0lGZnMS7O8u4WQsL1ZFQK1cQpJ1n3M="   # a real, disposabl
 JWT_SECRET = "J" * 64
 OIDC_SECRET = "oidc-" + "S" * 40
 ANTHROPIC_KEY = "sk-ant-api03-" + "A" * 40 + "zzzz"
-POSTGRES_DSN = "postgresql://pqc_app:" + "P" * 24 + "@db.internal:5432/pqc"
+POSTGRES_DSN = "postgresql://morrow_app:" + "P" * 24 + "@db.internal:5432/morrow"
 REDIS_URL = "redis://:" + "R" * 24 + "@cache.internal:6379/0"
 #: Not a key, but it is an account number in a report people paste into tickets, so the checker
 #: prints only its last four characters and this test proves the rest never appears.
@@ -48,25 +48,25 @@ BANK_ACCOUNT = "000" + "7" * 9 + "4821"
 SECRETS = [VAULT_KEY, JWT_SECRET, OIDC_SECRET, ANTHROPIC_KEY, POSTGRES_DSN, REDIS_URL]
 
 CONFIGURED_ENV = {
-    "PQC_ENVIRONMENT": "production",
-    "PQC_PUBLIC_BASE_URL": "https://app.example.com",
-    "PQC_STATUS_PAGE_URL": "https://status.example.com",
-    "PQC_SMTP_FROM": "platform@example.com",
-    "PQC_AUTH_JWT_SECRET": JWT_SECRET,
-    "PQC_VAULT_MASTER_KEY": VAULT_KEY,
-    "PQC_ADMIN_OIDC_ISSUER": "https://login.example.com",
-    "PQC_ADMIN_OIDC_CLIENT_ID": "console-app",
-    "PQC_ADMIN_OIDC_CLIENT_SECRET": OIDC_SECRET,
-    "PQC_ADMIN_REQUIRE_MFA": "1",
-    "PQC_ADMIN_OPERATOR_ROLES": "owner@example.com=owner,ops@example.com=operator",
+    "MORROW_ENVIRONMENT": "production",
+    "MORROW_PUBLIC_BASE_URL": "https://app.example.com",
+    "MORROW_STATUS_PAGE_URL": "https://status.example.com",
+    "MORROW_SMTP_FROM": "platform@example.com",
+    "MORROW_AUTH_JWT_SECRET": JWT_SECRET,
+    "MORROW_VAULT_MASTER_KEY": VAULT_KEY,
+    "MORROW_ADMIN_OIDC_ISSUER": "https://login.example.com",
+    "MORROW_ADMIN_OIDC_CLIENT_ID": "console-app",
+    "MORROW_ADMIN_OIDC_CLIENT_SECRET": OIDC_SECRET,
+    "MORROW_ADMIN_REQUIRE_MFA": "1",
+    "MORROW_ADMIN_OPERATOR_ROLES": "owner@example.com=owner,ops@example.com=operator",
     "REDIS_URL": REDIS_URL,
-    "PQC_PRODUCT_DATABASE_URL": POSTGRES_DSN,
+    "MORROW_PRODUCT_DATABASE_URL": POSTGRES_DSN,
     "ANTHROPIC_API_KEY": ANTHROPIC_KEY,
     # Direct invoicing: the vendor's own legal and bank details, without which no invoice is issued.
     # Polar: the card path.
 }
 
-MANAGED_PREFIXES = ("PQC_", "STRIPE_", "REDIS", "CELERY_", "ANTHROPIC_", "OPENAI_", "DATABASE_URL")
+MANAGED_PREFIXES = ("MORROW_", "STRIPE_", "REDIS", "CELERY_", "ANTHROPIC_", "OPENAI_", "DATABASE_URL")
 
 
 @pytest.fixture(autouse=True)
@@ -77,8 +77,8 @@ def isolated_environment():
     for name in list(os.environ):
         if name.startswith(MANAGED_PREFIXES):
             os.environ.pop(name, None)
-    os.environ["PQC_SCANNER_DB"] = os.path.join(tempfile.mkdtemp(), "selftest.db")
-    os.environ["PQC_FEATURE_STORE_BACKEND"] = "sqlite"
+    os.environ["MORROW_SCANNER_DB"] = os.path.join(tempfile.mkdtemp(), "selftest.db")
+    os.environ["MORROW_FEATURE_STORE_BACKEND"] = "sqlite"
     yield
     os.environ.clear()
     os.environ.update(saved)
@@ -117,8 +117,11 @@ def assert_no_secret_leak(text: str):
         assert value not in text, "a secret value was printed in full"
         hint = check.mask(value)
         # For a DSN the scheme is a word like "postgres" that the report legitimately uses; what must
-        # never appear is everything after it -- the credentials, the host and the database.
+        # never appear is everything after it -- the credentials, the host and the database. The user
+        # name is the database role, which the report prints on purpose ("connected as morrow_app").
         body = value.split("://", 1)[-1]
+        if "://" in value and ":" in body.split("@", 1)[0]:
+            body = body.split(":", 1)[1]
         for index in range(len(body) - 7):
             window = body[index:index + 8]
             if window in hint:
@@ -135,8 +138,8 @@ def test_an_empty_environment_reports_every_area_as_missing(capsys):
     assert code == 2, "missing production settings must exit 2"
     for area in ("SSO", "REDIS", "POSTGRES", "VAULT", "AUTH"):
         assert area in out
-    assert "PQC_AUTH_JWT_SECRET" in out
-    assert "PQC_VAULT_MASTER_KEY" in out
+    assert "MORROW_AUTH_JWT_SECRET" in out
+    assert "MORROW_VAULT_MASTER_KEY" in out
     # A finding without a fix hint is a dead end for whoever runs this.
     assert out.count("fix:") >= 8
 
@@ -184,7 +187,7 @@ def _healthy_probes(monkeypatch, calls=None):
     monkeypatch.setattr(check, "http_json", http_json)
     monkeypatch.setattr(check, "redis_ping", lambda url, timeout=2.0: {"ok": True, "version": "7.2.4"})
     monkeypatch.setattr(check, "postgres_probe", lambda dsn, timeout=5.0: {
-        "ok": True, "role": "pqc_app", "superuser": False, "bypassrls": False, "version": "16.2"})
+        "ok": True, "role": "morrow_app", "superuser": False, "bypassrls": False, "version": "16.2"})
     monkeypatch.setattr(check, "rls_state", lambda dsn: {"status": "pass", "failures": []})
     monkeypatch.setattr(check, "alert_channels", lambda: {"channels": [
         {"id": "ch1", "kind": "slack_webhook", "name": "On-call", "enabled": True,
@@ -225,12 +228,12 @@ def test_a_fully_configured_deployment_passes(capsys, monkeypatch):
 
 def test_the_environment_file_is_read_through_a_bom(capsys, monkeypatch):
     """A .env saved by a Windows editor starts with a byte order mark, which makes a naive loader
-    lose the first variable. Losing PQC_AUTH_JWT_SECRET silently would be the worst possible miss."""
+    lose the first variable. Losing MORROW_AUTH_JWT_SECRET silently would be the worst possible miss."""
     _healthy_probes(monkeypatch)
-    ordered = {"PQC_AUTH_JWT_SECRET": JWT_SECRET, **{k: v for k, v in CONFIGURED_ENV.items() if k != "PQC_AUTH_JWT_SECRET"}}
+    ordered = {"MORROW_AUTH_JWT_SECRET": JWT_SECRET, **{k: v for k, v in CONFIGURED_ENV.items() if k != "MORROW_AUTH_JWT_SECRET"}}
     code, out = run(capsys, "--offline", env_values=ordered)
 
-    assert "PQC_AUTH_JWT_SECRET: 64 characters" in out, "the first variable in a BOM'd file was lost"
+    assert "MORROW_AUTH_JWT_SECRET: 64 characters" in out, "the first variable in a BOM'd file was lost"
     assert code == 0
 
 
@@ -246,7 +249,7 @@ def test_an_exported_variable_wins_over_the_file(capsys, monkeypatch):
     """The app is started with --env-file and inherits the process environment, so the checker must
     report what the app would actually see, not what the file says."""
     _healthy_probes(monkeypatch)
-    os.environ["PQC_ENVIRONMENT"] = "staging"
+    os.environ["MORROW_ENVIRONMENT"] = "staging"
     code, out = run(capsys, "--offline", "--json", env_values=CONFIGURED_ENV)
     assert json.loads(out)["environment"] == "staging"
 
@@ -262,7 +265,7 @@ def test_an_exported_variable_wins_over_the_file(capsys, monkeypatch):
 
 def test_a_vault_key_that_cannot_decrypt_is_an_error(capsys, monkeypatch):
     _healthy_probes(monkeypatch)
-    code, out = run(capsys, "--offline", env_values={**CONFIGURED_ENV, "PQC_VAULT_MASTER_KEY": "not-a-fernet-key"})
+    code, out = run(capsys, "--offline", env_values={**CONFIGURED_ENV, "MORROW_VAULT_MASTER_KEY": "not-a-fernet-key"})
 
     assert code == 1
     assert "not a usable Fernet key" in out
@@ -272,7 +275,7 @@ def test_a_vault_key_that_cannot_decrypt_is_an_error(capsys, monkeypatch):
 
 def test_a_short_jwt_secret_is_an_error_not_a_gap(capsys, monkeypatch):
     _healthy_probes(monkeypatch)
-    code, out = run(capsys, "--offline", env_values={**CONFIGURED_ENV, "PQC_AUTH_JWT_SECRET": "short"})
+    code, out = run(capsys, "--offline", env_values={**CONFIGURED_ENV, "MORROW_AUTH_JWT_SECRET": "short"})
 
     assert code == 1
     assert "signed with a guessable key" in out
@@ -282,10 +285,10 @@ def test_a_short_jwt_secret_is_an_error_not_a_gap(capsys, monkeypatch):
 def test_a_redirect_uri_outside_the_public_base_url_is_reported(capsys, monkeypatch):
     _healthy_probes(monkeypatch)
     code, out = run(capsys, "--offline", env_values={
-        **CONFIGURED_ENV, "PQC_ADMIN_OIDC_REDIRECT_URI": "https://old-host.example.net/vendor-admin/sso/callback"})
+        **CONFIGURED_ENV, "MORROW_ADMIN_OIDC_REDIRECT_URI": "https://old-host.example.net/vendor-admin/sso/callback"})
 
     assert code == 1
-    assert "is not under PQC_PUBLIC_BASE_URL" in out
+    assert "is not under MORROW_PUBLIC_BASE_URL" in out
 
 
 def test_a_discovery_document_naming_another_issuer_is_reported(capsys, monkeypatch):
@@ -314,7 +317,7 @@ def test_an_alert_channel_whose_target_no_longer_decrypts_is_reported(capsys, mo
 
     assert code == 1
     assert "does not decrypt" in out
-    assert "PQC_VAULT_MASTER_KEY has changed" in out
+    assert "MORROW_VAULT_MASTER_KEY has changed" in out
 
 
 def test_an_app_role_that_bypasses_row_level_security_is_reported(capsys, monkeypatch):
@@ -462,7 +465,7 @@ def test_no_secret_value_reaches_the_output_on_any_path(capsys, monkeypatch, arg
     assert_no_secret_leak(out)
 
     # And on the failing paths, where an error message is the usual way a value escapes.
-    broken = {**CONFIGURED_ENV, "PQC_VAULT_MASTER_KEY": VAULT_KEY[:-4] + "zzzz"}
+    broken = {**CONFIGURED_ENV, "MORROW_VAULT_MASTER_KEY": VAULT_KEY[:-4] + "zzzz"}
     _, out = run(capsys, *argv, env_values=broken)
     assert_no_secret_leak(out)
     assert VAULT_KEY[:-4] + "zzzz" not in out

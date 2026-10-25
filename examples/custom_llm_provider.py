@@ -3,11 +3,11 @@
 Copy this file somewhere on your PYTHONPATH, change the three marked places,
 and point the platform at it:
 
-    PQC_LLM_PROVIDER=custom
-    PQC_LLM_CUSTOM_MODULE=my_package.my_provider
-    PQC_LLM_BASE_URL=https://models.internal.example/v1   # if you want one
-    PQC_LLM_MODEL=our-internal-model
-    PQC_LLM_API_KEY=...                                   # if you need one
+    MORROW_LLM_PROVIDER=custom
+    MORROW_LLM_CUSTOM_MODULE=my_package.my_provider
+    MORROW_LLM_BASE_URL=https://models.internal.example/v1   # if you want one
+    MORROW_LLM_MODEL=our-internal-model
+    MORROW_LLM_API_KEY=...                                   # if you need one
 
 Then prove it works without spending a request on guesswork:
 
@@ -117,9 +117,9 @@ class MyProvider(Provider):
         """Configuration readiness. No network call: this runs on every page load."""
         missing: List[str] = []
         if not self.settings.base_url:
-            missing.append("PQC_LLM_BASE_URL")
+            missing.append("MORROW_LLM_BASE_URL")
         if not self.settings.api_key:
-            missing.append("PQC_LLM_API_KEY")
+            missing.append("MORROW_LLM_API_KEY")
         return {
             "ready": not missing,
             "missing": missing,
@@ -145,7 +145,7 @@ class MyProvider(Provider):
                 CONFIG,
                 "No base URL is configured for this provider.",
                 provider=self.id,
-                remedy="Set PQC_LLM_BASE_URL.",
+                remedy="Set MORROW_LLM_BASE_URL.",
             )
 
         # The canonical, policy-visible payload. Keep it in this shape: the data

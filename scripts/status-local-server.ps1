@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $BackendDir = Join-Path $RepoRoot "backend"
-$PidFile = Join-Path $BackendDir ".pqc-server.pid"
+$PidFile = Join-Path $BackendDir ".pq-server.pid"
 $BaseUrl = "http://127.0.0.1:$Port"
 $Python = Join-Path $BackendDir ".venv\Scripts\python.exe"
 

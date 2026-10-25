@@ -4,7 +4,7 @@ SBOM Import — CycloneDX JSON Parser & Crypto Component Extractor
 Parses CycloneDX SBOM JSON (v1.4 / v1.5 spec) uploaded by a user.
 Extracts cryptographic components (type="cryptographic-asset" or whose
 name/description matches known crypto library names), classifies each for
-PQC safety and risk level, and persists the import + findings to SQLite.
+Post-quantum safety and risk level, and persists the import + findings to SQLite.
 """
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ _CRYPTO_LIBS = [
     "jsencrypt", "node-forge", "webcrypto",
 ]
 
-# PQC-safe algorithm name fragments
-_PQC_SAFE_FRAGMENTS = [
+# quantum-safe algorithm name fragments
+_MORROW_SAFE_FRAGMENTS = [
     "kyber", "dilithium", "falcon", "sphincs",
     "ml-kem", "ml-dsa", "slh-dsa",
 ]
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS sbom_crypto_components (
     version        TEXT,
     algorithm      TEXT,
     key_length     INTEGER,
-    pqc_safe       INTEGER NOT NULL DEFAULT 0,
+    pq_safe       INTEGER NOT NULL DEFAULT 0,
     risk_level     TEXT NOT NULL DEFAULT 'unknown',
     component_type TEXT,
     supplier       TEXT,
@@ -191,7 +191,7 @@ def classify_crypto_component(comp: Dict[str, Any]) -> Dict[str, Any]:
             version:      str,
             algorithm:    str,
             key_length:   int | None,
-            pqc_safe:     bool,
+            pq_safe:     bool,
             risk_level:   str,   # critical / high / medium / low / unknown
             component_type: str,
             supplier:     str,
@@ -212,10 +212,10 @@ def classify_crypto_component(comp: Dict[str, Any]) -> Dict[str, Any]:
 
     algorithm, key_length = _extract_algorithm(comp)
 
-    # PQC safety check
+    # Post-quantum safety check
     algo_lower = algorithm.lower()
     name_lower = name.lower()
-    pqc_safe = any(f in algo_lower or f in name_lower for f in _PQC_SAFE_FRAGMENTS)
+    pq_safe = any(f in algo_lower or f in name_lower for f in _MORROW_SAFE_FRAGMENTS)
 
     # Risk classification
     risk_level = _classify_risk(algorithm, key_length, name_lower)
@@ -225,7 +225,7 @@ def classify_crypto_component(comp: Dict[str, Any]) -> Dict[str, Any]:
         "version": version,
         "algorithm": algorithm,
         "key_length": key_length,
-        "pqc_safe": pqc_safe,
+        "pq_safe": pq_safe,
         "risk_level": risk_level,
         "component_type": comp_type,
         "supplier": supplier,
@@ -240,7 +240,7 @@ def _classify_risk(algorithm: str, key_length: Optional[int], name_lower: str) -
     critical : RSA < 4096 bits, DES, 3DES, MD5, SHA-1
     high     : AES-128, RSA-2048, ECC-256
     medium   : AES-256, RSA-3072
-    low      : PQC algorithms, or unknown / no algorithm
+    low      : post-quantum algorithms, or unknown / no algorithm
     """
     algo = algorithm.lower()
     combined = f"{algo} {name_lower}"
@@ -276,8 +276,8 @@ def _classify_risk(algorithm: str, key_length: Optional[int], name_lower: str) -
     if "aes" in combined:
         return "high"  # unspecified AES treated as potentially weak
 
-    # PQC safe algorithms
-    if any(f in combined for f in _PQC_SAFE_FRAGMENTS):
+    # Post-quantum safe algorithms
+    if any(f in combined for f in _MORROW_SAFE_FRAGMENTS):
         return "low"
 
     return "unknown"
@@ -358,14 +358,14 @@ def import_sbom(
             """
             INSERT INTO sbom_crypto_components
                 (id, import_id, name, version, algorithm, key_length,
-                 pqc_safe, risk_level, component_type, supplier, description)
+                 pq_safe, risk_level, component_type, supplier, description)
             VALUES (:id, :import_id, :name, :version, :algorithm, :key_length,
-                    :pqc_safe, :risk_level, :component_type, :supplier, :description)
+                    :pq_safe, :risk_level, :component_type, :supplier, :description)
             """,
             [
                 {
                     **row,
-                    "pqc_safe": 1 if row["pqc_safe"] else 0,
+                    "pq_safe": 1 if row["pq_safe"] else 0,
                 }
                 for row in crypto_rows
             ],
@@ -431,7 +431,7 @@ def get_import_components(
         cur.execute(
             """
             SELECT id, import_id, name, version, algorithm, key_length,
-                   pqc_safe, risk_level, component_type, supplier, description
+                   pq_safe, risk_level, component_type, supplier, description
             FROM sbom_crypto_components
             WHERE import_id = ?
             ORDER BY risk_level, name
@@ -440,9 +440,9 @@ def get_import_components(
         )
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-        # Convert pqc_safe back to bool
+        # Convert pq_safe back to bool
         for row in rows:
-            row["pqc_safe"] = bool(row["pqc_safe"])
+            row["pq_safe"] = bool(row["pq_safe"])
         return rows
 
 

@@ -11,7 +11,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     APP_COMPONENT=api \
-    PQC_MAIN_DB_BACKEND=postgres \
+    MORROW_MAIN_DB_BACKEND=postgres \
     ENABLE_INPROCESS_SCHEDULER=0 \
     PER_TARGET_TIMEOUT=20
 
@@ -31,7 +31,7 @@ RUN apt-get update \
 COPY --chown=appuser:appuser . /app
 
 # /data holds the SQLite file for the features that are not yet on Postgres
-# (db._default_db_path() prefers /data/pqc_scanner.db when the directory exists), and
+# (db._default_db_path() prefers /data/morrow.db when the directory exists), and
 # docker-compose.prod.yml mounts a volume there.
 #
 # It has to exist in the image and be owned by appuser: Docker initialises a fresh named volume from

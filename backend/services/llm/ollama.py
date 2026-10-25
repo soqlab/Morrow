@@ -6,9 +6,9 @@ to true so it has to be switched off explicitly, tool results come back as a
 `message.tool_calls` array with real objects rather than JSON strings, and the
 streaming wire protocol is newline-delimited JSON rather than SSE.
 
-    PQC_LLM_PROVIDER=ollama
-    PQC_LLM_BASE_URL=http://127.0.0.1:11434     # the default
-    PQC_LLM_MODEL=llama3.1
+    MORROW_LLM_PROVIDER=ollama
+    MORROW_LLM_BASE_URL=http://127.0.0.1:11434     # the default
+    MORROW_LLM_MODEL=llama3.1
 """
 
 from __future__ import annotations
@@ -44,13 +44,13 @@ class OllamaProvider(Provider):
             cost_known=False,
             endpoint=self._endpoint(),
             notes="Local inference: no API key, and no cost to report. "
-                  "Set PQC_LLM_TOOLS=1 when the pulled model supports tool calling.",
+                  "Set MORROW_LLM_TOOLS=1 when the pulled model supports tool calling.",
         )
 
     def check(self) -> Dict[str, Any]:
         missing: List[str] = []
         if not (self.settings.model or DEFAULT_MODEL):
-            missing.append("PQC_LLM_MODEL")
+            missing.append("MORROW_LLM_MODEL")
         return {"ready": not missing, "missing": missing,
                 "detail": "configured" if not missing
                 else "set " + ", ".join(missing)}
@@ -146,7 +146,7 @@ class OllamaProvider(Provider):
                org_id: str = "", purpose: str = "assistant",
                policy_version: Optional[int] = None, chunk_chars: int = 40) -> Iterator[Chunk]:
         import os
-        wire = (os.getenv("PQC_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
+        wire = (os.getenv("MORROW_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
         completion = (self.complete_streaming if wire else self.complete)(
             conv, tools, org_id=org_id, purpose=purpose, policy_version=policy_version)
         text = completion.text or ""

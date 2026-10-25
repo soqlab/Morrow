@@ -54,7 +54,7 @@ _CLIENT = anthropic.Anthropic(api_key=_ANTHROPIC_KEY, base_url="https://api.anth
                               http_client=anthropic.DefaultHttpxClient(trust_env=False, follow_redirects=False)) if _ANTHROPIC_KEY else None
 _MAX_ROUNDS = 12
 _MAX_TARGETS = 10
-_EXECUTOR = ThreadPoolExecutor(max_workers=10, thread_name_prefix="pqc-agent")
+_EXECUTOR = ThreadPoolExecutor(max_workers=10, thread_name_prefix="pq-agent")
 
 # GitHub integration — env var fallback for dev; per-user OAuth token used in production
 _GITHUB_TOKEN_ENV = (os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN") or "").strip()
@@ -64,7 +64,7 @@ _GITHUB_API = "https://api.github.com"
 # System prompt
 # ---------------------------------------------------------------------------
 
-_SYSTEM = """You are PQC Scout, a read-only cryptographic posture analyst.
+_SYSTEM = """You are post-quantum Scout, a read-only cryptographic posture analyst.
 Only get_org_posture is available. Use it to explain the current organization's bounded metadata sample.
 Never claim to have scanned, modified code, opened PRs, or enforced security controls.
 When text is withheld by Data Control, explain the available posture evidence and the limitation.
@@ -82,7 +82,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
         "name": "scan_target",
         "description": (
             "Perform a live TLS/HTTPS scan of one or more hosts. Detects TLS version, "
-            "cipher suites, certificate details, PQC readiness, key types/sizes. "
+            "cipher suites, certificate details, post-quantum readiness, key types/sizes. "
             "Call immediately when user asks to scan, check, or assess any host, IP, or URL."
         ),
         "input_schema": {
@@ -101,7 +101,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "scan_ssh",
         "description": (
-            "Scan SSH endpoints for PQC readiness: key-exchange algorithms, "
+            "Scan SSH endpoints for post-quantum readiness: key-exchange algorithms, "
             "host key types, deprecated ciphers."
         ),
         "input_schema": {
@@ -201,7 +201,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
             "properties": {
                 "framework": {
                     "type": "string",
-                    "enum": ["nist-800-208", "cnsa-2-0", "iso-27001", "pci-dss-4", "cmmc", "nist-pqc"],
+                    "enum": ["nist-800-208", "cnsa-2-0", "iso-27001", "pci-dss-4", "cmmc", "nist-pq"],
                     "description": "Compliance framework to assess against.",
                 },
                 "scan_id": {"type": "string", "description": "Optional specific scan ID."},
@@ -225,7 +225,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "get_vendor_risk",
         "description": (
-            "Get vendor/supplier PQC risk assessments. Shows vendor name, risk score, "
+            "Get vendor/supplier post-quantum risk assessments. Shows vendor name, risk score, "
             "quantum readiness, and outstanding issues."
         ),
         "input_schema": {
@@ -309,7 +309,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
         "description": (
             "Run a detailed compliance gap analysis against one or more frameworks. "
             "Returns per-control pass/fail/partial with evidence. "
-            "Frameworks: nist-csf-2, cmmc-l3, fedramp, soc2, iso-27001, nis2, dora, fips-pqc."
+            "Frameworks: nist-csf-2, cmmc-l3, fedramp, soc2, iso-27001, nis2, dora, fips-pq."
         ),
         "input_schema": {
             "type": "object",
@@ -330,7 +330,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_maturity_score",
-        "description": "Get the PQC maturity model assessment (L1–L5) for this organisation.",
+        "description": "Get the post-quantum maturity model assessment (L1–L5) for this organisation.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
@@ -340,7 +340,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
     },
     {
         "name": "get_roi_estimate",
-        "description": "Calculate PQC migration ROI: NPV, payback period, HNDL risk premium, annual risk profile.",
+        "description": "Calculate post-quantum migration ROI: NPV, payback period, HNDL risk premium, annual risk profile.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -352,7 +352,7 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
     {
         "name": "get_peer_benchmark",
         "description": (
-            "Get this org's own PQC readiness score. Peer, sector and industry comparison is NOT "
+            "Get this org's own post-quantum readiness score. Peer, sector and industry comparison is NOT "
             "available — the platform holds no other organization's posture, so the result carries "
             "available:false and no percentile, quartile or sector average exists to report."
         ),
@@ -424,9 +424,9 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
     },
     # ── Platform actions ─────────────────────────────────────────────────────
     {
-        "name": "generate_pqc_config",
+        "name": "generate_pq_config",
         "description": (
-            "Generate ready-to-deploy PQC migration configuration or code for a target system. "
+            "Generate ready-to-deploy post-quantum migration configuration or code for a target system. "
             "Targets: nginx, openssl, openssh-server, openssh-client, python, go, java, nodejs, rust, docker, kubernetes."
         ),
         "input_schema": {
@@ -438,9 +438,9 @@ _CLAUDE_TOOLS: List[Dict[str, Any]] = [
                 },
                 "algorithm_profile": {
                     "type": "string",
-                    "enum": ["hybrid", "pqc-only", "conservative"],
+                    "enum": ["hybrid", "pq-only", "conservative"],
                     "default": "hybrid",
-                    "description": "hybrid = classical+PQC (recommended for transition); pqc-only = pure PQC; conservative = maximum compatibility.",
+                    "description": "hybrid = classical+post-quantum (recommended for transition); pq-only = pure post-quantum; conservative = maximum compatibility.",
                 },
             },
             "required": ["target"],
@@ -800,7 +800,7 @@ def _exec_search_findings(org_id: str, host_pattern: str = "", algorithm: str = 
                 params.append(risk_level)
             params.append(min(limit, 50))
             rows = _rows(c.execute(
-                f"SELECT host, port, algorithm, tls_version, risk_level, pqc_safe, "
+                f"SELECT host, port, algorithm, tls_version, risk_level, pq_safe, "
                 f"cert_subject, cert_not_after, scanned_at "
                 f"FROM scan_results WHERE {' AND '.join(clauses)} "
                 f"ORDER BY scanned_at DESC LIMIT ?",
@@ -902,7 +902,7 @@ def _exec_list_mobile_scans(org_id: str, limit: int = 10) -> List[Dict[str, Any]
                 return [{"info": "No mobile/IoT scans yet."}]
             rows = _rows(c.execute(
                 "SELECT id, filename, platform, risk_level, finding_count, "
-                "pqc_unsafe_count, cert_count, created_at FROM mobile_iot_scans "
+                "pq_unsafe_count, cert_count, created_at FROM mobile_iot_scans "
                 "WHERE org_id=? OR org_id IS NULL ORDER BY created_at DESC LIMIT ?",
                 (org_id, min(limit, 30))
             ).fetchall())
@@ -948,8 +948,8 @@ _MIGRATION_DB: Dict[str, Dict[str, Any]] = {
             "python": "from mldsa import ML_DSA_65\npk, sk = ML_DSA_65.keygen()\nsig = ML_DSA_65.sign(sk, message)\nvalid = ML_DSA_65.verify(pk, message, sig)",
         },
         "certificates": {
-            "replace_with": "Request PQC-hybrid X.509 certs from your CA (DigiCert, Entrust, sectigo all support ML-DSA hybrid chains)",
-            "timeline": "1. Inventory all RSA certs. 2. Enable hybrid TLS (X25519+ML-KEM). 3. Request PQC-hybrid certs. 4. Full cutover post-CRQC.",
+            "replace_with": "Request post-quantum-hybrid X.509 certs from your CA (DigiCert, Entrust, sectigo all support ML-DSA hybrid chains)",
+            "timeline": "1. Inventory all RSA certs. 2. Enable hybrid TLS (X25519+ML-KEM). 3. Request post-quantum-hybrid certs. 4. Full cutover post-CRQC.",
         },
     },
     "ecdsa": {
@@ -1111,13 +1111,13 @@ async def _exec_scan(targets: List[str]) -> Dict[str, Any]:
             "key_bits": r.get("cert_key_bits", 0),
             "cert_subject": r.get("cert_subject", ""),
             "cert_expires": r.get("cert_not_after", ""),
-            "pqc_ready": r.get("pqc_ready", False),
-            "pqc_recommendation": r.get("pqc_recommendation", ""),
+            "pq_ready": r.get("pq_ready", False),
+            "pq_recommendation": r.get("pq_recommendation", ""),
             "ocsp_stapling": r.get("ocsp_stapling", False),
             "error": r.get("error"),
             "findings": [
                 {"severity": f.get("severity",""), "title": f.get("title",""),
-                 "fix": f.get("fix",""), "pqc_note": f.get("pqc_note","")}
+                 "fix": f.get("fix",""), "pq_note": f.get("pq_note","")}
                 for f in (r.get("findings") or [])[:8]
             ],
         })
@@ -1178,7 +1178,7 @@ def _gh(method: str, path: str, body: Any = None, _token: str = "") -> Any:
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "Content-Type": "application/json",
-        "User-Agent": "pqc-scout/1.0",
+        "User-Agent": "pq-scout/1.0",
     })
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -1241,24 +1241,24 @@ def _exec_compliance_gaps(org_id: str, frameworks: List[str]) -> Dict[str, Any]:
 
 def _exec_fips_compliance(org_id: str) -> Dict[str, Any]:
     try:
-        from services.fips_pqc import get_fips_readiness
+        from services.fips_pq import get_fips_readiness
         return get_fips_readiness(org_id)
     except Exception:
         pass
     try:
         with _db() as c:
-            pqc_safe = (c.execute(
-                "SELECT COUNT(*) FROM scan_results WHERE (organization_id=? OR organization_id IS NULL) AND UPPER(pqc_relevance)='LOW'", (org_id,)
+            pq_safe = (c.execute(
+                "SELECT COUNT(*) FROM scan_results WHERE (organization_id=? OR organization_id IS NULL) AND UPPER(pq_relevance)='LOW'", (org_id,)
             ).fetchone() or [0])[0]
             total = (c.execute(
                 "SELECT COUNT(*) FROM scan_results WHERE organization_id=? OR organization_id IS NULL", (org_id,)
             ).fetchone() or [0])[0]
         return {
-            "fips_203_mlkem_ready": pqc_safe,
-            "fips_204_mldsa_ready": pqc_safe,
-            "fips_205_slhdsa_ready": pqc_safe,
+            "fips_203_mlkem_ready": pq_safe,
+            "fips_204_mldsa_ready": pq_safe,
+            "fips_205_slhdsa_ready": pq_safe,
             "total_assets": total,
-            "readiness_pct": round(100 * pqc_safe / total, 1) if total else 0,
+            "readiness_pct": round(100 * pq_safe / total, 1) if total else 0,
             "note": "Assets using ML-KEM/ML-DSA/SLH-DSA are FIPS 203/204/205 compliant.",
         }
     except Exception as exc:
@@ -1273,13 +1273,13 @@ def _exec_maturity_score(org_id: str) -> Dict[str, Any]:
         pass
     try:
         with _db() as c:
-            pqc_safe = (c.execute(
-                "SELECT COUNT(*) FROM scan_results WHERE (organization_id=? OR organization_id IS NULL) AND UPPER(pqc_relevance)='LOW'", (org_id,)
+            pq_safe = (c.execute(
+                "SELECT COUNT(*) FROM scan_results WHERE (organization_id=? OR organization_id IS NULL) AND UPPER(pq_relevance)='LOW'", (org_id,)
             ).fetchone() or [0])[0]
             total = (c.execute(
                 "SELECT COUNT(*) FROM scan_results WHERE organization_id=? OR organization_id IS NULL", (org_id,)
             ).fetchone() or [0])[0]
-        pct = round(100 * pqc_safe / total, 1) if total else 0
+        pct = round(100 * pq_safe / total, 1) if total else 0
         if pct >= 80:
             level, label = 4, "Managed"
         elif pct >= 60:
@@ -1290,8 +1290,8 @@ def _exec_maturity_score(org_id: str) -> Dict[str, Any]:
             level, label = 1, "Initial"
         else:
             level, label = 0, "Ad Hoc"
-        return {"maturity_level": level, "label": label, "pqc_readiness_pct": pct,
-                "description": f"L{level} — {label}: {pct}% of assets are PQC-ready."}
+        return {"maturity_level": level, "label": label, "pq_readiness_pct": pct,
+                "description": f"L{level} — {label}: {pct}% of assets are post-quantum-ready."}
     except Exception as exc:
         return {"error": str(exc)}
 
@@ -1350,8 +1350,8 @@ def _exec_peer_benchmark(org_id: str) -> Dict[str, Any]:
 
     try:
         with _db() as c:
-            pqc_safe = (c.execute(
-                "SELECT COUNT(*) FROM scan_results WHERE (organization_id=? OR organization_id IS NULL) AND UPPER(pqc_relevance)='LOW'", (org_id,)
+            pq_safe = (c.execute(
+                "SELECT COUNT(*) FROM scan_results WHERE (organization_id=? OR organization_id IS NULL) AND UPPER(pq_relevance)='LOW'", (org_id,)
             ).fetchone() or [0])[0]
             total = (c.execute(
                 "SELECT COUNT(*) FROM scan_results WHERE organization_id=? OR organization_id IS NULL", (org_id,)
@@ -1362,16 +1362,16 @@ def _exec_peer_benchmark(org_id: str) -> Dict[str, Any]:
     if not total:
         result = compute_benchmark(org_score=0.0)
         result["org_score"] = None
-        result["your_pqc_readiness_pct"] = None
+        result["your_pq_readiness_pct"] = None
         result["reason"] = (
-            "No scan results on record, so your own PQC readiness cannot be measured yet — and "
+            "No scan results on record, so your own post-quantum readiness cannot be measured yet — and "
             "peer comparison is never available: the platform receives no other organization's posture."
         )
         return result
 
-    pct = round(100 * pqc_safe / total, 1)
+    pct = round(100 * pq_safe / total, 1)
     result = compute_benchmark(org_score=pct)
-    result["your_pqc_readiness_pct"] = pct
+    result["your_pq_readiness_pct"] = pct
     return result
 
 
@@ -1469,7 +1469,7 @@ def _exec_platform_health() -> Dict[str, Any]:
     try:
         import importlib
         services = ["scanner", "policy", "db", "services.compliance_report", "services.remediation_playbooks",
-                    "services.maturity_model", "services.fips_pqc", "services.peer_benchmark",
+                    "services.maturity_model", "services.fips_pq", "services.peer_benchmark",
                     "services.qday_forecast", "services.roi_calculator", "services.mobile_iot_scanner",
                     "services.scan_scheduler"]
         results = {}
@@ -1610,9 +1610,9 @@ def _exec_create_schedule(org_id: str, name: str, targets: List[str], interval_h
         return {"error": str(exc)}
 
 
-def _exec_generate_pqc_config(target: str, profile: str = "hybrid") -> Dict[str, Any]:
+def _exec_generate_pq_config(target: str, profile: str = "hybrid") -> Dict[str, Any]:
     try:
-        from services.pqc_codegen import generate_config
+        from services.pq_codegen import generate_config
         return generate_config(target, profile)
     except Exception:
         pass
@@ -1620,7 +1620,7 @@ def _exec_generate_pqc_config(target: str, profile: str = "hybrid") -> Dict[str,
         "nginx": (
             "ssl_protocols TLSv1.3;\n"
             "ssl_ciphers TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256;\n"
-            "# Hybrid PQC key exchange (requires nginx-quic + OQS provider)\n"
+            "# Hybrid post-quantum key exchange (requires nginx-quic + OQS provider)\n"
             "ssl_ecdh_curve X25519MLKEM768:X25519;\n"
             "ssl_prefer_server_ciphers off;\n"
             "add_header Strict-Transport-Security 'max-age=63072000' always;\n"
@@ -1645,13 +1645,13 @@ def _exec_generate_pqc_config(target: str, profile: str = "hybrid") -> Dict[str,
             "# OQS OpenSSL provider with ML-KEM + ML-DSA support\n"
         ),
         "kubernetes": (
-            "apiVersion: v1\nkind: Secret\nmetadata:\n  name: pqc-tls\ntype: kubernetes.io/tls\n"
+            "apiVersion: v1\nkind: Secret\nmetadata:\n  name: pq-tls\ntype: kubernetes.io/tls\n"
             "# Use cert-manager with OQS issuer for ML-DSA hybrid certificates\n"
         ),
     }
-    code = configs.get(target, f"# PQC config for {target}\n# Install liboqs and use ML-KEM-768 / ML-DSA-65\n")
+    code = configs.get(target, f"# Post-quantum config for {target}\n# Install liboqs and use ML-KEM-768 / ML-DSA-65\n")
     return {"target": target, "profile": profile, "config": code,
-            "notes": f"Generated {profile} PQC config for {target}. Review before deploying."}
+            "notes": f"Generated {profile} post-quantum config for {target}. Review before deploying."}
 
 
 def _exec_get_cloud_assets(org_id: str, provider: str = "all") -> List[Dict[str, Any]]:
@@ -1700,7 +1700,7 @@ def _exec_get_cbom(org_id: str) -> Dict[str, Any]:
     services.cbom.get_cbom_for_org, which did not exist, and `except Exception: pass` hid the
     ImportError. The fallback then hand-rolled a "CycloneDX 1.5" document declaring
     `"type": "crypto-algo"` -- not a CycloneDX component type -- from columns `algorithm` and
-    `pqc_safe` that scan_results does not have, so it raised too and the tool only ever returned
+    `pq_safe` that scan_results does not have, so it raised too and the tool only ever returned
     {"error": ...}. There is no fallback now: one generator, and its output is schema-checked by
     test_cbom_conformance.py.
     """
@@ -1798,7 +1798,7 @@ def _exec_github_create_pr(repo: str, title: str, body: str, base_branch: str,
             content_b64 = base64.b64encode(change["content"].encode()).decode()
             existing_sha = _gh_get_file_sha(repo, file_path, new_branch)
             payload: Dict[str, Any] = {
-                "message": change.get("message") or f"PQC Scout: update {file_path}",
+                "message": change.get("message") or f"Post-Quantum Scout: update {file_path}",
                 "content": content_b64,
                 "branch": new_branch,
             }
@@ -2010,7 +2010,7 @@ async def _dispatch_tool(fn_name: str, args: Dict[str, Any], org_id: str) -> tup
     if fn_name == "get_compliance_status":
         result = await loop.run_in_executor(
             _EXECUTOR, _exec_compliance, org_id,
-            args.get("framework","nist-pqc"), args.get("scan_id","")
+            args.get("framework","nist-pq"), args.get("scan_id","")
         )
         return result, f"Generated {args.get('framework','')} compliance report."
 
@@ -2060,7 +2060,7 @@ async def _dispatch_tool(fn_name: str, args: Dict[str, Any], org_id: str) -> tup
 
     if fn_name == "get_maturity_score":
         result = await loop.run_in_executor(_EXECUTOR, _exec_maturity_score, org_id)
-        return result, f"Loaded PQC maturity score: L{result.get('maturity_level',0)}."
+        return result, f"Loaded post-quantum maturity score: L{result.get('maturity_level',0)}."
 
     if fn_name == "get_qday_forecast":
         result = await loop.run_in_executor(_EXECUTOR, _exec_qday_forecast, org_id)
@@ -2134,18 +2134,18 @@ async def _dispatch_tool(fn_name: str, args: Dict[str, Any], org_id: str) -> tup
                 "incident_type": incident_type,
                 "T+0h": "Isolate affected systems. Revoke compromised keys/certs. Engage incident response team.",
                 "T+4h": "Complete asset inventory. Identify all affected downstream services. Draft stakeholder comms.",
-                "T+24h": "Deploy hybrid PQC certificates. Rotate all secrets. Enable enhanced monitoring.",
-                "T+72h": "Full PQC migration for critical systems. Regulatory notification if required.",
+                "T+24h": "Deploy hybrid post-quantum certificates. Rotate all secrets. Enable enhanced monitoring.",
+                "T+72h": "Full post-quantum migration for critical systems. Regulatory notification if required.",
                 "T+7d": "Post-incident review. Update runbooks. Accelerate remaining migration backlog.",
             }
         return result, f"Generated emergency response plan for {incident_type}."
 
     # ── Platform actions ─────────────────────────────────────────────────────
-    if fn_name == "generate_pqc_config":
+    if fn_name == "generate_pq_config":
         target = args.get("target", "nginx")
         profile = args.get("algorithm_profile", "hybrid")
-        result = await loop.run_in_executor(_EXECUTOR, _exec_generate_pqc_config, target, profile)
-        return result, f"Generated PQC config for {target} ({profile} profile)."
+        result = await loop.run_in_executor(_EXECUTOR, _exec_generate_pq_config, target, profile)
+        return result, f"Generated post-quantum config for {target} ({profile} profile)."
 
     if fn_name == "create_remediation":
         result = await loop.run_in_executor(
@@ -2272,7 +2272,7 @@ async def _dispatch_tool(fn_name: str, args: Dict[str, Any], org_id: str) -> tup
         result = await loop.run_in_executor(
             _EXECUTOR, _exec_github_create_pr,
             args.get("repo",""), args.get("title",""), args.get("body",""),
-            args.get("base_branch","main"), args.get("new_branch","pqc-fix"),
+            args.get("base_branch","main"), args.get("new_branch","pq-fix"),
             args.get("changes",[])
         )
         pr_url = result.get("url","")
@@ -2282,7 +2282,7 @@ async def _dispatch_tool(fn_name: str, args: Dict[str, Any], org_id: str) -> tup
         result = await loop.run_in_executor(
             _EXECUTOR, _exec_github_review_pr,
             args.get("repo",""), int(args.get("pr_number",0)),
-            args.get("event","APPROVE"), args.get("body","PQC Scout: auto-approved.")
+            args.get("event","APPROVE"), args.get("body","Post-Quantum Scout: auto-approved.")
         )
         return result, f"PR #{args.get('pr_number','')} reviewed ({args.get('event','APPROVE')})."
 
@@ -2336,7 +2336,7 @@ def active_provider(org_id: str = "") -> Dict[str, Any]:
 #: Exactly what leaves this process for a model, for the console and the docs.
 DATA_SENT_TO_MODEL = {
     "sent": [
-        "The static PQC Scout system prompt (application text; no customer data).",
+        "The static post-quantum Scout system prompt (application text; no customer data).",
         "The question typed in CipherLens, plus the dashboard counters the console "
         "attaches to it (route name, organization id, and whole-number totals).",
         "Up to the last few turns of this conversation, as plain text.",
@@ -2421,7 +2421,7 @@ async def _run_claude(
     # what produced an answer. This is the model the tenant actually approved.
     yield _sse("provider", provider="anthropic", model=approved["approved_model"], tools=True,
                streaming=True, network=True, endpoint=approved.get("approved_destination", ""))
-    yield _sse("status", text=f"PQC Scout ({approved['approved_model']}) thinking…")
+    yield _sse("status", text=f"Post-Quantum Scout ({approved['approved_model']}) thinking…")
 
     evidence: Dict[str, Any] = {}
 
@@ -2559,7 +2559,7 @@ async def _run_openai(
     yield _sse("provider", provider=approved["provider"], model=approved["approved_model"],
                tools=True, streaming=True, network=True,
                endpoint=approved.get("approved_destination", ""))
-    yield _sse("status", text=f"PQC Scout ({approved['approved_model']}) thinking…")
+    yield _sse("status", text=f"Post-Quantum Scout ({approved['approved_model']}) thinking…")
 
     evidence: Dict[str, Any] = {}
 
@@ -2672,7 +2672,7 @@ async def _run_provider(
     yield _sse("provider", provider=caps.provider, model=caps.model, tools=caps.tools,
                streaming=caps.streaming, network=True, context_window=caps.context_window,
                endpoint=caps.endpoint, note="; ".join(notes))
-    yield _sse("status", text=f"PQC Scout ({caps.model}) thinking…")
+    yield _sse("status", text=f"Post-Quantum Scout ({caps.model}) thinking…")
 
     tools = _CLAUDE_TOOLS if caps.tools else None
     if not caps.tools:
@@ -2780,7 +2780,7 @@ async def run_agent_stream(
     # customer's policy cannot re-enable a model call the operator has disabled.
     if llm.disabled():
         async for chunk in _builtin_reply(
-                message, "PQC_LLM_DISABLED=1: this deployment makes no external model calls. "
+                message, "MORROW_LLM_DISABLED=1: this deployment makes no external model calls. "
                          "Answered from built-in rules."):
             yield chunk
         return
@@ -2795,7 +2795,7 @@ async def run_agent_stream(
                 yield chunk
         elif conf["provider"] in ("openai", "local"):
             # "local" is the long-standing customer-hosted OpenAI-compatible destination
-            # (PQC_AI_LOCAL_URL); it keeps its existing path so nothing changes for it.
+            # (MORROW_AI_LOCAL_URL); it keeps its existing path so nothing changes for it.
             async for chunk in _run_openai(message, history, org_id):
                 yield chunk
         else:

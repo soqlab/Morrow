@@ -6,7 +6,7 @@ domains), every certificate issuer is an invented internal CA, and no real
 third party is named anywhere.
 
 Scan results are built with the platform's own evaluation pipeline
-(policy.evaluate_policies -> derive_risk_and_score -> derive_pqc_relevance ->
+(policy.evaluate_policies -> derive_risk_and_score -> derive_pq_relevance ->
 derive_quantum_readiness) and then posted through POST /scans/synthetic, so the
 stored scans, asset summaries, CBOM, HNDL model and compliance report are
 internally consistent with what a real scan of such an estate would produce.
@@ -28,19 +28,19 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-# PQC_BACKEND_DIR exists because this script is also the quick-start seeder, and in the
+# MORROW_BACKEND_DIR exists because this script is also the quick-start seeder, and in the
 # container the backend lives at /app with no repo root above it -- ROOT/"backend" is only
 # correct when running from a checkout. The container mounts demo/ and points this at /app.
-BACKEND = pathlib.Path(os.environ.get("PQC_BACKEND_DIR") or (ROOT / "backend"))
-DEMO_DB = pathlib.Path(os.environ.get("PQC_DEMO_DB") or (ROOT / "demo" / "video" / "demo.db"))
-BASE = os.environ.get("PQC_DEMO_BASE", "http://127.0.0.1:8049")
+BACKEND = pathlib.Path(os.environ.get("MORROW_BACKEND_DIR") or (ROOT / "backend"))
+DEMO_DB = pathlib.Path(os.environ.get("MORROW_DEMO_DB") or (ROOT / "demo" / "video" / "demo.db"))
+BASE = os.environ.get("MORROW_DEMO_BASE", "http://127.0.0.1:8049")
 # The account the seeded workspace belongs to. The server creates it at startup from
-# PQC_ADMIN_EMAIL / PQC_ADMIN_PASSWORD, so these must match whatever started the server
+# MORROW_ADMIN_EMAIL / MORROW_ADMIN_PASSWORD, so these must match whatever started the server
 # (demo/video/run-demo-server.py, or the app service in docker-compose.yml).
-EMAIL = os.environ.get("PQC_DEMO_EMAIL") or "avery.chen@example.com"
-PASSWORD = os.environ.get("PQC_DEMO_PASSWORD") or "Airlock-Demo-Recording-8049"
+EMAIL = os.environ.get("MORROW_DEMO_EMAIL") or "avery.chen@example.com"
+PASSWORD = os.environ.get("MORROW_DEMO_PASSWORD") or "Airlock-Demo-Recording-8049"
 
-os.environ["PQC_SCANNER_DB"] = str(DEMO_DB)   # before anything imports db
+os.environ["MORROW_SCANNER_DB"] = str(DEMO_DB)   # before anything imports db
 sys.path.insert(0, str(BACKEND))
 
 # The estate is shared with the public demo workspace (services/demo_mode.py).
@@ -92,7 +92,7 @@ def brand_tenant(org_id: str) -> None:
     conn = sqlite3.connect(str(DEMO_DB), timeout=30)
     try:
         conn.execute("UPDATE organizations SET name=? WHERE id=?", (COMPANY, org_id))
-        conn.execute("UPDATE pqc_users SET full_name=?, org_id=? WHERE email=?",
+        conn.execute("UPDATE morrow_users SET full_name=?, org_id=? WHERE email=?",
                      ("Avery Chen", org_id, EMAIL))
         conn.commit()
     finally:
@@ -108,7 +108,7 @@ def main() -> None:
     log(f"signed in; workspace={org_id}")
 
     # ---------------------------------------------------------- repositories
-    import db as dbmod  # imported late: PQC_SCANNER_DB is already set above
+    import db as dbmod  # imported late: MORROW_SCANNER_DB is already set above
     dbmod.set_current_organization_id(org_id)
     repo_ids = {}
     for slug, name in REPOS.items():
@@ -162,7 +162,7 @@ def main() -> None:
     made = []
     for asset_key, repo, path, title, fix, status in REMEDIATION_PLAN:
         original = f"# {path}\nmin_tls_version = \"1.2\"\nkey_algorithm   = \"rsa-2048\"\ncrypto_owner    = \"\"\n"
-        suggested = f"# {path}\nmin_tls_version = \"1.3\"\nkey_algorithm   = \"rsa-3072\"\ncrypto_owner    = \"platform-security\"\npqc_stage       = \"hybrid-group-pending\"\n"
+        suggested = f"# {path}\nmin_tls_version = \"1.3\"\nkey_algorithm   = \"rsa-3072\"\ncrypto_owner    = \"platform-security\"\npq_stage       = \"hybrid-group-pending\"\n"
         row = dbmod.create_remediation(
             asset_key, repo_ids.get(repo, 0), path, title, fix,
             original_content=original, suggested_content=suggested,
@@ -200,7 +200,7 @@ def main() -> None:
                       "updated_at": (created + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")}
             if status in {"pr_created", "verified_closed"}:
                 fields["pr_url"] = f"https://github.com/example-financial/repo/pull/{100 + rid}"
-                fields["pr_branch"] = f"pqc/remediation-{rid}"
+                fields["pr_branch"] = f"morrow/remediation-{rid}"
                 fields["pr_base_branch"] = "main"
             if status == "verified_closed":
                 merged = created + timedelta(days=9)

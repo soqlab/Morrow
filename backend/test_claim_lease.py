@@ -41,7 +41,7 @@ class TestClaimLease(unittest.TestCase):
         self.tmp.close()
 
         # IMPORTANT: set env BEFORE importing db
-        os.environ["PQC_SCANNER_DB"] = self.tmp.name
+        os.environ["MORROW_SCANNER_DB"] = self.tmp.name
         _mk_db(self.tmp.name)
 
         import db as _db

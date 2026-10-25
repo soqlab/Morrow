@@ -4,7 +4,7 @@ This document gives concise answers for early customer security review. It is no
 
 ## Product Boundary
 
-Morrow is a cryptographic observability and governance platform. It discovers TLS/PQC posture, links assets to repositories, manages remediation workflow, validates changes, and records evidence.
+Morrow is a cryptographic observability and governance platform. It discovers TLS/post-quantum posture, links assets to repositories, manages remediation workflow, validates changes, and records evidence.
 
 ## Current Deployment Model
 

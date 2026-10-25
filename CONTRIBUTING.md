@@ -35,11 +35,11 @@ ruff check .                        # lint; rules live in backend/ruff.toml
 ```
 
 The suite must pass with nothing installed and no secrets set. Tests needing a real service skip
-rather than fail; set `PQC_TEST_PG_DSN` or `PQC_TEST_REDIS_URL` to make them run:
+rather than fail; set `MORROW_TEST_PG_DSN` or `MORROW_TEST_REDIS_URL` to make them run:
 
 ```bash
 docker compose -f backend/compose.yml up -d postgres redis
-PQC_TEST_PG_DSN=postgresql://pqc:pqc@localhost:5433/pqc pytest -q
+MORROW_TEST_PG_DSN=postgresql://morrow:morrow@localhost:5433/morrow pytest -q
 ```
 
 **A new test must not require a credential or a network call to pass.** If the thing you are testing
@@ -59,7 +59,7 @@ not work, the bug this guards against. Prefer a comment that would stop someone 
 code back into a defect.
 
 ```python
-# Gate on PQC_ENVIRONMENT, which is what app.py actually reads. This block previously tested
+# Gate on MORROW_ENVIRONMENT, which is what app.py actually reads. This block previously tested
 # PRODUCTION_ENVIRONMENT=true, a name nothing in the application sets, so the pre-flight checks
 # never ran on any deployment.
 ```
@@ -132,7 +132,7 @@ Checks are policy rules evaluated against the facts a probe collected, in `backe
            title=f"RSA key is {bits} bits, policy requires {required}",
            severity="high",
            remediation="Reissue the certificate with a larger key, or migrate to ML-DSA.",
-           pqc_mapping="NIST IR 8547 deprecates RSA-2048 from 2030.",
+           pq_mapping="NIST IR 8547 deprecates RSA-2048 from 2030.",
            evidence={"observed_bits": bits, "required_bits": required},
            confidence="high",
            confidence_reason="Key size read directly from the certificate.",
@@ -141,8 +141,8 @@ Checks are policy rules evaluated against the facts a probe collected, in `backe
 
    `rule_id` is stable and is what remediation tracking keys off, so do not rename one casually.
    `evidence` must contain what was actually observed, so a reviewer can check the conclusion.
-3. **Decide whether it is quantum-relevant.** If the finding changes PQC exposure, extend
-   `derive_pqc_relevance` and `derive_quantum_readiness` rather than only raising severity.
+3. **Decide whether it is quantum-relevant.** If the finding changes post-quantum exposure, extend
+   `derive_pq_relevance` and `derive_quantum_readiness` rather than only raising severity.
 4. **Test it both ways** — a case that fires and a case that must not, plus a case with the fact
    missing, which must produce no finding rather than a false positive. Add ground-truth cases to
    `backend/test_scanner_accuracy.py` and update
@@ -169,7 +169,7 @@ provider. Full detail is in [docs/AI_PROVIDERS.md](docs/AI_PROVIDERS.md).
 6. Document its environment variables in [`.env.example`](.env.example) and `docs/AI_PROVIDERS.md`.
 7. Test against a stubbed transport, not the live API. The suite must not need a key.
 
-You do not have to modify the package to bring your own: set `PQC_LLM_CUSTOM_MODULE` to a module
+You do not have to modify the package to bring your own: set `MORROW_LLM_CUSTOM_MODULE` to a module
 exposing a `Provider` subclass.
 
 ## Pull requests

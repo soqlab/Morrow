@@ -15,7 +15,7 @@
   if (!A || !S || !C) return;
   const { $, esc, fmt, asNum, text, empty, emptyRow, skeletonRows, skeletonList, failBox, failRow, fmtTime, statusPill, riskPill, tags, kv } = A;
   const enc = encodeURIComponent;
-  const RANGE_KEY = "pqc_admin_range", LAST_ORG_KEY = "pqc_admin_last_org";
+  const RANGE_KEY = "morrow_admin_range", LAST_ORG_KEY = "morrow_admin_last_org";
   const RANGES = { "24h": "last 24 hours", "7d": "last 7 days", "30d": "last 30 days", "90d": "last 90 days" };
   const NOT_AVAILABLE = "Not available on this server yet.";
 
@@ -782,9 +782,9 @@
     const org = current.org;
     const kind = button.dataset.c360Export;
     A.setStatus(`Preparing ${kind === "gdpr" ? "GDPR export" : kind === "package" ? "audit package" : "tenant audit CSV"} for ${org}...`);
-    if (kind === "gdpr") await A.download(`/platform/customers/${enc(org)}/export`, `pqc-gdpr-export-${org}.json`);
-    else if (kind === "package") await A.download(`/platform/customers/${enc(org)}/audit-package`, `pqc-audit-package-${org}.zip`);
-    else await A.download(`/platform/customers/${enc(org)}/audit-logs/export.csv`, `pqc-audit-${org}.csv`);
+    if (kind === "gdpr") await A.download(`/platform/customers/${enc(org)}/export`, `pq-gdpr-export-${org}.json`);
+    else if (kind === "package") await A.download(`/platform/customers/${enc(org)}/audit-package`, `pq-audit-package-${org}.zip`);
+    else await A.download(`/platform/customers/${enc(org)}/audit-logs/export.csv`, `pq-audit-${org}.csv`);
     A.setStatus(`Export for ${org} downloaded.`, "ok");
   }));
 

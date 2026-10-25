@@ -93,12 +93,12 @@ Server-side sovereign redaction provides a second guardrail for API-submitted te
 
 ## Signature And Integrity
 
-Airlock submissions are signed with `PQC_AIRLOCK_SIGNING_KEY` derived configuration. Production enterprise pilots should set:
+Airlock submissions are signed with `MORROW_AIRLOCK_SIGNING_KEY` derived configuration. Production enterprise pilots should set:
 
 ```text
-PQC_AIRLOCK_SIGNING_KEY=<64+ character random secret>
-PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1
-PQC_AIRLOCK_MAX_CLOCK_SKEW_SECONDS=600
+MORROW_AIRLOCK_SIGNING_KEY=<64+ character random secret>
+MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1
+MORROW_AIRLOCK_MAX_CLOCK_SKEW_SECONDS=600
 ```
 
 Unsigned evidence can be useful in local development. It should not be trusted for paid enterprise pilots.

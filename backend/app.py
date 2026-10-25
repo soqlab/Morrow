@@ -73,8 +73,8 @@ from scanner import classify_key_exchange_group as _classify_key_exchange_group
 
 def _hybrid_key_exchange_observed(group_name) -> bool:
     """True only when a hybrid post-quantum TLS group was actually observed on the wire."""
-    return _classify_key_exchange_group(group_name or "") in ("pqc_hybrid", "pqc_pure")
-from policy import PQC_PROVIDER_CAPABILITY_MATRIX, derive_quantum_readiness, summarize_results
+    return _classify_key_exchange_group(group_name or "") in ("pq_hybrid", "pq_pure")
+from policy import MORROW_PROVIDER_CAPABILITY_MATRIX, derive_quantum_readiness, summarize_results
 from migration import build_tls_migration_plan
 from observability import capture_exception
 from idempotency import (
@@ -373,7 +373,7 @@ from services.vendor_scorecard import (
 from services.hybrid_cert import (
     generate_self_signed_hybrid as _hybrid_cert_generate,
     generate_hybrid_csr as _hybrid_csr_generate,
-    check_pqc_library_availability as _hybrid_lib_check,
+    check_pq_library_availability as _hybrid_lib_check,
 )
 from services.canary import (
     deploy_canary as _deploy_canary,
@@ -495,7 +495,7 @@ from services.board_risk import (
     build_crypto_weather as _board_weather,
 )
 from services.security_intent import evaluate_security_intent as _eval_intent
-from services.fips_pqc import (
+from services.fips_pq import (
     build_fips_compliance_report as _fips_report,
     classify_algorithm as _fips_classify,
     estimate_migration_timeline as _fips_timeline,
@@ -520,7 +520,7 @@ from services.compliance_mapping import (
     list_frameworks as _compliance_frameworks,
 )
 from services.crypto_agility import build_crypto_agility_report as _agility_report
-from services.pqc_codegen import generate as _codegen_generate, list_targets as _codegen_targets
+from services.pq_codegen import generate as _codegen_generate, list_targets as _codegen_targets
 from services.migration_velocity import build_velocity_report as _velocity_report
 from services.emergency_response import (
     build_emergency_response_plan as _emergency_plan,
@@ -584,7 +584,7 @@ from services.policy_engine import (
     delete_policy as _pol_delete, evaluate_policy as _pol_evaluate,
     get_policy_results as _pol_results, POLICY_TEMPLATES as _POL_TEMPLATES,
 )
-from services.advanced_pqc_controls import (
+from services.advanced_pq_controls import (
     build_crypto_mesh_profile as _mesh_build,
     save_crypto_mesh_profile as _mesh_save,
     list_crypto_mesh_profiles as _mesh_list,
@@ -873,7 +873,7 @@ class EnterpriseBulkOnboardRequest(BaseModel):
     environment: str = "prod"
     criticality: str = "high"
     confidentiality_lifetime: str = "10y+"
-    tags: List[str] = Field(default_factory=lambda: ["internet", "pqc", "hndl"])
+    tags: List[str] = Field(default_factory=lambda: ["internet", "pq", "hndl"])
     github_token: str = ""
     github_org: str = ""
     github_visibility: str = "all"
@@ -1120,65 +1120,65 @@ _SCANS_LOCK = threading.Lock()
 # API key + rate limit
 # -----------------------------
 
-API_KEY = os.getenv("PQC_API_KEY", "").strip()
+API_KEY = os.getenv("MORROW_API_KEY", "").strip()
 PROTECTED_PREFIXES = ("/scan", "/scans", "/code-scan")
 
-# CORS — default to localhost only; set PQC_CORS_ORIGINS=https://app.yourco.com,https://dashboard.yourco.com for production
-_cors_raw = os.getenv("PQC_CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").strip()
+# CORS — default to localhost only; set MORROW_CORS_ORIGINS=https://app.yourco.com,https://dashboard.yourco.com for production
+_cors_raw = os.getenv("MORROW_CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").strip()
 CORS_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
-# Wildcard is allowed only when PQC_CORS_ALLOW_ALL=1 is explicitly set (dev convenience)
-if os.getenv("PQC_CORS_ALLOW_ALL", "0").strip() in {"1", "true", "yes"}:
+# Wildcard is allowed only when MORROW_CORS_ALLOW_ALL=1 is explicitly set (dev convenience)
+if os.getenv("MORROW_CORS_ALLOW_ALL", "0").strip() in {"1", "true", "yes"}:
     CORS_ORIGINS = ["*"]
-DEFAULT_USER_ROLE = str(os.getenv("PQC_DEFAULT_ROLE", "admin") or "admin").strip().lower()
+DEFAULT_USER_ROLE = str(os.getenv("MORROW_DEFAULT_ROLE", "admin") or "admin").strip().lower()
 VALID_USER_ROLES = {"viewer", "operator", "admin"}
-DEFAULT_ORG_ID = str(os.getenv("PQC_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001") or "00000000-0000-0000-0000-000000000001").strip()
-AUTH_MODE = str(os.getenv("PQC_AUTH_MODE", "headers") or "headers").strip().lower()
-AUTH_REQUIRED = str(os.getenv("PQC_AUTH_REQUIRED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-AUTH_PROVIDER_NAME = str(os.getenv("PQC_AUTH_PROVIDER_NAME", "Hosted JWT") or "Hosted JWT").strip()
-AUTH_LOGIN_URL = str(os.getenv("PQC_AUTH_LOGIN_URL", "") or "").strip()
-AUTH_LOGOUT_URL = str(os.getenv("PQC_AUTH_LOGOUT_URL", "") or "").strip()
-AUTH_TOKEN_HELP = str(os.getenv("PQC_AUTH_TOKEN_HELP", "") or "").strip()
-AUTH_JWT_ISSUER = str(os.getenv("PQC_AUTH_JWT_ISSUER", "") or "").strip()
-AUTH_JWT_AUDIENCE = str(os.getenv("PQC_AUTH_JWT_AUDIENCE", "") or "").strip()
-AUTH_JWT_JWKS_URL = str(os.getenv("PQC_AUTH_JWT_JWKS_URL", "") or "").strip()
-AUTH_JWT_SECRET = str(os.getenv("PQC_AUTH_JWT_SECRET", "") or "").strip()
-AUTH_USER_ID_CLAIM = str(os.getenv("PQC_AUTH_USER_ID_CLAIM", "sub") or "sub").strip()
-AUTH_ROLE_CLAIM = str(os.getenv("PQC_AUTH_ROLE_CLAIM", "role") or "role").strip()
-AUTH_ORG_ID_CLAIM = str(os.getenv("PQC_AUTH_ORG_ID_CLAIM", "") or "").strip()
-AUTH_CLOCK_SKEW_SECONDS = int(os.getenv("PQC_AUTH_CLOCK_SKEW_SECONDS", "60") or "60")
+DEFAULT_ORG_ID = str(os.getenv("MORROW_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001") or "00000000-0000-0000-0000-000000000001").strip()
+AUTH_MODE = str(os.getenv("MORROW_AUTH_MODE", "headers") or "headers").strip().lower()
+AUTH_REQUIRED = str(os.getenv("MORROW_AUTH_REQUIRED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+AUTH_PROVIDER_NAME = str(os.getenv("MORROW_AUTH_PROVIDER_NAME", "Hosted JWT") or "Hosted JWT").strip()
+AUTH_LOGIN_URL = str(os.getenv("MORROW_AUTH_LOGIN_URL", "") or "").strip()
+AUTH_LOGOUT_URL = str(os.getenv("MORROW_AUTH_LOGOUT_URL", "") or "").strip()
+AUTH_TOKEN_HELP = str(os.getenv("MORROW_AUTH_TOKEN_HELP", "") or "").strip()
+AUTH_JWT_ISSUER = str(os.getenv("MORROW_AUTH_JWT_ISSUER", "") or "").strip()
+AUTH_JWT_AUDIENCE = str(os.getenv("MORROW_AUTH_JWT_AUDIENCE", "") or "").strip()
+AUTH_JWT_JWKS_URL = str(os.getenv("MORROW_AUTH_JWT_JWKS_URL", "") or "").strip()
+AUTH_JWT_SECRET = str(os.getenv("MORROW_AUTH_JWT_SECRET", "") or "").strip()
+AUTH_USER_ID_CLAIM = str(os.getenv("MORROW_AUTH_USER_ID_CLAIM", "sub") or "sub").strip()
+AUTH_ROLE_CLAIM = str(os.getenv("MORROW_AUTH_ROLE_CLAIM", "role") or "role").strip()
+AUTH_ORG_ID_CLAIM = str(os.getenv("MORROW_AUTH_ORG_ID_CLAIM", "") or "").strip()
+AUTH_CLOCK_SKEW_SECONDS = int(os.getenv("MORROW_AUTH_CLOCK_SKEW_SECONDS", "60") or "60")
 AUTH_JWT_ALGORITHMS = [
     str(x or "").strip().upper()
-    for x in str(os.getenv("PQC_AUTH_JWT_ALGORITHMS", "RS256") or "RS256").split(",")
+    for x in str(os.getenv("MORROW_AUTH_JWT_ALGORITHMS", "RS256") or "RS256").split(",")
     if str(x or "").strip()
 ]
 # The built-in issuer (services/auth_issuer) signs with a shared secret, so it can only produce
 # HS256 tokens. When it is active, the verifier must accept HS256 or the server would reject the
 # very tokens /auth/login just issued — every authenticated request would 401. See
 # AUTH_ISSUER_ALGORITHM below; the production blockers still demand an explicit
-# PQC_ALLOW_HS256_IN_PRODUCTION exception, so this cannot silently weaken a production deploy.
+# MORROW_ALLOW_HS256_IN_PRODUCTION exception, so this cannot silently weaken a production deploy.
 AUTH_ISSUER_ENABLED = str(
-    os.getenv("PQC_AUTH_ISSUER_ENABLED", "1") or "1"
+    os.getenv("MORROW_AUTH_ISSUER_ENABLED", "1") or "1"
 ).strip().lower() in {"1", "true", "yes", "on"}
 AUTH_ISSUER_ALGORITHM = str(_ISSUER_ALGORITHM or "HS256").strip().upper()
 AUTH_ISSUER_ACTIVE = bool(AUTH_ISSUER_ENABLED and AUTH_JWT_SECRET)
 if AUTH_ISSUER_ACTIVE and AUTH_ISSUER_ALGORITHM not in AUTH_JWT_ALGORITHMS:
     AUTH_JWT_ALGORITHMS.append(AUTH_ISSUER_ALGORITHM)
 
-PQC_ENVIRONMENT = str(os.getenv("PQC_ENVIRONMENT", "local") or "local").strip().lower()
-PRODUCTION_ENVIRONMENT = PQC_ENVIRONMENT in {"prod", "production"}
-ALLOW_HS256_IN_PRODUCTION = str(os.getenv("PQC_ALLOW_HS256_IN_PRODUCTION", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+MORROW_ENVIRONMENT = str(os.getenv("MORROW_ENVIRONMENT", "local") or "local").strip().lower()
+PRODUCTION_ENVIRONMENT = MORROW_ENVIRONMENT in {"prod", "production"}
+ALLOW_HS256_IN_PRODUCTION = str(os.getenv("MORROW_ALLOW_HS256_IN_PRODUCTION", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
 
-RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("PQC_RATE_LIMIT_WINDOW_SECONDS", "60"))
-RATE_LIMIT_MAX_REQUESTS = int(os.getenv("PQC_RATE_LIMIT_MAX_REQUESTS", "240"))
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("MORROW_RATE_LIMIT_WINDOW_SECONDS", "60"))
+RATE_LIMIT_MAX_REQUESTS = int(os.getenv("MORROW_RATE_LIMIT_MAX_REQUESTS", "240"))
 _requests_by_ip = defaultdict(deque)
 _requests_by_org = defaultdict(deque)
 _REQUEST_OBSERVATIONS = deque(maxlen=2000)
 _RATE_LIMIT_OBSERVATIONS = deque(maxlen=500)
-_TRAFFIC_MONITOR_ENABLED = str(os.getenv("PQC_TRAFFIC_MONITOR_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-_TRAFFIC_EVENTS_MAX = max(100, int(os.getenv("PQC_TRAFFIC_EVENTS_MAX", "5000") or "5000"))
-_TRAFFIC_IP_MAX = max(100, int(os.getenv("PQC_TRAFFIC_IP_MAX", "2000") or "2000"))
-_TRUST_PROXY_HEADERS = str(os.getenv("PQC_TRUST_PROXY_HEADERS", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
-_TRAFFIC_PERSIST_TO_DB = str(os.getenv("PQC_TRAFFIC_PERSIST_TO_DB", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+_TRAFFIC_MONITOR_ENABLED = str(os.getenv("MORROW_TRAFFIC_MONITOR_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+_TRAFFIC_EVENTS_MAX = max(100, int(os.getenv("MORROW_TRAFFIC_EVENTS_MAX", "5000") or "5000"))
+_TRAFFIC_IP_MAX = max(100, int(os.getenv("MORROW_TRAFFIC_IP_MAX", "2000") or "2000"))
+_TRUST_PROXY_HEADERS = str(os.getenv("MORROW_TRUST_PROXY_HEADERS", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+_TRAFFIC_PERSIST_TO_DB = str(os.getenv("MORROW_TRAFFIC_PERSIST_TO_DB", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
 _TRAFFIC_EVENTS = deque(maxlen=_TRAFFIC_EVENTS_MAX)
 _TRAFFIC_BY_IP: Dict[str, Dict[str, Any]] = {}
 _PLATFORM_STATE_SCHEMA_READY = False
@@ -1229,20 +1229,20 @@ class _JsonLogFormatter(logging.Formatter):
 
 
 def _configure_structured_logging() -> None:
-    if str(os.getenv("PQC_STRUCTURED_LOGS", "1") or "1").strip().lower() not in {"1", "true", "yes", "on"}:
+    if str(os.getenv("MORROW_STRUCTURED_LOGS", "1") or "1").strip().lower() not in {"1", "true", "yes", "on"}:
         return
     root = logging.getLogger()
-    if getattr(root, "_pqc_json_configured", False):
+    if getattr(root, "_pq_json_configured", False):
         return
     handler = logging.StreamHandler()
     handler.setFormatter(_JsonLogFormatter())
     root.handlers = [handler]
-    root.setLevel(os.getenv("PQC_LOG_LEVEL", "INFO").upper())
-    setattr(root, "_pqc_json_configured", True)
+    root.setLevel(os.getenv("MORROW_LOG_LEVEL", "INFO").upper())
+    setattr(root, "_pq_json_configured", True)
 
 
 _configure_structured_logging()
-logger = logging.getLogger("pqc.api")
+logger = logging.getLogger("morrow.api")
 from services.log_safety import install_access_log_filter
 install_access_log_filter()
 
@@ -1277,8 +1277,8 @@ class FixNextItem(BaseModel):
     priority_score: float
     risk_score: float = 0.0
     risk_level: str = ""
-    pqc_relevance: str = ""
-    pqc_recommendation: str = ""
+    pq_relevance: str = ""
+    pq_recommendation: str = ""
     owner: str = ""
     team: str = ""
     environment: str = ""
@@ -1412,16 +1412,16 @@ def _init_otel() -> None:
         from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
         resource = Resource.create({
-            "service.name": os.getenv("OTEL_SERVICE_NAME", "pqc-scanner"),
+            "service.name": os.getenv("OTEL_SERVICE_NAME", "morrow"),
             "service.version": "0.6.0",
-            "deployment.environment": os.getenv("PQC_ENVIRONMENT", "production"),
+            "deployment.environment": os.getenv("MORROW_ENVIRONMENT", "production"),
         })
         provider = TracerProvider(resource=resource)
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
         trace.set_tracer_provider(provider)
-        logging.getLogger("pqc.otel").info("OpenTelemetry tracing enabled ? %s", endpoint)
+        logging.getLogger("morrow.otel").info("OpenTelemetry tracing enabled ? %s", endpoint)
     except Exception as exc:
-        logging.getLogger("pqc.otel").warning("OpenTelemetry init failed: %s", exc)
+        logging.getLogger("morrow.otel").warning("OpenTelemetry init failed: %s", exc)
 
 
 def _startup():
@@ -1434,9 +1434,9 @@ def _startup():
         # Vault tables are Postgres-only. Silently skip when running SQLite-only (no DATABASE_URL).
         # The error text can echo connection strings or env values (a BOM-mangled .env line, an
         # invalid DSN); log it only after secrets are removed.
-        logging.warning("[PQC VAULT] Vault table init skipped: %s", _redact_secrets(_vault_err))
+        logging.warning("[Post-quantum VAULT] Vault table init skipped: %s", _redact_secrets(_vault_err))
     for w in _security_warnings():
-        logging.warning("[PQC SECURITY] %s", w)
+        logging.warning("[Post-quantum SECURITY] %s", w)
 
 
 # ── DB helpers ───────────────────────────────────────────────────────────────
@@ -1532,7 +1532,7 @@ async def _lifespan(_app: FastAPI):
 
     ai_receipt_maintenance = asyncio.create_task(maintain_ai_receipts())
     journal_maintenance = asyncio.create_task(maintain_security_journal())
-    # Daily usage rollups: backfill on start, then roll newly closed days (PQC_USAGE_ROLLUP_INTERVAL_SECONDS).
+    # Daily usage rollups: backfill on start, then roll newly closed days (MORROW_USAGE_ROLLUP_INTERVAL_SECONDS).
     usage_rollup_task = asyncio.create_task(_usage_rollups.maintain(run_in_threadpool))
     # Admin analytics overview: precomputed into platform_analytics_snapshots on a schedule, one
     # range at a time, so the dashboard is served from storage instead of aggregating the whole
@@ -1566,12 +1566,12 @@ async def _lifespan(_app: FastAPI):
 
 
 # Rate limiter — default limits configurable via env
-# PQC_RATE_LIMIT_SCAN    = scan/heavy endpoints (default: 30/minute per IP)
-# PQC_RATE_LIMIT_DEFAULT = all other API endpoints (default: 300/minute per IP)
-# PQC_RATE_LIMIT_ASSISTANT = AI assistant endpoint (default: 60/minute per IP)
-_RATE_SCAN    = os.getenv("PQC_RATE_LIMIT_SCAN",    "30/minute").strip()
-_RATE_DEFAULT = os.getenv("PQC_RATE_LIMIT_DEFAULT", "300/minute").strip()
-_RATE_ASSISTANT = os.getenv("PQC_RATE_LIMIT_ASSISTANT", "60/minute").strip()
+# MORROW_RATE_LIMIT_SCAN    = scan/heavy endpoints (default: 30/minute per IP)
+# MORROW_RATE_LIMIT_DEFAULT = all other API endpoints (default: 300/minute per IP)
+# MORROW_RATE_LIMIT_ASSISTANT = AI assistant endpoint (default: 60/minute per IP)
+_RATE_SCAN    = os.getenv("MORROW_RATE_LIMIT_SCAN",    "30/minute").strip()
+_RATE_DEFAULT = os.getenv("MORROW_RATE_LIMIT_DEFAULT", "300/minute").strip()
+_RATE_ASSISTANT = os.getenv("MORROW_RATE_LIMIT_ASSISTANT", "60/minute").strip()
 # With REDIS_URL / CELERY_BROKER_URL set, the per-IP counters live in Redis so every API replica shares them;
 # otherwise each process counts on its own (N replicas would allow N times the limit). If Redis becomes
 # unreachable slowapi falls back to in-process counters and re-checks Redis with backoff.
@@ -1580,13 +1580,13 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[_RATE_DEFAULT],
     **({"storage_uri": _RATE_STORAGE_URI, "storage_options": {"socket_connect_timeout": 1, "socket_timeout": 1},
-        "in_memory_fallback_enabled": True, "in_memory_fallback": [_RATE_DEFAULT], "key_prefix": "pqc-ip"}
+        "in_memory_fallback_enabled": True, "in_memory_fallback": [_RATE_DEFAULT], "key_prefix": "pq-ip"}
        if _RATE_STORAGE_URI.startswith(("redis://", "rediss://")) else {}),
 )
 
 app = FastAPI(
     title="Morrow API",
-    description="TLS endpoint scanner with PQC-oriented findings, scoring, and migration plans.",
+    description="TLS endpoint scanner with post-quantum-oriented findings, scoring, and migration plans.",
     version="0.6.0",
     lifespan=_lifespan,
 )
@@ -1603,12 +1603,12 @@ try:
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     FastAPIInstrumentor.instrument_app(app, excluded_urls="/healthz,/health,/docs,/openapi.json")
 except ImportError as _otel_exc:
-    logging.getLogger("pqc.otel").warning(
+    logging.getLogger("morrow.otel").warning(
         "OpenTelemetry FastAPI instrumentation unavailable, so per-request tracing is disabled: %s",
         _otel_exc,
     )
 except Exception as _otel_exc:  # instrument_app can fail for reasons other than a missing module
-    logging.getLogger("pqc.otel").warning(
+    logging.getLogger("morrow.otel").warning(
         "OpenTelemetry FastAPI instrumentation failed to attach: %s", _otel_exc
     )
 
@@ -1666,9 +1666,9 @@ class _MemoizedSlowAPIMiddleware(SlowAPIMiddleware):
 app.add_middleware(_MemoizedSlowAPIMiddleware)
 
 # TrustedHostMiddleware — blocks host-header injection attacks.
-# Set PQC_ALLOWED_HOSTS to a comma-separated list in production.
+# Set MORROW_ALLOWED_HOSTS to a comma-separated list in production.
 # Defaults to wildcard (dev mode); production startup blocker enforces this.
-_ALLOWED_HOSTS_RAW = str(os.getenv("PQC_ALLOWED_HOSTS") or "*").strip()
+_ALLOWED_HOSTS_RAW = str(os.getenv("MORROW_ALLOWED_HOSTS") or "*").strip()
 _ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS_RAW.split(",") if h.strip()] or ["*"]
 if "*" not in _ALLOWED_HOSTS:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=_ALLOWED_HOSTS)
@@ -1692,11 +1692,11 @@ app.add_middleware(
     ],
 )
 
-_HSTS_MAX_AGE = int(os.getenv("PQC_HSTS_MAX_AGE", "63072000"))  # 2 years
-_CSP_ENABLED = str(os.getenv("PQC_CSP_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+_HSTS_MAX_AGE = int(os.getenv("MORROW_HSTS_MAX_AGE", "63072000"))  # 2 years
+_CSP_ENABLED = str(os.getenv("MORROW_CSP_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
 _CSP_VALUE = str(
     os.getenv(
-        "PQC_CSP_VALUE",
+        "MORROW_CSP_VALUE",
         "default-src 'self'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'; "
@@ -1736,7 +1736,7 @@ _CSP_STRICT_PREFIXES = ("/vendor-admin", "/invite", "/check", "/public-check", "
                         "/r/", "/trial")   # "/trial" also covers "/trial-request"
 _CSP_STRICT_VALUE = str(
     os.getenv(
-        "PQC_CSP_VALUE_STRICT",
+        "MORROW_CSP_VALUE_STRICT",
         "default-src 'self'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'; "
@@ -1817,7 +1817,7 @@ async def _not_found_page_handler(request: Request, exc: StarletteHTTPException)
 async def _pool_exhausted_handler(request: Request, exc: _pg_pool.PoolError):
     """A full Postgres pool is congestion, not a server fault: answer 503, not 500.
 
-    db_postgres._getconn_waiting already waits PQC_PG_POOL_ACQUIRE_TIMEOUT for a connection, so
+    db_postgres._getconn_waiting already waits MORROW_PG_POOL_ACQUIRE_TIMEOUT for a connection, so
     reaching here means the database work in flight genuinely exceeds the pool for longer than
     that. A 503 with Retry-After tells a client to back off; a 500 invites it to retry at once
     and deepen the queue.
@@ -1989,7 +1989,7 @@ def sitemap_xml(request: Request):
     """The public pages, as absolute URLs.
 
     A sitemap needs absolute URLs, and the host they name has to be the canonical one. It comes
-    from PQC_PUBLIC_BASE_URL when configured, because that is the hostname the deployment calls
+    from MORROW_PUBLIC_BASE_URL when configured, because that is the hostname the deployment calls
     itself and the one every canonical link and badge URL already uses. Falling back to the
     request's own base URL means an unconfigured deployment still answers correctly, but a request
     arriving on a second hostname would then advertise that one -- which is why the configured
@@ -2259,7 +2259,7 @@ def _auth_public_path(path: str) -> bool:
     if p.startswith("/vendor-admin"):
         return True
     # Credential-exchange endpoints must be reachable without a bearer token, otherwise there is no
-    # way to obtain one: with PQC_AUTH_REQUIRED=1 the middleware would answer /auth/login itself
+    # way to obtain one: with MORROW_AUTH_REQUIRED=1 the middleware would answer /auth/login itself
     # with 401 "missing bearer token". Each of these authenticates from its own request payload
     # (password, or an opaque refresh token that is hashed and looked up), and each is rate-limited
     # by _RATE_AUTH. /auth/register is deliberately NOT here — it creates accounts and must stay
@@ -2319,7 +2319,7 @@ def _platform_key_authenticates(request: Request) -> bool:
     The platform key is a standalone vendor-operator credential, deliberately separate from user
     roles -- it is what the vendor admin portal and scripts/check-go-live-gate.ps1 present, and they
     have no user token to offer. But /platform/* is not an auth-public path, so with
-    PQC_AUTH_REQUIRED=1 -- the setting the hardening guide prescribes -- the middleware answered
+    MORROW_AUTH_REQUIRED=1 -- the setting the hardening guide prescribes -- the middleware answered
     every one of those requests with 401 before the endpoint's own key check ever ran. The go-live
     gate was unreachable on precisely the configuration it exists to certify, and the admin portal
     was unusable in production.
@@ -2772,7 +2772,7 @@ def _verified_jwt_payload_from_auth_header(auth_header: str) -> tuple[Dict[str, 
                     verified_hs256 = True
             # Fall back to SAML vault key (for SSO-issued tokens)
             if not verified_hs256:
-                _vault_key = os.getenv("PQC_VAULT_MASTER_KEY", "").strip()
+                _vault_key = os.getenv("MORROW_VAULT_MASTER_KEY", "").strip()
                 if _vault_key:
                     _exp2 = hmac.new(_vault_key.encode("utf-8"), parts["signing_input"], hashlib.sha256).digest()
                     if hmac.compare_digest(_exp2, parts["signature"]):
@@ -2806,8 +2806,8 @@ def _verified_jwt_payload_from_auth_header(auth_header: str) -> tuple[Dict[str, 
         exp = payload.get("exp")
         if exp in (None, ""):
             # Tokens without expiry are rejected — a stolen token must not be valid indefinitely.
-            # Set PQC_JWT_ALLOW_NO_EXP=1 only in controlled test environments.
-            if PRODUCTION_ENVIRONMENT or os.getenv("PQC_JWT_ALLOW_NO_EXP", "").strip() not in {"1", "true", "yes"}:
+            # Set MORROW_JWT_ALLOW_NO_EXP=1 only in controlled test environments.
+            if PRODUCTION_ENVIRONMENT or os.getenv("MORROW_JWT_ALLOW_NO_EXP", "").strip() not in {"1", "true", "yes"}:
                 return {}, "jwt token has no expiry (exp claim required)"
         else:
             try:
@@ -2994,7 +2994,7 @@ async def set_request_auth_context(request: Request, call_next):
     if _is_probe_path(request.url.path):
         request.state.skip_traffic_record = True
         return await call_next(request)
-    # Organization API keys (Authorization: Bearer pqc_...). Checked in every auth mode: a presented key
+    # Organization API keys (Authorization: Bearer pq_...). Checked in every auth mode: a presented key
     # that is unknown, revoked, expired, out of scope, or aimed at platform/admin routes fails loudly
     # instead of falling back to header identity. The key's organization is authoritative.
     bearer = _jwt_token_from_auth_header(request.headers.get("authorization", ""))
@@ -3126,7 +3126,7 @@ async def rate_limit(request: Request, call_next):
         try:
             if _REDIS_RATE_CLIENT is None:
                 _REDIS_RATE_CLIENT = redis.Redis.from_url(redis_url, socket_connect_timeout=1, socket_timeout=1)
-            bucket_key = f"pqc:rate:{org_id}:{int(now // RATE_LIMIT_WINDOW_SECONDS)}"
+            bucket_key = f"morrow:rate:{org_id}:{int(now // RATE_LIMIT_WINDOW_SECONDS)}"
 
             def _incr_bucket() -> int:
                 # INCR and EXPIRE in one MULTI/EXEC: a crash between two separate calls left a counter with no TTL.
@@ -3367,7 +3367,7 @@ def _rls_posture_warnings() -> list[str]:
 
 
 def _rls_posture_warnings_uncached() -> list[str]:
-    dsn = str(os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
+    dsn = str(os.getenv("MORROW_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
     if not dsn:
         return []
     try:
@@ -3427,8 +3427,8 @@ def _architecture_advisories() -> list[str]:
     if AUTH_ISSUER_ACTIVE:
         advisories.append(
             "Built-in password accounts live in that same SQLite file rather than Postgres. Use "
-            "an external identity provider (PQC_AUTH_JWT_JWKS_URL with RS256) for multi-replica "
-            "deployments, or set PQC_AUTH_ISSUER_ENABLED=0 to disable password sign-in."
+            "an external identity provider (MORROW_AUTH_JWT_JWKS_URL with RS256) for multi-replica "
+            "deployments, or set MORROW_AUTH_ISSUER_ENABLED=0 to disable password sign-in."
         )
     return advisories
 
@@ -3448,45 +3448,45 @@ def _security_warnings() -> list[str]:
     warnings: list[str] = []
     if PRODUCTION_ENVIRONMENT and AUTH_MODE != "jwt":
         warnings.append(
-            "PQC_ENVIRONMENT=production requires PQC_AUTH_MODE=jwt. "
+            "MORROW_ENVIRONMENT=production requires MORROW_AUTH_MODE=jwt. "
             "Header auth is for local development only."
         )
     if AUTH_MODE == "headers":
         warnings.append(
-            "PQC_AUTH_MODE=headers: any caller can spoof their role via request headers. "
-            "Set PQC_AUTH_MODE=jwt and PQC_AUTH_REQUIRED=1 for production deployments."
+            "MORROW_AUTH_MODE=headers: any caller can spoof their role via request headers. "
+            "Set MORROW_AUTH_MODE=jwt and MORROW_AUTH_REQUIRED=1 for production deployments."
         )
     if PRODUCTION_ENVIRONMENT and not AUTH_REQUIRED:
         warnings.append(
-            "PQC_ENVIRONMENT=production requires PQC_AUTH_REQUIRED=1."
+            "MORROW_ENVIRONMENT=production requires MORROW_AUTH_REQUIRED=1."
         )
     if not AUTH_REQUIRED and AUTH_MODE == "jwt":
         warnings.append(
-            "PQC_AUTH_REQUIRED=0 with JWT mode: unauthenticated requests are accepted. "
-            "Set PQC_AUTH_REQUIRED=1 to enforce authentication."
+            "MORROW_AUTH_REQUIRED=0 with JWT mode: unauthenticated requests are accepted. "
+            "Set MORROW_AUTH_REQUIRED=1 to enforce authentication."
         )
     if PRODUCTION_ENVIRONMENT and DEFAULT_USER_ROLE == "admin":
         warnings.append(
-            "PQC_ENVIRONMENT=production cannot use PQC_DEFAULT_ROLE=admin."
+            "MORROW_ENVIRONMENT=production cannot use MORROW_DEFAULT_ROLE=admin."
         )
     if DEFAULT_USER_ROLE == "admin":
         warnings.append(
-            "PQC_DEFAULT_ROLE=admin: unauthenticated or anonymous requests inherit admin privileges. "
-            "Set PQC_DEFAULT_ROLE=viewer for production."
+            "MORROW_DEFAULT_ROLE=admin: unauthenticated or anonymous requests inherit admin privileges. "
+            "Set MORROW_DEFAULT_ROLE=viewer for production."
         )
     if PRODUCTION_ENVIRONMENT and "HS256" in AUTH_JWT_ALGORITHMS and not ALLOW_HS256_IN_PRODUCTION:
         warnings.append(
-            "PQC_ENVIRONMENT=production should use RS256/JWKS. "
-            "Remove HS256 from PQC_AUTH_JWT_ALGORITHMS unless a security exception is documented."
+            "MORROW_ENVIRONMENT=production should use RS256/JWKS. "
+            "Remove HS256 from MORROW_AUTH_JWT_ALGORITHMS unless a security exception is documented."
         )
     if PRODUCTION_ENVIRONMENT and CORS_ORIGINS == ["*"]:
         warnings.append(
-            "PQC_ENVIRONMENT=production cannot use wildcard CORS. Set PQC_CORS_ORIGINS to approved domains."
+            "MORROW_ENVIRONMENT=production cannot use wildcard CORS. Set MORROW_CORS_ORIGINS to approved domains."
         )
     if PRODUCTION_ENVIRONMENT and "*" in _ALLOWED_HOSTS:
         warnings.append(
-            "PQC_ENVIRONMENT=production should not use wildcard allowed hosts. "
-            "Set PQC_ALLOWED_HOSTS to the exact app/admin/API hostnames."
+            "MORROW_ENVIRONMENT=production should not use wildcard allowed hosts. "
+            "Set MORROW_ALLOWED_HOSTS to the exact app/admin/API hostnames."
         )
     _redis_url = str(os.getenv("CELERY_BROKER_URL") or os.getenv("REDIS_URL") or "").strip()
     if _redis_url and "@" not in _redis_url:
@@ -3502,17 +3502,17 @@ def _security_warnings() -> list[str]:
         warnings.append(
             "CELERY_RESULT_BACKEND is not set: async job results are not durable across restarts."
         )
-    if PRODUCTION_ENVIRONMENT and not str(os.getenv("PQC_AIRLOCK_SIGNING_KEY") or "").strip():
+    if PRODUCTION_ENVIRONMENT and not str(os.getenv("MORROW_AIRLOCK_SIGNING_KEY") or "").strip():
         warnings.append(
-            "PQC_AIRLOCK_SIGNING_KEY is not set: enterprise Airlock agent evidence cannot be signed with a production-only key."
+            "MORROW_AIRLOCK_SIGNING_KEY is not set: enterprise Airlock agent evidence cannot be signed with a production-only key."
         )
-    if PRODUCTION_ENVIRONMENT and str(os.getenv("PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() not in {"1", "true", "yes", "on"}:
+    if PRODUCTION_ENVIRONMENT and str(os.getenv("MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() not in {"1", "true", "yes", "on"}:
         warnings.append(
-            "PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE is not enabled: unsigned Airlock collector submissions would be accepted."
+            "MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE is not enabled: unsigned Airlock collector submissions would be accepted."
         )
     # Only the core tables are dual-backend. A number of later features — the TLS observatory,
     # canaries, QTISN, maturity model, regulatory filings, autopilot, ZK proofs, SLA config,
-    # notification config, and the built-in password accounts among them — open PQC_SCANNER_DB
+    # notification config, and the built-in password accounts among them — open MORROW_SCANNER_DB
     # directly and are therefore SQLite-backed even when DATABASE_URL points at Postgres.
     #
     # Two distinct consequences, so report them separately: the state is lost on redeploy unless
@@ -3522,12 +3522,12 @@ def _security_warnings() -> list[str]:
         # Resolve the same way db._default_db_path() does, without importing a private helper.
         try:
             import db as _db_mod
-            sqlite_path = str(os.environ.get("PQC_SCANNER_DB") or "").strip() or str(_db_mod.DB_PATH or "")
+            sqlite_path = str(os.environ.get("MORROW_SCANNER_DB") or "").strip() or str(_db_mod.DB_PATH or "")
         except Exception:
-            sqlite_path = str(os.environ.get("PQC_SCANNER_DB") or "").strip()
+            sqlite_path = str(os.environ.get("MORROW_SCANNER_DB") or "").strip()
         normalized = sqlite_path.replace("\\", "/")
         on_volume = normalized.startswith("/data/") or bool(
-            str(os.getenv("PQC_SQLITE_STATE_PERSISTENT") or "").strip()
+            str(os.getenv("MORROW_SQLITE_STATE_PERSISTENT") or "").strip()
         )
         if not on_volume:
             warnings.append(
@@ -3535,7 +3535,7 @@ def _security_warnings() -> list[str]:
                 f"ZK proofs, SLA and notification config, built-in password accounts) store state in "
                 f"SQLite at {sqlite_path}, which is not a persistent volume: that data is lost when "
                 f"the container is replaced. Mount a volume at /data (see docker-compose.prod.yml) "
-                f"or set PQC_SCANNER_DB to a persisted path."
+                f"or set MORROW_SCANNER_DB to a persisted path."
             )
         warnings.extend(_architecture_advisories())
         # Row-level security is the backstop behind the per-query organization_id filters. Whether
@@ -3557,32 +3557,32 @@ def _production_startup_blockers() -> list[str]:
         return []
     blockers: list[str] = []
     if AUTH_MODE != "jwt":
-        blockers.append("PQC_AUTH_MODE must be jwt in production.")
+        blockers.append("MORROW_AUTH_MODE must be jwt in production.")
     if not AUTH_REQUIRED:
-        blockers.append("PQC_AUTH_REQUIRED must be 1 in production.")
+        blockers.append("MORROW_AUTH_REQUIRED must be 1 in production.")
     if DEFAULT_USER_ROLE != "viewer":
-        blockers.append("PQC_DEFAULT_ROLE must be viewer in production.")
+        blockers.append("MORROW_DEFAULT_ROLE must be viewer in production.")
     if not (AUTH_JWT_ISSUER and AUTH_JWT_AUDIENCE and AUTH_JWT_JWKS_URL):
         blockers.append("JWT issuer, audience, and JWKS URL must be configured in production.")
     if AUTH_JWT_JWKS_URL:
         parsed_jwks = urllib.parse.urlsplit(AUTH_JWT_JWKS_URL)
         if parsed_jwks.scheme != "https" or not parsed_jwks.hostname or parsed_jwks.username or parsed_jwks.password or parsed_jwks.fragment:
-            blockers.append("PQC_AUTH_JWT_JWKS_URL must be a credential-free HTTPS URL in production.")
+            blockers.append("MORROW_AUTH_JWT_JWKS_URL must be a credential-free HTTPS URL in production.")
     if not AUTH_JWT_ALGORITHMS or not set(AUTH_JWT_ALGORITHMS).issubset({"RS256", "HS256"}):
         blockers.append("Only implemented JWT algorithms RS256 and explicitly approved HS256 may be configured.")
-    if str(os.getenv("PQC_JWT_ALLOW_NO_EXP", "")).lower() in {"1", "true", "yes", "on"}:
-        blockers.append("PQC_JWT_ALLOW_NO_EXP must be disabled in production.")
+    if str(os.getenv("MORROW_JWT_ALLOW_NO_EXP", "")).lower() in {"1", "true", "yes", "on"}:
+        blockers.append("MORROW_JWT_ALLOW_NO_EXP must be disabled in production.")
     if AUTH_ISSUER_ENABLED and not AUTH_JWT_SECRET:
-        blockers.append("PQC_AUTH_JWT_SECRET is required when PQC_AUTH_ISSUER_ENABLED=1 in production.")
+        blockers.append("MORROW_AUTH_JWT_SECRET is required when MORROW_AUTH_ISSUER_ENABLED=1 in production.")
     if "HS256" in AUTH_JWT_ALGORITHMS and not ALLOW_HS256_IN_PRODUCTION:
-        blockers.append("HS256 JWTs are blocked in production unless PQC_ALLOW_HS256_IN_PRODUCTION=1 is explicitly set.")
+        blockers.append("HS256 JWTs are blocked in production unless MORROW_ALLOW_HS256_IN_PRODUCTION=1 is explicitly set.")
     if CORS_ORIGINS == ["*"]:
         blockers.append("Wildcard CORS is blocked in production.")
     if "*" in _ALLOWED_HOSTS:
-        blockers.append("PQC_ALLOWED_HOSTS must not be wildcard in production.")
+        blockers.append("MORROW_ALLOWED_HOSTS must not be wildcard in production.")
     if not postgres_main_db_requested():
         blockers.append("Managed Postgres is required in production; local SQLite is blocked.")
-    if not str(os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip():
+    if not str(os.getenv("MORROW_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip():
         blockers.append("Production database URL is required.")
     _broker_url = str(os.getenv("CELERY_BROKER_URL") or "").strip()
     _result_backend = str(os.getenv("CELERY_RESULT_BACKEND") or "").strip()
@@ -3593,31 +3593,31 @@ def _production_startup_blockers() -> list[str]:
     if _result_backend and _result_backend.startswith("redis://") and "@" not in _result_backend:
         blockers.append("CELERY_RESULT_BACKEND must include Redis authentication in production.")
     if not _TRAFFIC_PERSIST_TO_DB:
-        blockers.append("PQC_TRAFFIC_PERSIST_TO_DB must be 1 in production.")
+        blockers.append("MORROW_TRAFFIC_PERSIST_TO_DB must be 1 in production.")
     try:
-        _replica_count = int(str(os.getenv("PQC_API_REPLICA_COUNT", "1") or "1").strip() or "1")
+        _replica_count = int(str(os.getenv("MORROW_API_REPLICA_COUNT", "1") or "1").strip() or "1")
     except Exception:
         _replica_count = 1
-    if _replica_count > 1 and str(os.getenv("PQC_AUXILIARY_STATE_MIGRATED", "0") or "0").strip().lower() not in {"1", "true", "yes", "on"}:
-        blockers.append("Multiple API replicas require PQC_AUXILIARY_STATE_MIGRATED=1 after auxiliary state migration.")
-    if not str(os.getenv("PQC_VAULT_MASTER_KEY") or "").strip():
-        blockers.append("PQC_VAULT_MASTER_KEY is required in production.")
-    if not str(os.getenv("PQC_AIRLOCK_SIGNING_KEY") or "").strip():
-        blockers.append("PQC_AIRLOCK_SIGNING_KEY is required in production.")
-    if str(os.getenv("PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() not in {"1", "true", "yes", "on"}:
-        blockers.append("PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE must be 1 in production.")
+    if _replica_count > 1 and str(os.getenv("MORROW_AUXILIARY_STATE_MIGRATED", "0") or "0").strip().lower() not in {"1", "true", "yes", "on"}:
+        blockers.append("Multiple API replicas require MORROW_AUXILIARY_STATE_MIGRATED=1 after auxiliary state migration.")
+    if not str(os.getenv("MORROW_VAULT_MASTER_KEY") or "").strip():
+        blockers.append("MORROW_VAULT_MASTER_KEY is required in production.")
+    if not str(os.getenv("MORROW_AIRLOCK_SIGNING_KEY") or "").strip():
+        blockers.append("MORROW_AIRLOCK_SIGNING_KEY is required in production.")
+    if str(os.getenv("MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() not in {"1", "true", "yes", "on"}:
+        blockers.append("MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE must be 1 in production.")
     # AI-off deployments do not need provider credentials. The mandatory gateway
     # refuses unconfigured/unapproved destinations when an organization enables AI.
     if not _PLATFORM_ADMIN_KEY:
-        blockers.append("PQC_PLATFORM_ADMIN_KEY is required in production.")
+        blockers.append("MORROW_PLATFORM_ADMIN_KEY is required in production.")
     elif len(_PLATFORM_ADMIN_KEY) < _PLATFORM_ADMIN_MIN_KEY_LENGTH:
-        blockers.append(f"PQC_PLATFORM_ADMIN_KEY must be at least {_PLATFORM_ADMIN_MIN_KEY_LENGTH} characters in production.")
+        blockers.append(f"MORROW_PLATFORM_ADMIN_KEY must be at least {_PLATFORM_ADMIN_MIN_KEY_LENGTH} characters in production.")
     if _ALLOW_PLATFORM_KEY_QUERY:
-        blockers.append("PQC_ALLOW_PLATFORM_KEY_QUERY must be 0 in production.")
+        blockers.append("MORROW_ALLOW_PLATFORM_KEY_QUERY must be 0 in production.")
     if _ALLOW_DEMO_IN_PRODUCTION:
-        blockers.append("PQC_ALLOW_DEMO_IN_PRODUCTION must be 0 in production.")
+        blockers.append("MORROW_ALLOW_DEMO_IN_PRODUCTION must be 0 in production.")
     if not _CSP_ENABLED or not _CSP_VALUE:
-        blockers.append("PQC_CSP_ENABLED must be 1 with a non-empty CSP in production.")
+        blockers.append("MORROW_CSP_ENABLED must be 1 with a non-empty CSP in production.")
     return blockers
 
 
@@ -3625,8 +3625,8 @@ def _assert_production_startup_safe() -> list[str]:
     blockers = _production_startup_blockers()
     if not blockers:
         return []
-    if str(os.getenv("PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}:
-        logging.critical("[PQC SECURITY] Unsafe production startup override is active: %s", "; ".join(blockers))
+    if str(os.getenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}:
+        logging.critical("[Post-quantum SECURITY] Unsafe production startup override is active: %s", "; ".join(blockers))
         return blockers
     raise RuntimeError("Unsafe production startup blocked:\n- " + "\n- ".join(blockers))
 
@@ -3647,7 +3647,7 @@ def healthz():
 @app.get("/health")
 @limiter.exempt
 def health():
-    deep = str(os.getenv("PQC_HEALTH_DEEP", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    deep = str(os.getenv("MORROW_HEALTH_DEEP", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
     checks: Dict[str, Any] = {"api": "ok"}
     warn = _security_warnings()
     if warn:
@@ -3657,7 +3657,7 @@ def health():
 
     ok = True
     if postgres_main_db_requested():
-        dsn = str(os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
+        dsn = str(os.getenv("MORROW_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
         try:
             with psycopg2.connect(dsn, connect_timeout=2) as conn:
                 with conn.cursor() as cur:
@@ -3703,7 +3703,7 @@ def health():
     # Disk space check
     try:
         import shutil as _shutil
-        db_dir = os.path.dirname(str(os.getenv("PQC_SCANNER_DB", "")) or ".")
+        db_dir = os.path.dirname(str(os.getenv("MORROW_SCANNER_DB", "")) or ".")
         usage = _shutil.disk_usage(db_dir or ".")
         free_gb = usage.free / (1024 ** 3)
         if free_gb < 1.0:
@@ -3723,15 +3723,15 @@ def health():
 
 @app.get("/health/deep")
 def health_deep():
-    previous = os.environ.get("PQC_HEALTH_DEEP")
-    os.environ["PQC_HEALTH_DEEP"] = "1"
+    previous = os.environ.get("MORROW_HEALTH_DEEP")
+    os.environ["MORROW_HEALTH_DEEP"] = "1"
     try:
         return health()
     finally:
         if previous is None:
-            os.environ.pop("PQC_HEALTH_DEEP", None)
+            os.environ.pop("MORROW_HEALTH_DEEP", None)
         else:
-            os.environ["PQC_HEALTH_DEEP"] = previous
+            os.environ["MORROW_HEALTH_DEEP"] = previous
 
 
 @app.get("/auth/config")
@@ -3755,14 +3755,14 @@ def auth_access_policy():
 # SAML 2.0 SSO endpoints
 # ---------------------------------------------------------------------------
 # Platform Admin — cross-org visibility for the SaaS operator
-# Protected by PQC_PLATFORM_ADMIN_KEY env var (must match x-platform-key header)
+# Protected by MORROW_PLATFORM_ADMIN_KEY env var (must match x-platform-key header)
 # ---------------------------------------------------------------------------
 
-_PLATFORM_ADMIN_KEY = os.getenv("PQC_PLATFORM_ADMIN_KEY", "").strip()
-_PLATFORM_ADMIN_MIN_KEY_LENGTH = int(os.getenv("PQC_PLATFORM_ADMIN_MIN_KEY_LENGTH", "32") or "32")
-_ALLOW_PLATFORM_KEY_QUERY = str(os.getenv("PQC_ALLOW_PLATFORM_KEY_QUERY", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
-_ALLOW_DEMO_IN_PRODUCTION = str(os.getenv("PQC_ALLOW_DEMO_IN_PRODUCTION", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
-_FEATURE_FLAGS_STRICT = str(os.getenv("PQC_FEATURE_FLAGS_STRICT", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+_PLATFORM_ADMIN_KEY = os.getenv("MORROW_PLATFORM_ADMIN_KEY", "").strip()
+_PLATFORM_ADMIN_MIN_KEY_LENGTH = int(os.getenv("MORROW_PLATFORM_ADMIN_MIN_KEY_LENGTH", "32") or "32")
+_ALLOW_PLATFORM_KEY_QUERY = str(os.getenv("MORROW_ALLOW_PLATFORM_KEY_QUERY", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+_ALLOW_DEMO_IN_PRODUCTION = str(os.getenv("MORROW_ALLOW_DEMO_IN_PRODUCTION", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+_FEATURE_FLAGS_STRICT = str(os.getenv("MORROW_FEATURE_FLAGS_STRICT", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
 _ORG_STATUS_CACHE: Dict[str, Any] = {"expires_at": 0.0, "statuses": {}}
 
 
@@ -3791,7 +3791,7 @@ def _require_platform_admin(request: Request, allowed_roles: Optional[set[str]] 
     if not _platform_operators.credentials_configured(_PLATFORM_ADMIN_KEY):
         raise HTTPException(
             status_code=503,
-            detail="Platform admin endpoints are disabled. Set PQC_PLATFORM_ADMIN_KEY or PQC_PLATFORM_OPERATORS to enable.",
+            detail="Platform admin endpoints are disabled. Set MORROW_PLATFORM_ADMIN_KEY or MORROW_PLATFORM_OPERATORS to enable.",
         )
     if PRODUCTION_ENVIRONMENT and _PLATFORM_ADMIN_KEY and len(_PLATFORM_ADMIN_KEY) < _PLATFORM_ADMIN_MIN_KEY_LENGTH:
         raise HTTPException(status_code=503, detail="Platform admin key is too short for production.")
@@ -5311,7 +5311,7 @@ def api_platform_traffic_export_ndjson(request: Request, limit: int = Query(500,
     return Response(
         content=("\n".join(lines) + ("\n" if lines else "")),
         media_type="application/x-ndjson",
-        headers={"Content-Disposition": "attachment; filename=pqc-traffic-events.ndjson", "Cache-Control": "no-store"},
+        headers={"Content-Disposition": "attachment; filename=pq-traffic-events.ndjson", "Cache-Control": "no-store"},
     )
 
 
@@ -5331,14 +5331,14 @@ def api_platform_traffic_otel(request: Request, limit: int = Query(500, ge=1, le
                 {"key": "url.path", "value": {"stringValue": item.get("path", "")}},
                 {"key": "http.response.status_code", "value": {"intValue": int(item.get("status_code") or 0)}},
                 {"key": "http.server.duration_ms", "value": {"doubleValue": float(item.get("duration_ms") or 0.0)}},
-                {"key": "pqc.organization_id", "value": {"stringValue": item.get("organization_id", "")}},
-                {"key": "pqc.actor_role", "value": {"stringValue": item.get("actor_role", "")}},
+                {"key": "morrow.organization_id", "value": {"stringValue": item.get("organization_id", "")}},
+                {"key": "morrow.actor_role", "value": {"stringValue": item.get("actor_role", "")}},
             ],
         })
     return {
         "resourceLogs": [{
-            "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "pqc-scanner"}}]},
-            "scopeLogs": [{"scope": {"name": "pqc.traffic"}, "logRecords": records}],
+            "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "morrow"}}]},
+            "scopeLogs": [{"scope": {"name": "morrow.traffic"}, "logRecords": records}],
         }]
     }
 
@@ -5573,7 +5573,7 @@ def api_platform_customer_audit_package(organization_id: str, request: Request):
     if not any(str(c.get("organization_id")) == organization_id for c in _platform_customer_stats()):
         raise HTTPException(status_code=404, detail="Customer organization not found.")
     content = _build_audit_package(organization_id)
-    filename = f"pqc-audit-package-{organization_id[:12]}-{time.strftime('%Y%m%d')}.zip"
+    filename = f"pq-audit-package-{organization_id[:12]}-{time.strftime('%Y%m%d')}.zip"
     _record_platform_admin_event(organization_id, "platform.audit_package_exported", details={"filename": filename})
     return Response(
         content=content,
@@ -5797,7 +5797,7 @@ def _ai_provider_health() -> Dict[str, Any]:
                  f", streaming {'yes' if active['streaming'] else 'no'}")
         if not active["network"]:
             return {"status": "configured",
-                    "detail": ("no external model call leaves this deployment (PQC_LLM_DISABLED=1)"
+                    "detail": ("no external model call leaves this deployment (MORROW_LLM_DISABLED=1)"
                                if described["disabled"] else
                                "built-in rules answer the assistant; no model provider configured")}
         return {"status": "ok", "detail": shape + f" at {active['endpoint']}"}
@@ -5845,7 +5845,7 @@ def api_platform_admin_mode(request: Request):
         "api_version": "v1",
         "generated_at": _platform_now_iso(),
         "mode": "production" if PRODUCTION_ENVIRONMENT else "development",
-        "environment": PQC_ENVIRONMENT,
+        "environment": MORROW_ENVIRONMENT,
         "auth": {
             "platform_key_configured": bool(_PLATFORM_ADMIN_KEY),
             "query_key_allowed": bool(_ALLOW_PLATFORM_KEY_QUERY),
@@ -5914,21 +5914,21 @@ def _platform_readiness_result() -> Dict[str, Any]:
             "fix": fix,
         })
 
-    auth_mode = str(os.getenv("PQC_AUTH_MODE", "headers") or "headers").strip().lower()
-    auth_required = str(os.getenv("PQC_AUTH_REQUIRED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-    default_role = str(os.getenv("PQC_DEFAULT_ROLE", "viewer") or "viewer").strip().lower()
-    environment = str(os.getenv("PQC_ENVIRONMENT", "local") or "local").strip().lower()
-    jwt_algorithms = [str(x or "").strip().upper() for x in str(os.getenv("PQC_AUTH_JWT_ALGORITHMS", "RS256") or "RS256").split(",") if str(x or "").strip()]
-    auth_issuer_enabled = str(os.getenv("PQC_AUTH_ISSUER_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-    auth_jwt_secret_configured = bool(str(os.getenv("PQC_AUTH_JWT_SECRET", "") or "").strip())
-    hs256_allowed = str(os.getenv("PQC_ALLOW_HS256_IN_PRODUCTION", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
-    cors_allow_all = str(os.getenv("PQC_CORS_ALLOW_ALL", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    auth_mode = str(os.getenv("MORROW_AUTH_MODE", "headers") or "headers").strip().lower()
+    auth_required = str(os.getenv("MORROW_AUTH_REQUIRED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    default_role = str(os.getenv("MORROW_DEFAULT_ROLE", "viewer") or "viewer").strip().lower()
+    environment = str(os.getenv("MORROW_ENVIRONMENT", "local") or "local").strip().lower()
+    jwt_algorithms = [str(x or "").strip().upper() for x in str(os.getenv("MORROW_AUTH_JWT_ALGORITHMS", "RS256") or "RS256").split(",") if str(x or "").strip()]
+    auth_issuer_enabled = str(os.getenv("MORROW_AUTH_ISSUER_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    auth_jwt_secret_configured = bool(str(os.getenv("MORROW_AUTH_JWT_SECRET", "") or "").strip())
+    hs256_allowed = str(os.getenv("MORROW_ALLOW_HS256_IN_PRODUCTION", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    cors_allow_all = str(os.getenv("MORROW_CORS_ALLOW_ALL", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
     allowed_hosts_safe = "*" not in _ALLOWED_HOSTS
-    airlock_signing_key = str(os.getenv("PQC_AIRLOCK_SIGNING_KEY") or "").strip()
-    airlock_signatures_required = str(os.getenv("PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    airlock_signing_key = str(os.getenv("MORROW_AIRLOCK_SIGNING_KEY") or "").strip()
+    airlock_signatures_required = str(os.getenv("MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
     sentry_configured = bool(str(os.getenv("SENTRY_DSN") or "").strip())
     try:
-        api_replica_count = int(str(os.getenv("PQC_API_REPLICA_COUNT", "1") or "1").strip() or "1")
+        api_replica_count = int(str(os.getenv("MORROW_API_REPLICA_COUNT", "1") or "1").strip() or "1")
     except Exception:
         api_replica_count = 1
     postgres_enabled = postgres_main_db_requested()
@@ -5937,35 +5937,35 @@ def _platform_readiness_result() -> Dict[str, Any]:
         "environment",
         "Production environment declared",
         environment in {"staging", "prod", "production"},
-        f"PQC_ENVIRONMENT={environment}",
-        "Set PQC_ENVIRONMENT=staging or production for externally reachable deployments.",
+        f"MORROW_ENVIRONMENT={environment}",
+        "Set MORROW_ENVIRONMENT=staging or production for externally reachable deployments.",
     )
     add_check(
         "auth_mode",
         "JWT/SSO auth mode",
         auth_mode == "jwt",
-        f"PQC_AUTH_MODE={auth_mode}",
-        "Set PQC_AUTH_MODE=jwt after configuring Auth0/SAML/JWKS.",
+        f"MORROW_AUTH_MODE={auth_mode}",
+        "Set MORROW_AUTH_MODE=jwt after configuring Auth0/SAML/JWKS.",
     )
     add_check(
         "auth_required",
         "Authentication required",
         auth_required,
-        f"PQC_AUTH_REQUIRED={int(auth_required)}",
-        "Set PQC_AUTH_REQUIRED=1.",
+        f"MORROW_AUTH_REQUIRED={int(auth_required)}",
+        "Set MORROW_AUTH_REQUIRED=1.",
     )
     add_check(
         "default_role",
         "Safe default role",
         default_role == "viewer",
-        f"PQC_DEFAULT_ROLE={default_role}",
-        "Set PQC_DEFAULT_ROLE=viewer.",
+        f"MORROW_DEFAULT_ROLE={default_role}",
+        "Set MORROW_DEFAULT_ROLE=viewer.",
     )
     # Name the variables that are actually missing. Reporting on the first of the three meant a
     # deployment with an issuer but no audience failed the gate while being told "JWT configuration
     # is present.", leaving the operator nothing to act on.
     _missing_jwt = [
-        name for name in ("PQC_AUTH_JWT_ISSUER", "PQC_AUTH_JWT_AUDIENCE", "PQC_AUTH_JWT_JWKS_URL")
+        name for name in ("MORROW_AUTH_JWT_ISSUER", "MORROW_AUTH_JWT_AUDIENCE", "MORROW_AUTH_JWT_JWKS_URL")
         if not os.getenv(name)
     ]
     add_check(
@@ -5974,38 +5974,38 @@ def _platform_readiness_result() -> Dict[str, Any]:
         not _missing_jwt,
         "JWT configuration is present." if not _missing_jwt
         else f"Not fully configured; missing: {', '.join(_missing_jwt)}.",
-        "Set PQC_AUTH_JWT_ISSUER, PQC_AUTH_JWT_AUDIENCE, and PQC_AUTH_JWT_JWKS_URL.",
+        "Set MORROW_AUTH_JWT_ISSUER, MORROW_AUTH_JWT_AUDIENCE, and MORROW_AUTH_JWT_JWKS_URL.",
     )
     add_check(
         "jwt_algorithms",
         "Production JWT algorithm policy",
         "HS256" not in jwt_algorithms or hs256_allowed,
-        f"PQC_AUTH_JWT_ALGORITHMS={','.join(jwt_algorithms) or 'unset'}",
-        "Use RS256 with JWKS in production, or set PQC_ALLOW_HS256_IN_PRODUCTION=1 only with a documented exception.",
+        f"MORROW_AUTH_JWT_ALGORITHMS={','.join(jwt_algorithms) or 'unset'}",
+        "Use RS256 with JWKS in production, or set MORROW_ALLOW_HS256_IN_PRODUCTION=1 only with a documented exception.",
     )
     add_check(
         "auth_issuer",
         "Built-in password issuer controlled",
         (not auth_issuer_enabled) or auth_jwt_secret_configured,
         (
-            f"PQC_AUTH_ISSUER_ENABLED={int(auth_issuer_enabled)}, "
-            f"PQC_AUTH_JWT_SECRET={'set' if auth_jwt_secret_configured else 'missing'}"
+            f"MORROW_AUTH_ISSUER_ENABLED={int(auth_issuer_enabled)}, "
+            f"MORROW_AUTH_JWT_SECRET={'set' if auth_jwt_secret_configured else 'missing'}"
         ),
-        "Set PQC_AUTH_ISSUER_ENABLED=0 for external IdP deployments, or set a stable PQC_AUTH_JWT_SECRET.",
+        "Set MORROW_AUTH_ISSUER_ENABLED=0 for external IdP deployments, or set a stable MORROW_AUTH_JWT_SECRET.",
     )
     add_check(
         "cors",
         "CORS locked to approved origins",
         not cors_allow_all,
-        f"PQC_CORS_ALLOW_ALL={int(cors_allow_all)}",
-        "Set PQC_CORS_ORIGINS to approved app/admin domains and keep PQC_CORS_ALLOW_ALL=0.",
+        f"MORROW_CORS_ALLOW_ALL={int(cors_allow_all)}",
+        "Set MORROW_CORS_ORIGINS to approved app/admin domains and keep MORROW_CORS_ALLOW_ALL=0.",
     )
     add_check(
         "allowed_hosts",
         "Host header allowlist configured",
         allowed_hosts_safe,
-        f"PQC_ALLOWED_HOSTS={','.join(_ALLOWED_HOSTS)}",
-        "Set PQC_ALLOWED_HOSTS to exact production app/admin/API hostnames.",
+        f"MORROW_ALLOWED_HOSTS={','.join(_ALLOWED_HOSTS)}",
+        "Set MORROW_ALLOWED_HOSTS to exact production app/admin/API hostnames.",
     )
     # A key that is present but too short for production fails this check, so the detail has to say
     # so rather than reporting "acceptable length" on the strength of the key merely existing.
@@ -6013,14 +6013,14 @@ def _platform_readiness_result() -> Dict[str, Any]:
         not PRODUCTION_ENVIRONMENT or len(_PLATFORM_ADMIN_KEY) >= _PLATFORM_ADMIN_MIN_KEY_LENGTH
     )
     if not _PLATFORM_ADMIN_KEY:
-        _platform_key_detail = "PQC_PLATFORM_ADMIN_KEY is missing."
+        _platform_key_detail = "MORROW_PLATFORM_ADMIN_KEY is missing."
     elif not _platform_key_long_enough:
         _platform_key_detail = (
-            f"PQC_PLATFORM_ADMIN_KEY is only {len(_PLATFORM_ADMIN_KEY)} characters; production "
+            f"MORROW_PLATFORM_ADMIN_KEY is only {len(_PLATFORM_ADMIN_KEY)} characters; production "
             f"requires at least {_PLATFORM_ADMIN_MIN_KEY_LENGTH}."
         )
     else:
-        _platform_key_detail = "PQC_PLATFORM_ADMIN_KEY is configured with acceptable length."
+        _platform_key_detail = "MORROW_PLATFORM_ADMIN_KEY is configured with acceptable length."
     _named_operators = len(_platform_operators.load_operators())
     if _named_operators and not _PLATFORM_ADMIN_KEY:
         _platform_key_detail = f"{_named_operators} named platform operator(s) configured; shared key disabled."
@@ -6031,36 +6031,36 @@ def _platform_readiness_result() -> Dict[str, Any]:
         "Vendor admin key configured",
         (bool(_PLATFORM_ADMIN_KEY) and _platform_key_long_enough) or (bool(_named_operators) and not _PLATFORM_ADMIN_KEY),
         _platform_key_detail,
-        f"Store a random PQC_PLATFORM_ADMIN_KEY of at least {_PLATFORM_ADMIN_MIN_KEY_LENGTH} chars in Secret Manager.",
+        f"Store a random MORROW_PLATFORM_ADMIN_KEY of at least {_PLATFORM_ADMIN_MIN_KEY_LENGTH} chars in Secret Manager.",
     )
     add_check(
         "platform_admin_query_key",
         "Admin key not accepted in URLs",
         not _ALLOW_PLATFORM_KEY_QUERY,
-        f"PQC_ALLOW_PLATFORM_KEY_QUERY={int(_ALLOW_PLATFORM_KEY_QUERY)}",
-        "Keep PQC_ALLOW_PLATFORM_KEY_QUERY=0 so admin credentials never appear in URLs/logs.",
+        f"MORROW_ALLOW_PLATFORM_KEY_QUERY={int(_ALLOW_PLATFORM_KEY_QUERY)}",
+        "Keep MORROW_ALLOW_PLATFORM_KEY_QUERY=0 so admin credentials never appear in URLs/logs.",
     )
     add_check(
         "production_demo_lockout",
         "Production demo seeding locked",
         not (PRODUCTION_ENVIRONMENT and _ALLOW_DEMO_IN_PRODUCTION),
-        f"PQC_ALLOW_DEMO_IN_PRODUCTION={int(_ALLOW_DEMO_IN_PRODUCTION)}",
+        f"MORROW_ALLOW_DEMO_IN_PRODUCTION={int(_ALLOW_DEMO_IN_PRODUCTION)}",
         "Keep demo seeding disabled in production unless a written demo exception exists.",
     )
     add_check(
         "security_headers",
         "Browser security headers enabled",
         _CSP_ENABLED and bool(_CSP_VALUE),
-        f"PQC_CSP_ENABLED={int(_CSP_ENABLED)}",
-        "Keep PQC_CSP_ENABLED=1 and tighten PQC_CSP_VALUE when inline frontend assets are removed.",
+        f"MORROW_CSP_ENABLED={int(_CSP_ENABLED)}",
+        "Keep MORROW_CSP_ENABLED=1 and tighten MORROW_CSP_VALUE when inline frontend assets are removed.",
     )
     add_check(
         "traffic_monitor",
         "Admin traffic monitor privacy boundary",
         _TRAFFIC_MONITOR_ENABLED,
         (
-            f"PQC_TRAFFIC_MONITOR_ENABLED={int(_TRAFFIC_MONITOR_ENABLED)}, "
-            f"PQC_TRUST_PROXY_HEADERS={int(_TRUST_PROXY_HEADERS)}"
+            f"MORROW_TRAFFIC_MONITOR_ENABLED={int(_TRAFFIC_MONITOR_ENABLED)}, "
+            f"MORROW_TRUST_PROXY_HEADERS={int(_TRUST_PROXY_HEADERS)}"
         ),
         "Keep traffic monitoring enabled for launch, and enable proxy headers only behind a trusted proxy.",
     )
@@ -6068,8 +6068,8 @@ def _platform_readiness_result() -> Dict[str, Any]:
         "traffic_persistence",
         "Admin traffic export persistence",
         _TRAFFIC_PERSIST_TO_DB,
-        f"PQC_TRAFFIC_PERSIST_TO_DB={int(_TRAFFIC_PERSIST_TO_DB)}",
-        "Set PQC_TRAFFIC_PERSIST_TO_DB=1 so traffic metadata can be exported to SIEM/OpenTelemetry after restarts.",
+        f"MORROW_TRAFFIC_PERSIST_TO_DB={int(_TRAFFIC_PERSIST_TO_DB)}",
+        "Set MORROW_TRAFFIC_PERSIST_TO_DB=1 so traffic metadata can be exported to SIEM/OpenTelemetry after restarts.",
     )
     journal = _security_journal.health(verify_writes=True)
     add_check(
@@ -6080,12 +6080,12 @@ def _platform_readiness_result() -> Dict[str, Any]:
     )
     state_coverage = _platform_state_coverage()
     auxiliary_count = int(state_coverage.get("sqlite_auxiliary_table_count") or 0)
-    scale_ok = api_replica_count <= 1 or auxiliary_count == 0 or str(os.getenv("PQC_AUXILIARY_STATE_MIGRATED", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    scale_ok = api_replica_count <= 1 or auxiliary_count == 0 or str(os.getenv("MORROW_AUXILIARY_STATE_MIGRATED", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
     add_check(
         "state_backend_scaling",
         "State backend safe for configured replica count",
         scale_ok,
-        f"PQC_API_REPLICA_COUNT={api_replica_count}, sqlite_auxiliary_table_count={auxiliary_count}",
+        f"MORROW_API_REPLICA_COUNT={api_replica_count}, sqlite_auxiliary_table_count={auxiliary_count}",
         "Keep one API replica, or run /platform/state/migrate and complete endpoint-level migrations before scaling horizontally.",
     )
     add_check(
@@ -6099,15 +6099,15 @@ def _platform_readiness_result() -> Dict[str, Any]:
         "airlock_signing",
         "Airlock collector signing key configured",
         bool(airlock_signing_key) and len(airlock_signing_key) >= 32,
-        "PQC_AIRLOCK_SIGNING_KEY is configured." if airlock_signing_key else "PQC_AIRLOCK_SIGNING_KEY is missing.",
-        "Set a production-only PQC_AIRLOCK_SIGNING_KEY of at least 32 random bytes.",
+        "MORROW_AIRLOCK_SIGNING_KEY is configured." if airlock_signing_key else "MORROW_AIRLOCK_SIGNING_KEY is missing.",
+        "Set a production-only MORROW_AIRLOCK_SIGNING_KEY of at least 32 random bytes.",
     )
     add_check(
         "airlock_agent_signatures",
         "Airlock agent signatures required",
         airlock_signatures_required,
-        f"PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE={int(airlock_signatures_required)}",
-        "Set PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 before accepting customer collector data.",
+        f"MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE={int(airlock_signatures_required)}",
+        "Set MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 before accepting customer collector data.",
     )
     add_check(
         "retention_policy",
@@ -6121,7 +6121,7 @@ def _platform_readiness_result() -> Dict[str, Any]:
         "Managed Postgres mode",
         postgres_enabled,
         "Postgres backend is enabled." if postgres_enabled else "Local SQLite/dev storage is active.",
-        "Set PQC_MAIN_DB_BACKEND=postgres and use managed Postgres.",
+        "Set MORROW_MAIN_DB_BACKEND=postgres and use managed Postgres.",
     )
 
     rls_detail = "RLS not checked because Postgres mode is not active."
@@ -6170,7 +6170,7 @@ def _platform_readiness_result() -> Dict[str, Any]:
     # actually missing. Testing only the first of them meant a failing check could report
     # "Core runtime secrets are present." -- a go-live gate that says a blocker is fine is worse
     # than no gate, because the operator has no way to act on it.
-    _missing_secrets = [name for name in ("PQC_VAULT_MASTER_KEY",) if not os.getenv(name)]
+    _missing_secrets = [name for name in ("MORROW_VAULT_MASTER_KEY",) if not os.getenv(name)]
     if not (os.getenv("ANTHROPIC_API_KEY") or os.getenv("OPENAI_API_KEY")):
         _missing_secrets.append("ANTHROPIC_API_KEY or OPENAI_API_KEY")
     add_check(
@@ -6179,7 +6179,7 @@ def _platform_readiness_result() -> Dict[str, Any]:
         not _missing_secrets,
         "Core runtime secrets are present." if not _missing_secrets
         else f"Missing: {', '.join(_missing_secrets)}.",
-        "Store PQC_VAULT_MASTER_KEY and ANTHROPIC_API_KEY (or OPENAI_API_KEY) in Secret Manager.",
+        "Store MORROW_VAULT_MASTER_KEY and ANTHROPIC_API_KEY (or OPENAI_API_KEY) in Secret Manager.",
     )
     _missing_queue = [
         name for name in ("CELERY_BROKER_URL", "CELERY_RESULT_BACKEND") if not os.getenv(name)
@@ -6223,13 +6223,13 @@ def _platform_go_live_gate_result() -> Dict[str, Any]:
     # Operator sign-in: SSO configured, MFA required, shared key break-glass only (services/operator_auth.py).
     checks = list(readiness.get("checks") or []) + _operator_auth.go_live_checks()
     startup_blockers = _production_startup_blockers()
-    unsafe_override = str(os.getenv("PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP", "0")).lower() in {"1", "true", "yes", "on"}
+    unsafe_override = str(os.getenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", "0")).lower() in {"1", "true", "yes", "on"}
     checks.append({
         "key": "production_startup", "label": "Production safety checks",
         "status": "pass" if not startup_blockers and not unsafe_override else "fail",
         "detail": "Production startup overrides are forbidden for launch." if unsafe_override else
                   ("; ".join(startup_blockers) or "No production startup blockers."),
-        "fix": "Resolve startup blockers and unset PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP before launch.",
+        "fix": "Resolve startup blockers and unset MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP before launch.",
     })
     required = {
         "production_startup",
@@ -6294,7 +6294,7 @@ def _platform_go_live_gate_result() -> Dict[str, Any]:
 
 
 @app.get("/platform/rls-plan")
-def api_platform_rls_plan(request: Request, app_role: str = Query("pqc_app")):
+def api_platform_rls_plan(request: Request, app_role: str = Query("morrow_app")):
     _require_platform_admin(request)
     return build_rls_plan(app_role=app_role)
 
@@ -6570,7 +6570,7 @@ def _build_compliance_report(
             "risk_level": risk_level or "unknown",
             "findings_count": findings_count,
             "quantum_score": float(latest.get("quantum_score") or 0.0),
-            "pqc_relevance": str(latest.get("pqc_relevance") or "").strip(),
+            "pq_relevance": str(latest.get("pq_relevance") or "").strip(),
             "tls_version": str(latest.get("tls_version") or "").strip(),
             "key_type": str(latest.get("key_type") or "").strip(),
             "sig_algorithm": str(latest.get("sig_algorithm") or "").strip(),
@@ -6693,7 +6693,7 @@ def _roi_metrics_model_basis(manual_baseline_hours: float, target_hours_per_100:
         ),
         assumptions=[
             f"Manual remediation baseline: {manual_baseline_hours:g} hours per item "
-            f"(configurable via PQC_ROI_MANUAL_MTTR_HOURS).",
+            f"(configurable via MORROW_ROI_MANUAL_MTTR_HOURS).",
             f"Target: {target_hours_per_100:g} engineering hours saved per 100 remediations.",
             "Target: 90% MTTR reduction against that baseline.",
             "Hours saved per remediation come from the platform's own per-status rates of thumb.",
@@ -6711,7 +6711,7 @@ def _build_org_metrics(org_id: str, remediation_limit: int = 5000) -> Dict[str, 
     drift_counts: Dict[str, int] = defaultdict(int)
     hours_saved = 0.0
     closed_durations_hours: List[float] = []
-    manual_baseline_hours = float(os.getenv("PQC_ROI_MANUAL_MTTR_HOURS", "240") or 240)
+    manual_baseline_hours = float(os.getenv("MORROW_ROI_MANUAL_MTTR_HOURS", "240") or 240)
 
     drift_events = 0
     drift_followups = 0
@@ -6844,9 +6844,9 @@ def _build_quantum_migration_portfolio(org_id: str, scan_limit: int = 25, asset_
         latest = latest_by_asset.get(key) or {}
         provider = str(latest.get("provider_guess") or "unknown").strip() or "unknown"
         hndl = str(latest.get("harvest_now_decrypt_later_risk") or "unknown").strip() or "unknown"
-        stage_plan = latest.get("pqc_migration_plan") if isinstance(latest.get("pqc_migration_plan"), list) else []
-        blockers = latest.get("pqc_blockers") if isinstance(latest.get("pqc_blockers"), list) else []
-        actions = latest.get("pqc_migration_actions") if isinstance(latest.get("pqc_migration_actions"), list) else []
+        stage_plan = latest.get("pq_migration_plan") if isinstance(latest.get("pq_migration_plan"), list) else []
+        blockers = latest.get("pq_blockers") if isinstance(latest.get("pq_blockers"), list) else []
+        actions = latest.get("pq_migration_actions") if isinstance(latest.get("pq_migration_actions"), list) else []
         controls = latest.get("recommended_quantum_safe_controls") if isinstance(latest.get("recommended_quantum_safe_controls"), list) else []
         # An endpoint the scanner could not reach has no agility score (policy.py returns None).
         # Folding it in as 0.0 -- or as the old 70 -- is a measured claim about an unmeasured
@@ -6868,7 +6868,7 @@ def _build_quantum_migration_portfolio(org_id: str, scan_limit: int = 25, asset_
         hndl_counts[hndl] += 1
         if blockers:
             blockers_total += 1
-        if str(latest.get("pqc_migration_status") or "") == "actionable_migration_path":
+        if str(latest.get("pq_migration_status") or "") == "actionable_migration_path":
             actionable_total += 1
 
         current_stage = "not_scanned"
@@ -6896,19 +6896,19 @@ def _build_quantum_migration_portfolio(org_id: str, scan_limit: int = 25, asset_
                 "harvest_now_decrypt_later_risk": hndl,
                 "crypto_agility_score": agility,
                 "quantum_readiness_level": latest.get("quantum_readiness_level") or "not_assessed",
-                "pqc_migration_status": latest.get("pqc_migration_status") or "not_assessed",
+                "pq_migration_status": latest.get("pq_migration_status") or "not_assessed",
                 "current_stage": current_stage,
                 "provider_guess": provider,
-                "provider_pqc_support_status": latest.get("provider_pqc_support_status") or "unknown",
-                "pqc_provider_capabilities": latest.get("pqc_provider_capabilities") or {},
+                "provider_pq_support_status": latest.get("provider_pq_support_status") or "unknown",
+                "pq_provider_capabilities": latest.get("pq_provider_capabilities") or {},
                 "classical_crypto_dependency": bool(latest.get("classical_crypto_dependency", False)),
                 "classical_algorithm": latest.get("classical_algorithm") or latest.get("key_type") or "unknown",
                 "tls_version": latest.get("tls_version") or "",
                 "immediate_hardening_actions": latest.get("immediate_hardening_actions") or [],
-                "pqc_migration_actions": actions,
-                "pqc_blockers": blockers,
+                "pq_migration_actions": actions,
+                "pq_blockers": blockers,
                 "recommended_quantum_safe_controls": controls,
-                "pqc_migration_plan": stage_plan,
+                "pq_migration_plan": stage_plan,
                 "next_action": (blockers[0] if blockers else (actions[0] if actions else "Scan asset and classify confidentiality lifetime.")),
             }
         )
@@ -7133,7 +7133,7 @@ def _quantum_report_html(org_id: str) -> str:
             kind = " bad"
         elif lowered in ("medium", "moderate", "in_progress", "in progress", "planned", "pending"):
             kind = " warn"
-        elif lowered in ("low", "none", "complete", "completed", "done", "hybrid", "pqc", "migrated"):
+        elif lowered in ("low", "none", "complete", "completed", "done", "hybrid", "pq", "migrated"):
             kind = " ok"
         else:
             kind = ""
@@ -7219,7 +7219,7 @@ def _quantum_report_html(org_id: str) -> str:
     <section>
       <div class="kicker">Executive summary</div>
       <h2>What this report does and does not claim</h2>
-      <div class="note">The platform does not claim every website becomes quantum-proof immediately. It identifies classical RSA/ECC dependency, prioritizes long-life sensitive data, creates ownership, separates fix-now hardening from provider-blocked hybrid/PQC rollout, and records evidence through validation, PRs, verification, drift monitoring, and audit logs.</div>
+      <div class="note">The platform does not claim every website becomes quantum-proof immediately. It identifies classical RSA/ECC dependency, prioritizes long-life sensitive data, creates ownership, separates fix-now hardening from provider-blocked hybrid/post-quantum rollout, and records evidence through validation, PRs, verification, drift monitoring, and audit logs.</div>
     </section>
 
     <section>
@@ -7247,9 +7247,9 @@ def _quantum_report_html(org_id: str) -> str:
 
 # ── Demo Lab (local development only) ─────────────────────────────────────────
 # Seeds a fixed, fictional scenario so developers can exercise the console
-# without live scans. It is available only when PQC_ENVIRONMENT is a local,
+# without live scans. It is available only when MORROW_ENVIRONMENT is a local,
 # dev or test environment — never in staging or production, whatever
-# PQC_ALLOW_DEMO_IN_PRODUCTION says. Every record it creates carries the
+# MORROW_ALLOW_DEMO_IN_PRODUCTION says. Every record it creates carries the
 # DEMO_LAB_SOURCE marker so it can be found and removed:
 #   assets:        tag "demo-lab", metadata.source == "demo-lab"
 #   scans:         id prefix "demo-lab-", result source == "demo-lab"
@@ -7264,7 +7264,7 @@ def _deployment_environment_label() -> str:
     """Coarse environment for the console: local, staging, or production."""
     if PRODUCTION_ENVIRONMENT:
         return "production"
-    env = str(PQC_ENVIRONMENT or "").strip().lower()
+    env = str(MORROW_ENVIRONMENT or "").strip().lower()
     if env in {"prod", "production"}:
         return "production"
     if env in _DEMO_LAB_ENVIRONMENTS:
@@ -7291,15 +7291,15 @@ def _demo_lab_result(target: str) -> Dict[str, Any]:
         "cert_issuer": "Demo Lab Test CA",
         "findings": [
             {
-                "rule_id": "PQC_CLASSICAL_PUBLIC_KEY_DEPENDENCY",
+                "rule_id": "MORROW_CLASSICAL_PUBLIC_KEY_DEPENDENCY",
                 "severity": "high",
                 "message": "Endpoint depends on classical RSA/ECC public-key cryptography for authentication/key establishment.",
             }
         ],
         "risk_level": "high",
         "quantum_risk_score": 72,
-        "pqc_relevance": "high",
-        "pqc_recommendation": "Prioritize crypto-agility and provider-supported hybrid/PQC TLS planning for long-lived sensitive data.",
+        "pq_relevance": "high",
+        "pq_recommendation": "Prioritize crypto-agility and provider-supported hybrid/post-quantum TLS planning for long-lived sensitive data.",
     }
     facts.update(derive_quantum_readiness(facts, facts["findings"]))
     return facts
@@ -7319,7 +7319,7 @@ def _seed_demo_lab(org_id: str, req: DemoLabSeedRequest) -> Dict[str, Any]:
         environment=req.environment,
         criticality=req.criticality,
         confidentiality_lifetime=req.confidentiality_lifetime,
-        tags=["internet", "pqc", "hndl", DEMO_LAB_SOURCE],
+        tags=["internet", "pq", "hndl", DEMO_LAB_SOURCE],
         notes="Demo Lab record (local development only): fictional scenario data, not a scan result.",
         metadata={"demo_lab": True, "source": DEMO_LAB_SOURCE, "scenario": "quantum_migration"},
         repository_id=int(repo.get("id") or 0),
@@ -7343,7 +7343,7 @@ def _seed_demo_lab(org_id: str, req: DemoLabSeedRequest) -> Dict[str, Any]:
   min_tls_version = "1.3"
   allow_weak_ciphers = false
   crypto_agility_owner = "platform"
-  pqc_migration_stage = "hybrid-provider-check"
+  pq_migration_stage = "hybrid-provider-check"
 }
 """
     remediation = create_remediation(
@@ -7351,7 +7351,7 @@ def _seed_demo_lab(org_id: str, req: DemoLabSeedRequest) -> Dict[str, Any]:
         int(repo.get("id") or 0),
         "infra/tls-policy.tf",
         "Demo Lab: improve crypto agility for an internet-facing system with long-lived sensitive data and HNDL exposure.",
-        "Require TLS 1.3, remove weak cipher assumptions, assign a crypto-agility owner, and track provider hybrid/PQC rollout.",
+        "Require TLS 1.3, remove weak cipher assumptions, assign a crypto-agility owner, and track provider hybrid/post-quantum rollout.",
         original_content=original,
         suggested_content=suggested,
         status="verified_closed" if req.create_verified_evidence else "approved",
@@ -7444,50 +7444,50 @@ DEFAULT_ORG_POLICY_PROFILE: Dict[str, Any] = {
 PROVIDER_PLAYBOOKS: Dict[str, Dict[str, Any]] = {
     "cloudflare": {
         "provider": "cloudflare",
-        "summary": "Cloudflare-fronted assets should be managed through zone-level TLS policy, modern TLS baseline, and provider-supported hybrid/PQC controls when available.",
+        "summary": "Cloudflare-fronted assets should be managed through zone-level TLS policy, modern TLS baseline, and provider-supported hybrid/post-quantum controls when available.",
         "fix_now": ["Enforce HTTPS", "Require modern TLS", "Remove weak cipher assumptions", "Store zone/TLS policy in IaC or connector settings"],
-        "blocked_or_verify": ["Confirm current Cloudflare PQC/hybrid rollout support for the zone", "Rescan after enabling provider controls"],
+        "blocked_or_verify": ["Confirm current Cloudflare post-quantum/hybrid rollout support for the zone", "Rescan after enabling provider controls"],
         "evidence": ["zone id", "TLS policy", "scan id", "provider support status", "verified rescan"],
     },
     "aws": {
         "provider": "aws",
         "summary": "AWS assets may terminate TLS at CloudFront, ALB, NLB, API Gateway, or service-specific edges. Migration depends on the exact termination point.",
         "fix_now": ["Inventory TLS termination service", "Require TLS 1.2/1.3 policy where supported", "Move listener/CDN policy into Terraform", "Remove weak ciphers"],
-        "blocked_or_verify": ["Check CloudFront/ALB/API Gateway/ACM support for hybrid/PQC", "Track unsupported services as blockers"],
+        "blocked_or_verify": ["Check CloudFront/ALB/API Gateway/ACM support for hybrid/post-quantum", "Track unsupported services as blockers"],
         "evidence": ["AWS service", "listener/CDN policy", "Terraform file", "scan id", "verified rescan"],
     },
     "google": {
         "provider": "google",
         "summary": "Google-managed TLS usually depends on Cloud Load Balancing, Cloud CDN, certificate manager, or service edge capabilities.",
         "fix_now": ["Inventory load balancers/CDN edges", "Use modern SSL policies", "Manage certificate/TLS policy as code", "Track provider support"],
-        "blocked_or_verify": ["Confirm hybrid/PQC support for the specific Google edge product", "Rescan after rollout"],
+        "blocked_or_verify": ["Confirm hybrid/post-quantum support for the specific Google edge product", "Rescan after rollout"],
         "evidence": ["load balancer", "SSL policy", "certificate map", "scan id", "verified rescan"],
     },
     "azure": {
         "provider": "azure",
         "summary": "Azure assets may terminate at Front Door, Application Gateway, API Management, or app service edges.",
         "fix_now": ["Inventory edge service", "Use current TLS policy", "Move TLS settings into IaC", "Remove legacy protocol support"],
-        "blocked_or_verify": ["Confirm hybrid/PQC support for the specific Azure edge product", "Rescan after rollout"],
+        "blocked_or_verify": ["Confirm hybrid/post-quantum support for the specific Azure edge product", "Rescan after rollout"],
         "evidence": ["Azure edge service", "TLS policy", "IaC file", "scan id", "verified rescan"],
     },
     "fastly": {
         "provider": "fastly",
         "summary": "Fastly-fronted assets require Fastly edge TLS capability checks plus customer-side crypto agility work.",
         "fix_now": ["Inventory Fastly service/domain", "Enforce modern TLS", "Track TLS policy as code", "Remove weak cipher assumptions"],
-        "blocked_or_verify": ["Confirm Fastly hybrid/PQC support status", "Rescan after enabling supported controls"],
+        "blocked_or_verify": ["Confirm Fastly hybrid/post-quantum support status", "Rescan after enabling supported controls"],
         "evidence": ["Fastly service", "domain", "TLS config", "scan id", "verified rescan"],
     },
     "akamai": {
         "provider": "akamai",
         "summary": "Akamai-fronted assets require edge property/TLS configuration review and provider support tracking.",
         "fix_now": ["Inventory Akamai property", "Enforce modern TLS", "Track edge policy as code", "Remove weak cipher assumptions"],
-        "blocked_or_verify": ["Confirm Akamai hybrid/PQC support status", "Rescan after enabling supported controls"],
+        "blocked_or_verify": ["Confirm Akamai hybrid/post-quantum support status", "Rescan after enabling supported controls"],
         "evidence": ["Akamai property", "edge hostname", "TLS config", "scan id", "verified rescan"],
     },
     "customer_tls_terminator": {
         "provider": "customer_tls_terminator",
         "summary": "Self-managed TLS can often move faster because the customer controls Nginx, Envoy, Apache, HAProxy, OpenSSL, BoringSSL, or cert automation.",
-        "fix_now": ["Upgrade TLS libraries", "Enforce TLS 1.3", "Remove weak ciphers", "Put TLS config in code", "Plan hybrid/PQC test environment"],
+        "fix_now": ["Upgrade TLS libraries", "Enforce TLS 1.3", "Remove weak ciphers", "Put TLS config in code", "Plan hybrid/post-quantum test environment"],
         "blocked_or_verify": ["Confirm client/browser compatibility", "Confirm library support", "Roll out staged canary"],
         "evidence": ["server config", "library version", "Terraform/Kubernetes file", "scan id", "verified rescan"],
     },
@@ -7495,7 +7495,7 @@ PROVIDER_PLAYBOOKS: Dict[str, Dict[str, Any]] = {
         "provider": "unknown",
         "summary": "Unknown provider is a migration blocker until TLS termination ownership is identified.",
         "fix_now": ["Identify DNS/CDN/load-balancer path", "Assign owner", "Link repository", "Record provider as explicit blocker"],
-        "blocked_or_verify": ["Cannot select hybrid/PQC controls until provider/termination point is known"],
+        "blocked_or_verify": ["Cannot select hybrid/post-quantum controls until provider/termination point is known"],
         "evidence": ["DNS evidence", "owner", "repo link", "scan id"],
     },
 }
@@ -7635,13 +7635,13 @@ def _canonical_json_bytes(payload: Dict[str, Any]) -> bytes:
 
 
 def _evidence_signature(payload: Dict[str, Any]) -> Dict[str, Any]:
-    key = str(os.getenv("PQC_EVIDENCE_SIGNING_KEY") or os.getenv("PQC_VAULT_MASTER_KEY") or "").strip()
+    key = str(os.getenv("MORROW_EVIDENCE_SIGNING_KEY") or os.getenv("MORROW_VAULT_MASTER_KEY") or "").strip()
     canonical = _canonical_json_bytes(payload)
     digest = hashlib.sha256(canonical).hexdigest()
     if not key:
-        return {"alg": "sha256", "signed": False, "digest": digest, "note": "set PQC_EVIDENCE_SIGNING_KEY to enable HMAC signatures"}
+        return {"alg": "sha256", "signed": False, "digest": digest, "note": "set MORROW_EVIDENCE_SIGNING_KEY to enable HMAC signatures"}
     sig = hmac.new(key.encode("utf-8"), canonical, hashlib.sha256).hexdigest()
-    return {"alg": "HMAC-SHA256", "signed": True, "key_id": "pqc-evidence-v1", "digest": digest, "signature": sig}
+    return {"alg": "HMAC-SHA256", "signed": True, "key_id": "pq-evidence-v1", "digest": digest, "signature": sig}
 
 
 def _attach_evidence_integrity(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -7775,12 +7775,12 @@ def _asset_evidence(asset_key_str: str, org_id: str) -> Dict[str, Any]:
             "classical_crypto_dependency": bool(latest.get("classical_crypto_dependency", False)),
             "classical_algorithm": latest.get("classical_algorithm") or latest.get("key_type") or "unknown",
             "provider_guess": latest.get("provider_guess") or "unknown",
-            "provider_pqc_support_status": latest.get("provider_pqc_support_status") or "unknown",
+            "provider_pq_support_status": latest.get("provider_pq_support_status") or "unknown",
             # None, not 0: an asset with no recorded agility score has not scored zero.
             "crypto_agility_score": latest.get("crypto_agility_score"),
-            "pqc_migration_status": latest.get("pqc_migration_status") or "not_assessed",
-            "next_action": (latest.get("pqc_blockers") or latest.get("pqc_migration_actions") or ["Scan and classify this asset."])[0],
-            "migration_plan": latest.get("pqc_migration_plan") or [],
+            "pq_migration_status": latest.get("pq_migration_status") or "not_assessed",
+            "next_action": (latest.get("pq_blockers") or latest.get("pq_migration_actions") or ["Scan and classify this asset."])[0],
+            "migration_plan": latest.get("pq_migration_plan") or [],
         },
         "policy_decision": decision,
         "remediations": remediation_evidence,
@@ -7899,7 +7899,7 @@ def _enrich_gate_decision(decision: Dict[str, Any]) -> Dict[str, Any]:
     decision["violations"] = violations
     decision["fix_suggestions"] = suggestions
     decision["blocking"] = failed
-    decision["required_check_context"] = "pqc-scanner/security-policy"
+    decision["required_check_context"] = "morrow/security-policy"
     decision["merge_gate"] = "blocked" if failed else "allowed"
     decision["enforcement_mode"] = "blocking"
     return decision
@@ -7908,8 +7908,8 @@ def _enrich_gate_decision(decision: Dict[str, Any]) -> Dict[str, Any]:
 def _github_check_text(decision: Dict[str, Any]) -> str:
     violations = [v for v in (decision.get("violations") or []) if isinstance(v, dict)]
     if not violations:
-        return "No blocking PQC/security policy violations."
-    lines = ["Blocking PQC/security policy violations:", ""]
+        return "No blocking post-quantum/security policy violations."
+    lines = ["Blocking post-quantum/security policy violations:", ""]
     for v in violations[:25]:
         lines.append(f"- {v.get('id') or 'POLICY'} {v.get('kind') or 'policy'}: {v.get('message') or v.get('title') or v.get('rule_id') or 'policy violation'}")
         if v.get("fix_suggestion"):
@@ -8001,7 +8001,7 @@ def _repo_enforcement_decision(repo_name: str, changed_files: Optional[List[Dict
         "status": "FAIL" if failed else "PASS",
         "state": "failure" if failed else "success",
         "exit_code": 1 if failed else 0,
-        "description": "PQC/security policy violations block merge" if failed else "PQC/security policy passed",
+        "description": "post-quantum/security policy violations block merge" if failed else "post-quantum/security policy passed",
         "policy_version": policy.get("version") or "v1",
         "repo": repo_row or {"name": repo_name, "synced": False},
         "assets_checked": len(assets),
@@ -8059,11 +8059,11 @@ def api_v1_provider_capabilities(request: Request):
     from services.model_basis import model_basis as _model_basis
     return {
         "api_version": "v1",
-        "providers": PQC_PROVIDER_CAPABILITY_MATRIX,
+        "providers": MORROW_PROVIDER_CAPABILITY_MATRIX,
         "model_basis": _model_basis(
             kind="reference",
             summary=(
-                "Generic migration guidance per provider type: what to check and what to do while hybrid or PQC TLS "
+                "Generic migration guidance per provider type: what to check and what to do while hybrid or post-quantum TLS "
                 "is unavailable. It does not state any provider's current product support."
             ),
             assumptions=[
@@ -8140,7 +8140,7 @@ def api_v1_code_github_crypto_discovery(req: GithubCryptoDiscoveryRequest, reque
                 repo_id,
                 str(finding.get("path") or ""),
                 vuln,
-                str(finding.get("safe_next_step") or "Create a PQC migration patch and validate it."),
+                str(finding.get("safe_next_step") or "Create a post-quantum migration patch and validate it."),
                 original_content="",
                 suggested_content="",
                 status="candidate",
@@ -8671,7 +8671,7 @@ def api_deploy_canary(req: CanaryDeployRequest, request: Request):
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="canary.deploy", resource_type="organization", resource_id=org_id)
 
-    app_url = str(os.getenv("PQC_APP_URL", "")).strip()
+    app_url = str(os.getenv("MORROW_APP_URL", "")).strip()
     canary = _deploy_canary(
         tier=req.tier,
         org_id=org_id,
@@ -9018,7 +9018,7 @@ def api_contagion_simulate(req: ContagionSimRequest, request: Request):
     return result
 
 
-# ── Cryptographically Signed PQC Compliance Attestations ─────────────────────
+# ── Cryptographically Signed post-quantum Compliance Attestations ─────────────────────
 
 class ZkProofRequest(BaseModel):
     standard: str = Field(default="NIST_SP_800_208")
@@ -9028,7 +9028,7 @@ class ZkProofRequest(BaseModel):
 @app.post("/v1/zk-compliance/generate")
 def api_zk_generate(req: ZkProofRequest, request: Request):
     """
-    Generate a cryptographically signed compliance attestation for your PQC posture.
+    Generate a cryptographically signed compliance attestation for your post-quantum posture.
     Uses a hash-based commitment scheme (NOT a ZK-SNARK). The attestation can be
     shared with auditors as supporting evidence without revealing the raw crypto config.
     """
@@ -9148,7 +9148,7 @@ class ActuarialPortfolioRequest(BaseModel):
     coverage_limit_usd: float = Field(default=1_000_000_000.0, ge=0)
 
 class EbpfSnifferPackageRequest(BaseModel):
-    name: str = "pqc-ebpf-crypto-sniffer"
+    name: str = "pq-ebpf-crypto-sniffer"
     api_base: str = ""
 
 class MultiHopContagionRequest(BaseModel):
@@ -9165,7 +9165,7 @@ class MultiVariantPrRequest(BaseModel):
     scan_result: Dict[str, Any] = Field(default_factory=dict)
 
 class CanaryTrafficShiftRequest(BaseModel):
-    service_name: str = "pqc-service"
+    service_name: str = "pq-service"
     baseline_url: str = ""
     candidate_url: str = ""
     canary_percent: float = Field(default=1.0, ge=0.1, le=50)
@@ -9273,7 +9273,7 @@ def _autonomous_capability_truth_payload() -> Dict[str, Any]:
         cloudflare_configured = False
     github_configured = bool(
         str(os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN") or "").strip()
-        or str(os.getenv("PQC_GITHUB_DRIFT_CREDENTIAL_ID") or "").strip()
+        or str(os.getenv("MORROW_GITHUB_DRIFT_CREDENTIAL_ID") or "").strip()
     )
     redis_configured = bool(
         str(os.getenv("CELERY_BROKER_URL") or "").strip()
@@ -9285,14 +9285,14 @@ def _autonomous_capability_truth_payload() -> Dict[str, Any]:
         and not _gate_blocking_warnings()
     )
     return _asm_capability_truth({
-        "real_pqc_available": bool(libs.get("real_pqc_available")),
+        "real_pq_available": bool(libs.get("real_pq_available")),
         "production_ready": production_ready,
         "github_configured": github_configured,
         "cloudflare_configured": cloudflare_configured,
         "postgres_enabled": postgres_main_db_requested(),
         "redis_configured": redis_configured,
         "q_intel_live_sources": bool(
-            str(os.getenv("PQC_Q_INTEL_FEED_URL") or os.getenv("PQC_Q_INTEL_SOURCES") or "").strip()
+            str(os.getenv("MORROW_Q_INTEL_FEED_URL") or os.getenv("MORROW_Q_INTEL_SOURCES") or "").strip()
         ),
     })
 
@@ -9361,7 +9361,7 @@ def api_autonomous_mesh_ebpf_package(req: EbpfSnifferPackageRequest, request: Re
         "kind": "ebpf_crypto_sniffer_package",
         "organization_id": org_id,
         "artifacts": artifacts,
-        "bundle": _airlock_bundle("pqc-ebpf-crypto-sniffer.zip", artifacts),
+        "bundle": _airlock_bundle("pq-ebpf-crypto-sniffer.zip", artifacts),
         "capabilities": {
             "passive_discovery": True,
             "payload_collection": False,
@@ -9456,7 +9456,7 @@ def api_autopilot_canary_traffic_shift(req: CanaryTrafficShiftRequest, request: 
         "kind": "canary_driven_traffic_shift_package",
         "organization_id": org_id,
         "artifacts": artifacts,
-        "bundle": _airlock_bundle("pqc-canary-traffic-shift.zip", artifacts),
+        "bundle": _airlock_bundle("pq-canary-traffic-shift.zip", artifacts),
         "guardrails": {
             "starts_at_percent": req.canary_percent,
             "automatic_live_provider_writes": False,
@@ -9493,7 +9493,7 @@ def api_hardware_hsm_collector_package(request: Request, api_base: str = ""):
         "kind": "hsm_tpm_capability_collector_package",
         "organization_id": org_id,
         "artifacts": artifacts,
-        "bundle": _airlock_bundle("pqc-hsm-tpm-collector.zip", artifacts),
+        "bundle": _airlock_bundle("pq-hsm-tpm-collector.zip", artifacts),
     }
 
 
@@ -9510,7 +9510,7 @@ def api_hardware_crypto_bridge_collector_package(req: HardwareCryptoBridgeCollec
         "kind": "hardware_crypto_bridge_collector_package",
         "organization_id": org_id,
         "artifacts": artifacts,
-        "bundle": _airlock_bundle("pqc-hardware-crypto-bridge.zip", artifacts),
+        "bundle": _airlock_bundle("pq-hardware-crypto-bridge.zip", artifacts),
     }
 
 
@@ -9579,7 +9579,7 @@ def api_crypto_anomaly_siem_package(req: SiemXdrFeedPackageRequest, request: Req
         "organization_id": org_id,
         "destination": req.destination,
         "artifacts": artifacts,
-        "bundle": _airlock_bundle("pqc-crypto-anomaly-siem-xdr.zip", artifacts),
+        "bundle": _airlock_bundle("pq-crypto-anomaly-siem-xdr.zip", artifacts),
     }
 
 
@@ -9634,7 +9634,7 @@ def api_insurance_underwriting_export(req: InsuranceUnderwritingExportRequest, r
         retention_usd=req.retention_usd,
     )
     export = _asm_underwriting_export(org_id, risk, qri_score=req.qri_score, controls=req.controls)
-    envelope = _signed_airlock_envelope("pqc_insurance_underwriting_export", org_id, export)
+    envelope = _signed_airlock_envelope("pq_insurance_underwriting_export", org_id, export)
     export["signature"] = envelope["signature"]
     return export
 
@@ -9653,10 +9653,10 @@ def api_insurance_proof_of_agility(req: ProofOfAgilityRequest, request: Request)
         compliance_proof=req.compliance_proof or None,
         underwriting_context=req.underwriting_context or None,
     )
-    envelope = _signed_airlock_envelope("pqc_proof_of_agility", org_id, proof)
+    envelope = _signed_airlock_envelope("pq_proof_of_agility", org_id, proof)
     return {
         "api_version": "v1",
-        "kind": "pqc_proof_of_agility_envelope",
+        "kind": "pq_proof_of_agility_envelope",
         "proof": proof,
         "envelope": envelope,
         "share_token": _airlock_share_token(envelope),
@@ -9676,7 +9676,7 @@ def api_insurance_proof_of_agility_verify(req: ProofOfAgilityVerifyRequest, requ
     payload = envelope.get("payload") or {}
     return {
         "api_version": "v1",
-        "kind": "pqc_proof_of_agility_verification",
+        "kind": "pq_proof_of_agility_verification",
         "valid": valid,
         "signature": {"expected_kid": expected.get("kid"), "supplied_kid": supplied.get("kid")},
         "organization_id": envelope.get("organization_id") or "",
@@ -9687,14 +9687,14 @@ def api_insurance_proof_of_agility_verify(req: ProofOfAgilityVerifyRequest, requ
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Wave 3 — Autonomous PQC Migration Autopilot
+# Wave 3 — Autonomous post-quantum Migration Autopilot
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/autopilot/analyze")
 @app.post("/v1/autopilot/analyze")
 def api_autopilot_analyze(req: AutopilotAnalyzeRequest, request: Request):
     """
-    Analyze a scan result and generate a proposed PQC migration patch plan.
+    Analyze a scan result and generate a proposed post-quantum migration patch plan.
     No changes are applied to any system. The plan must be reviewed and approved
     before proceeding to the deploy step (which opens a GitHub PR for human review).
     """
@@ -10102,7 +10102,7 @@ class HybridCertRequest(BaseModel):
     san_domains: List[str] = Field(default_factory=list)
     san_ips: List[str] = Field(default_factory=list)
     classical_algo: str = "RSA-2048"
-    pqc_algo: str = "ML-KEM-768"
+    pq_algo: str = "ML-KEM-768"
     validity_days: int = Field(default=365, ge=1, le=3650)
     org_name: str = "Organization"
     country: str = "US"
@@ -10110,7 +10110,7 @@ class HybridCertRequest(BaseModel):
 class HybridCsrRequest(BaseModel):
     common_name: str
     classical_algo: str = "RSA-2048"
-    pqc_algo: str = "ML-KEM-768"
+    pq_algo: str = "ML-KEM-768"
     org_name: str = ""
     country: str = "US"
 
@@ -10152,7 +10152,7 @@ def api_gate_scan_diff(req: CicdGateDiffRequest, request: Request):
 @app.get("/cicd-gate/generate-yaml")
 @app.get("/v1/cicd-gate/generate-yaml")
 def api_gate_yaml(request: Request):
-    """Generate GitHub Actions workflow YAML for the PQC crypto regression gate."""
+    """Generate GitHub Actions workflow YAML for the post-quantum crypto regression gate."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="cicd_gate.generate_yaml", resource_type="organization", resource_id=org_id)
@@ -10162,7 +10162,7 @@ def api_gate_yaml(request: Request):
 @app.get("/cicd-gate/generate-script")
 @app.get("/v1/cicd-gate/generate-script")
 def api_gate_script(request: Request):
-    """Generate standalone pqc-crypto-gate.py script for local use."""
+    """Generate standalone morrow-crypto-gate.py script for local use."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="cicd_gate.generate_script", resource_type="organization", resource_id=org_id)
@@ -10172,7 +10172,7 @@ def api_gate_script(request: Request):
 @app.post("/cicd-gate/webhook")
 @app.post("/v1/cicd-gate/webhook")
 def api_gate_webhook(req: CicdGateWebhookRequest, request: Request):
-    """Process a GitHub PR webhook payload and run the PQC gate check."""
+    """Process a GitHub PR webhook payload and run the post-quantum gate check."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="cicd_gate.webhook", resource_type="organization", resource_id=org_id)
@@ -10208,7 +10208,7 @@ def api_sast_file(req: SastScanFileRequest, request: Request):
 @app.post("/sast/scan-repo")
 @app.post("/v1/sast/scan-repo")
 def api_sast_repo(req: SastScanRepoRequest, request: Request):
-    """Scan a collection of source files (uploaded or fetched) for PQC vulnerabilities."""
+    """Scan a collection of source files (uploaded or fetched) for post-quantum vulnerabilities."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="sast.scan_repo", resource_type="organization", resource_id=org_id)
@@ -10238,13 +10238,13 @@ def api_sast_rules(request: Request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Wave 4 — PQC Maturity Model
+# Wave 4 — post-quantum Maturity Model
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/maturity/assess")
 @app.post("/v1/maturity/assess")
 def api_maturity_assess(req: MaturityAssessRequest, request: Request):
-    """Compute PQC maturity assessment from domain scores or scan summary."""
+    """Compute post-quantum maturity assessment from domain scores or scan summary."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="maturity.assess", resource_type="organization", resource_id=org_id)
@@ -10262,12 +10262,12 @@ def api_maturity_assess(req: MaturityAssessRequest, request: Request):
     else:
         # Auto-derive from org's actual scan data
         assets_raw = list_assets(limit=500) or []
-        pqc_count = sum(1 for a in assets_raw
+        pq_count = sum(1 for a in assets_raw
                         if any(x in str((a.get("key_type") or "")).lower()
                                for x in ("ml-kem","kyber","dilithium","slh")))
         total = max(len(assets_raw), 1)
         scan_summary = {
-            "pqc_migration_pct": round(pqc_count / total * 100, 1),
+            "pq_migration_pct": round(pq_count / total * 100, 1),
             "total_assets": total,
             "critical_risk_count": sum(1 for a in assets_raw
                                         if str(a.get("risk_level") or "").lower() == "critical"),
@@ -10385,13 +10385,13 @@ def api_obs_history(asset_key: str, request: Request, limit: int = Query(default
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Wave 4 — Vendor PQC Scorecard
+# Wave 4 — Vendor post-quantum Scorecard
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/vendor-scorecard")
 @app.get("/v1/vendor-scorecard")
 def api_vendor_all(request: Request, category: Optional[str] = None, sort_by: str = "composite"):
-    """Get PQC readiness scores for all tracked vendors."""
+    """Get post-quantum readiness scores for all tracked vendors."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="vendor_scorecard.list", resource_type="organization", resource_id="")
     return {"api_version": "v1", **_vendor_all(category=category, sort_by=sort_by)}
@@ -10400,7 +10400,7 @@ def api_vendor_all(request: Request, category: Optional[str] = None, sort_by: st
 @app.get("/vendor-scorecard/summary")
 @app.get("/v1/vendor-scorecard/summary")
 def api_vendor_summary(request: Request):
-    """Vendor PQC scorecard summary statistics."""
+    """Vendor post-quantum scorecard summary statistics."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="vendor_scorecard.summary", resource_type="organization", resource_id="")
     return {"api_version": "v1", **_vendor_summary()}
@@ -10409,7 +10409,7 @@ def api_vendor_summary(request: Request):
 @app.get("/vendor-scorecard/{vendor_id}")
 @app.get("/v1/vendor-scorecard/{vendor_id}")
 def api_vendor_detail(vendor_id: str, request: Request):
-    """Get detailed PQC scorecard for a specific vendor."""
+    """Get detailed post-quantum scorecard for a specific vendor."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="vendor_scorecard.detail", resource_type="organization", resource_id="")
     v = _vendor_get(vendor_id)
@@ -10435,11 +10435,11 @@ def api_vendor_compare(req: VendorCompareRequest, request: Request):
 @app.post("/v1/hybrid-cert/generate")
 def api_hybrid_cert(req: HybridCertRequest, request: Request):
     """
-    Generate a self-signed X.509 hybrid certificate (classical + PQC) for testing.
+    Generate a self-signed X.509 hybrid certificate (classical + post-quantum) for testing.
     This generates key material locally — it does NOT provision anything to production.
     Before using in production: complete interoperability testing, obtain CA-signed cert,
     verify client compatibility, confirm vendor support, and plan a rollback procedure.
-    The endpoint returns 503 unless a real PQC library is available.
+    The endpoint returns 503 unless a real post-quantum library is available.
     """
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["operator", "admin"],
@@ -10449,12 +10449,12 @@ def api_hybrid_cert(req: HybridCertRequest, request: Request):
         san_domains=req.san_domains or [req.common_name],
         san_ips=req.san_ips,
         classical_algo=req.classical_algo,
-        pqc_algo=req.pqc_algo,
+        pq_algo=req.pq_algo,
         validity_days=req.validity_days,
         org_name=req.org_name,
         country=req.country,
     )
-    if result.get("status") == "blocked" or not result.get("pqc_key_real") or not result.get("cert_real"):
+    if result.get("status") == "blocked" or not result.get("pq_key_real") or not result.get("cert_real"):
         raise HTTPException(status_code=503, detail=result)
     return {"api_version": "v1", **result}
 
@@ -10462,18 +10462,18 @@ def api_hybrid_cert(req: HybridCertRequest, request: Request):
 @app.post("/hybrid-cert/csr")
 @app.post("/v1/hybrid-cert/csr")
 def api_hybrid_csr(req: HybridCsrRequest, request: Request):
-    """Generate a hybrid CSR (classical + PQC public key) for submission to your CA."""
+    """Generate a hybrid CSR (classical + post-quantum public key) for submission to your CA."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="hybrid_cert.csr", resource_type="organization", resource_id=org_id)
     result = _hybrid_csr_generate(
         common_name=req.common_name,
         classical_algo=req.classical_algo,
-        pqc_algo=req.pqc_algo,
+        pq_algo=req.pq_algo,
         org_name=req.org_name,
         country=req.country,
     )
-    if result.get("status") == "blocked" or not result.get("pqc_key_real") or not result.get("csr_real"):
+    if result.get("status") == "blocked" or not result.get("pq_key_real") or not result.get("csr_real"):
         raise HTTPException(status_code=503, detail=result)
     return {"api_version": "v1", **result}
 
@@ -10481,7 +10481,7 @@ def api_hybrid_csr(req: HybridCsrRequest, request: Request):
 @app.get("/hybrid-cert/libraries")
 @app.get("/v1/hybrid-cert/libraries")
 def api_hybrid_libs(request: Request):
-    """Check which PQC libraries are available for hybrid cert generation."""
+    """Check which post-quantum libraries are available for hybrid cert generation."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="hybrid_cert.libraries", resource_type="organization", resource_id="")
     return {"api_version": "v1", **_hybrid_lib_check()}
@@ -10509,7 +10509,7 @@ def api_v1_provider_playbook(provider: str, request: Request):
     return {
         "api_version": "v1",
         "provider": key,
-        "capabilities": PQC_PROVIDER_CAPABILITY_MATRIX.get(key) or PQC_PROVIDER_CAPABILITY_MATRIX.get("unknown"),
+        "capabilities": MORROW_PROVIDER_CAPABILITY_MATRIX.get(key) or MORROW_PROVIDER_CAPABILITY_MATRIX.get("unknown"),
         "playbook": PROVIDER_PLAYBOOKS.get(key) or PROVIDER_PLAYBOOKS["unknown"],
     }
 
@@ -10539,13 +10539,13 @@ def api_v1_remediation_candidates(req: RemediationCandidatesRequest, request: Re
         ak = str(asset.get("asset_key") or "").strip()
         latest = latest_for(ak)
         hndl = str(latest.get("harvest_now_decrypt_later_risk") or "unknown").lower()
-        status = str(latest.get("pqc_migration_status") or "not_assessed")
+        status = str(latest.get("pq_migration_status") or "not_assessed")
         repo_id = int(asset.get("repository_id") or 0)
         if hndl not in {"critical", "high"} and status not in {"actionable_migration_path", "blocked_by_provider_or_config"}:
             continue
         provider = str(latest.get("provider_guess") or "unknown").lower()
-        actions = latest.get("pqc_migration_actions") or []
-        blockers = latest.get("pqc_blockers") or []
+        actions = latest.get("pq_migration_actions") or []
+        blockers = latest.get("pq_blockers") or []
         vuln = (
             f"Post-quantum migration candidate for {ak}. "
             f"HNDL risk={hndl}; provider={provider}; status={status}. "
@@ -10634,7 +10634,7 @@ def api_quantum_readiness_report_html(request: Request):
 
 @app.post("/demo/lab/seed")
 def api_seed_demo_lab(req: DemoLabSeedRequest, request: Request):
-    # Local development only. PQC_ALLOW_DEMO_IN_PRODUCTION does not re-enable it.
+    # Local development only. MORROW_ALLOW_DEMO_IN_PRODUCTION does not re-enable it.
     if not _demo_lab_available():
         raise HTTPException(
             status_code=403,
@@ -10873,16 +10873,16 @@ def _actor_id(request: Request) -> str:
         if actor:
             return actor
     return str(
-        request.headers.get("x-pqc-user-id")
+        request.headers.get("x-pq-user-id")
         or request.headers.get("x-user-id")
         or "anon"
     ).strip() or "anon"
 
 
 def _parse_tool_api_keys() -> Dict[str, Dict[str, Any]]:
-    """Parse PQC_TOOL_API_KEYS as name:key:scope1|scope2,rawkey or name:key:* entries."""
+    """Parse MORROW_TOOL_API_KEYS as name:key:scope1|scope2,rawkey or name:key:* entries."""
     out: Dict[str, Dict[str, Any]] = {}
-    raw = str(os.getenv("PQC_TOOL_API_KEYS") or "").strip()
+    raw = str(os.getenv("MORROW_TOOL_API_KEYS") or "").strip()
     if not raw:
         return out
     for index, item in enumerate([x.strip() for x in raw.split(",") if x.strip()], start=1):
@@ -11297,7 +11297,7 @@ app.include_router(create_alert_routing_router(_PlatformAdminDeps(
 app.include_router(create_invite_landing_router(_PlatformAdminDeps(
     static_dir=os.path.join(BASE_DIR, "static"),
     limiter=limiter,
-    auth_rate=str(os.getenv("PQC_RATE_LIMIT_AUTH", "10/minute") or "10/minute").strip(),
+    auth_rate=str(os.getenv("MORROW_RATE_LIMIT_AUTH", "10/minute") or "10/minute").strip(),
     require_platform_admin=lambda request, roles=None: _require_platform_admin(request, roles),
     record_event=lambda *args, **kwargs: _record_platform_admin_event(*args, **kwargs),
     org_exists=lambda org_id: any(str(o.get("id") or "") == str(org_id or "") for o in list_organizations(limit=5000)),
@@ -11314,7 +11314,7 @@ from services import public_check as _public_check  # noqa: E402
 app.include_router(create_public_check_router(_PlatformAdminDeps(
     static_dir=os.path.join(BASE_DIR, "static"),
     limiter=limiter,
-    public_check_rate=str(os.getenv("PQC_RATE_LIMIT_PUBLIC_CHECK", "30/minute") or "30/minute").strip(),
+    public_check_rate=str(os.getenv("MORROW_RATE_LIMIT_PUBLIC_CHECK", "30/minute") or "30/minute").strip(),
     client_ip=lambda request: _client_ip_for_monitoring(request),
     require_platform_admin=lambda request, roles=None: _require_platform_admin(request, roles),
     record_event=lambda *args, **kwargs: _record_platform_admin_event(*args, **kwargs),
@@ -11334,7 +11334,7 @@ app.include_router(create_trial_requests_router(_PlatformAdminDeps(
     limiter=limiter,
     # Tighter than the public checker's budget: a trial request is a once-ever action for a real
     # person, so anything above a handful an hour from one address is a script.
-    public_rate=str(os.getenv("PQC_RATE_LIMIT_TRIAL_REQUEST", "6/hour") or "6/hour").strip(),
+    public_rate=str(os.getenv("MORROW_RATE_LIMIT_TRIAL_REQUEST", "6/hour") or "6/hour").strip(),
     client_ip=lambda request: _client_ip_for_monitoring(request),
     require_platform_admin=lambda request, roles=None: _require_platform_admin(request, roles),
 )))
@@ -11451,7 +11451,7 @@ def _priority_score(result: Dict[str, Any]) -> float:
     score = rs_f * 1.0 + max_sev * 20 + _criticality_weight(crit) + _conf_weight(conf)
     if any((t or "").lower() == "internet-facing" for t in tags):
         score += 15
-    if any((t or "").lower() == "pqc" for t in tags):
+    if any((t or "").lower() == "pq" for t in tags):
         score += 5
     return float(round(score, 2))
 
@@ -11625,7 +11625,7 @@ def _assistant_prompt_injection_detected(text: str) -> bool:
         "environment variables",
         "openai_api_key",
         "github token",
-        "pqc_vault_master_key",
+        "morrow_vault_master_key",
     )
     return any(p in q for p in suspicious_patterns)
 
@@ -11657,7 +11657,7 @@ def _assistant_rule_response(message: str, ctx: Optional[Dict[str, Any]] = None)
         "scan", "website", "webiste", "site", "url", "host", "endpoint", "asset", "repo", "repository",
         "github", "remediation", "validate", "validation", "pr", "drift", "audit", "evidence", "report",
         "compliance", "dashboard", "radar", "qri", "rbac", "auth", "role", "org", "tenant", "crypto",
-        "pqc", "quantum", "tls", "certificate", "workflow", "queue", "status", "rsa", "ecdsa", "ecdhe",
+        "pq", "quantum", "tls", "certificate", "workflow", "queue", "status", "rsa", "ecdsa", "ecdhe",
         "ecdh", "kyber", "ml-kem", "dilithium", "ml-dsa", "sphincs", "slh-dsa", "aes", "sha",
     )
     if not any(w in lower for w in platform_words):
@@ -11821,7 +11821,7 @@ def _openai_assistant_intent(message: str, history: List[Dict[str, str]], ctx: D
         return out
     model = (os.getenv("OPENAI_ASSISTANT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
     system = (
-        "You are PQC Agent for a post-quantum cryptography governance SaaS. "
+        "You are post-quantum Agent for a post-quantum cryptography governance SaaS. "
         "Return only JSON. Never execute actions. Never ask for secrets. "
         "Stay scoped to scans, assets, repos, GitHub ownership, remediation, validation, PR readiness, drift, audit, compliance, RBAC, and quantum-safety explanations. "
         "Allowed intents: " + ", ".join(sorted(ASSISTANT_ALLOWED_INTENTS)) + ". "
@@ -12111,7 +12111,7 @@ def _scan_worker(scan_id: str, targets: List[str], organization_id: str = "") ->
         # Fire Slack alert (non-blocking, best-effort)
         try:
             from services.slack import notify_scan_complete
-            app_url = str(os.getenv("PQC_APP_URL", "")).strip()
+            app_url = str(os.getenv("MORROW_APP_URL", "")).strip()
             notify_scan_complete(scan_id, targets, results,
                                  org_id=organization_id or DEFAULT_ORG_ID,
                                  app_url=app_url)
@@ -12818,8 +12818,8 @@ def api_fix_next(
             "priority_score": score,
             "risk_score": float(r.get("risk_score") or r.get("quantum_risk_score") or 0.0),
             "risk_level": r.get("risk_level") or r.get("risk") or "",
-            "pqc_relevance": r.get("pqc_relevance") or "",
-            "pqc_recommendation": r.get("pqc_recommendation") or "",
+            "pq_relevance": r.get("pq_relevance") or "",
+            "pq_recommendation": r.get("pq_recommendation") or "",
             "owner": r.get("owner") or "",
             "team": r.get("team") or "",
             "environment": r.get("environment") or "",
@@ -12863,7 +12863,7 @@ def metrics_overview(
         "assets_total": len(rows),
         "assets_with_findings": 0,
         "risk_levels": {},
-        "pqc_relevance": {},
+        "pq_relevance": {},
         "tls_versions": {},
         "key_types": {},
     }
@@ -12874,8 +12874,8 @@ def metrics_overview(
             counts["assets_with_findings"] += 1
         rl = (r.get("risk_level") or "unknown").lower()
         counts["risk_levels"][rl] = counts["risk_levels"].get(rl, 0) + 1
-        pr = (r.get("pqc_relevance") or "unknown").lower()
-        counts["pqc_relevance"][pr] = counts["pqc_relevance"].get(pr, 0) + 1
+        pr = (r.get("pq_relevance") or "unknown").lower()
+        counts["pq_relevance"][pr] = counts["pq_relevance"].get(pr, 0) + 1
         tv = (r.get("tls_version") or "unknown")
         counts["tls_versions"][tv] = counts["tls_versions"].get(tv, 0) + 1
         kt = (r.get("key_type") or "unknown")
@@ -13039,7 +13039,7 @@ def api_sync_gcp(req: GcpSyncRequest, request: Request):
     project = req.project_id.strip() if isinstance(req.project_id, str) else ""
     org_id = getattr(request.state, "org_id", DEFAULT_ORG_ID)
     if req.async_mode:
-        task = celery_app.send_task("pqc.sync_gcp_assets", args=[req.credential_id, project or None, org_id])
+        task = celery_app.send_task("morrow.sync_gcp_assets", args=[req.credential_id, project or None, org_id])
         return {"async": True, "job_id": task.id}
     return sync_gcp_assets(credential_id=req.credential_id, project_id=project or None)
 
@@ -13053,7 +13053,7 @@ def api_sync_github(req: GithubSyncRequest, request: Request):
     visibility = (req.visibility or "all").strip() or "all"
     org_id = getattr(request.state, "org_id", DEFAULT_ORG_ID)
     if req.async_mode:
-        task = celery_app.send_task("pqc.sync_github_repos", args=[req.credential_id, org or None, visibility, org_id])
+        task = celery_app.send_task("morrow.sync_github_repos", args=[req.credential_id, org or None, visibility, org_id])
         return {"async": True, "job_id": task.id}
     return sync_github_repos(credential_id=req.credential_id, org=org or None, visibility=visibility)
 
@@ -13183,8 +13183,8 @@ def api_enterprise_bulk_onboard(req: EnterpriseBulkOnboardRequest, request: Requ
     )
     targets = _normalize_bulk_targets(req.targets, req.targets_text)
     tags = [str(t).strip() for t in (req.tags or []) if str(t).strip()]
-    if "pqc" not in [t.lower() for t in tags]:
-        tags.append("pqc")
+    if "pq" not in [t.lower() for t in tags]:
+        tags.append("pq")
     if "hndl" not in [t.lower() for t in tags]:
         tags.append("hndl")
 
@@ -13269,7 +13269,7 @@ def api_correlate_assets(req: CorrelateRequest, request: Request):
     asset_limit = max(1, min(int(req.asset_limit or 500), 5000))
     org_id = getattr(request.state, "org_id", DEFAULT_ORG_ID)
     if req.async_mode:
-        task = celery_app.send_task("pqc.correlate_assets", args=[req.credential_id, asset_limit, org_id])
+        task = celery_app.send_task("morrow.correlate_assets", args=[req.credential_id, asset_limit, org_id])
         return {"async": True, "job_id": task.id}
     return correlate_assets(credential_id=req.credential_id, asset_limit=asset_limit)
 
@@ -13458,7 +13458,7 @@ def api_get_integration_settings():
         "cloudflare_last_rotate_ok": str(get_integration_setting("cloudflare_last_rotate_ok", "") or ""),
         "cloudflare_last_rotate_error": str(get_integration_setting("cloudflare_last_rotate_error", "") or ""),
         "record_suppressed_events": 1 if record_suppressed == "1" else 0,
-        "secret_backend": str(os.getenv("PQC_SECRET_BACKEND", "vault") or "vault").strip().lower(),
+        "secret_backend": str(os.getenv("MORROW_SECRET_BACKEND", "vault") or "vault").strip().lower(),
         "auth_mode": AUTH_MODE,
         "auth_required": AUTH_REQUIRED,
         "security_warnings": _security_warnings(),
@@ -13540,7 +13540,7 @@ def api_secret_backend_info():
     instructions = {
         "vault": {
             "description": "Local Fernet encryption + PostgreSQL (default)",
-            "required_env": ["PQC_VAULT_MASTER_KEY", "DATABASE_URL"],
+            "required_env": ["MORROW_VAULT_MASTER_KEY", "DATABASE_URL"],
             "generate_key": "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"",
         },
         "aws": {
@@ -13572,17 +13572,17 @@ def api_jira_webhook_template():
     and use this template as the event payload shape reference.
     """
     return {
-        "name": "Jira - PQC Finding",
-        "description": "Creates a Jira issue for each PQC finding that reaches the remediation queue.",
-        "suggested_event_types": ["pqc.not_ready", "scan.regression", "cert.expired"],
+        "name": "Jira - post-quantum Finding",
+        "description": "Creates a Jira issue for each post-quantum finding that reaches the remediation queue.",
+        "suggested_event_types": ["pq.not_ready", "scan.regression", "cert.expired"],
         "payload_template": {
             "fields": {
                 "project": {"key": "YOUR_PROJECT_KEY"},
-                "summary": "[PQC] {{event_type}} - {{data.asset_key}}",
+                "summary": "[post-quantum] {{event_type}} - {{data.asset_key}}",
                 "description": "Asset: {{data.asset_key}}\nEvent: {{event_type}}\nScan ID: {{data.scan_id}}\nFindings: {{data.finding_ids}}",
                 "issuetype": {"name": "Bug"},
                 "priority": {"name": "High"},
-                "labels": ["pqc-scanner", "quantum-migration"],
+                "labels": ["morrow", "quantum-migration"],
             }
         },
         "setup_instructions": [
@@ -13590,10 +13590,10 @@ def api_jira_webhook_template():
             "2. Choose trigger: 'Incoming webhook'.",
             "3. Copy the Jira automation webhook URL.",
             "4. In Morrow, create a new webhook with that URL.",
-            "5. Set event_types to: pqc.not_ready, scan.regression, cert.expired.",
+            "5. Set event_types to: pq.not_ready, scan.regression, cert.expired.",
             "6. Morrow will POST events; use Jira automation to map fields to issues.",
         ],
-        "alternative": "Use the generic webhook + Zapier/Make to translate PQC events into Jira issues.",
+        "alternative": "Use the generic webhook + Zapier/Make to translate post-quantum events into Jira issues.",
     }
 
 
@@ -13610,7 +13610,7 @@ async def api_jira_create_issue(request: Request):
     api_token = str(body.get("api_token") or "").strip()
     asset_key_val = str(body.get("asset_key") or "").strip()
     finding_ids = body.get("finding_ids") or []
-    summary = str(body.get("summary") or f"[PQC] Quantum-vulnerable crypto detected: {asset_key_val}").strip()
+    summary = str(body.get("summary") or f"[post-quantum] Quantum-vulnerable crypto detected: {asset_key_val}").strip()
     description_val = str(body.get("description") or (
         f"Morrow detected quantum-vulnerable cryptography on asset: {asset_key_val}\n"
         f"Findings: {', '.join(str(x) for x in finding_ids)}\n\n"
@@ -13633,7 +13633,7 @@ async def api_jira_create_issue(request: Request):
                 "content": [{"type": "paragraph", "content": [{"type": "text", "text": description_val}]}],
             },
             "issuetype": {"name": issue_type},
-            "labels": ["pqc-scanner", "quantum-migration"],
+            "labels": ["morrow", "quantum-migration"],
         }
     }).encode()
 
@@ -13768,7 +13768,7 @@ def _vault_or_503(fn, *args, **kwargs):
             status_code=503,
             detail=(
                 "Credential vault is not configured on this server. It requires "
-                "DATABASE_URL (postgresql://...) and PQC_VAULT_MASTER_KEY. "
+                "DATABASE_URL (postgresql://...) and MORROW_VAULT_MASTER_KEY. "
                 f"({exc})"
             ),
         )
@@ -14459,10 +14459,10 @@ def api_active_policy(request: Request):
                     "rsa_or_ecdsa_certificate_migration_signal",
                 ],
                 "critical_gate_level": "critical",
-                "pqc_signals": [
+                "pq_signals": [
                     "quantum_risk_score",
-                    "pqc_relevance",
-                    "pqc_recommendation",
+                    "pq_relevance",
+                    "pq_recommendation",
                 ],
             },
             "remediation_policy": {
@@ -14488,7 +14488,7 @@ def api_active_policy(request: Request):
                 ],
             },
             "ci_gate_policy": {
-                "context": "pqc-scanner/security-policy",
+                "context": "morrow/security-policy",
                 "linked_critical_assets_fail_gate": True,
                 "iac_policy_violations_fail_gate": True,
                 "verified_closed_remediation_expected": True,
@@ -14574,7 +14574,7 @@ def _circuit_breaker_decision(req: CircuitBreakerEvaluateRequest, org_id: str) -
         "violations_total": violation_count,
         "blocking": action == "block",
         "policy_version": gate.get("policy_version") or policy.get("version") or "v1",
-        "required_check_context": gate.get("required_check_context") or "pqc-scanner/security-policy",
+        "required_check_context": gate.get("required_check_context") or "morrow/security-policy",
         "merge_gate": gate.get("merge_gate") or {},
         "violations": raw_violations,
         "fix_suggestions": gate.get("fix_suggestions") or [],
@@ -14805,7 +14805,7 @@ def _publish_circuit_breaker_github_check(req: CircuitBreakerEvaluateRequest, re
         raise HTTPException(status_code=400, detail="publish_mode must be either check_run or status")
     owner, repo = split_owner_repo(str(req.repo or "").strip())
     token = _github_repo_token_or_502(int(req.github_credential_id), str(req.repo or "").strip())
-    context = str(result.get("required_check_context") or "pqc-scanner/security-policy")
+    context = str(result.get("required_check_context") or "morrow/security-policy")
     state = _github_publish_state_for_circuit(result, publish_mode)
     check_text = _github_check_text({
         **result,
@@ -14819,7 +14819,7 @@ def _publish_circuit_breaker_github_check(req: CircuitBreakerEvaluateRequest, re
             token,
             name=context,
             conclusion=state,
-            summary=str(result.get("description") or "PQC circuit breaker decision"),
+            summary=str(result.get("description") or "Post-quantum circuit breaker decision"),
             text=check_text,
             details_url=str(req.target_url or "").strip(),
         )
@@ -14831,7 +14831,7 @@ def _publish_circuit_breaker_github_check(req: CircuitBreakerEvaluateRequest, re
             token,
             state=state,
             context=context,
-            description=str(result.get("description") or "PQC circuit breaker decision"),
+            description=str(result.get("description") or "Post-quantum circuit breaker decision"),
             target_url=str(req.target_url or "").strip(),
         )
     record_github_status_publish(
@@ -15482,7 +15482,7 @@ def api_ci_status_check(req: CiStatusCheckRequest, request: Request):
     )
     if idem.get("replay"):
         return idem.get("response") or {}
-    context = "pqc-scanner/security-policy"
+    context = "morrow/security-policy"
     github_status: Dict[str, Any] = {"published": False}
     provider = str(req.provider or "github").strip().lower()
     ref = str(req.ref or "").strip()
@@ -15508,7 +15508,7 @@ def api_ci_status_check(req: CiStatusCheckRequest, request: Request):
                 token,
                 name=context,
                 conclusion=conclusion,
-                summary=str(decision.get("description") or "PQC/security policy decision"),
+                summary=str(decision.get("description") or "post-quantum/security policy decision"),
                 text=check_text,
                 details_url=str(req.target_url or "").strip(),
             )
@@ -15520,7 +15520,7 @@ def api_ci_status_check(req: CiStatusCheckRequest, request: Request):
                 token,
                 state=str(decision.get("state") or "failure"),
                 context=context,
-                description=str(decision.get("description") or "PQC/security policy decision"),
+                description=str(decision.get("description") or "post-quantum/security policy decision"),
                 target_url=str(req.target_url or "").strip(),
             )
         record_github_status_publish(
@@ -15633,7 +15633,7 @@ def api_mcp(req: McpRequest, request: Request):
                     },
                     {
                         "name": "check_repo_enforcement",
-                        "description": "Check whether a repository currently passes the PQC/security merge gate.",
+                        "description": "Check whether a repository currently passes the post-quantum/security merge gate.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -15692,7 +15692,7 @@ def api_mcp(req: McpRequest, request: Request):
                     },
                     {
                         "name": "get_provider_capabilities",
-                        "description": "Return provider PQC/hybrid TLS capability guidance for Cloudflare, AWS, Google, Azure, Fastly, Akamai, customer TLS, and unknown.",
+                        "description": "Return provider post-quantum/hybrid TLS capability guidance for Cloudflare, AWS, Google, Azure, Fastly, Akamai, customer TLS, and unknown.",
                         "inputSchema": {"type": "object", "properties": {"provider": {"type": "string"}}},
                     },
                     {
@@ -15749,9 +15749,9 @@ def api_mcp(req: McpRequest, request: Request):
             )
         elif name == "get_provider_capabilities":
             provider = str((args or {}).get("provider") or "").strip().lower()
-            result = {"providers": PQC_PROVIDER_CAPABILITY_MATRIX}
+            result = {"providers": MORROW_PROVIDER_CAPABILITY_MATRIX}
             if provider:
-                result = {"provider": provider, "capabilities": PQC_PROVIDER_CAPABILITY_MATRIX.get(provider) or PQC_PROVIDER_CAPABILITY_MATRIX.get("unknown")}
+                result = {"provider": provider, "capabilities": MORROW_PROVIDER_CAPABILITY_MATRIX.get(provider) or MORROW_PROVIDER_CAPABILITY_MATRIX.get("unknown")}
         elif name == "get_org_policy":
             result = _load_org_policy(str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID))
         else:
@@ -15839,7 +15839,7 @@ def api_export_audit_logs_csv(
     return Response(
         content=buf.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=pqc-audit-log.csv"},
+        headers={"Content-Disposition": "attachment; filename=pq-audit-log.csv"},
     )
 
 
@@ -16204,7 +16204,7 @@ def _vendor_attestation_portal_html(token: str) -> str:
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PQC Vendor Attestation - {vendor}</title>
+  <title>Post-Quantum Vendor Attestation - {vendor}</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <style>{_VENDOR_ATTESTATION_CSS}</style>
 </head>
@@ -16212,7 +16212,7 @@ def _vendor_attestation_portal_html(token: str) -> str:
   <main class="wrap">
     <section class="hero">
       <div class="eyebrow">Vendor self-attestation portal</div>
-      <h1>{vendor} PQC readiness attestation</h1>
+      <h1>{vendor} post-quantum readiness attestation</h1>
       <p class="sub">Submit the cryptographic readiness evidence requested by your customer. This portal is isolated to this invite and does not expose the customer's internal dashboard.</p>
       <div class="meta"><span class="pill">Status: {status}</span><span class="pill">Expires: {expires}</span><span class="pill">Scope: public systems and governance evidence</span></div>
     </section>
@@ -16227,7 +16227,7 @@ def _vendor_attestation_portal_html(token: str) -> str:
         <label for="domains">Domains or systems in scope</label>
         <textarea id="domains" placeholder="api.vendor.com:443&#10;login.vendor.com:443"></textarea>
         <label for="evidence">Evidence references</label>
-        <textarea id="evidence" placeholder="SOC2 report available under NDA&#10;PQC migration roadmap Q3&#10;TLS inventory export link"></textarea>
+        <textarea id="evidence" placeholder="SOC2 report available under NDA&#10;post-quantum migration roadmap Q3&#10;TLS inventory export link"></textarea>
         <button id="submitBtn" type="submit">Sign and submit attestation</button>
         <div id="msg" class="msg"></div>
       </form>
@@ -16236,7 +16236,7 @@ def _vendor_attestation_portal_html(token: str) -> str:
         <p class="cardSub">Tick what is true today. Each item carries equal weight in the score below.</p>
         <label class="check"><input type="checkbox" class="q" id="q_tls13" /><span>TLS 1.2+ enforced; TLS 1.0/1.1 disabled for public systems.</span></label>
         <label class="check"><input type="checkbox" class="q" id="q_inventory" /><span>Cryptographic asset inventory exists for public and critical internal services.</span></label>
-        <label class="check"><input type="checkbox" class="q" id="q_pqc" /><span>PQC migration owner and roadmap are defined.</span></label>
+        <label class="check"><input type="checkbox" class="q" id="q_pq" /><span>Post-quantum migration owner and roadmap are defined.</span></label>
         <label class="check"><input type="checkbox" class="q" id="q_vendor" /><span>Third-party cryptographic dependencies are reviewed.</span></label>
         <label class="check"><input type="checkbox" class="q" id="q_hndl" /><span>Harvest-now/decrypt-later exposure has been assessed.</span></label>
         <label>Readiness score</label>
@@ -16684,7 +16684,7 @@ def _runtime_crypto_risk(tls_version: str = "", cipher: str = "") -> Dict[str, A
         reasons.append("legacy_tls")
     elif tls_key in {"tlsv1.2", "tls1.2"}:
         risk = "medium"
-        reasons.append("pre_pqc_tls")
+        reasons.append("pre_pq_tls")
     if cipher_upper and any(marker in cipher_upper for marker in _WEAK_CIPHER_MARKERS):
         risk = "critical"
         reasons.append("weak_cipher")
@@ -16989,15 +16989,15 @@ def _exec_dashboard_aggregate(org_id: str) -> Dict[str, Any]:
         high_risk_assets = _rc["at_risk"]
         safe_assets = _rc.get("safe", 0) + _rc.get("low", 0)
         # Migration progress is a proportion of assets, not of scans.
-        pqc_pct = round(safe_assets / total_assets * 100, 1) if total_assets else 0
+        pq_pct = round(safe_assets / total_assets * 100, 1) if total_assets else 0
         out["inventory"] = {
             # total_assets must be the asset count, not the scan count: one scan covers many
             # assets, so reporting scans here produced impossible dashboards such as
             # "1 total asset, 2 high risk".
             "total_assets": total_assets,
             "high_risk_assets": high_risk_assets,
-            "pqc_ready_assets": safe_assets,
-            "pqc_migration_pct": pqc_pct,
+            "pq_ready_assets": safe_assets,
+            "pq_migration_pct": pq_pct,
             "total_scans": total_scans,
         }
     except Exception as ex:
@@ -17009,7 +17009,7 @@ def _exec_dashboard_aggregate(org_id: str) -> Dict[str, Any]:
     maturity_lvl = out.get("maturity", {}).get("level") or 0
     active_alerts = out.get("observatory", {}).get("active_alerts", 0)
     canary_triggered = out.get("canary", {}).get("triggered_30d", 0)
-    pqc_pct_val = out.get("inventory", {}).get("pqc_migration_pct", 0)
+    pq_pct_val = out.get("inventory", {}).get("pq_migration_pct", 0)
 
     total_assets_known = int(out.get("inventory", {}).get("total_assets") or 0)
 
@@ -17017,10 +17017,10 @@ def _exec_dashboard_aggregate(org_id: str) -> Dict[str, Any]:
     if maturity_lvl and maturity_lvl < 2: signals.append("Maturity below baseline")
     if active_alerts > 0: signals.append(f"{active_alerts} observatory alert(s)")
     if canary_triggered > 0: signals.append("Canary triggered in last 30 days")
-    # "Only 0% of assets are PQC-ready" is a statement about an estate that does
+    # "Only 0% of assets are post-quantum-ready" is a statement about an estate that does
     # not exist yet. The flag needs at least one asset on record to mean anything.
-    if total_assets_known > 0 and pqc_pct_val < 25:
-        signals.append(f"Only {pqc_pct_val}% assets PQC-ready")
+    if total_assets_known > 0 and pq_pct_val < 25:
+        signals.append(f"Only {pq_pct_val}% assets post-quantum-ready")
 
     if total_assets_known < 1:
         out["executive_signal"] = {
@@ -17158,14 +17158,14 @@ def api_fire_alert(req: MultiChannelAlertRequest, request: Request):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Wave 5 — PQC Timeline data (serves the SVG visualizer)
+# Wave 5 — post-quantum Timeline data (serves the SVG visualizer)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/timeline/data")
 @app.get("/v1/timeline/data")
 def api_timeline_data(request: Request):
     """
-    Return structured data for the PQC Timeline Visualizer.
+    Return structured data for the post-quantum Timeline Visualizer.
 
     Includes:
     - Q-Day probability series (RSA-2048, ECC-256) from 2024 to 2040
@@ -17285,7 +17285,7 @@ class GhPrReviewRequest(BaseModel):
     head_sha: str
     block_on_critical: bool = True
     post_review_comment: bool = True
-    check_name: str = "PQC Crypto Gate"
+    check_name: str = "Post-Quantum Crypto Gate"
 
 
 class GhPrPreviewRequest(BaseModel):
@@ -17385,14 +17385,14 @@ class SecurityIntentRequest(BaseModel):
 
 
 class CryptoMeshRequest(BaseModel):
-    name: str = "Default PQC Mesh Profile"
+    name: str = "Default post-quantum Mesh Profile"
     intent: str = ""
     emergency_algorithm: str = "X25519MLKEM768"
     save: bool = False
 
 
 class CryptoMiddlewarePlanRequest(BaseModel):
-    name: str = "pqc-agility-middleware"
+    name: str = "morrow-agility-middleware"
     services: List[Dict[str, Any]] = Field(default_factory=list)
     emergency_algorithm: str = "X25519MLKEM768"
     deployment_mode: str = "transparent_sidecar"
@@ -17565,7 +17565,7 @@ def _latest_asset_scan_facts(org_id: str, limit: int = 1000) -> List[Dict[str, A
             "key_exchange": _s("key_exchange"),
             "quantum_score": _f("quantum_score"),
             "findings_count": int(_f("findings_count")),
-            "pqc_relevance": _s("pqc_relevance"),
+            "pq_relevance": _s("pq_relevance"),
             "tls_version": _s("tls_version"),
             "owner":       _s("owner"),
             "team":        _s("team"),
@@ -17698,7 +17698,7 @@ def api_heatmap(
 @app.post("/github-pr-review/review")
 @app.post("/v1/github-pr-review/review")
 def api_gh_review_pr(req: GhPrReviewRequest, request: Request):
-    """Fetch a PR diff and post inline PQC annotations to GitHub Checks API."""
+    """Fetch a PR diff and post inline post-quantum annotations to GitHub Checks API."""
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="github_pr_review.review", resource_type="organization", resource_id="")
     result = _gh_review_pr(
@@ -17858,13 +17858,13 @@ def api_digest_snapshots(request: Request, limit: int = Query(20, ge=1, le=100))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Wave 6 — PQC Trust Badge (public endpoint — no auth required)
+# Wave 6 — post-quantum Trust Badge (public endpoint — no auth required)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/badge/token")
 @app.get("/v1/badge/token")
 def api_badge_token(request: Request):
-    """Get (or create) this org's public PQC trust badge token."""
+    """Get (or create) this org's public post-quantum trust badge token."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="badge.token", resource_type="organization", resource_id=org_id)
@@ -17876,8 +17876,8 @@ def api_badge_svg(token: str):
     """
     Public SVG badge endpoint — no auth required.
 
-    Returns an SVG badge showing the org's PQC maturity level.
-    Embed in README: ![PQC Maturity](https://your-scanner/badge/{token})
+    Returns an SVG badge showing the org's post-quantum maturity level.
+    Embed in README: ![Post-Quantum Maturity](https://your-scanner/badge/{token})
     """
     org_id = _resolve_badge_token(token)
     if not org_id:
@@ -17913,7 +17913,7 @@ def api_badge_svg(token: str):
 @app.get("/playbooks")
 @app.get("/v1/playbooks")
 def api_playbooks_list(request: Request):
-    """List all available PQC migration playbooks."""
+    """List all available post-quantum migration playbooks."""
     from services.model_basis import model_basis as _model_basis
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="playbooks.list", resource_type="playbook", resource_id="*")
@@ -18150,7 +18150,7 @@ class AcceptInviteRequest(BaseModel):
 
 @app.post("/admin/accept-invite")
 @app.post("/v1/admin/accept-invite")
-@limiter.limit(str(os.getenv("PQC_RATE_LIMIT_AUTH", "10/minute") or "10/minute").strip())
+@limiter.limit(str(os.getenv("MORROW_RATE_LIMIT_AUTH", "10/minute") or "10/minute").strip())
 def api_admin_accept_invite(body: AcceptInviteRequest, request: Request):
     """Accept an invitation: the token must exist, be unexpired and unused, and name the signed-in email.
 
@@ -18396,7 +18396,7 @@ def _persisted_airlock_telemetry_events(org_id: str, limit: int, event_type: str
                     "service_name": event.get("resource_id"),
                     "decision": event.get("decision"),
                     "outcome": event.get("outcome"),
-                    "pqc_hybrid": bool(details.get("pqc_hybrid")),
+                    "pq_hybrid": bool(details.get("pq_hybrid")),
                     "tls_version": details.get("tls_version") or "",
                     "negotiated_group": details.get("negotiated_group") or "",
                     "cert_sha256": refs.get("cert_sha256") or "",
@@ -18758,7 +18758,7 @@ def api_red_team_qday_event(body: RedTeamQDayRequest, request: Request):
 
 
 # =============================================================================
-# Wave 8 — PQC Scout AI Agent (streaming + non-streaming)
+# Wave 8 — post-quantum Scout AI Agent (streaming + non-streaming)
 # =============================================================================
 
 @app.post("/agent/chat")
@@ -19106,7 +19106,7 @@ def _board_risk_aggregate(org_id: str) -> Dict[str, Any]:
                 "classical_algorithm": r["algorithm"] or "",
                 "harvest_now_decrypt_later_risk": "high" if (r["risk_level"] or "").lower() in ("critical", "high") else "low",
                 "classical_crypto_dependency": (r["algorithm"] or "").upper() not in ("ML-KEM", "ML-DSA", "KYBER", "DILITHIUM"),
-                "provider_pqc_support_status": "unknown",
+                "provider_pq_support_status": "unknown",
                 # No per-asset agility score is invented here. The old value (80 for
                 # anything not high-risk) was a made-up constant; an asset's agility
                 # is not measured until a migration path is tracked for it.
@@ -19217,7 +19217,7 @@ def api_security_intent_evaluate(body: SecurityIntentRequest, request: Request):
 
 
 # =============================================================================
-# Wave 8 — Advanced PQC Controls (Crypto Mesh + HNDL Canary Tokens)
+# Wave 8 — Advanced post-quantum Controls (Crypto Mesh + HNDL Canary Tokens)
 # =============================================================================
 
 @app.post("/crypto-mesh/build")
@@ -19278,7 +19278,7 @@ def _middleware_services(raw_services: List[Dict[str, Any]]) -> List[Dict[str, A
 def _crypto_middleware_artifacts(body: CryptoMiddlewarePlanRequest, org_id: str) -> Dict[str, Any]:
     services = _middleware_services(body.services)
     algorithm = re.sub(r"[^A-Za-z0-9_:+.-]+", "", body.emergency_algorithm or "X25519MLKEM768") or "X25519MLKEM768"
-    name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", body.name or "pqc-agility-middleware").strip("-") or "pqc-agility-middleware"
+    name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", body.name or "morrow-agility-middleware").strip("-") or "morrow-agility-middleware"
     upstreams = "\n".join(
         f"  upstream {svc['name']}_upstream {{ server {svc['upstream_host']}:{svc['upstream_port']}; keepalive 32; }}"
         for svc in services
@@ -19292,14 +19292,14 @@ def _crypto_middleware_artifacts(body: CryptoMiddlewarePlanRequest, org_id: str)
     ssl_prefer_server_ciphers off;
     # Requires an OQS-enabled nginx/OpenSSL build. Classical fallback keeps clients online.
     ssl_ecdh_curve {algorithm}:X25519;
-    ssl_certificate /etc/pqc-middleware/certs/tls.crt;
-    ssl_certificate_key /etc/pqc-middleware/certs/tls.key;
+    ssl_certificate /etc/morrow-middleware/certs/tls.crt;
+    ssl_certificate_key /etc/morrow-middleware/certs/tls.key;
 
     location / {{
       proxy_pass http://{svc['name']}_upstream;
       proxy_set_header Host $host;
-      proxy_set_header X-PQC-Middleware {name};
-      proxy_set_header X-PQC-Algorithm {algorithm};
+      proxy_set_header X-Morrow-Middleware {name};
+      proxy_set_header X-Morrow-Algorithm {algorithm};
       proxy_set_header X-Forwarded-Proto https;
     }}
   }}"""
@@ -19330,8 +19330,8 @@ services:
   {name}:
     image: openquantumsafe/nginx:latest
     volumes:
-      - ./pqc-middleware/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./pqc-middleware/certs:/etc/pqc-middleware/certs:ro
+      - ./morrow-middleware/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./morrow-middleware/certs:/etc/morrow-middleware/certs:ro
     expose:
 {chr(10).join(f'      - "{svc["listen_port"]}"' for svc in services)}
     networks:
@@ -19361,7 +19361,7 @@ kind: Service
 metadata:
   name: {svc['upstream_host']}
   labels:
-    pqc.openai.generated/upstream-for: {svc['name']}
+    morrow.openai.generated/upstream-for: {svc['name']}
 spec:
   ports:
     - name: http
@@ -19396,7 +19396,7 @@ spec:
               mountPath: /etc/nginx/nginx.conf
               subPath: nginx.conf
             - name: certs
-              mountPath: /etc/pqc-middleware/certs
+              mountPath: /etc/morrow-middleware/certs
       volumes:
         - name: config
           configMap:
@@ -19418,8 +19418,8 @@ data:
     install_sh = f"""#!/usr/bin/env bash
 set -euo pipefail
 MODE="${{1:-compose}}"
-mkdir -p pqc-middleware/certs
-cat > pqc-middleware/nginx.conf <<'NGINX_CONF'
+mkdir -p morrow-middleware/certs
+cat > morrow-middleware/nginx.conf <<'NGINX_CONF'
 {nginx_conf}
 NGINX_CONF
 cat > docker-compose.middleware.yml <<'COMPOSE_YAML'
@@ -19428,15 +19428,15 @@ COMPOSE_YAML
 cat > kubernetes-middleware.yaml <<'K8S_YAML'
 {k8s_yaml}
 K8S_YAML
-if [ ! -f pqc-middleware/certs/tls.crt ] || [ ! -f pqc-middleware/certs/tls.key ]; then
+if [ ! -f morrow-middleware/certs/tls.crt ] || [ ! -f morrow-middleware/certs/tls.key ]; then
   if command -v openssl >/dev/null 2>&1; then
     openssl req -x509 -newkey rsa:3072 -nodes -days 30 \
-      -keyout pqc-middleware/certs/tls.key \
-      -out pqc-middleware/certs/tls.crt \
+      -keyout morrow-middleware/certs/tls.key \
+      -out morrow-middleware/certs/tls.crt \
       -subj "/CN={name}.internal" >/dev/null 2>&1
     echo "Generated 30-day bootstrap TLS certificate. Replace with your internal CA cert before production."
   else
-    echo "openssl not found. Put tls.crt and tls.key in pqc-middleware/certs before starting."
+    echo "openssl not found. Put tls.crt and tls.key in morrow-middleware/certs before starting."
   fi
 fi
 if [ "${{MODE}}" = "kubernetes" ]; then
@@ -19447,22 +19447,22 @@ fi
 """
     install_ps1 = f"""$ErrorActionPreference = 'Stop'
 $Mode = if ($args.Count -gt 0) {{ $args[0] }} else {{ 'compose' }}
-New-Item -ItemType Directory -Force -Path 'pqc-middleware/certs' | Out-Null
+New-Item -ItemType Directory -Force -Path 'morrow-middleware/certs' | Out-Null
 @'
 {nginx_conf}
-'@ | Set-Content -Path 'pqc-middleware/nginx.conf' -Encoding utf8
+'@ | Set-Content -Path 'morrow-middleware/nginx.conf' -Encoding utf8
 @'
 {compose_yaml}
 '@ | Set-Content -Path 'docker-compose.middleware.yml' -Encoding utf8
 @'
 {k8s_yaml}
 '@ | Set-Content -Path 'kubernetes-middleware.yaml' -Encoding utf8
-if ((-not (Test-Path 'pqc-middleware/certs/tls.crt')) -or (-not (Test-Path 'pqc-middleware/certs/tls.key'))) {{
+if ((-not (Test-Path 'morrow-middleware/certs/tls.crt')) -or (-not (Test-Path 'morrow-middleware/certs/tls.key'))) {{
   if (Get-Command openssl -ErrorAction SilentlyContinue) {{
-    openssl req -x509 -newkey rsa:3072 -nodes -days 30 -keyout pqc-middleware/certs/tls.key -out pqc-middleware/certs/tls.crt -subj '/CN={name}.internal' | Out-Null
+    openssl req -x509 -newkey rsa:3072 -nodes -days 30 -keyout morrow-middleware/certs/tls.key -out morrow-middleware/certs/tls.crt -subj '/CN={name}.internal' | Out-Null
     Write-Host 'Generated 30-day bootstrap TLS certificate. Replace with your internal CA cert before production.'
   }} else {{
-    Write-Warning 'openssl not found. Put tls.crt and tls.key in pqc-middleware/certs before starting.'
+    Write-Warning 'openssl not found. Put tls.crt and tls.key in morrow-middleware/certs before starting.'
   }}
 }}
 if ($Mode -eq 'kubernetes') {{
@@ -19489,7 +19489,7 @@ echo "Also verify service DNS/callers now point at: {' '.join(svc['name'] for sv
         "generated_at": _now_iso(),
         "limitations": [
             "This reroutes traffic only after the generated proxy is deployed and callers/DNS/service aliases point to it.",
-            "Hybrid PQC TLS requires an OQS-enabled nginx/OpenSSL runtime; otherwise TLS 1.3 X25519 fallback keeps traffic working.",
+            "Hybrid post-quantum TLS requires an OQS-enabled nginx/OpenSSL runtime; otherwise TLS 1.3 X25519 fallback keeps traffic working.",
             "Application-layer custom encryption, certificate pinning, mobile clients, and firmware crypto still require code or package remediation.",
         ],
     }
@@ -19506,7 +19506,7 @@ What you must do:
 1. Save and run `install.sh` or `install.ps1`.
 2. Move internal callers or service DNS aliases to the middleware service names.
 3. Replace the bootstrap certificate with your internal CA certificate before production.
-4. Run `verify.sh` and verify headers `X-PQC-Middleware` and `X-PQC-Algorithm`.
+4. Run `verify.sh` and verify headers `X-Morrow-Middleware` and `X-Morrow-Algorithm`.
 """
     artifacts = {
         "nginx.conf": nginx_conf,
@@ -19614,7 +19614,7 @@ def _cam_services(raw_services: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         listen_port = _cam_port(item, ["listen_port", "proxy_port", "gateway_port"], 15443 + len(services))
         gateway_port = _cam_port(item, ["gateway_port", "listen_port", "proxy_port"], listen_port)
         capture_port = _cam_port(item, ["capture_port", "outbound_port", "upstream_port", "port"], upstream_port)
-        gateway_host = _cam_host(item.get("gateway_host") or item.get("gateway") or f"{name}-pqc-gateway", f"{name}-pqc-gateway")
+        gateway_host = _cam_host(item.get("gateway_host") or item.get("gateway") or f"{name}-pq-gateway", f"{name}-pq-gateway")
         sni = _cam_host(item.get("sni") or item.get("server_name") or f"{name}.internal", f"{name}.internal")
         services.append({
             "name": name,
@@ -19643,7 +19643,7 @@ def _crypto_middleware_artifacts_enterprise(body: CryptoMiddlewarePlanRequest, o
     legacy = _crypto_middleware_artifacts(body, org_id)
     services = _cam_services(body.services)
     algorithm = re.sub(r"[^A-Za-z0-9_:+.-]+", "", body.emergency_algorithm or "X25519MLKEM768") or "X25519MLKEM768"
-    name = _cam_slug(body.name or "pqc-agility-middleware", "pqc-agility-middleware", max_len=63)
+    name = _cam_slug(body.name or "morrow-agility-middleware", "morrow-agility-middleware", max_len=63)
     mode = re.sub(r"[^a-z0-9_.:-]+", "_", str(body.deployment_mode or "transparent_sidecar").lower())[:48] or "transparent_sidecar"
     capture_port = max(1, min(65535, int(body.outbound_capture_port or 15001)))
     admin_port = max(1, min(65535, int(body.envoy_admin_port or 19000)))
@@ -19656,16 +19656,16 @@ def _crypto_middleware_artifacts_enterprise(body: CryptoMiddlewarePlanRequest, o
     if mtls:
         downstream_mtls = """                validation_context:
                   trusted_ca:
-                    filename: /etc/pqc-cam/certs/ca.crt
+                    filename: /etc/morrow-cam/certs/ca.crt
               require_client_certificate: true"""
         upstream_mtls = """            tls_certificates:
               - certificate_chain:
-                  filename: /etc/pqc-cam/certs/client.crt
+                  filename: /etc/morrow-cam/certs/client.crt
                 private_key:
-                  filename: /etc/pqc-cam/certs/client.key
+                  filename: /etc/morrow-cam/certs/client.key
             validation_context:
               trusted_ca:
-                filename: /etc/pqc-cam/certs/ca.crt"""
+                filename: /etc/morrow-cam/certs/ca.crt"""
 
     ingress_listeners = "\n".join(
         f"""    - name: inbound_{svc['cluster_key']}_{svc['listen_port']}
@@ -19685,9 +19685,9 @@ def _crypto_middleware_artifacts_enterprise(body: CryptoMiddlewarePlanRequest, o
 {curves_yaml}
                 tls_certificates:
                   - certificate_chain:
-                      filename: /etc/pqc-cam/certs/tls.crt
+                      filename: /etc/morrow-cam/certs/tls.crt
                     private_key:
-                      filename: /etc/pqc-cam/certs/tls.key
+                      filename: /etc/morrow-cam/certs/tls.key
 {downstream_mtls}
           filters:
             - name: envoy.filters.network.tcp_proxy
@@ -19713,8 +19713,8 @@ def _crypto_middleware_artifacts_enterprise(body: CryptoMiddlewarePlanRequest, o
                       port_value: {svc['upstream_port']}"""
         for svc in services
     )
-    ingress_envoy = f"""# PQC CAM ingress gateway.
-# Receives hybrid/PQC-capable TLS from sidecars, unwraps the outer tunnel, and forwards raw TCP
+    ingress_envoy = f"""# Post-quantum CAM ingress gateway.
+# Receives hybrid/post-quantum-capable TLS from sidecars, unwraps the outer tunnel, and forwards raw TCP
 # bytes to the original upstream. This preserves application protocols and avoids app code changes.
 admin:
   address:
@@ -19746,7 +19746,7 @@ static_resources:
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
                 stat_prefix: outbound_{svc['cluster_key']}
-                cluster: {svc['cluster_key']}_pqc_tunnel""")
+                cluster: {svc['cluster_key']}_pq_tunnel""")
     default_cluster = "blocked_default" if fail_closed else "passthrough_original_dst"
     filter_chains.append(f"""        - filters:
             - name: envoy.filters.network.tcp_proxy
@@ -19755,7 +19755,7 @@ static_resources:
                 stat_prefix: outbound_default
                 cluster: {default_cluster}""")
     sidecar_clusters = "\n".join(
-        f"""    - name: {svc['cluster_key']}_pqc_tunnel
+        f"""    - name: {svc['cluster_key']}_pq_tunnel
       connect_timeout: 5s
       type: STRICT_DNS
       lb_policy: ROUND_ROBIN
@@ -19771,7 +19771,7 @@ static_resources:
 {curves_yaml}
 {upstream_mtls}
       load_assignment:
-        cluster_name: {svc['cluster_key']}_pqc_tunnel
+        cluster_name: {svc['cluster_key']}_pq_tunnel
         endpoints:
           - lb_endpoints:
               - endpoint:
@@ -19791,8 +19791,8 @@ static_resources:
       load_assignment:
         cluster_name: blocked_default
         endpoints: []"""
-    sidecar_envoy = f"""# PQC CAM transparent egress sidecar.
-# iptables redirects selected outbound TCP flows here. Envoy then opens a hybrid/PQC-capable
+    sidecar_envoy = f"""# Post-quantum CAM transparent egress sidecar.
+# iptables redirects selected outbound TCP flows here. Envoy then opens a hybrid/post-quantum-capable
 # TLS tunnel to the matching CAM ingress gateway without requiring application code changes.
 admin:
   address:
@@ -19820,23 +19820,23 @@ static_resources:
 
     exempt_cidrs = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"]
     service_rules = "\n".join(
-        f"""DEST_{svc['env_key']}="${{PQC_CAM_DEST_CIDR_{svc['env_key']}:-{svc['destination_cidr']}}}"
+        f"""DEST_{svc['env_key']}="${{MORROW_CAM_DEST_CIDR_{svc['env_key']}:-{svc['destination_cidr']}}}"
 if [ -n "$DEST_{svc['env_key']}" ]; then
   iptables -t nat -A "$CHAIN" -p tcp -d "$DEST_{svc['env_key']}" --dport {svc['capture_port']} -j REDIRECT --to-ports "$CAPTURE_PORT"
-elif [ "${{PQC_CAM_ALLOW_PORT_ONLY:-0}}" = "1" ]; then
-  echo "PQC CAM: no destination CIDR for {svc['name']}; capturing every TCP flow with destination port {svc['capture_port']}."
+elif [ "${{MORROW_CAM_ALLOW_PORT_ONLY:-0}}" = "1" ]; then
+  echo "Post-quantum CAM: no destination CIDR for {svc['name']}; capturing every TCP flow with destination port {svc['capture_port']}."
   iptables -t nat -A "$CHAIN" -p tcp --dport {svc['capture_port']} -j REDIRECT --to-ports "$CAPTURE_PORT"
 else
-  echo "PQC CAM: skipping {svc['name']} until PQC_CAM_DEST_CIDR_{svc['env_key']} is set. Set PQC_CAM_ALLOW_PORT_ONLY=1 only for dedicated service ports."
+  echo "Post-quantum CAM: skipping {svc['name']} until MORROW_CAM_DEST_CIDR_{svc['env_key']} is set. Set MORROW_CAM_ALLOW_PORT_ONLY=1 only for dedicated service ports."
 fi"""
         for svc in services
     )
     transparent_enable = f"""#!/usr/bin/env bash
 set -euo pipefail
 
-CHAIN="${{PQC_CAM_CHAIN:-PQC_CAM_OUTPUT}}"
-CAPTURE_PORT="${{PQC_CAM_CAPTURE_PORT:-{capture_port}}}"
-PROXY_UID="${{PQC_CAM_PROXY_UID:-1337}}"
+CHAIN="${{MORROW_CAM_CHAIN:-MORROW_CAM_OUTPUT}}"
+CAPTURE_PORT="${{MORROW_CAM_CAPTURE_PORT:-{capture_port}}}"
+PROXY_UID="${{MORROW_CAM_PROXY_UID:-1337}}"
 
 if ! command -v iptables >/dev/null 2>&1; then
   echo "iptables is required for transparent Linux sidecar capture." >&2
@@ -19853,12 +19853,12 @@ iptables -t nat -A "$CHAIN" -p tcp --dport "$CAPTURE_PORT" -j RETURN
 {service_rules}
 
 iptables -t nat -C OUTPUT -p tcp -j "$CHAIN" 2>/dev/null || iptables -t nat -A OUTPUT -p tcp -j "$CHAIN"
-echo "PQC CAM transparent capture enabled on 127.0.0.1:$CAPTURE_PORT."
+echo "Post-quantum CAM transparent capture enabled on 127.0.0.1:$CAPTURE_PORT."
 """
     transparent_disable = """#!/usr/bin/env bash
 set -euo pipefail
 
-CHAIN="${PQC_CAM_CHAIN:-PQC_CAM_OUTPUT}"
+CHAIN="${MORROW_CAM_CHAIN:-MORROW_CAM_OUTPUT}"
 if ! command -v iptables >/dev/null 2>&1; then
   echo "iptables is not installed; nothing to disable." >&2
   exit 0
@@ -19868,7 +19868,7 @@ while iptables -t nat -C OUTPUT -p tcp -j "$CHAIN" 2>/dev/null; do
 done
 iptables -t nat -F "$CHAIN" 2>/dev/null || true
 iptables -t nat -X "$CHAIN" 2>/dev/null || true
-echo "PQC CAM transparent capture disabled."
+echo "Post-quantum CAM transparent capture disabled."
 """
     transparent_ps1 = f"""$ErrorActionPreference = 'Stop'
 Write-Host 'Transparent CAM capture on Windows requires a packet redirection driver or platform service mesh.'
@@ -19886,16 +19886,16 @@ RUN id -u envoyproxy >/dev/null 2>&1 || useradd --system --uid 1337 envoyproxy
 """
     compose_transparent = f"""# docker-compose.transparent.yml
 # Requires no app code changes, but the egress sidecar must share the target app network namespace.
-# Example: PQC_CAM_APP_SERVICE=orders-api docker compose -f compose.yml -f docker-compose.transparent.yml up -d --build
+# Example: MORROW_CAM_APP_SERVICE=orders-api docker compose -f compose.yml -f docker-compose.transparent.yml up -d --build
 services:
   {name}-ingress:
     build:
       context: .
-      dockerfile: pqc-cam/Dockerfile.sidecar
-    command: ["envoy", "-c", "/etc/pqc-cam/envoy/ingress-gateway.yaml", "--service-cluster", "{name}-ingress"]
+      dockerfile: morrow-cam/Dockerfile.sidecar
+    command: ["envoy", "-c", "/etc/morrow-cam/envoy/ingress-gateway.yaml", "--service-cluster", "{name}-ingress"]
     volumes:
-      - ./pqc-cam/envoy:/etc/pqc-cam/envoy:ro
-      - ./pqc-cam/certs:/etc/pqc-cam/certs:ro
+      - ./morrow-cam/envoy:/etc/morrow-cam/envoy:ro
+      - ./morrow-cam/certs:/etc/morrow-cam/certs:ro
     expose:
 {chr(10).join(f'      - "{svc["listen_port"]}"' for svc in services)}
     networks:
@@ -19906,29 +19906,29 @@ services:
   {name}-egress-sidecar:
     build:
       context: .
-      dockerfile: pqc-cam/Dockerfile.sidecar
-    network_mode: "service:${{PQC_CAM_APP_SERVICE:-app}}"
+      dockerfile: morrow-cam/Dockerfile.sidecar
+    network_mode: "service:${{MORROW_CAM_APP_SERVICE:-app}}"
     cap_add:
       - NET_ADMIN
     environment:
-      PQC_CAM_CAPTURE_PORT: "{capture_port}"
-      PQC_CAM_PROXY_UID: "1337"
-      PQC_CAM_ALLOW_PORT_ONLY: "${{PQC_CAM_ALLOW_PORT_ONLY:-0}}"
-{chr(10).join(f'      PQC_CAM_DEST_CIDR_{svc["env_key"]}: "${{PQC_CAM_DEST_CIDR_{svc["env_key"]}:-{svc["destination_cidr"]}}}"' for svc in services)}
+      MORROW_CAM_CAPTURE_PORT: "{capture_port}"
+      MORROW_CAM_PROXY_UID: "1337"
+      MORROW_CAM_ALLOW_PORT_ONLY: "${{MORROW_CAM_ALLOW_PORT_ONLY:-0}}"
+{chr(10).join(f'      MORROW_CAM_DEST_CIDR_{svc["env_key"]}: "${{MORROW_CAM_DEST_CIDR_{svc["env_key"]}:-{svc["destination_cidr"]}}}"' for svc in services)}
     volumes:
-      - ./pqc-cam/envoy:/etc/pqc-cam/envoy:ro
-      - ./pqc-cam/certs:/etc/pqc-cam/certs:ro
-      - ./pqc-cam/scripts:/etc/pqc-cam/scripts:ro
+      - ./morrow-cam/envoy:/etc/morrow-cam/envoy:ro
+      - ./morrow-cam/certs:/etc/morrow-cam/certs:ro
+      - ./morrow-cam/scripts:/etc/morrow-cam/scripts:ro
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        /etc/pqc-cam/scripts/transparent-egress-enable.sh
-        exec envoy -c /etc/pqc-cam/envoy/sidecar-egress.yaml --service-cluster {name}-egress --service-node ${{HOSTNAME:-cam-sidecar}}
+        /etc/morrow-cam/scripts/transparent-egress-enable.sh
+        exec envoy -c /etc/morrow-cam/envoy/sidecar-egress.yaml --service-cluster {name}-egress --service-node ${{HOSTNAME:-cam-sidecar}}
 """
 
     service_ports_yaml = "\n".join(
         f"""            - containerPort: {svc['listen_port']}
-              name: {svc['name'][:10]}-pqc"""
+              name: {svc['name'][:10]}-pq"""
         for svc in services
     )
     k8s_gateway_services = "\n---\n".join(
@@ -19938,13 +19938,13 @@ metadata:
   name: {svc['gateway_host']}
   labels:
     app.kubernetes.io/name: {name}
-    pqc.cam/service: {svc['name']}
+    morrow.cam/service: {svc['name']}
 spec:
   selector:
     app.kubernetes.io/name: {name}
-    pqc.cam/role: ingress
+    morrow.cam/role: ingress
   ports:
-    - name: pqc-tunnel
+    - name: pq-tunnel
       port: {svc['gateway_port']}
       targetPort: {svc['listen_port']}"""
         for svc in services
@@ -19955,30 +19955,30 @@ metadata:
   name: {name}-ingress
   labels:
     app.kubernetes.io/name: {name}
-    pqc.cam/role: ingress
+    morrow.cam/role: ingress
 spec:
   replicas: 2
   selector:
     matchLabels:
       app.kubernetes.io/name: {name}
-      pqc.cam/role: ingress
+      morrow.cam/role: ingress
   template:
     metadata:
       labels:
         app.kubernetes.io/name: {name}
-        pqc.cam/role: ingress
+        morrow.cam/role: ingress
     spec:
       containers:
         - name: envoy
           image: envoyproxy/envoy:v1.31-latest
-          args: ["-c", "/etc/pqc-cam/envoy/ingress-gateway.yaml", "--service-cluster", "{name}-ingress"]
+          args: ["-c", "/etc/morrow-cam/envoy/ingress-gateway.yaml", "--service-cluster", "{name}-ingress"]
           ports:
 {service_ports_yaml}
           volumeMounts:
             - name: config
-              mountPath: /etc/pqc-cam/envoy
+              mountPath: /etc/morrow-cam/envoy
             - name: certs
-              mountPath: /etc/pqc-cam/certs
+              mountPath: /etc/morrow-cam/certs
               readOnly: true
       volumes:
         - name: config
@@ -20003,7 +20003,7 @@ data:
 {k8s_gateway_services}
 """
     k8s_sidecar_env = "\n".join(
-        f'            - name: PQC_CAM_DEST_CIDR_{svc["env_key"]}\n              value: "{svc["destination_cidr"]}"'
+        f'            - name: MORROW_CAM_DEST_CIDR_{svc["env_key"]}\n              value: "{svc["destination_cidr"]}"'
         for svc in services
     )
     k8s_sidecar = f"""# Kubernetes strategic-merge patch. Replace PATCH_YOUR_WORKLOAD with the workload
@@ -20016,11 +20016,11 @@ spec:
   template:
     metadata:
       annotations:
-        pqc.cam/enabled: "true"
-        pqc.cam/mode: "{mode}"
+        morrow.cam/enabled: "true"
+        morrow.cam/mode: "{mode}"
     spec:
       initContainers:
-        - name: pqc-cam-iptables
+        - name: morrow-cam-iptables
           image: envoyproxy/envoy:v1.31-latest
           securityContext:
             runAsUser: 0
@@ -20028,38 +20028,38 @@ spec:
               add: ["NET_ADMIN"]
           command: ["/bin/sh", "-c"]
           args:
-            - cp /etc/pqc-cam/scripts/transparent-egress-enable.sh /tmp/pqc-cam-enable.sh && chmod +x /tmp/pqc-cam-enable.sh && /tmp/pqc-cam-enable.sh
+            - cp /etc/morrow-cam/scripts/transparent-egress-enable.sh /tmp/morrow-cam-enable.sh && chmod +x /tmp/morrow-cam-enable.sh && /tmp/morrow-cam-enable.sh
           env:
-            - name: PQC_CAM_CAPTURE_PORT
+            - name: MORROW_CAM_CAPTURE_PORT
               value: "{capture_port}"
-            - name: PQC_CAM_PROXY_UID
+            - name: MORROW_CAM_PROXY_UID
               value: "1337"
-            - name: PQC_CAM_ALLOW_PORT_ONLY
+            - name: MORROW_CAM_ALLOW_PORT_ONLY
               value: "0"
 {k8s_sidecar_env}
           volumeMounts:
-            - name: pqc-cam-config
-              mountPath: /etc/pqc-cam
+            - name: morrow-cam-config
+              mountPath: /etc/morrow-cam
       containers:
-        - name: pqc-cam-egress
+        - name: morrow-cam-egress
           image: envoyproxy/envoy:v1.31-latest
-          args: ["-c", "/etc/pqc-cam/envoy/sidecar-egress.yaml", "--service-cluster", "{name}-egress"]
+          args: ["-c", "/etc/morrow-cam/envoy/sidecar-egress.yaml", "--service-cluster", "{name}-egress"]
           securityContext:
             runAsUser: 1337
           ports:
             - containerPort: {capture_port}
-              name: pqc-capture
+              name: pq-capture
           volumeMounts:
-            - name: pqc-cam-config
-              mountPath: /etc/pqc-cam/envoy
-            - name: pqc-cam-certs
-              mountPath: /etc/pqc-cam/certs
+            - name: morrow-cam-config
+              mountPath: /etc/morrow-cam/envoy
+            - name: morrow-cam-certs
+              mountPath: /etc/morrow-cam/certs
               readOnly: true
       volumes:
-        - name: pqc-cam-config
+        - name: morrow-cam-config
           configMap:
             name: {name}-config
-        - name: pqc-cam-certs
+        - name: morrow-cam-certs
           secret:
             secretName: {name}-tls
 """
@@ -20089,11 +20089,11 @@ def _get_json(url):
 def _post_json(url, payload):
     headers = {
         "Content-Type": "application/json",
-        "x-user-id": os.getenv("PQC_USER_ID", "pqc-cam-telemetry"),
-        "x-user-role": os.getenv("PQC_USER_ROLE", "operator"),
-        "x-org-id": os.getenv("PQC_ORG_ID", ""),
+        "x-user-id": os.getenv("MORROW_USER_ID", "morrow-cam-telemetry"),
+        "x-user-role": os.getenv("MORROW_USER_ROLE", "operator"),
+        "x-org-id": os.getenv("MORROW_ORG_ID", ""),
     }
-    token = os.getenv("PQC_API_TOKEN", "").strip()
+    token = os.getenv("MORROW_API_TOKEN", "").strip()
     if token:
         headers["Authorization"] = "Bearer " + token
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
@@ -20102,8 +20102,8 @@ def _post_json(url, payload):
 
 
 def main():
-    api_base = os.getenv("PQC_API_BASE", "http://127.0.0.1:8001").rstrip("/")
-    admin_base = os.getenv("PQC_ENVOY_ADMIN", "http://127.0.0.1:19001").rstrip("/")
+    api_base = os.getenv("MORROW_API_BASE", "http://127.0.0.1:8001").rstrip("/")
+    admin_base = os.getenv("MORROW_ENVOY_ADMIN", "http://127.0.0.1:19001").rstrip("/")
     stats = _get_json(admin_base + "/stats?format=json")
     observed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     for svc in SERVICES:
@@ -20135,30 +20135,30 @@ if __name__ == "__main__":
     install_transparent = f"""#!/usr/bin/env bash
 set -euo pipefail
 MODE="${{1:-validate}}"
-mkdir -p pqc-cam/certs
-if [ ! -f pqc-cam/certs/tls.crt ] || [ ! -f pqc-cam/certs/tls.key ]; then
+mkdir -p morrow-cam/certs
+if [ ! -f morrow-cam/certs/tls.crt ] || [ ! -f morrow-cam/certs/tls.key ]; then
   if command -v openssl >/dev/null 2>&1; then
     openssl req -x509 -newkey rsa:3072 -nodes -days 30 \
-      -keyout pqc-cam/certs/tls.key \
-      -out pqc-cam/certs/tls.crt \
+      -keyout morrow-cam/certs/tls.key \
+      -out morrow-cam/certs/tls.crt \
       -subj "/CN={name}.internal" >/dev/null 2>&1
-    cp pqc-cam/certs/tls.crt pqc-cam/certs/ca.crt
-    cp pqc-cam/certs/tls.crt pqc-cam/certs/client.crt
-    cp pqc-cam/certs/tls.key pqc-cam/certs/client.key
+    cp morrow-cam/certs/tls.crt morrow-cam/certs/ca.crt
+    cp morrow-cam/certs/tls.crt morrow-cam/certs/client.crt
+    cp morrow-cam/certs/tls.key morrow-cam/certs/client.key
     echo "Generated bootstrap certs. Replace with customer internal CA material before production."
   else
-    echo "openssl not found. Put tls.crt, tls.key, ca.crt, client.crt and client.key in pqc-cam/certs." >&2
+    echo "openssl not found. Put tls.crt, tls.key, ca.crt, client.crt and client.key in morrow-cam/certs." >&2
   fi
 fi
 case "$MODE" in
   validate)
     echo "Validating Envoy configs with docker compose build image..."
-    docker build -f pqc-cam/Dockerfile.sidecar -t {name}:local .
-    docker run --rm -v "$PWD/pqc-cam:/etc/pqc-cam:ro" {name}:local envoy --mode validate -c /etc/pqc-cam/envoy/ingress-gateway.yaml
-    docker run --rm -v "$PWD/pqc-cam:/etc/pqc-cam:ro" {name}:local envoy --mode validate -c /etc/pqc-cam/envoy/sidecar-egress.yaml
+    docker build -f morrow-cam/Dockerfile.sidecar -t {name}:local .
+    docker run --rm -v "$PWD/morrow-cam:/etc/morrow-cam:ro" {name}:local envoy --mode validate -c /etc/morrow-cam/envoy/ingress-gateway.yaml
+    docker run --rm -v "$PWD/morrow-cam:/etc/morrow-cam:ro" {name}:local envoy --mode validate -c /etc/morrow-cam/envoy/sidecar-egress.yaml
     ;;
   compose)
-    : "${{PQC_CAM_APP_SERVICE:?Set PQC_CAM_APP_SERVICE to the existing compose service that needs transparent egress protection.}}"
+    : "${{MORROW_CAM_APP_SERVICE:?Set MORROW_CAM_APP_SERVICE to the existing compose service that needs transparent egress protection.}}"
     docker compose -f compose.yml -f docker-compose.transparent.yml up -d --build
     ;;
   kubernetes)
@@ -20176,12 +20176,12 @@ set -euo pipefail
 echo "Checking generated CAM gateway ports..."
 for port in {' '.join(str(svc['listen_port']) for svc in services)}; do
   echo "TLS probe localhost:$port"
-  openssl s_client -connect "127.0.0.1:$port" -tls1_3 -servername "{name}.internal" </dev/null >/tmp/pqc-cam-sclient.txt 2>&1 || true
-  grep -E "Protocol|Cipher|Server Temp Key|Verify return code" /tmp/pqc-cam-sclient.txt || true
+  openssl s_client -connect "127.0.0.1:$port" -tls1_3 -servername "{name}.internal" </dev/null >/tmp/morrow-cam-sclient.txt 2>&1 || true
+  grep -E "Protocol|Cipher|Server Temp Key|Verify return code" /tmp/morrow-cam-sclient.txt || true
 done
 echo "Checking Envoy sidecar admin stats on 127.0.0.1:{admin_port + 1}"
 curl -fsS "http://127.0.0.1:{admin_port + 1}/stats?filter=ssl|cluster" >/dev/null || true
-python3 pqc-cam/telemetry/cam_telemetry_agent.py || true
+python3 morrow-cam/telemetry/cam_telemetry_agent.py || true
 """
     cert_readme = """# CAM certificate material
 
@@ -20225,8 +20225,8 @@ Use customer internal CA material before production.
         "limitations": [
             "This package becomes active only after sidecar injection, node gateway deployment, or DNS/load-balancer routing.",
             "Transparent Linux egress capture requires NET_ADMIN in the target network namespace.",
-            "The default no-code path wraps legacy traffic inside a PQC/hybrid TLS tunnel; terminating pinned client TLS requires customer trust-store work.",
-            "Hybrid PQC groups require an Envoy/OpenSSL/BoringSSL build that supports the selected group; standard Envoy validates the config but falls back to classical groups.",
+            "The default no-code path wraps legacy traffic inside a post-quantum/hybrid TLS tunnel; terminating pinned client TLS requires customer trust-store work.",
+            "Hybrid post-quantum groups require an Envoy/OpenSSL/BoringSSL build that supports the selected group; standard Envoy validates the config but falls back to classical groups.",
             "Application-layer crypto inside request bodies is not changed by a network proxy.",
         ],
     }
@@ -20235,12 +20235,12 @@ Use customer internal CA material before production.
 This bundle is a deployable Crypto Agility Middleware package. It supports two no-code customer
 deployment paths:
 
-1. Reverse proxy / ingress gateway: route DNS or load balancers to `pqc-cam/envoy/ingress-gateway.yaml`.
-2. Transparent sidecar / egress gateway: inject `pqc-cam/envoy/sidecar-egress.yaml` and use
-   `pqc-cam/scripts/transparent-egress-enable.sh` to redirect selected Linux TCP flows.
+1. Reverse proxy / ingress gateway: route DNS or load balancers to `morrow-cam/envoy/ingress-gateway.yaml`.
+2. Transparent sidecar / egress gateway: inject `morrow-cam/envoy/sidecar-egress.yaml` and use
+   `morrow-cam/scripts/transparent-egress-enable.sh` to redirect selected Linux TCP flows.
 
 What works without application code changes:
-- outbound legacy TCP/TLS traffic can be wrapped in a hybrid/PQC-capable TLS tunnel to the CAM ingress gateway
+- outbound legacy TCP/TLS traffic can be wrapped in a hybrid/post-quantum-capable TLS tunnel to the CAM ingress gateway
 - inbound traffic can terminate at the CAM gateway before being forwarded to the original upstream
 - runtime proof can be posted to `{telemetry_endpoint}` without exposing payloads
 - rollback removes the iptables OUTPUT chain with `transparent-egress-disable.sh`
@@ -20255,21 +20255,21 @@ Start:
 
 ```bash
 ./install-transparent.sh validate
-PQC_CAM_APP_SERVICE=your-app docker compose -f compose.yml -f docker-compose.transparent.yml up -d --build
+MORROW_CAM_APP_SERVICE=your-app docker compose -f compose.yml -f docker-compose.transparent.yml up -d --build
 ```
 """
     artifacts = dict(legacy.get("artifacts") or {})
     artifacts.update({
         "README.md": readme,
         "cam-policy.json": json.dumps(cam_policy, indent=2, sort_keys=True),
-        "pqc-cam/envoy/ingress-gateway.yaml": ingress_envoy,
-        "pqc-cam/envoy/sidecar-egress.yaml": sidecar_envoy,
-        "pqc-cam/scripts/transparent-egress-enable.sh": transparent_enable,
-        "pqc-cam/scripts/transparent-egress-disable.sh": transparent_disable,
-        "pqc-cam/scripts/transparent-egress-enable.ps1": transparent_ps1,
-        "pqc-cam/telemetry/cam_telemetry_agent.py": telemetry_agent,
-        "pqc-cam/Dockerfile.sidecar": dockerfile_sidecar,
-        "pqc-cam/certs/README.md": cert_readme,
+        "morrow-cam/envoy/ingress-gateway.yaml": ingress_envoy,
+        "morrow-cam/envoy/sidecar-egress.yaml": sidecar_envoy,
+        "morrow-cam/scripts/transparent-egress-enable.sh": transparent_enable,
+        "morrow-cam/scripts/transparent-egress-disable.sh": transparent_disable,
+        "morrow-cam/scripts/transparent-egress-enable.ps1": transparent_ps1,
+        "morrow-cam/telemetry/cam_telemetry_agent.py": telemetry_agent,
+        "morrow-cam/Dockerfile.sidecar": dockerfile_sidecar,
+        "morrow-cam/certs/README.md": cert_readme,
         "docker-compose.transparent.yml": compose_transparent,
         "kubernetes-ingress-gateway.yaml": k8s_ingress,
         "kubernetes-transparent-sidecar.yaml": k8s_sidecar,
@@ -20525,12 +20525,12 @@ class PeerBenchmarkRequest(BaseModel):
     sector: str = "technology"
     score: Optional[float] = None  # if None, computed from scans
 
-@app.get("/fips-pqc/report")
-@app.get("/v1/fips-pqc/report")
+@app.get("/fips-pq/report")
+@app.get("/v1/fips-pq/report")
 def api_fips_report(request: Request):
     """Full FIPS 203/204/205 compliance report for this org's scan data."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
-                  action="fips_pqc.report", resource_type="organization", resource_id="*")
+                  action="fips_pq.report", resource_type="organization", resource_id="*")
     org_id = current_organization_id()
     scans = [
         # algorithm_detail carries the observed key size ("RSA-4096", "P-384"). The FIPS tables
@@ -20546,12 +20546,12 @@ def api_fips_report(request: Request):
     return {"api_version": "v1", "org_id": org_id, "report": report, "migration_timeline": timeline}
 
 
-@app.post("/fips-pqc/classify")
-@app.post("/v1/fips-pqc/classify")
+@app.post("/fips-pq/classify")
+@app.post("/v1/fips-pq/classify")
 def api_fips_classify(body: FipsClassifyRequest, request: Request):
     """Classify a single algorithm string against FIPS 203/204/205."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
-                  action="fips_pqc.classify", resource_type="organization", resource_id="*")
+                  action="fips_pq.classify", resource_type="organization", resource_id="*")
     return {"api_version": "v1", **_fips_classify(body.algorithm)}
 
 
@@ -20569,7 +20569,7 @@ def api_peer_sectors(request: Request):
 @app.get("/peer-benchmark")
 @app.get("/v1/peer-benchmark")
 def api_peer_benchmark(request: Request, sector: str = "technology"):
-    """Compare this org's PQC score against sector peers."""
+    """Compare this org's post-quantum score against sector peers."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="peer_benchmark.compare", resource_type="organization", resource_id="*")
     org_id = current_organization_id()
@@ -20703,7 +20703,7 @@ def api_compliance_mapping(request: Request, frameworks: str = ""):
     _require_role(request, ["viewer", "analyst", "admin", "owner"],
                   action="compliance.mapping", resource_type="organization", resource_id="*")
     org_id = current_organization_id()
-    # Same mapping as /fips-pqc/report: scan_results has no host/port/algorithm column, so
+    # Same mapping as /fips-pq/report: scan_results has no host/port/algorithm column, so
     # reading it raw gave the framework mapper one blank asset and it graded everyone an F.
     scan_list = [
         {"host": r["host"], "port": r["port"], "algorithm": r["algorithm_detail"] or r["algorithm"],
@@ -20711,9 +20711,9 @@ def api_compliance_mapping(request: Request, frameworks: str = ""):
          "tls_version": r["tls_version"], "scanned_at": r["scanned_at"]}
         for r in _latest_asset_scan_facts(org_id, limit=2000)
     ]
-    pqc_report = _fips_report(scan_list)
+    pq_report = _fips_report(scan_list)
     fw_list = [f.strip() for f in frameworks.split(",") if f.strip()] if frameworks else None
-    result = _compliance_report(pqc_report, frameworks=fw_list)
+    result = _compliance_report(pq_report, frameworks=fw_list)
     return {"api_version": "v1", "org_id": org_id, **result}
 
 
@@ -20728,7 +20728,7 @@ def api_compliance_frameworks(request: Request):
 @app.get("/compliance-ledger/snapshot")
 @app.get("/v1/compliance-ledger/snapshot")
 def api_compliance_ledger_snapshot(request: Request):
-    """Build a tamper-evident hash-chain snapshot for cross-border PQC compliance evidence."""
+    """Build a tamper-evident hash-chain snapshot for cross-border post-quantum compliance evidence."""
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, ["viewer", "analyst", "admin", "owner", "operator"],
                   action="compliance_ledger.snapshot", resource_type="organization", resource_id=org_id)
@@ -20761,7 +20761,7 @@ def api_compliance_ledger_snapshot(request: Request):
         previous_hash = digest
     return {
         "api_version": "v1",
-        "kind": "cross_border_pqc_compliance_ledger_snapshot",
+        "kind": "cross_border_pq_compliance_ledger_snapshot",
         "organization_id": org_id,
         "generated_at": _now_iso(),
         "root_hash": previous_hash,
@@ -20833,7 +20833,7 @@ class FirmwareProofRequest(BaseModel):
 
 
 class CryptoKillSwitchPolicyRequest(BaseModel):
-    policy_name: str = "pqc-emergency-kill-switch"
+    policy_name: str = "pq-emergency-kill-switch"
     blocked_algorithms: List[str] = Field(default_factory=lambda: [
         "RSA key exchange",
         "TLS_RSA_*",
@@ -20857,7 +20857,7 @@ class RuntimeHandshakeProofRequest(BaseModel):
     cipher: str = "TLS_AES_256_GCM_SHA384"
     observed_at: str = ""
     payload_visible: bool = False
-    middleware_id: str = "pqc-agility-middleware"
+    middleware_id: str = "morrow-agility-middleware"
 
 
 class VendorTrustPassportRequest(BaseModel):
@@ -20891,7 +20891,7 @@ class AirlockChangeSimulatorRequest(BaseModel):
 
 class AirlockRemediationPrFactoryRequest(BaseModel):
     repository: str = "customer/repository"
-    branch_prefix: str = "pqc-airlock"
+    branch_prefix: str = "morrow-airlock"
     finding: str = "TLS_RSA and RSA-2048 usage"
     asset_key: str = "internal-api:443"
     language: str = "generic"
@@ -20910,8 +20910,8 @@ _AIRLOCK_FORBIDDEN_KEYS = {
 
 def _airlock_key() -> bytes:
     key = (
-        os.getenv("PQC_AIRLOCK_SIGNING_KEY")
-        or os.getenv("PQC_JWT_SECRET")
+        os.getenv("MORROW_AIRLOCK_SIGNING_KEY")
+        or os.getenv("MORROW_JWT_SECRET")
         or os.getenv("SECRET_KEY")
         or "dev-airlock-signing-key-change-before-production"
     )
@@ -20937,7 +20937,7 @@ def _verify_airlock_agent_signature(request: Request, org_id: str, payload: Dict
     agent_id = str(request.headers.get("x-airlock-agent-id") or "").strip()
     timestamp = str(request.headers.get("x-airlock-timestamp") or "").strip()
     supplied = str(request.headers.get("x-airlock-signature") or "").strip()
-    required = str(os.getenv("PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() in ("1", "true", "yes")
+    required = str(os.getenv("MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0") or "0").strip().lower() in ("1", "true", "yes")
     if not supplied:
         if required:
             raise HTTPException(status_code=401, detail="missing Airlock agent signature")
@@ -20948,7 +20948,7 @@ def _verify_airlock_agent_signature(request: Request, org_id: str, payload: Dict
         ts = int(timestamp)
     except ValueError:
         raise HTTPException(status_code=401, detail="invalid Airlock timestamp")
-    max_skew = int(os.getenv("PQC_AIRLOCK_MAX_CLOCK_SKEW_SECONDS", "600") or "600")
+    max_skew = int(os.getenv("MORROW_AIRLOCK_MAX_CLOCK_SKEW_SECONDS", "600") or "600")
     if abs(int(time.time()) - ts) > max_skew:
         raise HTTPException(status_code=401, detail="stale Airlock signature")
     secret = _airlock_agent_secret(org_id, agent_id).encode("utf-8")
@@ -21195,7 +21195,7 @@ def _trust_passport(org_id: str, asset_key: str = "", subject_name: str = "") ->
         "controls": [
             {"name": "Quantum Airlock", "status": "enabled", "mode": "proofs_only"},
             {"name": "Trust Passport", "status": "issued", "shareable": True},
-            {"name": "PQC Middleware", "status": "package_available", "algorithm": "X25519MLKEM768"},
+            {"name": "Post-Quantum Middleware", "status": "package_available", "algorithm": "X25519MLKEM768"},
             {"name": "CI/CD Buzzer", "status": "active" if state["cicd_scans"] else "ready"},
             {"name": "Compliance Ledger", "status": "available"},
         ],
@@ -21203,14 +21203,14 @@ def _trust_passport(org_id: str, asset_key: str = "", subject_name: str = "") ->
 
 
 def _w3c_credential(org_id: str, credential_type: str, subject: Dict[str, Any]) -> Dict[str, Any]:
-    # Issuer and context come from configuration (PQC_DID_WEB_DOMAIN, else the
-    # PQC_PUBLIC_BASE_URL host). Unconfigured deployments get no issuer rather
+    # Issuer and context come from configuration (MORROW_DID_WEB_DOMAIN, else the
+    # MORROW_PUBLIC_BASE_URL host). Unconfigured deployments get no issuer rather
     # than a placeholder domain.
     from services.public_config import did_web_identifier, public_base_url
     base_url = public_base_url()
     context: List[Any] = ["https://www.w3.org/ns/credentials/v2"]
     if base_url:
-        context.append({"pqc": f"{base_url}/credentials#"})
+        context.append({"morrow": f"{base_url}/credentials#"})
     credential = {
         "@context": context,
         "type": ["VerifiableCredential", credential_type],
@@ -21285,7 +21285,7 @@ def _airlock_agent_config(
         "targets": ["cloudflare.com:443"],
         "firmware_files": [],
         "cbom_file": "",
-        "spool_path": ".pqc-airlock/spool.ndjson",
+        "spool_path": ".morrow-airlock/spool.ndjson",
         "timeout_seconds": 20,
         "dev_auth_headers": (
             {"x-user-role": "operator", "x-user-id": agent_id, "x-org-id": org_id}
@@ -21305,7 +21305,7 @@ def _airlock_agent_config(
 
 def _airlock_agent_source() -> str:
     return r'''#!/usr/bin/env python3
-"""PQC Airlock Agent.
+"""Post-Quantum Airlock Agent.
 
 Least-access customer-side collector:
 - no source upload
@@ -21404,7 +21404,7 @@ def post_json(config: Dict[str, Any], path: str, payload: Dict[str, Any]) -> Dic
 
 
 def spool(config: Dict[str, Any], path: str, payload: Dict[str, Any], error: str) -> None:
-    spool_path = Path(config.get("spool_path") or ".pqc-airlock/spool.ndjson")
+    spool_path = Path(config.get("spool_path") or ".morrow-airlock/spool.ndjson")
     spool_path.parent.mkdir(parents=True, exist_ok=True)
     with spool_path.open("a", encoding="utf-8") as fh:
         fh.write(canonical({"path": path, "payload": payload, "error": error, "queued_at": int(time.time())}) + "\n")
@@ -21465,7 +21465,7 @@ def cbom_fingerprint(path: str, salt: str) -> Dict[str, Any]:
         raw = f"{salt}|{name}|{version}|{algo}"
         out.append({
             "fingerprint": hashlib.sha256(raw.encode()).hexdigest(),
-            "algorithm_family": "pqc" if "ML-" in algo or "MLKEM" in algo else "classical" if algo else "unknown",
+            "algorithm_family": "pq" if "ML-" in algo or "MLKEM" in algo else "classical" if algo else "unknown",
         })
     return {"component_count": len(comps or []), "fingerprints": out, "raw_component_names_exported": False}
 
@@ -21493,7 +21493,7 @@ def run_once(config: Dict[str, Any]) -> None:
 
 
 def flush(config: Dict[str, Any]) -> None:
-    spool_path = Path(config.get("spool_path") or ".pqc-airlock/spool.ndjson")
+    spool_path = Path(config.get("spool_path") or ".morrow-airlock/spool.ndjson")
     if not spool_path.exists():
         print("spool empty")
         return
@@ -21511,7 +21511,7 @@ def flush(config: Dict[str, Any]) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default=".pqc-airlock/config.json")
+    ap.add_argument("--config", default=".morrow-airlock/config.json")
     ap.add_argument("command", choices=["run-once", "flush", "redact-test"])
     ap.add_argument("--json", default="")
     args = ap.parse_args()
@@ -21574,48 +21574,48 @@ def api_airlock_agent_package(body: AirlockAgentPackageRequest, request: Request
     )
     install_sh = f"""#!/usr/bin/env bash
 set -euo pipefail
-mkdir -p .pqc-airlock
-cat > .pqc-airlock/config.json <<'JSON'
+mkdir -p .morrow-airlock
+cat > .morrow-airlock/config.json <<'JSON'
 {json.dumps(config, indent=2, sort_keys=True)}
 JSON
-cp pqc_airlock_agent.py .pqc-airlock/pqc_airlock_agent.py
-chmod 700 .pqc-airlock
-chmod 600 .pqc-airlock/config.json
-chmod +x .pqc-airlock/pqc_airlock_agent.py
-echo "Installed PQC Airlock config at .pqc-airlock/config.json"
-echo "Run: python .pqc-airlock/pqc_airlock_agent.py --config .pqc-airlock/config.json run-once"
+cp morrow_airlock_agent.py .morrow-airlock/morrow_airlock_agent.py
+chmod 700 .morrow-airlock
+chmod 600 .morrow-airlock/config.json
+chmod +x .morrow-airlock/morrow_airlock_agent.py
+echo "Installed post-quantum Airlock config at .morrow-airlock/config.json"
+echo "Run: python .morrow-airlock/morrow_airlock_agent.py --config .morrow-airlock/config.json run-once"
 """
     install_ps1 = f"""$ErrorActionPreference = 'Stop'
-New-Item -ItemType Directory -Force -Path '.pqc-airlock' | Out-Null
+New-Item -ItemType Directory -Force -Path '.morrow-airlock' | Out-Null
 @'
 {json.dumps(config, indent=2, sort_keys=True)}
-'@ | Set-Content -Path '.pqc-airlock/config.json' -Encoding utf8
-Copy-Item -Path 'pqc_airlock_agent.py' -Destination '.pqc-airlock/pqc_airlock_agent.py' -Force
-Write-Host 'Installed PQC Airlock config at .pqc-airlock/config.json'
-Write-Host 'Run: python .pqc-airlock/pqc_airlock_agent.py --config .pqc-airlock/config.json run-once'
+'@ | Set-Content -Path '.morrow-airlock/config.json' -Encoding utf8
+Copy-Item -Path 'morrow_airlock_agent.py' -Destination '.morrow-airlock/morrow_airlock_agent.py' -Force
+Write-Host 'Installed post-quantum Airlock config at .morrow-airlock/config.json'
+Write-Host 'Run: python .morrow-airlock/morrow_airlock_agent.py --config .morrow-airlock/config.json run-once'
 """
     systemd = """[Unit]
-Description=PQC Airlock Agent
+Description=post-quantum Airlock Agent
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/opt/pqc-airlock
-ExecStart=/usr/bin/python3 /opt/pqc-airlock/pqc_airlock_agent.py --config /opt/pqc-airlock/config.json run-once
-User=pqc-airlock
-Group=pqc-airlock
+WorkingDirectory=/opt/morrow-airlock
+ExecStart=/usr/bin/python3 /opt/morrow-airlock/morrow_airlock_agent.py --config /opt/morrow-airlock/config.json run-once
+User=morrow-airlock
+Group=morrow-airlock
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/pqc-airlock/.pqc-airlock
+ReadWritePaths=/opt/morrow-airlock/.morrow-airlock
 
 [Install]
 WantedBy=multi-user.target
 """
     timer = """[Unit]
-Description=Run PQC Airlock Agent every 15 minutes
+Description=Run post-quantum Airlock Agent every 15 minutes
 
 [Timer]
 OnBootSec=2min
@@ -21627,14 +21627,14 @@ WantedBy=timers.target
 """
     dockerfile = """FROM python:3.12-alpine
 WORKDIR /airlock
-COPY pqc_airlock_agent.py /airlock/pqc_airlock_agent.py
+COPY morrow_airlock_agent.py /airlock/morrow_airlock_agent.py
 COPY config.json /airlock/config.json
 RUN adduser -D -H airlock && chown -R airlock:airlock /airlock
 USER airlock
-ENTRYPOINT ["python", "/airlock/pqc_airlock_agent.py", "--config", "/airlock/config.json"]
+ENTRYPOINT ["python", "/airlock/morrow_airlock_agent.py", "--config", "/airlock/config.json"]
 CMD ["run-once"]
 """
-    readme = """# PQC Quantum Airlock Agent
+    readme = """# Post-Quantum Quantum Airlock Agent
 
 Enterprise-grade first version of the customer-boundary collector.
 
@@ -21647,25 +21647,25 @@ Default behavior:
 - customer approval required before write actions
 
 Run once:
-`python .pqc-airlock/pqc_airlock_agent.py --config .pqc-airlock/config.json run-once`
+`python .morrow-airlock/morrow_airlock_agent.py --config .morrow-airlock/config.json run-once`
 
 Flush offline queue:
-`python .pqc-airlock/pqc_airlock_agent.py --config .pqc-airlock/config.json flush`
+`python .morrow-airlock/morrow_airlock_agent.py --config .morrow-airlock/config.json flush`
 
 Production hardening:
-- set PQC_AIRLOCK_SIGNING_KEY on the server
-- set PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 after rollout
+- set MORROW_AIRLOCK_SIGNING_KEY on the server
+- set MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 after rollout
 - use JWT or mTLS at the ingress; do not rely on dev header auth
 - store config.json in a secret manager or host-protected path
 """
     files = {
         "install.sh": install_sh,
         "install.ps1": install_ps1,
-        "pqc_airlock_agent.py": _airlock_agent_source(),
+        "morrow_airlock_agent.py": _airlock_agent_source(),
         "config.json": json.dumps(config, indent=2, sort_keys=True),
         "policy.json": json.dumps(policy, indent=2, sort_keys=True),
-        "pqc-airlock.service": systemd,
-        "pqc-airlock.timer": timer,
+        "morrow-airlock.service": systemd,
+        "morrow-airlock.timer": timer,
         "Dockerfile": dockerfile,
         "README.md": readme,
     }
@@ -21674,12 +21674,12 @@ Production hardening:
         "kind": "enterprise_quantum_airlock_agent_package",
         "profile": config,
         "policy": policy,
-        "bundle": _airlock_bundle("pqc-airlock-agent.zip", files),
+        "bundle": _airlock_bundle("morrow-airlock-agent.zip", files),
         "artifacts": files,
         "security_notes": [
             "Agent is read-only by default and payload blind.",
-            "Set PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 in production after agents are deployed.",
-            "Dev header auth is included only when this server runs PQC_AUTH_MODE=headers.",
+            "Set MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 in production after agents are deployed.",
+            "Dev header auth is included only when this server runs MORROW_AUTH_MODE=headers.",
         ],
     }
 
@@ -21705,7 +21705,7 @@ def api_airlock_install_sh(
     script = "\n".join([
         "#!/usr/bin/env bash",
         "set -euo pipefail",
-        'INSTALL_DIR="${PQC_AIRLOCK_HOME:-.pqc-airlock}"',
+        'INSTALL_DIR="${MORROW_AIRLOCK_HOME:-.morrow-airlock}"',
         'mkdir -p "$INSTALL_DIR"',
         'cat > "$INSTALL_DIR/config.json" <<\'JSON\'',
         json.dumps(config, indent=2, sort_keys=True),
@@ -21713,20 +21713,20 @@ def api_airlock_install_sh(
         'cat > "$INSTALL_DIR/policy.json" <<\'JSON\'',
         json.dumps(policy, indent=2, sort_keys=True),
         "JSON",
-        'cat > "$INSTALL_DIR/pqc_airlock_agent.py" <<\'PY\'',
+        'cat > "$INSTALL_DIR/morrow_airlock_agent.py" <<\'PY\'',
         _airlock_agent_source(),
         "PY",
         'chmod 700 "$INSTALL_DIR"',
         'chmod 600 "$INSTALL_DIR/config.json"',
-        'chmod +x "$INSTALL_DIR/pqc_airlock_agent.py"',
-        'echo "PQC Airlock installed in $INSTALL_DIR"',
-        'python "$INSTALL_DIR/pqc_airlock_agent.py" --config "$INSTALL_DIR/config.json" run-once',
+        'chmod +x "$INSTALL_DIR/morrow_airlock_agent.py"',
+        'echo "Post-Quantum Airlock installed in $INSTALL_DIR"',
+        'python "$INSTALL_DIR/morrow_airlock_agent.py" --config "$INSTALL_DIR/config.json" run-once',
         "",
     ])
     return Response(
         content=script,
         media_type="text/x-shellscript",
-        headers={"Content-Disposition": 'attachment; filename="install-pqc-airlock.sh"'},
+        headers={"Content-Disposition": 'attachment; filename="install-morrow-airlock.sh"'},
     )
 
 
@@ -21750,7 +21750,7 @@ def api_airlock_install_ps1(
     )
     script = "\n".join([
         "$ErrorActionPreference = 'Stop'",
-        "$InstallDir = if ($env:PQC_AIRLOCK_HOME) { $env:PQC_AIRLOCK_HOME } else { '.pqc-airlock' }",
+        "$InstallDir = if ($env:MORROW_AIRLOCK_HOME) { $env:MORROW_AIRLOCK_HOME } else { '.morrow-airlock' }",
         "New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null",
         "@'",
         json.dumps(config, indent=2, sort_keys=True),
@@ -21760,15 +21760,15 @@ def api_airlock_install_ps1(
         "'@ | Set-Content -Path (Join-Path $InstallDir 'policy.json') -Encoding utf8",
         "@'",
         _airlock_agent_source(),
-        "'@ | Set-Content -Path (Join-Path $InstallDir 'pqc_airlock_agent.py') -Encoding utf8",
-        "Write-Host \"PQC Airlock installed in $InstallDir\"",
-        "python (Join-Path $InstallDir 'pqc_airlock_agent.py') --config (Join-Path $InstallDir 'config.json') run-once",
+        "'@ | Set-Content -Path (Join-Path $InstallDir 'morrow_airlock_agent.py') -Encoding utf8",
+        "Write-Host \"Post-Quantum Airlock installed in $InstallDir\"",
+        "python (Join-Path $InstallDir 'morrow_airlock_agent.py') --config (Join-Path $InstallDir 'config.json') run-once",
         "",
     ])
     return Response(
         content=script,
         media_type="text/plain",
-        headers={"Content-Disposition": 'attachment; filename="install-pqc-airlock.ps1"'},
+        headers={"Content-Disposition": 'attachment; filename="install-morrow-airlock.ps1"'},
     )
 
 
@@ -21821,8 +21821,8 @@ def api_airlock_onboarding_status(request: Request):
         "status": "complete" if all(s["status"] == "complete" for s in steps) else "in_progress",
         "steps": steps,
         "install_commands": {
-            "bash_jwt": f'curl -fsSL -H "Authorization: Bearer $PQC_TOKEN" "{base}/airlock/install.sh?customer_id=customer" | bash',
-            "powershell_jwt": f'iwr -Headers @{{Authorization="Bearer $env:PQC_TOKEN"}} "{base}/airlock/install.ps1?customer_id=customer" | iex',
+            "bash_jwt": f'curl -fsSL -H "Authorization: Bearer $MORROW_TOKEN" "{base}/airlock/install.sh?customer_id=customer" | bash',
+            "powershell_jwt": f'iwr -Headers @{{Authorization="Bearer $env:MORROW_TOKEN"}} "{base}/airlock/install.ps1?customer_id=customer" | iex',
             "bash_dev_headers": f'curl -fsSL -H "x-user-role: operator" -H "x-user-id: airlock-admin" -H "x-org-id: {org_id}" "{base}/airlock/install.sh?customer_id=customer" | bash',
         },
         "next_action": next((s for s in steps if s["status"] != "complete"), steps[-1]),
@@ -21868,13 +21868,13 @@ def api_airlock_enterprise_readiness(request: Request):
     checks = [
         {
             "key": "airlock_signing_key",
-            "status": "pass" if bool(os.getenv("PQC_AIRLOCK_SIGNING_KEY")) else "fail",
-            "detail": "Set PQC_AIRLOCK_SIGNING_KEY so agent secrets and proof signatures are not derived from a dev fallback.",
+            "status": "pass" if bool(os.getenv("MORROW_AIRLOCK_SIGNING_KEY")) else "fail",
+            "detail": "Set MORROW_AIRLOCK_SIGNING_KEY so agent secrets and proof signatures are not derived from a dev fallback.",
         },
         {
             "key": "agent_signature_required",
-            "status": "pass" if str(os.getenv("PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0")).lower() in ("1", "true", "yes") else "warn",
-            "detail": "Set PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 after bootstrap rollout.",
+            "status": "pass" if str(os.getenv("MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "0")).lower() in ("1", "true", "yes") else "warn",
+            "detail": "Set MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1 after bootstrap rollout.",
         },
         {
             "key": "production_auth",
@@ -21931,7 +21931,7 @@ def api_airlock_flight_recorder_submit(body: AirlockFlightRecorderSubmitRequest,
                 "cert_sha256": clean.get("cert_sha256", ""),
                 "agent_signature_verified": signature_status.get("verified", False),
             },
-            details={**clean, "redaction_report": redactions, "pqc_hybrid": hybrid},
+            details={**clean, "redaction_report": redactions, "pq_hybrid": hybrid},
         )
         accepted.append(event)
         try:
@@ -21940,7 +21940,7 @@ def api_airlock_flight_recorder_submit(body: AirlockFlightRecorderSubmitRequest,
                 "service_name": service,
                 "tls_version": tls_version,
                 "negotiated_group": group,
-                "pqc_hybrid": hybrid,
+                "pq_hybrid": hybrid,
                 "agent_signature_verified": signature_status.get("verified", False),
                 "source": "airlock_flight_recorder",
             }, org_id)
@@ -22040,10 +22040,10 @@ def api_airlock_remediation_pr_factory(body: AirlockRemediationPrFactoryRequest,
     _require_role(request, ["viewer", "operator", "admin", "owner"],
                   action="airlock.remediation_pr_factory", resource_type="organization", resource_id=org_id)
     branch = f"{body.branch_prefix}/{hashlib.sha256(f'{body.repository}:{body.asset_key}:{body.finding}'.encode('utf-8')).hexdigest()[:10]}"
-    patch = f"""diff --git a/pqc-airlock-policy.json b/pqc-airlock-policy.json
+    patch = f"""diff --git a/morrow-airlock-policy.json b/morrow-airlock-policy.json
 new file mode 100644
 --- /dev/null
-+++ b/pqc-airlock-policy.json
++++ b/morrow-airlock-policy.json
 @@ -0,0 +1,15 @@
 +{{
 +  "asset_key": "{body.asset_key}",
@@ -22054,25 +22054,25 @@ new file mode 100644
 +  "raw_customer_data_exported": false
 +}}
 """
-    workflow = """name: PQC Airlock Remediation Gate
+    workflow = """name: post-quantum Airlock Remediation Gate
 on: [pull_request]
 jobs:
-  pqc-airlock:
+  morrow-airlock:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Verify PQC policy exists
-        run: test -f pqc-airlock-policy.json
+      - name: Verify post-quantum policy exists
+        run: test -f morrow-airlock-policy.json
       - name: Block quantum-vulnerable crypto regressions
-        run: python tools/pqc_crypto_gate.py --diff origin/main...HEAD || true
+        run: python tools/pq_crypto_gate.py --diff origin/main...HEAD || true
 """
     subject = {
         "repository": body.repository,
         "branch": branch,
         "asset_key": body.asset_key,
         "finding": body.finding,
-        "builder": "pqc-airlock-remediation-pr-factory",
-        "materials": [{"uri": f"pqc://finding/{hashlib.sha256(body.finding.encode()).hexdigest()}", "digest": {"sha256": hashlib.sha256(body.finding.encode()).hexdigest()}}],
+        "builder": "morrow-airlock-remediation-pr-factory",
+        "materials": [{"uri": f"morrow://finding/{hashlib.sha256(body.finding.encode()).hexdigest()}", "digest": {"sha256": hashlib.sha256(body.finding.encode()).hexdigest()}}],
         "raw_repository_exported": False,
     }
     slsa = {
@@ -22082,12 +22082,12 @@ jobs:
         "predicate": subject,
     }
     artifacts = {
-        "README.md": f"# PQC Airlock PR Factory\n\nRepository: {body.repository}\nBranch: {branch}\nFinding: {body.finding}\n\nThis bundle is review-only. It does not push to the customer repository.\n",
+        "README.md": f"# Post-Quantum Airlock PR Factory\n\nRepository: {body.repository}\nBranch: {branch}\nFinding: {body.finding}\n\nThis bundle is review-only. It does not push to the customer repository.\n",
         "patch.diff": patch,
-        "pqc-airlock-policy.json": json.dumps(subject, indent=2, sort_keys=True),
+        "morrow-airlock-policy.json": json.dumps(subject, indent=2, sort_keys=True),
     }
     if body.include_ci_gate:
-        artifacts[".github/workflows/pqc-airlock-remediation-gate.yml"] = workflow
+        artifacts[".github/workflows/morrow-airlock-remediation-gate.yml"] = workflow
     if body.include_slsa:
         artifacts["slsa-provenance.intoto.json"] = json.dumps(slsa, indent=2, sort_keys=True)
     if body.include_middleware_policy:
@@ -22104,7 +22104,7 @@ jobs:
         "branch": branch,
         "profile": subject,
         "artifacts": artifacts,
-        "bundle": _airlock_bundle("pqc-airlock-remediation-pr.zip", artifacts),
+        "bundle": _airlock_bundle("morrow-airlock-remediation-pr.zip", artifacts),
         "signature": envelope["signature"],
     }
 
@@ -22127,7 +22127,7 @@ def api_privacy_cbom_fingerprint(body: PrivacyCbomFingerprintRequest, request: R
         item = {
             "fingerprint": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
             "kind": kind,
-            "algorithm_family": "pqc" if "ML-" in algo or "MLKEM" in algo else "classical" if algo else "unknown",
+            "algorithm_family": "pq" if "ML-" in algo or "MLKEM" in algo else "classical" if algo else "unknown",
         }
         if not body.reveal_counts_only:
             item.update({"name": name, "version": version, "algorithm": algo})
@@ -22135,7 +22135,7 @@ def api_privacy_cbom_fingerprint(body: PrivacyCbomFingerprintRequest, request: R
     summary = {
         "component_count": len(components),
         "fingerprint_count": len(fingerprints),
-        "pqc_count": sum(1 for f in fingerprints if f["algorithm_family"] == "pqc"),
+        "pq_count": sum(1 for f in fingerprints if f["algorithm_family"] == "pq"),
         "classical_count": sum(1 for f in fingerprints if f["algorithm_family"] == "classical"),
         "salt_id": hashlib.sha256(salt.encode("utf-8")).hexdigest()[:12],
         "raw_component_names_exported": not body.reveal_counts_only,
@@ -22154,8 +22154,8 @@ def api_trust_passport(request: Request, asset_key: str = "", subject_name: str 
     _require_role(request, ["viewer", "operator", "admin", "owner"],
                   action="trust_passport.read", resource_type="organization", resource_id=org_id)
     passport = _trust_passport(org_id, asset_key=asset_key, subject_name=subject_name)
-    credential = _w3c_credential(org_id, "PQCTrustPassportCredential", passport)
-    return _signed_airlock_envelope("pqc_trust_passport", org_id, {"passport": passport, "credential": credential})
+    credential = _w3c_credential(org_id, "PostQuantumTrustPassportCredential", passport)
+    return _signed_airlock_envelope("pq_trust_passport", org_id, {"passport": passport, "credential": credential})
 
 
 @app.post("/trust-passport/share")
@@ -22167,11 +22167,11 @@ def api_trust_passport_share(body: TrustPassportShareRequest, request: Request):
     passport = _trust_passport(org_id, asset_key=body.asset_key, subject_name=body.subject_name)
     passport["visibility"] = body.visibility
     passport["expires_at"] = (datetime.now(timezone.utc) + timedelta(days=body.expires_days)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    envelope = _signed_airlock_envelope("pqc_trust_passport_share", org_id, {"passport": passport})
+    envelope = _signed_airlock_envelope("pq_trust_passport_share", org_id, {"passport": passport})
     token = _airlock_share_token(envelope)
     return {
         "api_version": "v1",
-        "kind": "pqc_trust_passport_share",
+        "kind": "pq_trust_passport_share",
         "share_token": token,
         "share_url": f"{str(request.base_url).rstrip('/')}/trust-passport/public/{token}",
         "passport": passport,
@@ -22192,7 +22192,7 @@ def api_trust_passport_public(token: str):
             "score": passport.get("score"),
             "privacy_boundary": passport.get("privacy_boundary"),
         }
-    return {"api_version": "v1", "kind": "pqc_trust_passport_public", "passport": passport}
+    return {"api_version": "v1", "kind": "pq_trust_passport_public", "passport": passport}
 
 
 @app.post("/remediation/proof-package")
@@ -22215,16 +22215,16 @@ def api_remediation_proof_package(body: RemediationProofPackageRequest, request:
             "replace application-layer RSA/ECDH code with approved KEM abstraction",
         ],
     }
-    ci_patch = """# pqc-crypto-gate.yml
-name: PQC Crypto Gate
+    ci_patch = """# morrow-crypto-gate.yml
+name: post-quantum Crypto Gate
 on: [pull_request]
 jobs:
-  pqc-gate:
+  pq-gate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Block quantum-vulnerable crypto
-        run: python tools/pqc_crypto_gate.py --diff origin/main...HEAD
+        run: python tools/pq_crypto_gate.py --diff origin/main...HEAD
 """
     middleware_policy = json.dumps({
         "service": asset,
@@ -22243,7 +22243,7 @@ that a customer can review, approve, and apply from inside their own environment
     files = {
         "README.md": readme,
         "remediation-policy.json": json.dumps(policy, indent=2, sort_keys=True),
-        ".github/workflows/pqc-crypto-gate.yml": ci_patch,
+        ".github/workflows/morrow-crypto-gate.yml": ci_patch,
         "middleware-policy.json": middleware_policy,
     }
     envelope = _signed_airlock_envelope("proof_carrying_remediation", org_id, policy)
@@ -22251,7 +22251,7 @@ that a customer can review, approve, and apply from inside their own environment
         "api_version": "v1",
         "kind": "proof_carrying_remediation_package",
         "profile": policy,
-        "bundle": _airlock_bundle("pqc-remediation-proof-package.zip", files),
+        "bundle": _airlock_bundle("pq-remediation-proof-package.zip", files),
         "artifacts": files,
         "signature": envelope["signature"],
     }
@@ -22279,7 +22279,7 @@ def api_firmware_proof(body: FirmwareProofRequest, request: Request):
     return {
         "api_version": "v1",
         "kind": "zero_knowledge_firmware_provenance",
-        "credential": _w3c_credential(org_id, "PQCFirmwareProvenanceCredential", subject),
+        "credential": _w3c_credential(org_id, "PostQuantumFirmwareProvenanceCredential", subject),
         "attestation": _signed_airlock_envelope("firmware_hash_proof", org_id, subject),
     }
 
@@ -22295,14 +22295,14 @@ def api_compliance_ledger_credential(request: Request):
         "organization_id": org_id,
         "ledger_root_hash": snapshot["root_hash"],
         "entry_count": len(snapshot["entries"]),
-        "framework": "cross-border-pqc-mandates",
+        "framework": "cross-border-pq-mandates",
         "raw_customer_data_exported": False,
     }
     return {
         "api_version": "v1",
-        "kind": "pqc_compliance_verifiable_credential",
+        "kind": "pq_compliance_verifiable_credential",
         "snapshot_root_hash": snapshot["root_hash"],
-        "credential": _w3c_credential(org_id, "PQCComplianceLedgerCredential", subject),
+        "credential": _w3c_credential(org_id, "PostQuantumComplianceLedgerCredential", subject),
     }
 
 
@@ -22321,7 +22321,7 @@ def api_crypto_kill_switch_policy(body: CryptoKillSwitchPolicyRequest, request: 
         "targets": body.targets,
         "expires_at": (datetime.now(timezone.utc) + timedelta(days=body.expires_days)).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     }
-    rego = f"""package pqc.crypto
+    rego = f"""package morrow.crypto
 
 default allow = true
 
@@ -22336,24 +22336,24 @@ deny[msg] {{
 deny[msg] {{
   input.tls.version == "TLSv1.3"
   not input.tls.group == required_tls_groups[_]
-  msg := sprintf("TLS 1.3 session missing required PQC hybrid group: %v", [input.tls.group])
+  msg := sprintf("TLS 1.3 session missing required post-quantum hybrid group: %v", [input.tls.group])
 }}
 """
     nginx = "\n".join([
-        "# PQC emergency kill switch",
+        "# Post-quantum emergency kill switch",
         "ssl_protocols TLSv1.3;",
         f"ssl_ecdh_curve {':'.join(body.required_tls_groups)};",
-        "add_header X-PQC-Kill-Switch active always;",
+        "add_header X-Morrow-Kill-Switch active always;",
     ])
     ci_script = "\n".join([
         "#!/usr/bin/env bash",
         "set -euo pipefail",
-        "git diff --unified=0 origin/main...HEAD | python tools/pqc_crypto_gate.py --stdin",
+        "git diff --unified=0 origin/main...HEAD | python tools/pq_crypto_gate.py --stdin",
     ])
     artifacts = {
         "policy.json": json.dumps(policy, indent=2, sort_keys=True),
-        "pqc-kill-switch.rego": rego,
-        "nginx-pqc-kill-switch.conf": nginx,
+        "pq-kill-switch.rego": rego,
+        "nginx-pq-kill-switch.conf": nginx,
         "ci-kill-switch.sh": ci_script,
     }
     envelope = _signed_airlock_envelope("crypto_kill_switch_policy", org_id, policy)
@@ -22362,7 +22362,7 @@ deny[msg] {{
         "kind": "crypto_kill_switch_policy",
         "profile": policy,
         "artifacts": artifacts,
-        "bundle": _airlock_bundle("pqc-crypto-kill-switch.zip", artifacts),
+        "bundle": _airlock_bundle("pq-crypto-kill-switch.zip", artifacts),
         "signature": envelope["signature"],
     }
 
@@ -22385,7 +22385,7 @@ def api_runtime_handshake_proof(body: RuntimeHandshakeProofRequest, request: Req
         "observed_at": body.observed_at or _now_iso(),
         "middleware_id": body.middleware_id,
         "payload_visible": False,
-        "pqc_hybrid": "MLKEM" in body.negotiated_group or "ML-KEM" in body.negotiated_group,
+        "pq_hybrid": "MLKEM" in body.negotiated_group or "ML-KEM" in body.negotiated_group,
     }
     return _signed_airlock_envelope("runtime_handshake_proof", org_id, proof)
 
@@ -22404,7 +22404,7 @@ def api_vendor_trust_passport(body: VendorTrustPassportRequest, request: Request
         "linked_passports": body.passport_ids,
         "raw_vendor_data_exported": False,
     }
-    credential = _w3c_credential(org_id, "PQCVendorTrustCredential", subject)
+    credential = _w3c_credential(org_id, "PostQuantumVendorTrustCredential", subject)
     envelope = _signed_airlock_envelope("vendor_trust_passport", org_id, {"credential": credential})
     return {
         "api_version": "v1",
@@ -22547,7 +22547,7 @@ def api_crypto_agility(request: Request):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# WAVE 12 — PQC CONFIG & CODE GENERATOR
+# WAVE 12 — POST-QUANTUM CONFIG & CODE GENERATOR
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class CodegenRequest(BaseModel):
@@ -22558,16 +22558,16 @@ class CodegenRequest(BaseModel):
     key_type: str = "ecdsa"
 
 
-@app.get("/pqc-codegen/targets")
-@app.get("/v1/pqc-codegen/targets")
+@app.get("/pq-codegen/targets")
+@app.get("/v1/pq-codegen/targets")
 def api_codegen_targets(request: Request):
     _require_role(request, ["viewer", "analyst", "admin", "owner"],
                   action="codegen.list", resource_type="organization", resource_id="*")
     return {"api_version": "v1", "targets": _codegen_targets()}
 
 
-@app.post("/pqc-codegen/generate")
-@app.post("/v1/pqc-codegen/generate")
+@app.post("/pq-codegen/generate")
+@app.post("/v1/pq-codegen/generate")
 def api_codegen_generate(request: Request, body: CodegenRequest):
     _require_role(request, ["viewer", "analyst", "admin", "owner"],
                   action="codegen.generate", resource_type="organization", resource_id="*")
@@ -22690,7 +22690,7 @@ def api_cbom_csv(request: Request):
 
 @app.get("/v1/compliance/export.csv")
 @app.get("/compliance/export.csv")
-def api_compliance_csv(request: Request, framework: str = "NIST-PQC"):
+def api_compliance_csv(request: Request, framework: str = "NIST-PQ"):
     """Download compliance gap report as CSV."""
     _require_role(request, ["viewer", "analyst", "admin", "owner"],
                   action="compliance.export_csv", resource_type="organization", resource_id="*")
@@ -22704,8 +22704,8 @@ def api_compliance_csv(request: Request, framework: str = "NIST-PQC"):
     # Simple compliance classification.
     # x25519 and ed25519 were on this list. They are classical elliptic-curve algorithms broken by
     # Shor's algorithm exactly like ECDSA, so every Ed25519 endpoint was exported to auditors as
-    # "PQC-safe, compliant: YES". Only the NIST PQC standards belong here.
-    pqc_safe = {"kyber", "ml-kem", "mlkem", "dilithium", "ml-dsa", "mldsa",
+    # "quantum-safe, compliant: YES". Only the NIST post-quantum standards belong here.
+    pq_safe = {"kyber", "ml-kem", "mlkem", "dilithium", "ml-dsa", "mldsa",
                 "falcon", "sphincs", "slh-dsa", "slhdsa", "ntru", "bike", "hqc"}
     out = _io.StringIO()
     w = _csv.writer(out)
@@ -22726,8 +22726,8 @@ def api_compliance_csv(request: Request, framework: str = "NIST-PQC"):
             compliant_cell, finding = "UNKNOWN", (
                 f"Endpoint cryptography was not observed; compliance with {framework} is unknown"
             )
-        elif any(s in algo_lower for s in pqc_safe):
-            compliant_cell, finding = "YES", "PQC-safe"
+        elif any(s in algo_lower for s in pq_safe):
+            compliant_cell, finding = "YES", "quantum-safe"
         else:
             compliant_cell, finding = "NO", f"{algo} is quantum-vulnerable under {framework}"
         w.writerow([host, port, algo, key_bits, tls, risk, framework, compliant_cell, finding, ts])
@@ -22914,9 +22914,9 @@ def api_health_full(request: Request):
 
     # Key service imports
     for svc in [
-        "services.fips_pqc", "services.peer_benchmark", "services.qday_forecast",
+        "services.fips_pq", "services.peer_benchmark", "services.qday_forecast",
         "services.roi_calculator", "services.compliance_mapping", "services.crypto_agility",
-        "services.pqc_codegen", "services.migration_velocity", "services.emergency_response",
+        "services.pq_codegen", "services.migration_velocity", "services.emergency_response",
         "services.ai_agent", "services.board_risk", "services.cbom",
     ]:
         try:
@@ -23059,7 +23059,7 @@ def _w15_ensure(db) -> None:
     """Ensure all Wave 15+16 tables exist. Idempotent — uses CREATE TABLE IF NOT EXISTS."""
     global _w15_initialized
     # Keyed by database, not a bare flag: a process that switches SQLite file (tests, a restore, a
-    # re-pointed PQC_SCANNER_DB) used to keep the flag from the first database, so the new one never
+    # re-pointed MORROW_SCANNER_DB) used to keep the flag from the first database, so the new one never
     # got these tables and reads failed with "no such table: binary_scans".
     import db as _db_mod
     if _db_mod.schema_ensured("wave15_tables"):
@@ -23873,13 +23873,13 @@ def auth_saml_status(request: Request):
 def auth_oidc_config(request: Request):
     """Returns OIDC configuration for SPA setup. The SPA uses this to initialise auth."""
     return {
-        "enabled": bool(os.getenv("PQC_OIDC_CLIENT_ID", "").strip()),
-        "authority": os.getenv("PQC_OIDC_AUTHORITY", "").strip(),
-        "client_id": os.getenv("PQC_OIDC_CLIENT_ID", "").strip(),
-        "redirect_uri": os.getenv("PQC_OIDC_REDIRECT_URI", "").strip(),
-        "scope": os.getenv("PQC_OIDC_SCOPE", "openid profile email").strip(),
+        "enabled": bool(os.getenv("MORROW_OIDC_CLIENT_ID", "").strip()),
+        "authority": os.getenv("MORROW_OIDC_AUTHORITY", "").strip(),
+        "client_id": os.getenv("MORROW_OIDC_CLIENT_ID", "").strip(),
+        "redirect_uri": os.getenv("MORROW_OIDC_REDIRECT_URI", "").strip(),
+        "scope": os.getenv("MORROW_OIDC_SCOPE", "openid profile email").strip(),
         "response_type": "code",
-        "jwks_uri": AUTH_JWT_JWKS_URL or os.getenv("PQC_OIDC_JWKS_URI", "").strip(),
+        "jwks_uri": AUTH_JWT_JWKS_URL or os.getenv("MORROW_OIDC_JWKS_URI", "").strip(),
     }
 
 
@@ -24124,7 +24124,7 @@ def api_cbomwh_setup(request: Request):
 async def api_cbomwh_ingest(request: Request):
     body_bytes = await request.body()
     org_id = request.headers.get("X-Org-Id") or _org(request)
-    sig_header = request.headers.get("X-PQC-Signature", "")
+    sig_header = request.headers.get("X-Morrow-Signature", "")
     with _db() as db:
         _cbomwh_init(db)
         secret = _cbomwh_secret(db, org_id)
@@ -24225,14 +24225,14 @@ async def api_push_alert(request: Request):
         _push_init(db)
         result = _push_send_alert(
             db, org_id,
-            body.get("title", "PQC Alert"),
+            body.get("title", "Post-Quantum Alert"),
             body.get("body", ""),
             body.get("severity", "HIGH"),
         )
     try:
         _tel_push("alert_fired", {
             "channel": result.get("channel") or body.get("channel") or "configured_push_channels",
-            "title": body.get("title", "PQC Alert"),
+            "title": body.get("title", "Post-Quantum Alert"),
             "severity": body.get("severity", "HIGH"),
             "status": result.get("status") or "",
             "source": "push_alert",
@@ -24310,7 +24310,7 @@ async def api_evidence_build(request: Request):
         remediation_data=remediation_data,
         drift_data=drift_data,
     )
-    filename = f"pqc-evidence-{framework}-{org_id}.zip"
+    filename = f"pq-evidence-{framework}-{org_id}.zip"
     return _FResponse(
         content=zip_bytes,
         media_type="application/zip",
@@ -24319,7 +24319,7 @@ async def api_evidence_build(request: Request):
 
 
 # ============================================================
-# Wave 17 — PQC Knowledge Base
+# Wave 17 — post-quantum Knowledge Base
 # ============================================================
 
 @app.get("/v1/kb/articles")
@@ -24459,7 +24459,7 @@ def api_qday_countdown(request: Request):
                     "Year the Q-Intel model reaches a 50% probability that RSA-2048 is breakable, computed from "
                     "recorded hardware milestones and a stated growth assumption. It is not an expert consensus."
                 ),
-                "planning_implication": "PQC migration should be substantially complete before this date for critical systems.",
+                "planning_implication": "Post-quantum migration should be substantially complete before this date for critical systems.",
             },
             "accelerated": {
                 "year": estimates["optimistic"],
@@ -24487,7 +24487,7 @@ def api_qday_countdown(request: Request):
 # Wave 17 — Built-in Auth Issuer endpoints
 # ============================================================
 
-_RATE_AUTH = os.getenv("PQC_RATE_LIMIT_AUTH", "10/minute").strip()
+_RATE_AUTH = os.getenv("MORROW_RATE_LIMIT_AUTH", "10/minute").strip()
 
 
 def _require_auth_issuer_enabled() -> None:
@@ -24814,7 +24814,7 @@ register_deferred_schema("security_truth", _ensure_security_truth_tables)
 # platform_traffic_events and platform_feature_state_records were the one lazily
 # created pair missing from this list, so the migration step never made them.
 # Under the least-privilege runtime role the hardening guide requires, nothing
-# else can either -- leaving PQC_TRAFFIC_PERSIST_TO_DB=1, which the production
+# else can either -- leaving MORROW_TRAFFIC_PERSIST_TO_DB=1, which the production
 # checklist mandates, unable to write, and /platform/state/coverage unable to
 # read its archive count.
 register_deferred_schema("platform_state", _ensure_platform_state_schema)
@@ -24965,7 +24965,7 @@ try:
 except Exception:  # pragma: no cover - import is environment-dependent (vault crypto)
     pass
 
-try:  # optional: the vault is unavailable when PQC_VAULT_MASTER_KEY is unset
+try:  # optional: the vault is unavailable when MORROW_VAULT_MASTER_KEY is unset
     import vault_db as _vault_db
 
     register_deferred_schema("vault_credentials", _vault_db.ensure_vault_tables)
@@ -24989,5 +24989,5 @@ try:
 except Exception:  # pragma: no cover - the provider layer must not break startup
     pass
 
-# Public demo mode (PQC_DEMO_MODE=1): throwaway workspaces and the write allowlist. Last, so it runs first.
+# Public demo mode (MORROW_DEMO_MODE=1): throwaway workspaces and the write allowlist. Last, so it runs first.
 _demo_mode.attach(app)

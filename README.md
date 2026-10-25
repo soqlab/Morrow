@@ -2,7 +2,7 @@
 
 **Find the cryptography in your estate that a quantum computer will break, prove who owns it, and track it to replacement.**
 
-Morrow is a post-quantum cryptography (PQC) governance platform. It discovers the
+Morrow is a post-quantum cryptography (post-quantum) governance platform. It discovers the
 cryptography actually in use across TLS endpoints, certificates, source repositories and cloud
 configuration; scores what is exposed; assigns each finding an owner; and follows it through
 remediation to verified closure with an audit trail.
@@ -32,7 +32,7 @@ The deadlines are published:
 
 | Date | Milestone |
 |---|---|
-| **2024** | NIST publishes the first PQC standards: FIPS 203 (ML-KEM), 204 (ML-DSA), 205 (SLH-DSA) |
+| **2024** | NIST publishes the first post-quantum standards: FIPS 203 (ML-KEM), 204 (ML-DSA), 205 (SLH-DSA) |
 | **2030** | NIST deprecates RSA-2048 and ECC-256 — [IR 8547](https://csrc.nist.gov/pubs/ir/8547/ipd) |
 | **2035** | NIST disallows them entirely; US federal systems must have migrated |
 
@@ -55,7 +55,7 @@ migrate an estate you cannot enumerate. That inventory is what this platform bui
 - **Remediation workflow** — suggested → approved → PR created → verified closed, with drift checks
   that reopen a finding if it regresses.
 - **CBOM export** — `GET /cbom` emits a CycloneDX 1.6 Cryptography Bill of Materials, validated
-  against the official schema on every test run. Algorithms carry NIST CSOR OIDs and PQC security
+  against the official schema on every test run. Algorithms carry NIST CSOR OIDs and post-quantum security
   categories; `bom-ref` values are content-derived, so two exports of an unchanged estate diff
   cleanly.
 - **Evidence** — signed remediation bundles, compliance reports and an append-only audit journal.
@@ -65,7 +65,7 @@ migrate an estate you cannot enumerate. That inventory is what this platform bui
 An optional AI assistant explains findings and drafts remediation plans. It is provider-agnostic:
 Anthropic, OpenAI, Azure OpenAI, Gemini, Ollama, any OpenAI-compatible endpoint, or your own adapter
 class. With no credential configured it falls back to an offline rule engine that needs no network,
-and `PQC_LLM_DISABLED=1` forbids any external call outright. Every other feature works without it.
+and `MORROW_LLM_DISABLED=1` forbids any external call outright. Every other feature works without it.
 See [docs/AI_PROVIDERS.md](docs/AI_PROVIDERS.md).
 
 | | |
@@ -79,7 +79,7 @@ Needs Docker. Nothing else — no `.env` to write, no database to install.
 
 ```bash
 git clone https://github.com/soqlab/morrow.git
-cd pqc_scanner
+cd morrow
 docker compose up --build
 ```
 
@@ -125,8 +125,8 @@ The server starts with no configuration at all: it falls back to SQLite, runs sc
 rather than on a worker, and reports what is missing at `GET /health/deep` and under
 **Administration → Launch readiness**. Each item names the environment variable that fixes it.
 
-> **This default configuration is for a laptop, not a network.** `PQC_AUTH_MODE=headers` means any
-> caller can claim any role by setting a request header, and `PQC_DEFAULT_ROLE=admin` means
+> **This default configuration is for a laptop, not a network.** `MORROW_AUTH_MODE=headers` means any
+> caller can claim any role by setting a request header, and `MORROW_DEFAULT_ROLE=admin` means
 > anonymous requests are admin. The server warns about both on every start. See
 > [Security posture](#security-posture) before exposing it to anything.
 
@@ -195,7 +195,7 @@ pytest -q
 ```
 
 The suite needs no credentials and no services. Tests that require a real Postgres, Redis or
-third-party API skip cleanly rather than fail; set `PQC_TEST_PG_DSN` or `PQC_TEST_REDIS_URL` to make
+third-party API skip cleanly rather than fail; set `MORROW_TEST_PG_DSN` or `MORROW_TEST_REDIS_URL` to make
 them run instead. Lint with `ruff check .` from `backend/` — the rules live in `backend/ruff.toml`
 so the same command runs locally and in CI.
 
@@ -205,13 +205,13 @@ so the same command runs locally and in CI.
   row-level security with a non-superuser application role. `GET /admin/postgres-rls/verify`
   reports whether it is actually active.
 - **Secrets at rest** — integration credentials (webhook URLs, cloud keys, routing keys) are sealed
-  with Fernet under `PQC_VAULT_MASTER_KEY` before they reach the database. Without that key the
+  with Fernet under `MORROW_VAULT_MASTER_KEY` before they reach the database. Without that key the
   features that store credentials refuse to save rather than writing them in the clear.
 - **Outbound requests** go through an SSRF guard: HTTPS only, every resolved address must be
   public, the checked address is the address connected to (so DNS rebinding cannot redirect it
   inward), and redirects are not followed.
 - **Audit journal** is append-only and records the acting operator for every administrative action.
-- **Production refuses to start** misconfigured. With `PQC_ENVIRONMENT=production` the entrypoint
+- **Production refuses to start** misconfigured. With `MORROW_ENVIRONMENT=production` the entrypoint
   requires external JWT/SSO, managed Postgres and Redis, a vault key and explicit allowed hosts.
 
 The defaults in the quick start are deliberately permissive for local use and the server says so on
@@ -278,7 +278,7 @@ account has proved it controls (DNS TXT or a served file); that verification is 
 ### Free public readiness check
 
 A **free check anyone can run** — enter a domain, get its post-quantum posture, no account — ships
-in this repository at `/check`, with a terminal equivalent in `scripts/pqc-check.py`. It reads
+in this repository at `/check`, with a terminal equivalent in `scripts/pq-check.py`. It reads
 public Certificate Transparency records, then makes at most two TLS connections to that hostname on
 port 443: exactly what a browser does when it visits the site. No port scanning, no subdomain
 discovery, no vulnerability probing. The repository, cloud and credentialed scanners stay behind

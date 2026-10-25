@@ -19,15 +19,15 @@ def _operator_headers():
 
 def test_crypto_middleware_generates_transparent_cam_package(tmp_path):
     old_env = {
-        "PQC_SCANNER_DB": os.environ.get("PQC_SCANNER_DB"),
-        "PQC_AUTH_MODE": os.environ.get("PQC_AUTH_MODE"),
-        "PQC_AUTH_REQUIRED": os.environ.get("PQC_AUTH_REQUIRED"),
-        "PQC_DEFAULT_ROLE": os.environ.get("PQC_DEFAULT_ROLE"),
+        "MORROW_SCANNER_DB": os.environ.get("MORROW_SCANNER_DB"),
+        "MORROW_AUTH_MODE": os.environ.get("MORROW_AUTH_MODE"),
+        "MORROW_AUTH_REQUIRED": os.environ.get("MORROW_AUTH_REQUIRED"),
+        "MORROW_DEFAULT_ROLE": os.environ.get("MORROW_DEFAULT_ROLE"),
     }
-    os.environ["PQC_SCANNER_DB"] = str(tmp_path / "cam.db")
-    os.environ["PQC_AUTH_MODE"] = "headers"
-    os.environ["PQC_AUTH_REQUIRED"] = "1"
-    os.environ["PQC_DEFAULT_ROLE"] = "viewer"
+    os.environ["MORROW_SCANNER_DB"] = str(tmp_path / "cam.db")
+    os.environ["MORROW_AUTH_MODE"] = "headers"
+    os.environ["MORROW_AUTH_REQUIRED"] = "1"
+    os.environ["MORROW_DEFAULT_ROLE"] = "viewer"
 
     import app as fastapi_app
 
@@ -41,7 +41,7 @@ def test_crypto_middleware_generates_transparent_cam_package(tmp_path):
         "/crypto-mesh/middleware-plan",
         headers=_operator_headers(),
         json={
-            "name": "pqc-agility-middleware",
+            "name": "morrow-agility-middleware",
             "deployment_mode": "transparent_sidecar",
             "emergency_algorithm": "X25519MLKEM768",
             "outbound_capture_port": 15001,
@@ -51,7 +51,7 @@ def test_crypto_middleware_generates_transparent_cam_package(tmp_path):
                     "upstream_host": "payments-upstream",
                     "upstream_port": 8443,
                     "listen_port": 15443,
-                    "gateway_host": "payments-pqc-gateway",
+                    "gateway_host": "payments-pq-gateway",
                     "destination_cidr": "10.42.10.15/32",
                 }
             ],
@@ -74,24 +74,24 @@ def test_crypto_middleware_generates_transparent_cam_package(tmp_path):
         "kubernetes-transparent-sidecar.yaml",
         "install-transparent.sh",
         "verify-transparent.sh",
-        "pqc-cam/envoy/ingress-gateway.yaml",
-        "pqc-cam/envoy/sidecar-egress.yaml",
-        "pqc-cam/scripts/transparent-egress-enable.sh",
-        "pqc-cam/scripts/transparent-egress-disable.sh",
-        "pqc-cam/scripts/transparent-egress-enable.ps1",
-        "pqc-cam/telemetry/cam_telemetry_agent.py",
-        "pqc-cam/Dockerfile.sidecar",
+        "morrow-cam/envoy/ingress-gateway.yaml",
+        "morrow-cam/envoy/sidecar-egress.yaml",
+        "morrow-cam/scripts/transparent-egress-enable.sh",
+        "morrow-cam/scripts/transparent-egress-disable.sh",
+        "morrow-cam/scripts/transparent-egress-enable.ps1",
+        "morrow-cam/telemetry/cam_telemetry_agent.py",
+        "morrow-cam/Dockerfile.sidecar",
     }
     assert required.issubset(set(artifacts))
-    assert "iptables -t nat" in artifacts["pqc-cam/scripts/transparent-egress-enable.sh"]
-    assert "envoy.filters.listener.original_dst" in artifacts["pqc-cam/envoy/sidecar-egress.yaml"]
-    assert "X25519MLKEM768" in artifacts["pqc-cam/envoy/ingress-gateway.yaml"]
-    yaml.safe_load(artifacts["pqc-cam/envoy/ingress-gateway.yaml"])
-    yaml.safe_load(artifacts["pqc-cam/envoy/sidecar-egress.yaml"])
+    assert "iptables -t nat" in artifacts["morrow-cam/scripts/transparent-egress-enable.sh"]
+    assert "envoy.filters.listener.original_dst" in artifacts["morrow-cam/envoy/sidecar-egress.yaml"]
+    assert "X25519MLKEM768" in artifacts["morrow-cam/envoy/ingress-gateway.yaml"]
+    yaml.safe_load(artifacts["morrow-cam/envoy/ingress-gateway.yaml"])
+    yaml.safe_load(artifacts["morrow-cam/envoy/sidecar-egress.yaml"])
     list(yaml.safe_load_all(artifacts["kubernetes-ingress-gateway.yaml"]))
     yaml.safe_load(artifacts["kubernetes-transparent-sidecar.yaml"])
-    assert "payload_visible" in artifacts["pqc-cam/telemetry/cam_telemetry_agent.py"]
-    compile(artifacts["pqc-cam/telemetry/cam_telemetry_agent.py"], "cam_telemetry_agent.py", "exec")
+    assert "payload_visible" in artifacts["morrow-cam/telemetry/cam_telemetry_agent.py"]
+    compile(artifacts["morrow-cam/telemetry/cam_telemetry_agent.py"], "cam_telemetry_agent.py", "exec")
 
     policy = json.loads(artifacts["cam-policy.json"])
     assert "sidecar injection" in " ".join(policy["limitations"]).lower()

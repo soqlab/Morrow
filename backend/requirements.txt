@@ -27,7 +27,7 @@ SQLAlchemy==2.0.51
 sentry-sdk==2.64.0
 boto3==1.43.40
 
-# PQC Scout, the in-product AI analyst (services/ai_agent.py). Replaces a
+# Post-Quantum Scout, the in-product AI analyst (services/ai_agent.py). Replaces a
 # hand-rolled urllib call with typed SDK responses. Automatic retries and provider
 # fallback are disabled at the mandatory customer-approved data gateway.
 anthropic==1.2.0

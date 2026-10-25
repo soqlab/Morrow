@@ -49,7 +49,7 @@ model round rather than reusing older content under a new approval.
 - Run the normal deferred schema/RLS migration for PostgreSQL before restricted-role
   runtime startup. New tenant tables: `ai_privacy_policy`, `ai_privacy_events`,
   `ai_privacy_jobs`. SQLite initializes them on first use.
-- Preserve `PQC_VAULT_MASTER_KEY`; existing `scripts/rotate-vault-master-key.py`
+- Preserve `MORROW_VAULT_MASTER_KEY`; existing `scripts/rotate-vault-master-key.py`
   now includes receipt signing keys. Never replace the master key without rotation.
 - Background maintenance processes registered organizations in pages and removes
   bounded expired-receipt batches. Backups, provider retention and other journals
@@ -77,9 +77,9 @@ The browser harness starts an isolated backend on a temporary loopback port/data
 uses real HTTP routes, disables model I/O, and tests desktop/mobile, approval, preview,
 kit download, stop, viewer restrictions and the public trust page. It uses the installed
 Playwright package (or `.tools/video/node_modules/playwright`) and Edge on Windows;
-set `PQC_TEST_BROWSER_CHANNEL` for another installed browser channel.
+set `MORROW_TEST_BROWSER_CHANNEL` for another installed browser channel.
 
-The optional PostgreSQL runtime test requires `PQC_TEST_PG_DSN` pointing to a
+The optional PostgreSQL runtime test requires `MORROW_TEST_PG_DSN` pointing to a
 DISPOSABLE server with permission to create temporary databases/roles. It is skipped
 without that setting. SQLite success is not proof that PostgreSQL RLS is deployed.
 
@@ -102,7 +102,7 @@ launch blockers are tracked in the production-release record, which is maintaine
 - Restarted local service on `http://127.0.0.1:8001`; health, console, public page,
   JavaScript and Data Control status returned HTTP 200. The local organization's
   policy remained off at version 0; verification did not enable a provider.
-- This local instance still uses `PQC_AUTH_MODE=headers` with authentication required.
+- This local instance still uses `MORROW_AUTH_MODE=headers` with authentication required.
   Header-based identity is for development, not public deployment. Configure and
   validate production JWT/SSO before exposing customer or admin APIs.
 

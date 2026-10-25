@@ -12,8 +12,8 @@ from db import init_db, reset_current_organization_id, set_current_organization_
 @pytest.fixture(scope="module")
 def client():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    _previous_db = os.environ.get("PQC_SCANNER_DB")
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    _previous_db = os.environ.get("MORROW_SCANNER_DB")
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
 
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
@@ -23,12 +23,12 @@ def client():
         yield c
 
     # Put the database selection back. This fixture is module-scoped, so its teardown runs
-    # after the per-test cleanup in conftest; without this, PQC_SCANNER_DB keeps pointing at
+    # after the per-test cleanup in conftest; without this, MORROW_SCANNER_DB keeps pointing at
     # this (now deleted) file for every module that runs afterwards.
     if _previous_db is None:
-        os.environ.pop("PQC_SCANNER_DB", None)
+        os.environ.pop("MORROW_SCANNER_DB", None)
     else:
-        os.environ["PQC_SCANNER_DB"] = _previous_db
+        os.environ["MORROW_SCANNER_DB"] = _previous_db
     try:
         os.remove(tmp_db.name)
     except OSError:
@@ -103,7 +103,7 @@ def test_github_app_sync_endpoints_wiring(client, monkeypatch):
     )
     assert queued.status_code == 200
     assert queued.json().get("job_id") == "job-bridge-1"
-    assert calls.get("name") == "pqc.sync_github_app_repositories"
+    assert calls.get("name") == "morrow.sync_github_app_repositories"
     assert calls.get("args") == [12, 999, "org-queue"]
 
 

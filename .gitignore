@@ -18,12 +18,12 @@ __pycache__/
 !.env.example
 !.env.*.example
 !.env.example.*
-backend/pqc_scanner.db
+backend/morrow.db
 backend/*.db
 backend/*.db-shm
 backend/*.db-wal
 backend/celerybeat-schedule
-backend/.pqc-server.pid
+backend/.pq-server.pid
 
 # Terraform / infra state
 **/.terraform/

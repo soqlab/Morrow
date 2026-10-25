@@ -41,21 +41,21 @@ def build(settings: Settings) -> Provider:
     adapter = ADAPTERS.get(name)
     if adapter is None:
         raise LLMError(CONFIG, f"Unknown model provider {settings.provider!r}.", provider=name,
-                       remedy="PQC_LLM_PROVIDER must be one of: " + ", ".join(sorted(ADAPTERS) + ["custom"]) + ".")
+                       remedy="MORROW_LLM_PROVIDER must be one of: " + ", ".join(sorted(ADAPTERS) + ["custom"]) + ".")
     return adapter(settings.with_(provider=name))
 
 
 def settings_for(org_id: str = "") -> Tuple[Settings, List[str]]:
     """Resolved settings for this organization, plus any notes worth showing.
 
-    PQC_LLM_DISABLED short-circuits before the organization is consulted, which
+    MORROW_LLM_DISABLED short-circuits before the organization is consulted, which
     is what makes it impossible to override per tenant.
     """
     notes: List[str] = []
     provider, source = config.env_provider()
     base = config.from_environment(provider, source)
     if source == "disabled":
-        notes.append("PQC_LLM_DISABLED=1: the built-in answerer is forced for this deployment "
+        notes.append("MORROW_LLM_DISABLED=1: the built-in answerer is forced for this deployment "
                      "and cannot be overridden per organization.")
         return base.with_(organization_id=str(org_id or "")), notes
     if not org_id:
@@ -128,13 +128,13 @@ def capability_matrix() -> List[Dict[str, Any]]:
     rows.append({"provider": "custom", "default_model": "declared by your module", "tools": "your choice",
                  "streaming": "your choice", "context_window": "your choice",
                  "system_prompt": "your choice", "network": "your choice", "usage_reported": "your choice",
-                 "notes": "PQC_LLM_CUSTOM_MODULE=my_package.my_module; see examples/custom_llm_provider.py"})
+                 "notes": "MORROW_LLM_CUSTOM_MODULE=my_package.my_module; see examples/custom_llm_provider.py"})
     return rows
 
 
 PRECEDENCE = [
-    "PQC_LLM_DISABLED=1 forces the built-in answerer and cannot be overridden per organization",
+    "MORROW_LLM_DISABLED=1 forces the built-in answerer and cannot be overridden per organization",
     "the organization's stored provider override",
-    "PQC_LLM_PROVIDER",
+    "MORROW_LLM_PROVIDER",
     "ANTHROPIC_API_KEY if set, else OPENAI_API_KEY, else the built-in answerer",
 ]

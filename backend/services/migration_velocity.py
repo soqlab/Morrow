@@ -132,7 +132,7 @@ def build_velocity_report(
     }
     # Post-quantum algorithms. Only an asset positively identified as one of these counts as
     # migrated; everything else is either vulnerable or unknown.
-    pqc_safe_prefixes = (
+    pq_safe_prefixes = (
         "ML-KEM", "MLKEM", "KYBER", "ML-DSA", "MLDSA", "DILITHIUM",
         "SLH-DSA", "SPHINCS", "FALCON", "NTRU", "BIKE", "HQC", "XMSS", "LMS",
     )
@@ -142,7 +142,7 @@ def build_velocity_report(
         a = str(algo or "").upper().strip()
         if not a:
             return "unknown"
-        if any(a.startswith(p) for p in pqc_safe_prefixes) or any(p in a for p in pqc_safe_prefixes):
+        if any(a.startswith(p) for p in pq_safe_prefixes) or any(p in a for p in pq_safe_prefixes):
             return "migrated"
         for v in vulnerable_algo_names:
             if a == v or a.startswith(v):

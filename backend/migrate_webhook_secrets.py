@@ -7,7 +7,7 @@ from vault_db import create_credential, ensure_vault_tables
 def main():
     ensure_vault_tables()
 
-    db = sqlite3.connect("/data/pqc_scanner.db")
+    db = sqlite3.connect("/data/morrow.db")
     cur = db.cursor()
 
     cur.execute("""

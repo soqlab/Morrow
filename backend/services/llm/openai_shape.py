@@ -63,7 +63,7 @@ class OpenAIShaped(Provider):
         base = (self.settings.base_url or self.default_base_url).rstrip("/")
         if not base:
             raise LLMError("config", "No base URL is configured for this provider.", provider=self.id,
-                           remedy="Set PQC_LLM_BASE_URL.")
+                           remedy="Set MORROW_LLM_BASE_URL.")
         if base.endswith("/chat/completions"):
             return base
         return base + "/chat/completions"
@@ -99,9 +99,9 @@ class OpenAIShaped(Provider):
     def check(self) -> Dict[str, Any]:
         missing: List[str] = []
         if not (self.settings.model or self.default_model):
-            missing.append("PQC_LLM_MODEL")
+            missing.append("MORROW_LLM_MODEL")
         if not (self.settings.base_url or self.default_base_url):
-            missing.append("PQC_LLM_BASE_URL")
+            missing.append("MORROW_LLM_BASE_URL")
         return {"ready": not missing, "missing": missing,
                 "detail": "configured" if not missing else "set " + ", ".join(missing)}
 
@@ -141,7 +141,7 @@ class OpenAIShaped(Provider):
                  org_id: str = "", purpose: str = "assistant",
                  policy_version: Optional[int] = None) -> Completion:
         # Resolve the destination first: a misconfiguration is not worth a
-        # dispatch record, and "set PQC_LLM_BASE_URL" is a better answer than
+        # dispatch record, and "set MORROW_LLM_BASE_URL" is a better answer than
         # whatever the boundary would say about an unresolvable destination.
         url = self.endpoint()
         payload = self.payload_for(conv, tools)
@@ -285,7 +285,7 @@ class OpenAIShaped(Provider):
 
     def _wire_stream(self) -> bool:
         import os
-        return self.supports_streaming and (os.getenv("PQC_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
+        return self.supports_streaming and (os.getenv("MORROW_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
 
 
 def _text_of(message: Dict[str, Any]) -> str:

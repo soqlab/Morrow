@@ -37,29 +37,29 @@ def _sha(value):
 def api(tmp_path, monkeypatch):
     import app
 
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "portal.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", SECRET)
-    monkeypatch.setenv("PQC_ADMIN_PASSWORD", PASSWORD)
-    monkeypatch.setenv("PQC_ADMIN_EMAIL", ADMIN_EMAIL)
-    monkeypatch.setenv("PQC_PLATFORM_OPERATORS", json.dumps([
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "portal.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", SECRET)
+    monkeypatch.setenv("MORROW_ADMIN_PASSWORD", PASSWORD)
+    monkeypatch.setenv("MORROW_ADMIN_EMAIL", ADMIN_EMAIL)
+    monkeypatch.setenv("MORROW_PLATFORM_OPERATORS", json.dumps([
         {"name": "alice", "role": "owner", "key_sha256": _sha(ALICE)},
         {"name": "sam", "role": "support", "key_sha256": _sha(SAM)},
     ]))
-    monkeypatch.delenv("PQC_PLATFORM_ADMIN_KEY_ROLE", raising=False)
+    monkeypatch.delenv("MORROW_PLATFORM_ADMIN_KEY_ROLE", raising=False)
     for name, value in {
         "AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_ISSUER_ENABLED": True,
         "AUTH_JWT_ALGORITHMS": ["HS256"], "AUTH_JWT_SECRET": SECRET,
-        "AUTH_JWT_ISSUER": "pqc-scanner", "AUTH_JWT_AUDIENCE": "pqc-scanner",
+        "AUTH_JWT_ISSUER": "morrow", "AUTH_JWT_AUDIENCE": "morrow",
         "AUTH_USER_ID_CLAIM": "sub", "AUTH_ROLE_CLAIM": "role", "AUTH_ORG_ID_CLAIM": "org_id",
         "_PLATFORM_ADMIN_KEY": LEGACY, "API_KEY": "", "PRODUCTION_ENVIRONMENT": False,
         "RATE_LIMIT_MAX_REQUESTS": 100000,
     }.items():
         monkeypatch.setattr(app, name, value)
     monkeypatch.setattr(auth_issuer, "_SECRET", SECRET)
-    monkeypatch.setattr(auth_issuer, "_ISSUER", "pqc-scanner")
-    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "pqc-scanner")
+    monkeypatch.setattr(auth_issuer, "_ISSUER", "morrow")
+    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "morrow")
     monkeypatch.setattr(auth_issuer, "_ENABLED", True)
     monkeypatch.setattr(app.limiter, "enabled", False)
     app.init_db()
@@ -126,7 +126,7 @@ def test_unknown_role_is_rejected_instead_of_becoming_owner(api):
 
 def test_shared_key_cannot_exceed_its_configured_ceiling(api, monkeypatch):
     client, _ = api
-    monkeypatch.setenv("PQC_PLATFORM_ADMIN_KEY_ROLE", "support")
+    monkeypatch.setenv("MORROW_PLATFORM_ADMIN_KEY_ROLE", "support")
     assert client.get("/platform/whoami", headers=legacy("owner")).status_code == 403
     assert client.get("/platform/whoami", headers=legacy("support")).json()["role"] == "support"
 
@@ -291,7 +291,7 @@ def test_api_keys_are_bound_to_one_org_scoped_and_fail_once_revoked_rotated_or_e
     read = client.post(create_url, headers=legacy("operator"), json={"name": "CI reader", "scopes": ["read"], "reason": "pipeline"})
     assert read.status_code == 200, read.text
     read_secret, read_id = read.json()["secret"], read.json()["key"]["id"]
-    assert read_secret.startswith("pqc_")
+    assert read_secret.startswith("pq_")
     listing = client.get(create_url, headers=legacy()).text
     assert read_secret not in listing and "key_hash" not in listing and "salt" not in listing
 
@@ -323,7 +323,7 @@ def test_api_keys_are_bound_to_one_org_scoped_and_fail_once_revoked_rotated_or_e
     api_keys._clear_cache()
     expired = client.get("/auth/context", headers=bearer(expiring["secret"]))
     assert expired.status_code == 401 and "expired" in expired.json()["detail"]
-    assert client.get("/auth/context", headers=bearer("pqc_notavalidkey")).status_code == 401
+    assert client.get("/auth/context", headers=bearer("pq_notavalidkey")).status_code == 401
     bad_scope = client.post(create_url, headers=legacy("operator"), json={"name": "x", "scopes": ["root"], "reason": "bad scope"})
     assert bad_scope.status_code == 400
 

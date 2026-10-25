@@ -14,10 +14,10 @@ The console shows a full-page sign-in until you are connected. What you see depe
 
 1. Open `/vendor-admin/`. When SSO is configured, the screen shows **Sign in with SSO**. The key sign-in is folded underneath.
 2. Press **Sign in with SSO** and sign in at your company identity provider.
-3. Back in the console, access is granted only if your email is on the operator roster (`PQC_ADMIN_OPERATOR_ROLES`) with a role, or, when no roster is set, in an allowed domain. Anyone else sees "Your account is not an authorized platform operator. Ask an owner to add you to the operator roster."
+3. Back in the console, access is granted only if your email is on the operator roster (`MORROW_ADMIN_OPERATOR_ROLES`) with a role, or, when no roster is set, in an allowed domain. Anyone else sees "Your account is not an authorized platform operator. Ask an owner to add you to the operator roster."
 4. If MFA is required (always in production and staging unless explicitly turned off), the console asks for an authenticator code. See below.
 
-Console sessions end after 30 minutes without activity (`PQC_ADMIN_SESSION_IDLE_SECONDS`) and 8 hours after sign-in at the latest (`PQC_ADMIN_SESSION_ABSOLUTE_SECONDS`). **Sign out** in the operator menu ends the session on the server too. SSO sessions live in a secure cookie that page scripts cannot read; nothing is stored in the tab. **Remember for this tab** only applies to key sign-in.
+Console sessions end after 30 minutes without activity (`MORROW_ADMIN_SESSION_IDLE_SECONDS`) and 8 hours after sign-in at the latest (`MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS`). **Sign out** in the operator menu ends the session on the server too. SSO sessions live in a secure cookie that page scripts cannot read; nothing is stored in the tab. **Remember for this tab** only applies to key sign-in.
 
 ### MFA enrolment and recovery codes
 
@@ -28,11 +28,11 @@ Console sessions end after 30 minutes without activity (`PQC_ADMIN_SESSION_IDLE_
 - **Everything lost:** another **owner** opens **Reset another operator's MFA**, presses **Reset MFA…** and gives a reason. The person's console sessions end and they enrol again at next sign-in. Owners cannot reset their own MFA.
 - **Wrong codes:** after 5 failed attempts in 5 minutes the identity must wait ("Too many MFA attempts. Wait five minutes and try again."). Attempts are recorded.
 
-MFA secrets are encrypted with `PQC_VAULT_MASTER_KEY`, so that key must be set for MFA to work.
+MFA secrets are encrypted with `MORROW_VAULT_MASTER_KEY`, so that key must be set for MFA to work.
 
 ### Step-up prompts
 
-Some actions ask for a fresh code when your last one is older than 15 minutes (`PQC_ADMIN_STEP_UP_SECONDS`). This applies to SSO sessions and named operator keys with MFA enrolled; if MFA is required and you have not enrolled, the action is refused until you do. The shared key has no identity and is never asked. The dialog **Confirm with your authenticator** accepts a 6-digit code or a recovery code; after **Verify and continue** the action carries on. Actions that ask:
+Some actions ask for a fresh code when your last one is older than 15 minutes (`MORROW_ADMIN_STEP_UP_SECONDS`). This applies to SSO sessions and named operator keys with MFA enrolled; if MFA is required and you have not enrolled, the action is refused until you do. The shared key has no identity and is never asked. The dialog **Confirm with your authenticator** accepts a 6-digit code or a recovery code; after **Verify and continue** the action carries on. Actions that ask:
 
 - purge an organization
 - run a deleting retention pass
@@ -44,21 +44,21 @@ Some actions ask for a fresh code when your last one is older than 15 minutes (`
 
 ### Named operator keys
 
-Scripts, Traffic Lens and people without SSO use named operator keys (`PQC_PLATFORM_OPERATORS`, a JSON list of `name`, `role` and the key's `key_sha256`; create an entry with `cd backend && python -m services.platform_operators --name alice --role operator`). The role is bound to the key and every audit event records the operator name.
+Scripts, Traffic Lens and people without SSO use named operator keys (`MORROW_PLATFORM_OPERATORS`, a JSON list of `name`, `role` and the key's `key_sha256`; create an entry with `cd backend && python -m services.platform_operators --name alice --role operator`). The role is bound to the key and every audit event records the operator name.
 
 Open **Use an operator key** (it reads **Use a named operator key** when the shared key is disabled), paste the key into **Platform admin key** and press **Connect**. When MFA is required, or once the key has enrolled MFA, the key must be verified with a code before use; a verification lasts 8 hours (the absolute session length). The console handles enrolment and verification after you connect, through the MFA card on **Operators & roles**.
 
 ### The shared key and break-glass, per environment
 
-| Environment (`PQC_ENVIRONMENT`) | Shared `PQC_PLATFORM_ADMIN_KEY` | MFA default |
+| Environment (`MORROW_ENVIRONMENT`) | Shared `MORROW_PLATFORM_ADMIN_KEY` | MFA default |
 |---|---|---|
-| `local` (the default) and any value other than those below | Accepted, as **Shared platform key**, up to the ceiling `PQC_PLATFORM_ADMIN_KEY_ROLE`. A request that does not ask for a role runs as auditor. | Off unless `PQC_ADMIN_REQUIRE_MFA=1` |
-| `production`, `prod`, `staging`, `stage` | Refused ("The shared platform key is disabled in production. Sign in with SSO…") unless `PQC_ALLOW_BREAK_GLASS_KEY=1` | On unless `PQC_ADMIN_REQUIRE_MFA=0` |
+| `local` (the default) and any value other than those below | Accepted, as **Shared platform key**, up to the ceiling `MORROW_PLATFORM_ADMIN_KEY_ROLE`. A request that does not ask for a role runs as auditor. | Off unless `MORROW_ADMIN_REQUIRE_MFA=1` |
+| `production`, `prod`, `staging`, `stage` | Refused ("The shared platform key is disabled in production. Sign in with SSO…") unless `MORROW_ALLOW_BREAK_GLASS_KEY=1` | On unless `MORROW_ADMIN_REQUIRE_MFA=0` |
 
 Break-glass rules:
 
 - Use it only when SSO is down and nobody can sign in otherwise.
-- Turn it on with `PQC_ALLOW_BREAK_GLASS_KEY=1` and a restart, then sign in with the shared key.
+- Turn it on with `MORROW_ALLOW_BREAK_GLASS_KEY=1` and a restart, then sign in with the shared key.
 - Every change, and the first read of each page per minute, is recorded as `platform.break_glass_used` with severity high. The bell shows a critical **Break-glass platform key used** notification for 24 hours, and the operator menu warns "Break-glass access: every request is audited with severity high."
 - The go-live gate fails **Shared key is break-glass only** while the flag is on.
 - Afterwards: remove the flag, restart, and rotate the shared key.
@@ -162,9 +162,9 @@ Tile footers mean:
 
 ### Coverage, "unavailable" and how history extends
 
-- Raw request records are kept for 7 days (`PQC_TRAFFIC_RETENTION_DAYS`, maximum 30) and sign-in records for 90 days (`PQC_AUTH_LOG_RETENTION_DAYS`, maximum 365).
-- Before raw records expire, the **Daily usage rollups** job saves a summary of each finished UTC day per organization: requests, client errors, server errors, rate-limited requests, signed-in requests, a latency profile, successful and failed sign-ins, and scans. Active users are stored as salted hashes, never user ids. It runs at start-up (catching up every complete day still in the raw log) and then every hour (`PQC_USAGE_ROLLUP_INTERVAL_SECONDS`). Summaries are kept 400 days (`PQC_USAGE_ROLLUP_RETENTION_DAYS`).
-- The dashboard reads a finished day from its summary as soon as that day is summarised, and the raw log only for today and for any day not summarised yet. A summary is built from exactly the raw rows of that day, so the numbers are the same either way; it is simply much faster than re-reading millions of raw rows on every load. Summaries also hold per-route request and error counts, which is where **Routes by errors** gets its finished days. After an upgrade that changes what a summary holds, the job rebuilds every day still in the raw log before the dashboard uses them again. If you later raise `PQC_TRAFFIC_RETENTION_DAYS`, the days whose raw rows were already deleted under the old setting keep answering from their summary instead of showing a gap.
+- Raw request records are kept for 7 days (`MORROW_TRAFFIC_RETENTION_DAYS`, maximum 30) and sign-in records for 90 days (`MORROW_AUTH_LOG_RETENTION_DAYS`, maximum 365).
+- Before raw records expire, the **Daily usage rollups** job saves a summary of each finished UTC day per organization: requests, client errors, server errors, rate-limited requests, signed-in requests, a latency profile, successful and failed sign-ins, and scans. Active users are stored as salted hashes, never user ids. It runs at start-up (catching up every complete day still in the raw log) and then every hour (`MORROW_USAGE_ROLLUP_INTERVAL_SECONDS`). Summaries are kept 400 days (`MORROW_USAGE_ROLLUP_RETENTION_DAYS`).
+- The dashboard reads a finished day from its summary as soon as that day is summarised, and the raw log only for today and for any day not summarised yet. A summary is built from exactly the raw rows of that day, so the numbers are the same either way; it is simply much faster than re-reading millions of raw rows on every load. Summaries also hold per-route request and error counts, which is where **Routes by errors** gets its finished days. After an upgrade that changes what a summary holds, the job rebuilds every day still in the raw log before the dashboard uses them again. If you later raise `MORROW_TRAFFIC_RETENTION_DAYS`, the days whose raw rows were already deleted under the old setting keep answering from their summary instead of showing a gap.
 - A period not covered by raw data or summaries is **blank**, never zero. Charts say "Request data is retained from …; earlier buckets are unknown and left blank." until the summaries cover the range.
 - History starts at the last 7 days of raw data on the day the feature is deployed. A fresh deployment reaches full 30-day charts after about 30 days and full 90-day comparisons after about 180 days. Days are UTC; today always comes from the raw log, and so does yesterday until the hourly job has summarised it.
 - If the API is down for more than 7 days, those days stay unknown.
@@ -196,21 +196,21 @@ Open it from **Customers › Organizations**, a dashboard row, or search.
 For each organization, in this order:
 
 1. **Override** saved on this page (both values come from it).
-2. **Platform default**: `PQC_ORG_DEFAULT_API_CALLS_PER_MIN` and `PQC_ORG_DEFAULT_SCANS_PER_HOUR` (0 = none).
+2. **Platform default**: `MORROW_ORG_DEFAULT_API_CALLS_PER_MIN` and `MORROW_ORG_DEFAULT_SCANS_PER_HOUR` (0 = none).
 
 The page note and **Customer 360 › Rate limits** say which one is in force: **operator override**, **platform default**, or **not limited**. The API returns it as `limit_source` (`override`, `plan`, `default`, `none`) with `limit_source_label`.
 
 With none of these, the organization is not limited per organization; per-IP limits still apply. The page then shows the suggested values (100 per minute, 60 per hour) and says "The values shown are the suggested defaults. Save them to enforce them." There is no button to delete an override once saved; lower or raise it instead.
 
-`PQC_ORG_RATE_LIMITS_ENABLED=0` switches enforcement off; values are then stored only.
+`MORROW_ORG_RATE_LIMITS_ENABLED=0` switches enforcement off; values are then stored only.
 
 ### Behaviour
 
 - Windows slide: the last 60 seconds for API calls, the last hour for scans. A scan request counts toward both limits, even if the scan is then rejected for bad input.
 - Over the limit: HTTP 429 with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining: 0` and a message naming the limit. Allowed responses to a limited organization carry `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
 - One organization hitting its limit never affects another.
-- **Exempt**: `/platform` and `/vendor-admin`, health and status checks, the web UI and static files, API docs, public pages, all `/auth` routes (they have their own limit, `PQC_RATE_LIMIT_AUTH`, default 10/minute) and anonymous requests.
-- A saved change applies at once on the server that saved it and within 15 seconds elsewhere (`PQC_ORG_RATE_LIMIT_CACHE_SECONDS`).
+- **Exempt**: `/platform` and `/vendor-admin`, health and status checks, the web UI and static files, API docs, public pages, all `/auth` routes (they have their own limit, `MORROW_RATE_LIMIT_AUTH`, default 10/minute) and anonymous requests.
+- A saved change applies at once on the server that saved it and within 15 seconds elsewhere (`MORROW_ORG_RATE_LIMIT_CACHE_SECONDS`).
 
 ### Redis
 
@@ -249,24 +249,24 @@ Every kind can be chosen in **Only these kinds**, and PagerDuty resolves each of
 Press **Add channel**, choose a **Type**, a **Name**, the target, **Minimum severity** (**Critical only**, **Warn and critical**, **Everything (info, warn, critical)**), optionally **Only these kinds**, **Enabled**, and optional quiet hours (**From**, **Until**, **Time zone (IANA)**, **Still send critical**). Give a reason and press **Save channel**. Then press **Send test** on the row; the message is marked **[TEST]** and the result appears above the list and in the delivery log.
 
 - **Slack incoming webhook**: in Slack, enable Incoming Webhooks for an app, add a webhook for the channel, paste the `https://hooks.slack.com/services/...` URL.
-- **Email**: needs platform email (`PQC_SMTP_HOST` and `PQC_SMTP_FROM`, or `PQC_PLATFORM_SMTP_ORG_ID`). Up to 20 comma-separated addresses. Plain-text messages with subjects like `[Morrow] [CRITICAL] …`.
+- **Email**: needs platform email (`MORROW_SMTP_HOST` and `MORROW_SMTP_FROM`, or `MORROW_PLATFORM_SMTP_ORG_ID`). Up to 20 comma-separated addresses. Plain-text messages with subjects like `[Morrow] [CRITICAL] …`.
 - **PagerDuty Events API v2**: in PagerDuty add the Events API v2 integration to a service and paste its integration (routing) key. The dedup key is the notification id; when the item clears, the incident is resolved. The test opens and immediately resolves a test incident.
 - **Generic webhook (JSON)**: an `https://` URL; each alert is a JSON POST with `source`, `event`, `severity`, `subject`, `text`, `link`, `sent_at` and a `notifications` list.
 
-Slack, PagerDuty and webhook targets are encrypted with `PQC_VAULT_MASTER_KEY`; without it those types cannot be saved. After saving, only a hint is shown; leave the target empty when editing to keep it. Webhook URLs must be `https`, contain no username or password and point at a public address; private, loopback, link-local, carrier-grade NAT and reserved addresses are refused on save and on every send, and redirects are not followed.
+Slack, PagerDuty and webhook targets are encrypted with `MORROW_VAULT_MASTER_KEY`; without it those types cannot be saved. After saving, only a hint is shown; leave the target empty when editing to keep it. Webhook URLs must be `https`, contain no username or password and point at a public address; private, loopback, link-local, carrier-grade NAT and reserved addresses are refused on save and on every send, and redirects are not followed.
 
 ### Dedupe, renotify, rate cap
 
-- The dispatcher runs inside the API every 60 seconds (`PQC_ALERT_DISPATCH_INTERVAL_SECONDS`). With several API servers only one dispatches at a time.
+- The dispatcher runs inside the API every 60 seconds (`MORROW_ALERT_DISPATCH_INTERVAL_SECONDS`). With several API servers only one dispatches at a time.
 - **Dedupe**: each channel remembers what it sent; an open item is not re-sent every run.
-- **Renotify**: an item still open 24 hours after it was last sent (`PQC_ALERT_RENOTIFY_HOURS`) is sent again, prefixed "Still open:".
+- **Renotify**: an item still open 24 hours after it was last sent (`MORROW_ALERT_RENOTIFY_HOURS`) is sent again, prefixed "Still open:".
 - **Resolve**: when an item disappears PagerDuty gets a resolve event; Slack, email and webhooks get nothing. Nothing is resolved from a run in which that source failed to load.
-- **Deleting or disabling a PagerDuty channel** resolves every incident that channel still has open first, one resolve per incident (dedup key = notification id), before its routing key is discarded. The response and the delivery log say which incidents were resolved and which were not. A resolve PagerDuty did not accept is kept — with the key, still encrypted — and retried by the dispatcher, up to 10 attempts with a growing wait (`PQC_ALERT_RESOLVE_MAX_ATTEMPTS`); after that the delivery log says to close the incident in PagerDuty. Alerts that went out inside a digest message share one incident whose dedup key is not stored, so those are reported rather than resolved. Re-enabling a channel before a queued resolve goes out drops it: the incident is open again.
-- **Rate cap**: at most 20 messages per channel in 10 minutes (`PQC_ALERT_RATE_CAP`, `PQC_ALERT_RATE_WINDOW_MINUTES`). If more are due, the most severe go individually and the last slot becomes one digest. A channel already at its cap waits, and the log shows one "rate limited" entry.
+- **Deleting or disabling a PagerDuty channel** resolves every incident that channel still has open first, one resolve per incident (dedup key = notification id), before its routing key is discarded. The response and the delivery log say which incidents were resolved and which were not. A resolve PagerDuty did not accept is kept — with the key, still encrypted — and retried by the dispatcher, up to 10 attempts with a growing wait (`MORROW_ALERT_RESOLVE_MAX_ATTEMPTS`); after that the delivery log says to close the incident in PagerDuty. Alerts that went out inside a digest message share one incident whose dedup key is not stored, so those are reported rather than resolved. Re-enabling a channel before a queued resolve goes out drops it: the incident is open again.
+- **Rate cap**: at most 20 messages per channel in 10 minutes (`MORROW_ALERT_RATE_CAP`, `MORROW_ALERT_RATE_WINDOW_MINUTES`). If more are due, the most severe go individually and the last slot becomes one digest. A channel already at its cap waits, and the log shows one "rate limited" entry.
 - **Failures** are logged and retried on the next run.
-- `PQC_ALERT_DISPATCH_ENABLED=0` stops automatic sending; **Send test** still works.
+- `MORROW_ALERT_DISPATCH_ENABLED=0` stops automatic sending; **Send test** still works.
 
-The **Delivery log** lists every attempt (time, channel, event, status, notification, HTTP status, latency, error), filterable by channel, status and event, kept 30 days (`PQC_ALERT_DELIVERY_RETENTION_DAYS`). Error text never contains the URL or key. Deleting a channel keeps its past log entries, including the resolve it sent for each incident it had open.
+The **Delivery log** lists every attempt (time, channel, event, status, notification, HTTP status, latency, error), filterable by channel, status and event, kept 30 days (`MORROW_ALERT_DELIVERY_RETENTION_DAYS`). Error text never contains the URL or key. Deleting a channel keeps its past log entries, including the resolve it sent for each incident it had open.
 
 ## 8. Support sessions
 
@@ -285,7 +285,7 @@ The tab shows a dark orange **Support view · read-only** bar with your name, th
 - The session behaves like a **viewer** in that organization. Change buttons are greyed out ("Read-only support view: changes are disabled"), and the server refuses every write except ending the session.
 - Anything not on the allow-list of read-only pages is refused, and always: stored credentials and secrets (vault, API key material, webhook, Slack, Jira, ServiceNow, email and Cloudflare settings), user, password and token management, bulk exports and downloads (audit CSV, GDPR export, CBOM and scan exports, evidence bundles, readiness and blast-radius exports, installers, generated CI scripts), every `/platform`, `/admin` and vendor admin route, and any other organization.
 - Suspended or archived organization: only an owner can start a session, and most customer pages still refuse requests.
-- Requires `PQC_AUTH_JWT_SECRET`; without it, starting a session answers 503.
+- Requires `MORROW_AUTH_JWT_SECRET`; without it, starting a session answers 503.
 
 ### Ending
 
@@ -303,7 +303,7 @@ Customer organization admins control **Administration › Support access › All
 
 **Customers › Invitations**: choose the **Organization**, the **Role** (viewer, analyst (operator), org admin (admin)), the **Email**, **Expires after (hours)** (1 to 720, default 72) and a **Reason**, then **Create invitation**. The **Invitation created** dialog shows the invite link once; use **Copy invite link** and send it over a trusted channel. If platform email is configured, each pending invitation has **Email the invite**, which sends the link to the invited address only.
 
-The link looks like `https://<public URL>/invite#token=…` (base from `PQC_PUBLIC_BASE_URL`, otherwise the request origin). The code after `#` is not sent to servers, so it stays out of logs and Referer headers. The invite page shows organization, role, the masked address, expiry and status, and handles "not signed in", "different email", expired, used, revoked and not-found cases. The server enforces: signed in with the matching email, one use, not expired or revoked; lookups are rate limited with the sign-in limit (`PQC_RATE_LIMIT_AUTH`).
+The link looks like `https://<public URL>/invite#token=…` (base from `MORROW_PUBLIC_BASE_URL`, otherwise the request origin). The code after `#` is not sent to servers, so it stays out of logs and Referer headers. The invite page shows organization, role, the masked address, expiry and status, and handles "not signed in", "different email", expired, used, revoked and not-found cases. The server enforces: signed in with the matching email, one use, not expired or revoked; lookups are rate limited with the sign-in limit (`MORROW_RATE_LIMIT_AUTH`).
 
 Customer organization admins can also invite from their console (**Administration › Invitations › Invite**) and get the same link.
 
@@ -335,8 +335,8 @@ The bell groups items by **Critical**, **Warning** and **Info**, refreshes every
 **Security › Launch readiness › Go-Live Gate** returns **go** only when every required check passes and no blocking warning stands; advisories are reported but do not block. The required checks include environment, auth mode and auth required, default role, JWT config and issuer, CORS, allowed hosts, platform admin key checks, production demo lockout, security headers, traffic monitor and persistence, security journal, state backend scaling, observability, Airlock signing and agent signatures, retention policy, Postgres, RLS, database role, secrets and queue, plus three operator sign-in checks:
 
 - **Operator SSO**: issuer, client id and a roster or allowed domains are configured.
-- **Operator MFA required**: set `PQC_ENVIRONMENT=production` and do not set `PQC_ADMIN_REQUIRE_MFA=0`.
-- **Shared key is break-glass only**: fails while `PQC_ALLOW_BREAK_GLASS_KEY=1`.
+- **Operator MFA required**: set `MORROW_ENVIRONMENT=production` and do not set `MORROW_ADMIN_REQUIRE_MFA=0`.
+- **Shared key is break-glass only**: fails while `MORROW_ALLOW_BREAK_GLASS_KEY=1`.
 
 The gate also lists manual exit criteria (real GitHub App pilot, tenant isolation via POST `/platform/tenant-isolation/verify`, backup and restore drill, audit package review, dashboards checked during pilot traffic, CI security workflow, threat model sign-off). `scripts/check-go-live-gate.ps1` runs the same gate from a shell.
 
@@ -375,7 +375,7 @@ message is the only outbound write, it needs `-SendTest`, and it is labelled as 
    - `security_finding`: **Security › Security truth**.
    - `api_key_expiring`: **Access › API keys**; rotate with a grace period.
    - `org_suspended`, `sla_breach`, `feedback`, `autopatch_pending`: open the linked customer, remediation, feedback or autopatch.
-   - **Break-glass platform key used** (bell): confirm the emergency is real; when over, remove `PQC_ALLOW_BREAK_GLASS_KEY`, restart and rotate the shared key.
+   - **Break-glass platform key used** (bell): confirm the emergency is real; when over, remove `MORROW_ALLOW_BREAK_GLASS_KEY`, restart and rotate the shared key.
 4. **Communicate** if customers are affected: publish an announcement, and use maintenance mode if writes must stop.
 5. **Resolve** the cause. The item clears from notifications on its own; PagerDuty incidents resolve automatically for the kinds in section 7. Resolve other incidents in PagerDuty yourself.
 6. **Check delivery** if an expected alert never came: **Alert routing › Delivery log** (failed, suppressed during quiet hours, or rate limited) and the **Alert routing dispatcher** job.
@@ -383,17 +383,17 @@ message is the only outbound write, it needs `-SendTest`, and it is labelled as 
 
 ## 17. Rotating the vault master key
 
-`PQC_VAULT_MASTER_KEY` encrypts stored integration credentials, gateway site keys, operators' MFA secrets, GitHub sign-in tokens and alert channel targets. `scripts/rotate-vault-master-key.py` re-encrypts all five.
+`MORROW_VAULT_MASTER_KEY` encrypts stored integration credentials, gateway site keys, operators' MFA secrets, GitHub sign-in tokens and alert channel targets. `scripts/rotate-vault-master-key.py` re-encrypts all five.
 
 1. Schedule a maintenance window and back up the databases.
-2. Put the current key in `PQC_VAULT_MASTER_KEY` and the new one in `PQC_VAULT_MASTER_KEY_NEW` in the shell only, or pass `--generate-new-key-file <path>` to create one (written only to that owner-only file, never shown).
+2. Put the current key in `MORROW_VAULT_MASTER_KEY` and the new one in `MORROW_VAULT_MASTER_KEY_NEW` in the shell only, or pass `--generate-new-key-file <path>` to create one (written only to that owner-only file, never shown).
 3. Rehearse (default, changes nothing): `backend/.venv/Scripts/python.exe scripts/rotate-vault-master-key.py`. If any value cannot be decrypted with the current key, it stops and changes nothing.
 4. Apply: add `--apply`. Values are verified with the new key before commit.
-5. Store the new key as `PQC_VAULT_MASTER_KEY` in the secret manager, restart every server and worker, and check integrations, gateways and MFA sign-in.
+5. Store the new key as `MORROW_VAULT_MASTER_KEY` in the secret manager, restart every server and worker, and check integrations, gateways and MFA sign-in.
 6. Press **Send test** on one Slack, PagerDuty or webhook alert channel to confirm its target decrypts with the new key.
 7. Destroy the old key and the key file.
 
-Also: SAML users sign in again; evidence signed with the vault key (when no `PQC_EVIDENCE_SIGNING_KEY` is set) no longer verifies, so set a dedicated evidence key first; and, if `PQC_USAGE_ACTOR_SALT` is unset, distinct-user counting restarts.
+Also: SAML users sign in again; evidence signed with the vault key (when no `MORROW_EVIDENCE_SIGNING_KEY` is set) no longer verifies, so set a dedicated evidence key first; and, if `MORROW_USAGE_ACTOR_SALT` is unset, distinct-user counting restarts.
 
 ## 18. Environment variable reference
 
@@ -403,65 +403,65 @@ Names and defaults as read by the code; `.env.prod.example` carries a commented 
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PQC_ENVIRONMENT` | `local` | `production`, `prod`, `staging` and `stage` are strict: shared key refused, MFA on |
-| `PQC_ADMIN_OIDC_ISSUER` | none | Identity provider issuer URL |
-| `PQC_ADMIN_OIDC_CLIENT_ID` | none | OIDC client id |
-| `PQC_ADMIN_OIDC_CLIENT_SECRET` | empty | Leave empty for a public PKCE client |
-| `PQC_ADMIN_OIDC_REDIRECT_URI` | `{PQC_PUBLIC_BASE_URL}/vendor-admin/sso/callback` | Must match the IdP registration |
-| `PQC_ADMIN_OPERATOR_ROLES` | none | Roster: `email=role` pairs (owner, operator, support, auditor) |
-| `PQC_ADMIN_OIDC_ALLOWED_DOMAINS` | none | Allowed email domains |
-| `PQC_ADMIN_OIDC_DOMAIN_ROLE` | `auditor` | Role for domain members when no roster is set |
-| `PQC_ADMIN_OIDC_SCOPES` | `openid email profile` | Requested scopes |
-| `PQC_ADMIN_OIDC_EMAIL_CLAIM` | `email` | Claim holding the email |
-| `PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED` | `1` | Require `email_verified=true` |
-| `PQC_ADMIN_SESSION_ABSOLUTE_SECONDS` | `28800` | Longest console session; also how long a named key's MFA verification lasts |
-| `PQC_ADMIN_SESSION_IDLE_SECONDS` | `1800` | Inactivity timeout |
-| `PQC_ADMIN_REQUIRE_MFA` | on in production/staging | Require TOTP |
-| `PQC_ADMIN_STEP_UP_SECONDS` | `900` | How recent a code must be for risky actions |
-| `PQC_ALLOW_BREAK_GLASS_KEY` | off | Accept the shared key in production/staging |
-| `PQC_PLATFORM_ADMIN_KEY` | none | Shared key (break-glass in production) |
-| `PQC_PLATFORM_ADMIN_KEY_ROLE` | `owner` | Ceiling for the shared key |
-| `PQC_PLATFORM_OPERATORS` | none | Named operator keys (JSON list with `key_sha256`) |
-| `PQC_VAULT_MASTER_KEY` | none | Required for MFA secrets and encrypted alert targets |
-| `PQC_VAULT_MASTER_KEY_NEW` | none | Only for a rotation run |
+| `MORROW_ENVIRONMENT` | `local` | `production`, `prod`, `staging` and `stage` are strict: shared key refused, MFA on |
+| `MORROW_ADMIN_OIDC_ISSUER` | none | Identity provider issuer URL |
+| `MORROW_ADMIN_OIDC_CLIENT_ID` | none | OIDC client id |
+| `MORROW_ADMIN_OIDC_CLIENT_SECRET` | empty | Leave empty for a public PKCE client |
+| `MORROW_ADMIN_OIDC_REDIRECT_URI` | `{MORROW_PUBLIC_BASE_URL}/vendor-admin/sso/callback` | Must match the IdP registration |
+| `MORROW_ADMIN_OPERATOR_ROLES` | none | Roster: `email=role` pairs (owner, operator, support, auditor) |
+| `MORROW_ADMIN_OIDC_ALLOWED_DOMAINS` | none | Allowed email domains |
+| `MORROW_ADMIN_OIDC_DOMAIN_ROLE` | `auditor` | Role for domain members when no roster is set |
+| `MORROW_ADMIN_OIDC_SCOPES` | `openid email profile` | Requested scopes |
+| `MORROW_ADMIN_OIDC_EMAIL_CLAIM` | `email` | Claim holding the email |
+| `MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED` | `1` | Require `email_verified=true` |
+| `MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS` | `28800` | Longest console session; also how long a named key's MFA verification lasts |
+| `MORROW_ADMIN_SESSION_IDLE_SECONDS` | `1800` | Inactivity timeout |
+| `MORROW_ADMIN_REQUIRE_MFA` | on in production/staging | Require TOTP |
+| `MORROW_ADMIN_STEP_UP_SECONDS` | `900` | How recent a code must be for risky actions |
+| `MORROW_ALLOW_BREAK_GLASS_KEY` | off | Accept the shared key in production/staging |
+| `MORROW_PLATFORM_ADMIN_KEY` | none | Shared key (break-glass in production) |
+| `MORROW_PLATFORM_ADMIN_KEY_ROLE` | `owner` | Ceiling for the shared key |
+| `MORROW_PLATFORM_OPERATORS` | none | Named operator keys (JSON list with `key_sha256`) |
+| `MORROW_VAULT_MASTER_KEY` | none | Required for MFA secrets and encrypted alert targets |
+| `MORROW_VAULT_MASTER_KEY_NEW` | none | Only for a rotation run |
 
 ### Usage rollups and rate limits
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PQC_USAGE_ROLLUPS_ENABLED` | `1` | Daily summaries on or off |
-| `PQC_USAGE_ROLLUP_INTERVAL_SECONDS` | `3600` | Check interval (minimum 60) |
-| `PQC_USAGE_ROLLUP_RETENTION_DAYS` | `400` | Summary retention (35 to 3650) |
-| `PQC_USAGE_ACTOR_SALT` | derived from `PQC_VAULT_MASTER_KEY` or `PQC_AUTH_JWT_SECRET` | Salt for active-user hashes; set a long random value and keep it stable |
-| `PQC_TRAFFIC_RETENTION_DAYS` | `7` (max 30) | Raw request records |
-| `PQC_AUTH_LOG_RETENTION_DAYS` | `90` (max 365) | Raw sign-in records |
-| `PQC_ORG_RATE_LIMITS_ENABLED` | `1` | Per-organization enforcement |
-| `PQC_ORG_RATE_LIMIT_CACHE_SECONDS` | `15` | Override cache per server |
-| `PQC_ORG_DEFAULT_API_CALLS_PER_MIN` | `0` | Default per-minute limit (0 = none) |
-| `PQC_ORG_DEFAULT_SCANS_PER_HOUR` | `0` | Default hourly scan limit (0 = none) |
+| `MORROW_USAGE_ROLLUPS_ENABLED` | `1` | Daily summaries on or off |
+| `MORROW_USAGE_ROLLUP_INTERVAL_SECONDS` | `3600` | Check interval (minimum 60) |
+| `MORROW_USAGE_ROLLUP_RETENTION_DAYS` | `400` | Summary retention (35 to 3650) |
+| `MORROW_USAGE_ACTOR_SALT` | derived from `MORROW_VAULT_MASTER_KEY` or `MORROW_AUTH_JWT_SECRET` | Salt for active-user hashes; set a long random value and keep it stable |
+| `MORROW_TRAFFIC_RETENTION_DAYS` | `7` (max 30) | Raw request records |
+| `MORROW_AUTH_LOG_RETENTION_DAYS` | `90` (max 365) | Raw sign-in records |
+| `MORROW_ORG_RATE_LIMITS_ENABLED` | `1` | Per-organization enforcement |
+| `MORROW_ORG_RATE_LIMIT_CACHE_SECONDS` | `15` | Override cache per server |
+| `MORROW_ORG_DEFAULT_API_CALLS_PER_MIN` | `0` | Default per-minute limit (0 = none) |
+| `MORROW_ORG_DEFAULT_SCANS_PER_HOUR` | `0` | Default hourly scan limit (0 = none) |
 | `REDIS_URL` / `CELERY_BROKER_URL` | none | Shared rate-limit counters across servers |
-| `PQC_RATE_LIMIT_AUTH` | `10/minute` | Sign-in and invite lookups |
+| `MORROW_RATE_LIMIT_AUTH` | `10/minute` | Sign-in and invite lookups |
 
 ### Support sessions
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PQC_AUTH_JWT_SECRET` | none | Required; without it sessions answer 503 |
-| `PQC_SUPPORT_SESSION_CACHE_SECONDS` | `5` (capped at 5) | How long a server trusts a cached session status |
+| `MORROW_AUTH_JWT_SECRET` | none | Required; without it sessions answer 503 |
+| `MORROW_SUPPORT_SESSION_CACHE_SECONDS` | `5` (capped at 5) | How long a server trusts a cached session status |
 
 ### Alert routing and platform email
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PQC_ALERT_DISPATCH_ENABLED` | `1` | Automatic sending (tests always work) |
-| `PQC_ALERT_DISPATCH_INTERVAL_SECONDS` | `60` | Dispatcher interval (10 to 3600) |
-| `PQC_ALERT_RENOTIFY_HOURS` | `24` | Re-send items still open |
-| `PQC_ALERT_RATE_CAP` | `20` | Messages per channel per window |
-| `PQC_ALERT_RATE_WINDOW_MINUTES` | `10` | Rate-cap window |
-| `PQC_ALERT_DELIVERY_RETENTION_DAYS` | `30` | Delivery log retention |
-| `PQC_SMTP_HOST`, `PQC_SMTP_PORT`, `PQC_SMTP_USER`, `PQC_SMTP_PASSWORD`, `PQC_SMTP_FROM`, `PQC_SMTP_STARTTLS` | unset; port `587`, STARTTLS `1` | Platform email for alert emails and **Email the invite** |
-| `PQC_PLATFORM_SMTP_ORG_ID` | unset | Reuse one organization's saved SMTP settings instead |
-| `PQC_PUBLIC_BASE_URL` | request origin | Base for invite links and links in alerts; set it in production |
+| `MORROW_ALERT_DISPATCH_ENABLED` | `1` | Automatic sending (tests always work) |
+| `MORROW_ALERT_DISPATCH_INTERVAL_SECONDS` | `60` | Dispatcher interval (10 to 3600) |
+| `MORROW_ALERT_RENOTIFY_HOURS` | `24` | Re-send items still open |
+| `MORROW_ALERT_RATE_CAP` | `20` | Messages per channel per window |
+| `MORROW_ALERT_RATE_WINDOW_MINUTES` | `10` | Rate-cap window |
+| `MORROW_ALERT_DELIVERY_RETENTION_DAYS` | `30` | Delivery log retention |
+| `MORROW_SMTP_HOST`, `MORROW_SMTP_PORT`, `MORROW_SMTP_USER`, `MORROW_SMTP_PASSWORD`, `MORROW_SMTP_FROM`, `MORROW_SMTP_STARTTLS` | unset; port `587`, STARTTLS `1` | Platform email for alert emails and **Email the invite** |
+| `MORROW_PLATFORM_SMTP_ORG_ID` | unset | Reuse one organization's saved SMTP settings instead |
+| `MORROW_PUBLIC_BASE_URL` | request origin | Base for invite links and links in alerts; set it in production |
 
 ### Customer console assistant (CipherLens)
 
@@ -469,24 +469,24 @@ CipherLens is provider-agnostic. One environment variable picks the adapter; the
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `PQC_LLM_PROVIDER` | unset | Which adapter answers: `anthropic`, `openai`, `azure-openai`, `gemini`, `openai-compatible`, `ollama`, `builtin`, `custom`. Unset keeps the original behaviour (the last two rows) |
-| `PQC_LLM_MODEL` | unset | Model name, or the Azure deployment when `PQC_LLM_AZURE_DEPLOYMENT` is not set |
-| `PQC_LLM_BASE_URL` | per provider | API root. Required for `azure-openai` and `openai-compatible` |
-| `PQC_LLM_API_KEY` | unset | Credential for the chosen provider. Not needed for `ollama` or `builtin` |
-| `PQC_LLM_HEADERS` | unset | Extra headers for a gateway, as a JSON object or `k=v,k=v`. `Host`, `Content-Type`, `Content-Length` and the hop-by-hop headers are refused |
-| `PQC_LLM_API_VERSION` | `2024-10-21` for Azure | Azure OpenAI `api-version` |
-| `PQC_LLM_AZURE_DEPLOYMENT` | unset | Azure deployment name (the model lives in the URL on Azure) |
-| `PQC_LLM_TEMPERATURE` | `0.1` | Sampling temperature |
-| `PQC_LLM_MAX_TOKENS` | `3000` | Output ceiling for one turn |
-| `PQC_LLM_TIMEOUT` | `60` | Per-request timeout in seconds |
-| `PQC_LLM_RETRIES` | `2` | Retries for rate limits, timeouts and 5xx, with 0.5s/1s/2s backoff. A bad key or a rejected model is never retried |
-| `PQC_LLM_TOOLS` | adapter's own answer | `1`/`0` to override whether this endpoint supports tool calling. Needed for `openai-compatible` and `ollama`, where it depends on the server and the model |
-| `PQC_LLM_STREAM` | adapter's own answer | `1`/`0` to override the streaming capability |
-| `PQC_LLM_CONTEXT_WINDOW` | per provider | Context window to report, where the adapter cannot know it |
-| `PQC_LLM_PRICE_INPUT_PER_MTOK`, `PQC_LLM_PRICE_OUTPUT_PER_MTOK` | unset | Your prices per million tokens. Unset means cost is reported as **unknown** rather than guessed |
-| `PQC_LLM_CUSTOM_MODULE` | unset | With `PQC_LLM_PROVIDER=custom`, the dotted import path of your own adapter. Copy `examples/custom_llm_provider.py` |
-| `PQC_LLM_DISABLED` | unset | `1` forces the built-in answerer. No model call leaves the deployment, and **no organization setting can override it** |
-| `ANTHROPIC_API_KEY` | unset | CipherLens uses Claude when set and `PQC_LLM_PROVIDER` is not |
+| `MORROW_LLM_PROVIDER` | unset | Which adapter answers: `anthropic`, `openai`, `azure-openai`, `gemini`, `openai-compatible`, `ollama`, `builtin`, `custom`. Unset keeps the original behaviour (the last two rows) |
+| `MORROW_LLM_MODEL` | unset | Model name, or the Azure deployment when `MORROW_LLM_AZURE_DEPLOYMENT` is not set |
+| `MORROW_LLM_BASE_URL` | per provider | API root. Required for `azure-openai` and `openai-compatible` |
+| `MORROW_LLM_API_KEY` | unset | Credential for the chosen provider. Not needed for `ollama` or `builtin` |
+| `MORROW_LLM_HEADERS` | unset | Extra headers for a gateway, as a JSON object or `k=v,k=v`. `Host`, `Content-Type`, `Content-Length` and the hop-by-hop headers are refused |
+| `MORROW_LLM_API_VERSION` | `2024-10-21` for Azure | Azure OpenAI `api-version` |
+| `MORROW_LLM_AZURE_DEPLOYMENT` | unset | Azure deployment name (the model lives in the URL on Azure) |
+| `MORROW_LLM_TEMPERATURE` | `0.1` | Sampling temperature |
+| `MORROW_LLM_MAX_TOKENS` | `3000` | Output ceiling for one turn |
+| `MORROW_LLM_TIMEOUT` | `60` | Per-request timeout in seconds |
+| `MORROW_LLM_RETRIES` | `2` | Retries for rate limits, timeouts and 5xx, with 0.5s/1s/2s backoff. A bad key or a rejected model is never retried |
+| `MORROW_LLM_TOOLS` | adapter's own answer | `1`/`0` to override whether this endpoint supports tool calling. Needed for `openai-compatible` and `ollama`, where it depends on the server and the model |
+| `MORROW_LLM_STREAM` | adapter's own answer | `1`/`0` to override the streaming capability |
+| `MORROW_LLM_CONTEXT_WINDOW` | per provider | Context window to report, where the adapter cannot know it |
+| `MORROW_LLM_PRICE_INPUT_PER_MTOK`, `MORROW_LLM_PRICE_OUTPUT_PER_MTOK` | unset | Your prices per million tokens. Unset means cost is reported as **unknown** rather than guessed |
+| `MORROW_LLM_CUSTOM_MODULE` | unset | With `MORROW_LLM_PROVIDER=custom`, the dotted import path of your own adapter. Copy `examples/custom_llm_provider.py` |
+| `MORROW_LLM_DISABLED` | unset | `1` forces the built-in answerer. No model call leaves the deployment, and **no organization setting can override it** |
+| `ANTHROPIC_API_KEY` | unset | CipherLens uses Claude when set and `MORROW_LLM_PROVIDER` is not |
 | `OPENAI_API_KEY` | unset | Used when no Anthropic key is set. With neither key, CipherLens answers with built-in guidance and notes that no AI provider is configured |
 
 **What the console shows.** Every CipherLens answer carries a line naming the provider and model that produced it, or saying the built-in rules answered and no model was called. That line is emitted by the code that made the call, so it cannot name a model that did not reply. When the chosen provider does not support tool calling, the assistant answers from stored evidence without tools and says so. When the provider is unreachable, the answer degrades to the built-in rules with the reason attached, never to a dead end.
@@ -502,10 +502,10 @@ CipherLens is provider-agnostic. One environment variable picks the adapter; the
 Create an OIDC web application with redirect URI `https://<console host>/vendor-admin/sso/callback`, authorization code grant (PKCE is automatic) and scopes `openid email profile`. Then:
 
 - **Okta**: issuer `https://your-org.okta.com` (or `/oauth2/default`); assign the app to your operators group.
-- **Microsoft Entra ID**: issuer `https://login.microsoftonline.com/<tenant id>/v2.0`, never `common`. Entra does not send `email_verified`: add the optional `email` claim, or set `PQC_ADMIN_OIDC_EMAIL_CLAIM=preferred_username` and `PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=0` with the tenant-specific issuer only.
-- **Google Workspace**: issuer `https://accounts.google.com`, consent screen **Internal**, and `PQC_ADMIN_OIDC_ALLOWED_DOMAINS=yourcompany.com`.
+- **Microsoft Entra ID**: issuer `https://login.microsoftonline.com/<tenant id>/v2.0`, never `common`. Entra does not send `email_verified`: add the optional `email` claim, or set `MORROW_ADMIN_OIDC_EMAIL_CLAIM=preferred_username` and `MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED=0` with the tenant-specific issuer only.
+- **Google Workspace**: issuer `https://accounts.google.com`, consent screen **Internal**, and `MORROW_ADMIN_OIDC_ALLOWED_DOMAINS=yourcompany.com`.
 
-Prefer an explicit roster (`PQC_ADMIN_OPERATOR_ROLES`). Removing an email takes effect on that person's next click. Full detail: "Operator SSO, MFA and break-glass" in `docs/COMPLETE_DOCUMENTATION.md`.
+Prefer an explicit roster (`MORROW_ADMIN_OPERATOR_ROLES`). Removing an email takes effect on that person's next click. Full detail: "Operator SSO, MFA and break-glass" in `docs/COMPLETE_DOCUMENTATION.md`.
 
 ## 20. What the platform will not invent
 

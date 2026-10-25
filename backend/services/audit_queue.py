@@ -50,7 +50,7 @@ _health: Dict[str, Any] = {"healthy": True, "last_error": "", "last_error_at": 0
 
 def enabled() -> bool:
     """Deferred writing can be switched off; then every entry is written on the request."""
-    return str(os.getenv("PQC_AUDIT_DEFERRED_WRITES", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    return str(os.getenv("MORROW_AUDIT_DEFERRED_WRITES", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def degraded() -> bool:

@@ -21,7 +21,7 @@ def init_tables(db) -> None:
             repo TEXT,
             component_count INTEGER DEFAULT 0,
             classical_count INTEGER DEFAULT 0,
-            pqc_count INTEGER DEFAULT 0,
+            pq_count INTEGER DEFAULT 0,
             payload_json TEXT,
             sha256 TEXT,
             created_at INTEGER NOT NULL
@@ -47,7 +47,7 @@ def get_or_create_secret(db, org_id: str) -> str:
 
 
 def verify_signature(secret: str, body: bytes, sig_header: str) -> bool:
-    """Verify HMAC-SHA256 signature from X-PQC-Signature header."""
+    """Verify HMAC-SHA256 signature from X-Morrow-Signature header."""
     if not sig_header:
         return False
     expected = "sha256=" + hmac.new(
@@ -60,15 +60,15 @@ def ingest_cbom(db, org_id: str, payload: dict) -> dict:
     """Store a CBOM payload and return a summary."""
     components = payload.get("components", [])
     classical = [c for c in components if _is_classical(c)]
-    pqc = [c for c in components if _is_pqc(c)]
+    pq = [c for c in components if _is_pq(c)]
     repo = payload.get("metadata", {}).get("component", {}).get("name", "unknown")
     sha = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
 
     db.execute(
         "INSERT INTO cbom_webhook_ingests "
-        "(org_id, repo, component_count, classical_count, pqc_count, payload_json, sha256, created_at) "
+        "(org_id, repo, component_count, classical_count, pq_count, payload_json, sha256, created_at) "
         "VALUES (?,?,?,?,?,?,?,?)",
-        (org_id, repo, len(components), len(classical), len(pqc),
+        (org_id, repo, len(components), len(classical), len(pq),
          json.dumps(payload), sha, int(time.time())),
     )
     db.commit()
@@ -85,21 +85,21 @@ def ingest_cbom(db, org_id: str, payload: dict) -> dict:
         "summary": {
             "total_components": len(components),
             "classical_crypto": len(classical),
-            "pqc_ready": len(pqc),
-            "risk": "HIGH" if len(classical) > len(pqc) else "LOW",
+            "pq_ready": len(pq),
+            "risk": "HIGH" if len(classical) > len(pq) else "LOW",
         },
     }
 
 
 def list_ingests(db, org_id: str, limit: int = 20) -> list[dict]:
     rows = db.execute(
-        "SELECT id, repo, component_count, classical_count, pqc_count, sha256, created_at "
+        "SELECT id, repo, component_count, classical_count, pq_count, sha256, created_at "
         "FROM cbom_webhook_ingests WHERE org_id=? ORDER BY created_at DESC LIMIT ?",
         (org_id, limit),
     ).fetchall()
     return [
         {"id": r[0], "repo": r[1], "components": r[2], "classical": r[3],
-         "pqc": r[4], "sha256": r[5], "created_at": r[6]}
+         "pq": r[4], "sha256": r[5], "created_at": r[6]}
         for r in rows
     ]
 
@@ -113,7 +113,7 @@ def github_actions_step(org_id: str, base_url: str, secret: str) -> str:
     SIG="sha256=$(echo -n "$BODY" | openssl dgst -sha256 -hmac '{secret}' | awk '{{print $2}}')"
     curl -sf -X POST '{base_url}/v1/cbom/ingest' \\
       -H 'Content-Type: application/json' \\
-      -H "X-PQC-Signature: $SIG" \\
+      -H "X-Morrow-Signature: $SIG" \\
       -H 'X-Org-Id: {org_id}' \\
       -d "$BODY"
 """
@@ -126,8 +126,8 @@ def _is_classical(component: dict) -> bool:
     return any(k in name or k in algo for k in classical_keywords)
 
 
-def _is_pqc(component: dict) -> bool:
+def _is_pq(component: dict) -> bool:
     name = (component.get("name") or "").lower()
     algo = str(component.get("cryptoProperties", {}).get("algorithmProperties", {}).get("primitive", "")).lower()
-    pqc_keywords = {"ml-kem", "ml-dsa", "slh-dsa", "kyber", "dilithium", "falcon", "sphincs", "bike", "hqc"}
-    return any(k in name or k in algo for k in pqc_keywords)
+    pq_keywords = {"ml-kem", "ml-dsa", "slh-dsa", "kyber", "dilithium", "falcon", "sphincs", "bike", "hqc"}
+    return any(k in name or k in algo for k in pq_keywords)

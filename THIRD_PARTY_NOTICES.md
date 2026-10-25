@@ -221,7 +221,7 @@ OpenTofu is **MPL-2.0**, a CLI-compatible fork maintained under the Linux Founda
 (`backend/remediation_validation.py`) looks for `tofu` first and falls back to `terraform`, so an
 operator who installs Terraform themselves — their licence position, their choice — still works. The
 default validation container is `ghcr.io/opentofu/opentofu:1.8.6`, overridable with
-`PQC_VALIDATION_DOCKER_IMAGE`.
+`MORROW_VALIDATION_DOCKER_IMAGE`.
 
 ### 2. Terraform providers
 

@@ -51,8 +51,8 @@
       <div>
         <p class="notice">Header auth is local/dev only. Production must use hosted JWT identity, least-privilege secret management, managed Postgres, managed Redis, and verified row-level security.</p>
         <div class="matrix">
-          <div class="matrix-row"><strong>Identity</strong><p>Use <code>PQC_AUTH_MODE=jwt</code>, <code>PQC_AUTH_REQUIRED=1</code>, real issuer/audience/JWKS, and MFA in the identity provider.</p></div>
-          <div class="matrix-row"><strong>Airlock</strong><p>Set <code>PQC_AIRLOCK_SIGNING_KEY</code> and <code>PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1</code> for enterprise pilots.</p></div>
+          <div class="matrix-row"><strong>Identity</strong><p>Use <code>MORROW_AUTH_MODE=jwt</code>, <code>MORROW_AUTH_REQUIRED=1</code>, real issuer/audience/JWKS, and MFA in the identity provider.</p></div>
+          <div class="matrix-row"><strong>Airlock</strong><p>Set <code>MORROW_AIRLOCK_SIGNING_KEY</code> and <code>MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1</code> for enterprise pilots.</p></div>
           <div class="matrix-row"><strong>Evidence</strong><p>Archive go-live gate, launch collateral check, backup/restore, browser smoke, tenant isolation, and Trust Passport outputs.</p></div>
         </div>
       </div>

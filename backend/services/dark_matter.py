@@ -111,7 +111,7 @@ def dark_matter_model_basis() -> Dict[str, Any]:
             "Country comes only from the hostname's country-code TLD (.gov, .mil and .edu map to US); "
             "hosting location is not inferred, so most .com/.net/.io hosts have no country.",
             "Map coordinates are country centres plus a small fixed per-host offset so points do not overlap.",
-            "risk_score is a heuristic by algorithm family and key size (RSA-2048 0.85, P-256 0.90, PQC 0.02); "
+            "risk_score is a heuristic by algorithm family and key size (RSA-2048 0.85, P-256 0.90, post-quantum 0.02); "
             "null when the scan did not record a key type.",
         ],
         sources=[],

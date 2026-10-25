@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "pqc-scanner.fullname" . }}
+  name: {{ include "morrow.fullname" . }}
   labels:
-    {{- include "pqc-scanner.labels" . | nindent 4 }}
+    {{- include "morrow.labels" . | nindent 4 }}
 data:
   PYTHONPATH: /app
-  PQC_MAIN_DB_BACKEND: postgres
+  MORROW_MAIN_DB_BACKEND: postgres
   {{- if .Values.postgresql.enabled }}
-  PQC_PRODUCT_DATABASE_URL: {{ include "pqc-scanner.postgresUrl" . | quote }}
-  DATABASE_URL: {{ include "pqc-scanner.postgresUrl" . | quote }}
+  MORROW_PRODUCT_DATABASE_URL: {{ include "morrow.postgresUrl" . | quote }}
+  DATABASE_URL: {{ include "morrow.postgresUrl" . | quote }}
   {{- end }}
   {{- if .Values.redis.enabled }}
-  CELERY_BROKER_URL: {{ include "pqc-scanner.redisUrl" . | quote }}
-  CELERY_RESULT_BACKEND: {{ printf "%s" (include "pqc-scanner.redisUrl" .) | replace "/0" "/1" | quote }}
+  CELERY_BROKER_URL: {{ include "morrow.redisUrl" . | quote }}
+  CELERY_RESULT_BACKEND: {{ printf "%s" (include "morrow.redisUrl" .) | replace "/0" "/1" | quote }}
   {{- end }}
   {{- range $k, $v := .Values.env }}
   {{ $k }}: {{ $v | quote }}

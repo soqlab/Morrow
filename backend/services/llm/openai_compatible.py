@@ -3,19 +3,19 @@
 This is the configuration-only form of bring-your-own-model, and it is the
 right answer for most self-hosted servers and gateways:
 
-    PQC_LLM_PROVIDER=openai-compatible
-    PQC_LLM_BASE_URL=http://127.0.0.1:8000/v1      # vLLM
-    PQC_LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct
+    MORROW_LLM_PROVIDER=openai-compatible
+    MORROW_LLM_BASE_URL=http://127.0.0.1:8000/v1      # vLLM
+    MORROW_LLM_MODEL=meta-llama/Llama-3.1-8B-Instruct
 
 Known-good targets: Groq (https://api.groq.com/openai/v1), OpenRouter
 (https://openrouter.ai/api/v1), Together (https://api.together.xyz/v1), vLLM,
 LM Studio (http://127.0.0.1:1234/v1) and llama.cpp's server
 (http://127.0.0.1:8080/v1). Gateways that want extra routing headers get them
-from PQC_LLM_HEADERS.
+from MORROW_LLM_HEADERS.
 
 Tool calling is declared off by default here, because "OpenAI-compatible"
 covers servers that do not implement it and a tool request they ignore comes
-back as prose. Set PQC_LLM_TOOLS=1 when the endpoint supports it; the agent
+back as prose. Set MORROW_LLM_TOOLS=1 when the endpoint supports it; the agent
 then uses tools, and otherwise answers without them and says so.
 """
 
@@ -42,14 +42,14 @@ class OpenAICompatibleProvider(OpenAIShaped):
     id = "openai-compatible"
     default_base_url = ""
     default_model = ""
-    # Honest capability declaration: opt in with PQC_LLM_TOOLS=1, do not assume.
+    # Honest capability declaration: opt in with MORROW_LLM_TOOLS=1, do not assume.
     supports_tools = False
 
     def check(self) -> Dict[str, Any]:
         missing: List[str] = []
         if not self.settings.base_url:
-            missing.append("PQC_LLM_BASE_URL")
+            missing.append("MORROW_LLM_BASE_URL")
         if not self.settings.model:
-            missing.append("PQC_LLM_MODEL")
+            missing.append("MORROW_LLM_MODEL")
         return {"ready": not missing, "missing": missing,
                 "detail": "configured" if not missing else "set " + ", ".join(missing)}

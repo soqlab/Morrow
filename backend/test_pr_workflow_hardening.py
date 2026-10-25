@@ -11,8 +11,8 @@ from db import init_db, reset_current_organization_id, save_scan_row, set_curren
 def _setup_tmp_db():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
     tmp_db.close()
-    os.environ["PQC_MAIN_DB_BACKEND"] = ""
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_MAIN_DB_BACKEND"] = ""
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     os.environ.pop("GITHUB_WEBHOOK_SECRET", None)
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
@@ -105,7 +105,7 @@ def test_ci_status_check_blocks_banned_crypto_and_returns_fix_suggestions():
             assert body["state"] == "failure"
             assert body["blocking"] is True
             assert body["merge_gate"] == "blocked"
-            assert body["required_check_context"] == "pqc-scanner/security-policy"
+            assert body["required_check_context"] == "morrow/security-policy"
             assert any(v.get("kind") == "crypto_policy" for v in body["violations"])
             assert any("Replace the banned classical crypto" in s.get("suggestion", "") for s in body["fix_suggestions"])
     finally:

@@ -24,12 +24,12 @@ It uploads:
 Set these before using Airlock with a customer:
 
 ```env
-PQC_AUTH_MODE=jwt
-PQC_AUTH_REQUIRED=1
-PQC_DEFAULT_ROLE=viewer
-PQC_AIRLOCK_SIGNING_KEY=<64 hex chars or stronger>
-PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1
-PQC_AIRLOCK_MAX_CLOCK_SKEW_SECONDS=600
+MORROW_AUTH_MODE=jwt
+MORROW_AUTH_REQUIRED=1
+MORROW_DEFAULT_ROLE=viewer
+MORROW_AIRLOCK_SIGNING_KEY=<64 hex chars or stronger>
+MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE=1
+MORROW_AIRLOCK_MAX_CLOCK_SKEW_SECONDS=600
 SENTRY_DSN=<production monitoring DSN>
 ```
 
@@ -44,14 +44,14 @@ Run:
 Production JWT flow:
 
 ```bash
-curl -fsSL -H "Authorization: Bearer $PQC_TOKEN" \
+curl -fsSL -H "Authorization: Bearer $MORROW_TOKEN" \
   "https://YOUR_API/airlock/install.sh?customer_id=acme" | bash
 ```
 
 PowerShell:
 
 ```powershell
-iwr -Headers @{Authorization="Bearer $env:PQC_TOKEN"} `
+iwr -Headers @{Authorization="Bearer $env:MORROW_TOKEN"} `
   "https://YOUR_API/airlock/install.ps1?customer_id=acme" | iex
 ```
 
@@ -70,8 +70,8 @@ curl -fsSL \
 After install:
 
 ```bash
-python .pqc-airlock/pqc_airlock_agent.py --config .pqc-airlock/config.json run-once
-python .pqc-airlock/pqc_airlock_agent.py --config .pqc-airlock/config.json flush
+python .morrow-airlock/morrow_airlock_agent.py --config .morrow-airlock/config.json run-once
+python .morrow-airlock/morrow_airlock_agent.py --config .morrow-airlock/config.json flush
 ```
 
 Then verify:
@@ -95,7 +95,7 @@ Then verify:
 ## Security Notes
 
 - Keep `config.json` in a protected host path or secret manager.
-- Rotate `PQC_AIRLOCK_SIGNING_KEY` if agent config or server env is exposed.
+- Rotate `MORROW_AIRLOCK_SIGNING_KEY` if agent config or server env is exposed.
 - Do not enable write actions until customer change-control is approved.
 - Do not claim payload inspection; Airlock is deliberately payload-blind.
 - CAM/API transparent proxy deployment is covered in `docs/CAM_TRANSPARENT_PROXY_DEPLOYMENT.md`.

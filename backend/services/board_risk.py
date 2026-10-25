@@ -199,7 +199,7 @@ def build_quantum_risk_index(
     if open_assets:
         top_risks.append({"kind": "open_exposure", "severity": "high", "message": f"{open_assets} assets still have open findings or risk."})
     if blocked_assets:
-        top_risks.append({"kind": "provider_blocker", "severity": "medium", "message": f"{blocked_assets} assets need provider/configuration confirmation before PQC rollout."})
+        top_risks.append({"kind": "provider_blocker", "severity": "medium", "message": f"{blocked_assets} assets need provider/configuration confirmation before post-quantum rollout."})
     if drifted_total:
         top_risks.append({"kind": "drift", "severity": "high", "message": f"{drifted_total} remediations have active drift."})
     if actionable_paths and remediations_total == 0:
@@ -551,7 +551,7 @@ CRYPTO_WEATHER_SIGNALS: List[Dict[str, Any]] = [
         "title": "Provider readiness blocker",
         "severity": "medium",
         "match": "provider_blocker",
-        "board_message": "Unknown or blocked provider posture can delay PQC rollout even when engineering is ready.",
+        "board_message": "Unknown or blocked provider posture can delay post-quantum rollout even when engineering is ready.",
     },
     {
         "id": "remediation-drift-watch",
@@ -594,7 +594,7 @@ def _match_policy_advisory(advisory: Dict[str, Any], item: Dict[str, Any]) -> st
     algorithm = str(item.get("classical_algorithm") or item.get("algorithm") or "").strip().lower()
     tls_version = str(item.get("tls_version") or "").strip().lower()
     cipher = str(item.get("cipher") or item.get("cipher_suite") or "").strip().lower()
-    provider_status = str(item.get("provider_pqc_support_status") or "unknown").strip().lower()
+    provider_status = str(item.get("provider_pq_support_status") or "unknown").strip().lower()
     if advisory.get("algorithm_tokens") and any(token in algorithm for token in advisory["algorithm_tokens"]):
         return f"algorithm advisory matched {algorithm or 'unknown'}"
     if advisory.get("tls_versions") and tls_version in set(advisory["tls_versions"]):
@@ -655,7 +655,7 @@ def build_crypto_weather(
                 hndl = str(item.get("harvest_now_decrypt_later_risk") or "").strip().lower()
                 algorithm = str(item.get("classical_algorithm") or "").strip().lower()
                 provider = str(item.get("provider_guess") or "unknown").strip().lower()
-                provider_status = str(item.get("provider_pqc_support_status") or "unknown").strip().lower()
+                provider_status = str(item.get("provider_pq_support_status") or "unknown").strip().lower()
                 classical_dependency = bool(item.get("classical_crypto_dependency"))
                 vuln = vuln_by_asset.get(asset_key) or {}
 
@@ -687,7 +687,7 @@ def build_crypto_weather(
                                 "tls_version": item.get("tls_version") or "",
                                 "hndl_risk": item.get("harvest_now_decrypt_later_risk") or "",
                                 "provider": item.get("provider_guess") or "",
-                                "provider_pqc_support_status": item.get("provider_pqc_support_status") or "",
+                                "provider_pq_support_status": item.get("provider_pq_support_status") or "",
                                 "classical_algorithm": item.get("classical_algorithm") or "",
                                 "advisory_source": signal.get("source") or "",
                                 "advisory_reference_url": signal.get("reference_url") or "",

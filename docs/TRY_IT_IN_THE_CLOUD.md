@@ -171,7 +171,7 @@ clear the old session in the browser.
 Open the browser console and run:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -236,7 +236,7 @@ After it finishes, inspect:
 - risk level
 - TLS version
 - certificate details
-- PQC recommendation
+- post-quantum recommendation
 
 ## 12. Open the asset
 
@@ -640,7 +640,7 @@ That is normal. Those are environment setup tasks, not day-to-day user tasks.
 Clear the stored browser token and log in again:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 

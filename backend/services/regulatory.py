@@ -13,17 +13,17 @@ IMPORTANT — Scope accuracy:
 
   Framework-specific notes:
   - NIST SP 800-208 covers stateful hash-based signature schemes (LMS/XMSS),
-    not PQC migration broadly. Map controls precisely.
-  - DORA, NIS2, ISO 27001, PCI DSS, and SOC 2 do not have specific PQC
+    not post-quantum migration broadly. Map controls precisely.
+  - DORA, NIS2, ISO 27001, PCI DSS, and SOC 2 do not have specific post-quantum
     requirements that this tool can automatically "pass" or "fail". Evidence
     is mapped to relevant controls where a reasonable connection exists.
-  - No EU "PQC regulatory filing" standard currently exists that can be
-    automatically submitted; EU PQC policy proposals are still evolving.
+  - No EU "Post-quantum regulatory filing" standard currently exists that can be
+    automatically submitted; EU post-quantum policy proposals are still evolving.
 
 Supported frameworks (evidence mapping only):
   NIST_SP_800_208  — Stateful hash-based signature scheme guidance
   CNSA_2_0         — NSA Commercial National Security Algorithm Suite 2.0
-  OMB_M_23_02      — Federal Zero-Trust Architecture mandate (includes PQC)
+  OMB_M_23_02      — Federal Zero-Trust Architecture mandate (includes post-quantum)
   NIS2             — EU NIS2 Directive risk management controls
   DORA             — EU Digital Operational Resilience Act ICT risk controls
   FIPS_140_3       — FIPS 140-3 cryptographic module requirements
@@ -56,7 +56,7 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
             "Inventory all cryptographic assets using quantum-vulnerable algorithms",
             "Replace RSA and ECC with ML-KEM (FIPS 203) and ML-DSA (FIPS 204)",
             "Submit migration plan by soft deadline",
-            "Complete migration to approved PQC algorithms by hard deadline",
+            "Complete migration to approved post-quantum algorithms by hard deadline",
         ],
         "filing_url": "https://csrc.nist.gov/projects/post-quantum-cryptography",
         "penalty_usd": 0,
@@ -95,7 +95,7 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "key_requirements": [
             "Inventory network traffic encryption status",
             "Identify post-quantum encryption vulnerabilities",
-            "Report PQC readiness to CISA and OMB",
+            "Report post-quantum readiness to CISA and OMB",
         ],
         "filing_url": "https://www.whitehouse.gov/wp-content/uploads/2022/01/M-22-09.pdf",
         "penalty_usd": 0,
@@ -161,7 +161,7 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "key_requirements": [
             "FIPS 140-2 approved modules must migrate to FIPS 140-3",
             "New procurements must use FIPS 140-3 validated modules",
-            "PQC algorithm modules subject to upcoming CMVP validation requirements",
+            "Post-quantum algorithm modules subject to upcoming CMVP validation requirements",
         ],
         "filing_url": "https://csrc.nist.gov/projects/cryptographic-module-validation-program",
         "penalty_usd": 0,
@@ -182,7 +182,7 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "key_requirements": [
             "Requirement 4.2.1: Strong cryptography for all cardholder data transmissions",
             "Requirement 12.3.3: Cryptographic cipher suites reviewed annually",
-            "PQC guidance: review and plan migration of cardholder data encryption",
+            "Post-quantum guidance: review and plan migration of cardholder data encryption",
         ],
         "filing_url": "https://www.pcisecuritystandards.org/document_library/",
         "penalty_usd": 100_000,
@@ -273,7 +273,7 @@ def analyze_compliance_gaps(
     which are at risk, and what actions are required.
     """
     target_frameworks = frameworks or list(_FRAMEWORKS.keys())
-    pqc_pct = float(scan_summary.get("pqc_migration_pct", 0) or 0)
+    pq_pct = float(scan_summary.get("pq_migration_pct", 0) or 0)
     critical_count = int(scan_summary.get("critical_risk_count", 0) or 0)
     high_count = int(scan_summary.get("high_risk_count", 0) or 0)
     total_assets = int(scan_summary.get("total_assets", 0) or 1)
@@ -289,10 +289,10 @@ def analyze_compliance_gaps(
         days_to_hard = max((hard - now).days, 0)
 
         # Compliance score: 0-100
-        pqc_score = pqc_pct  # 0-100
+        pq_score = pq_pct  # 0-100
         risk_penalty = min((critical_count * 10 + high_count * 3), 40)
         1.0 if days_to_hard > 365 else max(days_to_hard / 365, 0.1)
-        compliance_score = max(pqc_score - risk_penalty, 0)
+        compliance_score = max(pq_score - risk_penalty, 0)
 
         # Status
         if compliance_score >= 80 and critical_count == 0:
@@ -306,10 +306,10 @@ def analyze_compliance_gaps(
         actions = []
         if critical_count > 0:
             actions.append(f"Remediate {critical_count} critical-risk cryptographic assets immediately")
-        if pqc_pct < 100:
-            gap_assets = round(total_assets * (100 - pqc_pct) / 100)
-            actions.append(f"Migrate {gap_assets} remaining assets to PQC algorithms (currently {pqc_pct:.0f}%)")
-        if fid == "NIST_SP_800_208" and pqc_pct < 100:
+        if pq_pct < 100:
+            gap_assets = round(total_assets * (100 - pq_pct) / 100)
+            actions.append(f"Migrate {gap_assets} remaining assets to post-quantum algorithms (currently {pq_pct:.0f}%)")
+        if fid == "NIST_SP_800_208" and pq_pct < 100:
             actions.append("Submit cryptographic inventory to NIST FIPS 203-205 compliance tracker")
         if fid in ("NIS2", "DORA"):
             actions.append("Prepare Article 21 technical measures documentation for supervisory authority")
@@ -378,7 +378,7 @@ def generate_filing(
     now = datetime.now(timezone.utc)
     filing_id = "REG-" + hashlib.sha256(f"{org_id}:{framework_id}:{now.isoformat()}".encode()).hexdigest()[:12].upper()
 
-    pqc_pct = float(scan_summary.get("pqc_migration_pct", 0) or 0)
+    pq_pct = float(scan_summary.get("pq_migration_pct", 0) or 0)
     total_assets = int(scan_summary.get("total_assets", 0) or 0)
     critical = int(scan_summary.get("critical_risk_count", 0) or 0)
 
@@ -393,14 +393,14 @@ def generate_filing(
         "reporting_period": f"{now.year}-01-01 to {now.isoformat()[:10]}",
         "executive_summary": (
             f"{org_name} has assessed its cryptographic posture against {f['name']}. "
-            f"Of {total_assets} cryptographic assets inventoried, {pqc_pct:.0f}% have been "
+            f"Of {total_assets} cryptographic assets inventoried, {pq_pct:.0f}% have been "
             f"migrated to NIST-approved post-quantum algorithms. "
             f"{critical} critical-risk assets require immediate remediation. "
             f"Compliance score: {gap_result.get('compliance_score', 0):.0f}/100."
         ),
         "cryptographic_inventory_summary": {
             "total_assets_inventoried": total_assets,
-            "pqc_migrated_pct": pqc_pct,
+            "pq_migrated_pct": pq_pct,
             "critical_risk_count": critical,
             "high_risk_count": int(scan_summary.get("high_risk_count", 0) or 0),
             "medium_risk_count": int(scan_summary.get("medium_risk_count", 0) or 0),
@@ -412,7 +412,7 @@ def generate_filing(
         "required_actions": gap_result.get("required_actions", []),
         "hard_deadline": f["hard_deadline"],
         "days_to_deadline": gap_result.get("days_to_hard_deadline", 0),
-        "migration_roadmap": _generate_roadmap(pqc_pct, total_assets, f["hard_deadline"]),
+        "migration_roadmap": _generate_roadmap(pq_pct, total_assets, f["hard_deadline"]),
         "attestation": (
             f"This report was generated automatically by Morrow on {now.isoformat()[:10]}. "
             f"The cryptographic inventory was collected via authenticated TLS certificate scanning. "
@@ -441,8 +441,8 @@ def generate_filing(
     return filing_content
 
 
-def _generate_roadmap(pqc_pct: float, total_assets: int, hard_deadline: str) -> List[Dict[str, Any]]:
-    remaining_pct = max(100.0 - pqc_pct, 0)
+def _generate_roadmap(pq_pct: float, total_assets: int, hard_deadline: str) -> List[Dict[str, Any]]:
+    remaining_pct = max(100.0 - pq_pct, 0)
     remaining_assets = round(total_assets * remaining_pct / 100)
     try:
         deadline = datetime.fromisoformat(hard_deadline + "T00:00:00+00:00")
@@ -481,7 +481,7 @@ def _generate_roadmap(pqc_pct: float, total_assets: int, hard_deadline: str) -> 
                 "duration_months": min(12, months_remaining * 0.40),
                 "tasks": [
                     f"Migrate remaining {remaining_assets} assets at scale",
-                    "Automate PQC deployment via CI/CD pipeline integration",
+                    "Automate post-quantum deployment via CI/CD pipeline integration",
                     "Update vendor and third-party agreements",
                 ],
                 "milestone": ">80% of assets migrated",
@@ -506,7 +506,7 @@ def _generate_roadmap(pqc_pct: float, total_assets: int, hard_deadline: str) -> 
             "tasks": [
                 "Ongoing monitoring for algorithm deprecation advisories",
                 "Annual cryptographic asset re-assessment",
-                "Respond to new NIST guidance as PQC standards evolve",
+                "Respond to new NIST guidance as post-quantum standards evolve",
             ],
             "milestone": "Annual compliance renewal",
         }]

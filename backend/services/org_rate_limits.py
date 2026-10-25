@@ -6,11 +6,11 @@ Two limits per organization, each a sliding window:
   scans_per_hour     requests to a scan-starting endpoint (SCAN_START_PATTERNS, POST only) in the last hour
 
 Each limit resolves in order: a stored operator override, otherwise the platform default in
-PQC_ORG_DEFAULT_API_CALLS_PER_MIN / PQC_ORG_DEFAULT_SCANS_PER_HOUR (unset or 0: organizations with
+MORROW_ORG_DEFAULT_API_CALLS_PER_MIN / MORROW_ORG_DEFAULT_SCANS_PER_HOUR (unset or 0: organizations with
 neither are only subject to the existing per-IP limits). There used to be a billing-plan tier
 between the two; the platform is free and that tier is gone, so an override is the only
 per-organization limit. Overrides are read from the database at most once every
-PQC_ORG_RATE_LIMIT_CACHE_SECONDS (default 15) per process; saving an override clears this process's cache.
+MORROW_ORG_RATE_LIMIT_CACHE_SECONDS (default 15) per process; saving an override clears this process's cache.
 
 Counters live in Redis when REDIS_URL or CELERY_BROKER_URL is set (shared by every replica, a sorted set per
 organization and limit, checked and updated by one Lua script so replicas cannot over-admit), otherwise in process
@@ -79,12 +79,12 @@ def _int_env(name: str) -> int:
 
 
 def enabled() -> bool:
-    return _flag("PQC_ORG_RATE_LIMITS_ENABLED", "1")
+    return _flag("MORROW_ORG_RATE_LIMITS_ENABLED", "1")
 
 
 def cache_seconds() -> float:
     try:
-        return max(0.0, float(os.getenv("PQC_ORG_RATE_LIMIT_CACHE_SECONDS", "15") or 15))
+        return max(0.0, float(os.getenv("MORROW_ORG_RATE_LIMIT_CACHE_SECONDS", "15") or 15))
     except ValueError:
         return 15.0
 
@@ -177,18 +177,18 @@ def limits_for(org_id: str) -> Tuple[int, int]:
     """(api_calls_per_min, scans_per_hour) in force for an organization; 0 means not limited here.
 
     Precedence, per limit: an operator override saved in the admin portal, then the platform default
-    from PQC_ORG_DEFAULT_*. A billing-plan tier used to sit between them.
+    from MORROW_ORG_DEFAULT_*. A billing-plan tier used to sit between them.
     """
     row = (_overrides.get("rows") or {}).get(str(org_id))
     if row is not None:
         return int(row[0] or 0), int(row[1] or 0)
-    return _int_env("PQC_ORG_DEFAULT_API_CALLS_PER_MIN"), _int_env("PQC_ORG_DEFAULT_SCANS_PER_HOUR")
+    return _int_env("MORROW_ORG_DEFAULT_API_CALLS_PER_MIN"), _int_env("MORROW_ORG_DEFAULT_SCANS_PER_HOUR")
 
 
 def describe(org_id: str) -> Dict[str, Any]:
     """Enforcement state for the admin API (reads the database, not the cache)."""
     row = stored_override(org_id)
-    api_default, scan_default = _int_env("PQC_ORG_DEFAULT_API_CALLS_PER_MIN"), _int_env("PQC_ORG_DEFAULT_SCANS_PER_HOUR")
+    api_default, scan_default = _int_env("MORROW_ORG_DEFAULT_API_CALLS_PER_MIN"), _int_env("MORROW_ORG_DEFAULT_SCANS_PER_HOUR")
     if row is not None:
         api, scans, source = row[0], row[1], "override"
     else:
@@ -261,7 +261,7 @@ def _hit_redis(client: Any, kind: str, org: str, limit: int, window: float, now:
     never both take the last slot, and a rejected request never occupies a slot, even briefly. The key's TTL
     is the window plus one second, so an idle organization leaves nothing behind.
     """
-    key = f"pqc:orglimit:{kind}:{org}"
+    key = f"morrow:orglimit:{kind}:{org}"
     member = f"{now:.6f}:{uuid.uuid4().hex[:8]}"
     script = _redis.get("script")
     if script is None or _redis.get("script_client") is not client:

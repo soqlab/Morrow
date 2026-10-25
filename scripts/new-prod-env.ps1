@@ -50,27 +50,27 @@ function New-HexSecret {
 
 $redisPassword = New-TokenUrlSafe -Bytes 32
 $generated = @{
-  "PQC_AUTH_ISSUER_ENABLED"       = "0"
-  "PQC_ALLOW_HS256_IN_PRODUCTION" = "0"
-  "PQC_AUTH_JWT_SECRET"           = New-HexSecret -Bytes 32
-  "PQC_ADMIN_PASSWORD"            = New-TokenUrlSafe -Bytes 32
-  "PQC_VAULT_MASTER_KEY"          = ConvertTo-UrlSafeBase64 -Bytes (New-RandomBytes -Count 32)
-  "PQC_PLATFORM_ADMIN_KEY"        = New-TokenUrlSafe -Bytes 48
-  "PQC_AIRLOCK_SIGNING_KEY"       = New-HexSecret -Bytes 32
-  "PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE" = "1"
-  "PQC_AIRLOCK_MAX_CLOCK_SKEW_SECONDS" = "600"
+  "MORROW_AUTH_ISSUER_ENABLED"       = "0"
+  "MORROW_ALLOW_HS256_IN_PRODUCTION" = "0"
+  "MORROW_AUTH_JWT_SECRET"           = New-HexSecret -Bytes 32
+  "MORROW_ADMIN_PASSWORD"            = New-TokenUrlSafe -Bytes 32
+  "MORROW_VAULT_MASTER_KEY"          = ConvertTo-UrlSafeBase64 -Bytes (New-RandomBytes -Count 32)
+  "MORROW_PLATFORM_ADMIN_KEY"        = New-TokenUrlSafe -Bytes 48
+  "MORROW_AIRLOCK_SIGNING_KEY"       = New-HexSecret -Bytes 32
+  "MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE" = "1"
+  "MORROW_AIRLOCK_MAX_CLOCK_SKEW_SECONDS" = "600"
   "REDIS_PASSWORD"                = $redisPassword
   "CELERY_BROKER_URL"             = "redis://:$redisPassword@redis:6379/0"
   "CELERY_RESULT_BACKEND"         = "redis://:$redisPassword@redis:6379/1"
-  "PQC_CORS_ALLOW_ALL"            = "0"
-  "PQC_CSP_ENABLED"               = "1"
-  "PQC_API_REPLICA_COUNT"         = "1"
-  "PQC_AUXILIARY_STATE_MIGRATED"  = "0"
-  "PQC_TRAFFIC_MONITOR_ENABLED"   = "1"
-  "PQC_TRAFFIC_PERSIST_TO_DB"     = "1"
-  "PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP" = "0"
-  "PQC_ALLOW_DEMO_IN_PRODUCTION"        = "0"
-  "PQC_ALLOW_PLATFORM_KEY_QUERY"        = "0"
+  "MORROW_CORS_ALLOW_ALL"            = "0"
+  "MORROW_CSP_ENABLED"               = "1"
+  "MORROW_API_REPLICA_COUNT"         = "1"
+  "MORROW_AUXILIARY_STATE_MIGRATED"  = "0"
+  "MORROW_TRAFFIC_MONITOR_ENABLED"   = "1"
+  "MORROW_TRAFFIC_PERSIST_TO_DB"     = "1"
+  "MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP" = "0"
+  "MORROW_ALLOW_DEMO_IN_PRODUCTION"        = "0"
+  "MORROW_ALLOW_PLATFORM_KEY_QUERY"        = "0"
 }
 
 $seen = @{}

@@ -16,7 +16,7 @@ class TestTicketing:
                 "base_url": "https://test.atlassian.net",
                 "email": "test@example.com",
                 "api_token": "fake-token",
-                "project_key": "PQC",
+                "project_key": "post-quantum",
                 "issue_type": "Bug",
             }
         }, headers=auth)

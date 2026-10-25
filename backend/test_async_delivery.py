@@ -23,7 +23,7 @@ sys.path.insert(0, ".")
 sys.path.insert(0, "/mnt/data")
 
 # Use a writable SQLite path for tests (default DB is /data/... which may not exist).
-os.environ.setdefault("PQC_SCANNER_DB", "/mnt/data/test_pqc_scanner.db")
+os.environ.setdefault("MORROW_SCANNER_DB", "/mnt/data/test_morrow.db")
 
 from db import init_db, save_scan_row, list_webhook_events, list_pending_webhook_events, upsert_webhook
 from events import deliver_events_for_scan, drain_webhook_delivery_queue

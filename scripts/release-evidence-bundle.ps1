@@ -1,7 +1,7 @@
 param(
   [string]$BaseUrl = "http://127.0.0.1:8000",
-  [string]$PlatformKey = $env:PQC_PLATFORM_ADMIN_KEY,
-  [string]$OperatorSession = $env:PQC_OPERATOR_SESSION,
+  [string]$PlatformKey = $env:MORROW_PLATFORM_ADMIN_KEY,
+  [string]$OperatorSession = $env:MORROW_OPERATOR_SESSION,
   [string]$OutDir = "reports\release-evidence",
   [switch]$RunBrowserSmoke,
   [switch]$ExpectHsts

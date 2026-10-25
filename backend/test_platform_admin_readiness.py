@@ -158,11 +158,11 @@ def test_production_startup_guard_blocks_unsafe_config(monkeypatch):
     monkeypatch.setattr(fastapi_app, "DEFAULT_USER_ROLE", "admin")
     monkeypatch.setattr(fastapi_app, "postgres_main_db_requested", lambda: False)
     monkeypatch.setattr(fastapi_app, "_PLATFORM_ADMIN_KEY", "")
-    monkeypatch.delenv("PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP", raising=False)
+    monkeypatch.delenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", raising=False)
     with pytest.raises(RuntimeError) as exc:
         fastapi_app._assert_production_startup_safe()
     msg = str(exc.value)
-    assert "PQC_AUTH_MODE must be jwt" in msg
+    assert "MORROW_AUTH_MODE must be jwt" in msg
     assert "Managed Postgres is required" in msg
 
 
@@ -172,7 +172,7 @@ def test_production_startup_guard_allows_safe_config(monkeypatch):
     monkeypatch.setattr(fastapi_app, "AUTH_REQUIRED", True)
     monkeypatch.setattr(fastapi_app, "DEFAULT_USER_ROLE", "viewer")
     monkeypatch.setattr(fastapi_app, "AUTH_JWT_ISSUER", "https://issuer.example/")
-    monkeypatch.setattr(fastapi_app, "AUTH_JWT_AUDIENCE", "pqc-api")
+    monkeypatch.setattr(fastapi_app, "AUTH_JWT_AUDIENCE", "pq-api")
     monkeypatch.setattr(fastapi_app, "AUTH_JWT_JWKS_URL", "https://issuer.example/.well-known/jwks.json")
     monkeypatch.setattr(fastapi_app, "AUTH_JWT_ALGORITHMS", ["RS256"])
     monkeypatch.setattr(fastapi_app, "CORS_ORIGINS", ["https://app.example.com"])
@@ -185,12 +185,12 @@ def test_production_startup_guard_allows_safe_config(monkeypatch):
     monkeypatch.setattr(fastapi_app, "_TRAFFIC_PERSIST_TO_DB", True)
     monkeypatch.setattr(fastapi_app, "_CSP_ENABLED", True)
     monkeypatch.setattr(fastapi_app, "_CSP_VALUE", "default-src 'self'")
-    monkeypatch.setenv("PQC_PRODUCT_DATABASE_URL", "postgresql://user:pass@db/pqc")
+    monkeypatch.setenv("MORROW_PRODUCT_DATABASE_URL", "postgresql://user:pass@db/pq")
     monkeypatch.setenv("CELERY_BROKER_URL", "redis://:pass@redis:6379/0")
     monkeypatch.setenv("CELERY_RESULT_BACKEND", "redis://:pass@redis:6379/1")
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY", "vault-master-key")
-    monkeypatch.setenv("PQC_AIRLOCK_SIGNING_KEY", "a" * 64)
-    monkeypatch.setenv("PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "1")
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", "vault-master-key")
+    monkeypatch.setenv("MORROW_AIRLOCK_SIGNING_KEY", "a" * 64)
+    monkeypatch.setenv("MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE", "1")
     monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
     assert fastapi_app._assert_production_startup_safe() == []
 
@@ -335,7 +335,7 @@ def test_customer_feature_flags(monkeypatch):
 def test_demo_lab_seed_blocked_in_production(monkeypatch):
     monkeypatch.setattr(fastapi_app, "PRODUCTION_ENVIRONMENT", True)
     monkeypatch.setattr(fastapi_app, "_ALLOW_DEMO_IN_PRODUCTION", False)
-    monkeypatch.setenv("PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
+    monkeypatch.setenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
     with TestClient(fastapi_app.app) as client:
         res = client.post("/demo/lab/seed", json={"target": "example.com:443"})
     assert res.status_code == 403
@@ -344,7 +344,7 @@ def test_demo_lab_seed_blocked_in_production(monkeypatch):
 def test_cloudflare_mock_apply_blocked_in_production(monkeypatch):
     monkeypatch.setattr(fastapi_app, "PRODUCTION_ENVIRONMENT", True)
     monkeypatch.setattr(fastapi_app, "_ALLOW_DEMO_IN_PRODUCTION", False)
-    monkeypatch.setenv("PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
+    monkeypatch.setenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
     with TestClient(fastapi_app.app) as client:
         res = client.post(
             "/integrations/cloudflare/zones/mock/apply-policy",

@@ -49,7 +49,7 @@ RETENTION_LIMITS = {"auth": (90, 365), "traffic": (7, 90)}
 
 def _days(kind):
     default, maximum = RETENTION_LIMITS["auth" if kind == "auth" else "traffic"]
-    value = os.getenv("PQC_AUTH_LOG_RETENTION_DAYS" if kind == "auth" else "PQC_TRAFFIC_RETENTION_DAYS", str(default))
+    value = os.getenv("MORROW_AUTH_LOG_RETENTION_DAYS" if kind == "auth" else "MORROW_TRAFFIC_RETENTION_DAYS", str(default))
     return max(1, min(maximum, int(value)))
 
 
@@ -71,7 +71,7 @@ def _holdback_days():
     never make the journal grow without limit. 0 disables the wait.
     """
     try:
-        return max(0, min(30, int(os.getenv("PQC_TRAFFIC_ROLLUP_HOLDBACK_DAYS", "3") or 3)))
+        return max(0, min(30, int(os.getenv("MORROW_TRAFFIC_ROLLUP_HOLDBACK_DAYS", "3") or 3)))
     except ValueError:
         return 3
 
@@ -119,7 +119,7 @@ def browser(value):
 
 
 def subject_reference(value):
-    secret = os.getenv("PQC_VAULT_MASTER_KEY") or os.getenv("PQC_AUTH_JWT_SECRET")
+    secret = os.getenv("MORROW_VAULT_MASTER_KEY") or os.getenv("MORROW_AUTH_JWT_SECRET")
     if not secret or not value:
         return ""
     return hmac.new(secret.encode(), ("auth-subject:" + str(value).strip().lower()[:320]).encode(), hashlib.sha256).hexdigest()

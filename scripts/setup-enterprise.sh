@@ -15,7 +15,7 @@ Bootstraps a customer-owned private-cloud GCP deployment:
 Options:
   --project ID          Required GCP project ID.
   --region REGION      Default: europe-west1.
-  --prefix PREFIX      Default: pqc-ent.
+  --prefix PREFIX      Default: pq-ent.
   --image-tag TAG      Default: latest.
   --tf-dir PATH        Default: infra/gcp/private-cloud-demo.
   --skip-build         Do not build/push the Docker image.
@@ -25,13 +25,13 @@ Options:
 
 Environment:
   OPENAI_API_KEY          Required unless --skip-secrets is used.
-  PQC_VAULT_MASTER_KEY    Optional. If absent, a Fernet-compatible key is generated.
+  MORROW_VAULT_MASTER_KEY    Optional. If absent, a Fernet-compatible key is generated.
 USAGE
 }
 
 PROJECT_ID=""
 REGION="europe-west1"
-NAME_PREFIX="pqc-ent"
+NAME_PREFIX="pq-ent"
 IMAGE_TAG="latest"
 TF_DIR="infra/gcp/private-cloud-demo"
 SKIP_BUILD=0
@@ -128,8 +128,8 @@ if [[ "$SKIP_SECRETS" -eq 0 ]]; then
     echo "OPENAI_API_KEY is required unless --skip-secrets is used" >&2
     exit 1
   fi
-  VAULT_KEY="${PQC_VAULT_MASTER_KEY:-$(generate_fernet_key)}"
-  add_secret_version "${NAME_PREFIX}-pqc-vault-master-key" "$VAULT_KEY"
+  VAULT_KEY="${MORROW_VAULT_MASTER_KEY:-$(generate_fernet_key)}"
+  add_secret_version "${NAME_PREFIX}-morrow-vault-master-key" "$VAULT_KEY"
   add_secret_version "${NAME_PREFIX}-openai-api-key" "$OPENAI_API_KEY"
 else
   echo "[3/5] Skipping Secret Manager population"
@@ -149,8 +149,8 @@ if [[ "$SKIP_MIGRATE" -eq 0 ]]; then
     --region "$REGION" \
     --image "$IMAGE" \
     --service-account "$RUNTIME_SA" \
-    --set-env-vars "APP_COMPONENT=migrate,PQC_MAIN_DB_BACKEND=postgres" \
-    --set-secrets "PQC_PRODUCT_DATABASE_URL=${NAME_PREFIX}-database-url:latest,DATABASE_URL=${NAME_PREFIX}-database-url:latest,PQC_VAULT_MASTER_KEY=${NAME_PREFIX}-pqc-vault-master-key:latest,OPENAI_API_KEY=${NAME_PREFIX}-openai-api-key:latest,CELERY_BROKER_URL=${NAME_PREFIX}-celery-broker-url:latest,CELERY_RESULT_BACKEND=${NAME_PREFIX}-celery-result-backend:latest" \
+    --set-env-vars "APP_COMPONENT=migrate,MORROW_MAIN_DB_BACKEND=postgres" \
+    --set-secrets "MORROW_PRODUCT_DATABASE_URL=${NAME_PREFIX}-database-url:latest,DATABASE_URL=${NAME_PREFIX}-database-url:latest,MORROW_VAULT_MASTER_KEY=${NAME_PREFIX}-morrow-vault-master-key:latest,OPENAI_API_KEY=${NAME_PREFIX}-openai-api-key:latest,CELERY_BROKER_URL=${NAME_PREFIX}-celery-broker-url:latest,CELERY_RESULT_BACKEND=${NAME_PREFIX}-celery-result-backend:latest" \
     --network "$NETWORK" \
     --subnet "$SUBNET" \
     --vpc-egress private-ranges-only \

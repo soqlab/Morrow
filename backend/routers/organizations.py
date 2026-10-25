@@ -312,7 +312,7 @@ def create_organizations_router(require_role: RequireRole, actor_from_request: A
             details={"exported_at": export["exported_at"]},
         )
 
-        filename = f"pqc-gdpr-export-{organization_id[:8]}-{time.strftime('%Y%m%d')}.json"
+        filename = f"pq-gdpr-export-{organization_id[:8]}-{time.strftime('%Y%m%d')}.json"
         content = json.dumps(export, indent=2, default=str)
         return StreamingResponse(
             iter([content]),

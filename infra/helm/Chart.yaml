@@ -1,15 +1,15 @@
 apiVersion: v2
-name: pqc-scanner
+name: morrow
 description: Post-Quantum Cryptography governance platform
 type: application
 version: 1.0.0
 appVersion: "16.0"
 keywords:
-  - pqc
+  - pq
   - post-quantum
   - cryptography
   - security
   - governance
-home: https://github.com/your-org/pqc-scanner
+home: https://github.com/soqlab/morrow
 maintainers:
   - name: Morrow Team

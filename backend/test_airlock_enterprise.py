@@ -16,22 +16,22 @@ def _canonical(value):
 @pytest.fixture()
 def client(tmp_path):
     keys = (
-        "PQC_SCANNER_DB",
-        "PQC_AUTH_MODE",
-        "PQC_AUTH_REQUIRED",
-        "PQC_DEFAULT_ROLE",
-        "PQC_ENVIRONMENT",
-        "PQC_AIRLOCK_SIGNING_KEY",
-        "PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE",
+        "MORROW_SCANNER_DB",
+        "MORROW_AUTH_MODE",
+        "MORROW_AUTH_REQUIRED",
+        "MORROW_DEFAULT_ROLE",
+        "MORROW_ENVIRONMENT",
+        "MORROW_AIRLOCK_SIGNING_KEY",
+        "MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE",
     )
     old_env = {k: os.environ.get(k) for k in keys}
-    os.environ["PQC_SCANNER_DB"] = str(tmp_path / "airlock.db")
-    os.environ["PQC_AUTH_MODE"] = "headers"
-    os.environ["PQC_AUTH_REQUIRED"] = "1"
-    os.environ["PQC_DEFAULT_ROLE"] = "viewer"
-    os.environ["PQC_ENVIRONMENT"] = "development"
-    os.environ["PQC_AIRLOCK_SIGNING_KEY"] = "a" * 64
-    os.environ["PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE"] = "1"
+    os.environ["MORROW_SCANNER_DB"] = str(tmp_path / "airlock.db")
+    os.environ["MORROW_AUTH_MODE"] = "headers"
+    os.environ["MORROW_AUTH_REQUIRED"] = "1"
+    os.environ["MORROW_DEFAULT_ROLE"] = "viewer"
+    os.environ["MORROW_ENVIRONMENT"] = "development"
+    os.environ["MORROW_AIRLOCK_SIGNING_KEY"] = "a" * 64
+    os.environ["MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE"] = "1"
 
     import app as fastapi_app
 
@@ -73,9 +73,9 @@ def test_enterprise_agent_package_contains_working_collector(client):
     assert body["kind"] == "enterprise_quantum_airlock_agent_package"
     assert body["profile"]["allow_write_actions"] is False
     assert body["profile"]["privacy_contract"]["no_payloads"] is True
-    assert body["bundle"]["filename"] == "pqc-airlock-agent.zip"
-    assert "pqc_airlock_agent.py" in body["artifacts"]
-    compile(body["artifacts"]["pqc_airlock_agent.py"], "pqc_airlock_agent.py", "exec")
+    assert body["bundle"]["filename"] == "morrow-airlock-agent.zip"
+    assert "morrow_airlock_agent.py" in body["artifacts"]
+    compile(body["artifacts"]["morrow_airlock_agent.py"], "morrow_airlock_agent.py", "exec")
 
 
 def test_signed_flight_recorder_submission_is_persisted(client):
@@ -209,7 +209,7 @@ def test_change_simulator_and_pr_factory_are_review_only(client):
     )
     assert pr.status_code == 200
     pr_body = pr.json()
-    assert pr_body["bundle"]["filename"] == "pqc-airlock-remediation-pr.zip"
+    assert pr_body["bundle"]["filename"] == "morrow-airlock-remediation-pr.zip"
     assert "patch.diff" in pr_body["artifacts"]
     assert "slsa-provenance.intoto.json" in pr_body["artifacts"]
 
@@ -220,9 +220,9 @@ def test_one_command_installers_and_onboarding_status(client):
     status = client.get("/airlock/onboarding-status", headers=_operator_headers())
 
     assert sh.status_code == 200
-    assert "pqc_airlock_agent.py" in sh.text
+    assert "morrow_airlock_agent.py" in sh.text
     assert "run-once" in sh.text
     assert ps1.status_code == 200
-    assert "pqc_airlock_agent.py" in ps1.text
+    assert "morrow_airlock_agent.py" in ps1.text
     assert status.status_code == 200
     assert status.json()["kind"] == "enterprise_airlock_onboarding_status"

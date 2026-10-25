@@ -270,7 +270,7 @@ class Provider(abc.ABC):
         # its own default, and a custom provider usually has one.
         missing: List[str] = []
         if not str(self.capabilities().model or "").strip():
-            missing.append("PQC_LLM_MODEL")
+            missing.append("MORROW_LLM_MODEL")
         return {"ready": not missing, "missing": missing,
                 "detail": "configured" if not missing else "incomplete configuration"}
 

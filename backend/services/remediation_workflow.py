@@ -107,16 +107,16 @@ def split_owner_repo(repo_name: str) -> Tuple[str, str]:
 
 
 def build_remediation_branch_name(branch_prefix: str, remediation_id: int) -> str:
-    prefix = (branch_prefix or "fix/pqc-remediation").strip().rstrip("/")
+    prefix = (branch_prefix or "fix/pq-remediation").strip().rstrip("/")
     prefix = re.sub(r"\s+", "-", prefix)
-    prefix = prefix[:180].rstrip("/.-") or "fix/pqc-remediation"
+    prefix = prefix[:180].rstrip("/.-") or "fix/pq-remediation"
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     suffix = uuid.uuid4().hex[:8]
     return f"{prefix}-{int(remediation_id)}-{stamp}-{suffix}"
 
 
 def build_remediation_commit_message(remediation: Dict[str, Any]) -> str:
-    return f"PQC remediation: {remediation.get('asset_key') or ''}".strip() or "PQC remediation"
+    return f"Post-quantum remediation: {remediation.get('asset_key') or ''}".strip() or "Post-quantum remediation"
 
 
 def build_remediation_pr_title(remediation: Dict[str, Any], requested_title: str = "") -> str:
@@ -131,7 +131,7 @@ def build_remediation_pr_title(remediation: Dict[str, Any], requested_title: str
 
 
 def remediation_link_url(remediation_id: int, app_base_url: str = "") -> str:
-    base = str(app_base_url or os.getenv("PQC_APP_BASE_URL") or os.getenv("PQC_PUBLIC_APP_URL") or "").strip().rstrip("/")
+    base = str(app_base_url or os.getenv("MORROW_APP_BASE_URL") or os.getenv("MORROW_PUBLIC_APP_URL") or "").strip().rstrip("/")
     return f"{base}/ui/?remediation_id={int(remediation_id)}" if base else ""
 
 

@@ -1,6 +1,6 @@
 param(
   [string]$BaseUrl = "http://localhost:8000",
-  [string]$Output = "demo\video\pqc-scanner-demo.mp4",
+  [string]$Output = "demo\video\morrow-demo.mp4",
   [switch]$StartStack,
   [switch]$SkipCapture
 )
@@ -50,7 +50,7 @@ New-Item -ItemType Directory -Force -Path $ScreensDir, $FramesDir, $SegmentsDir,
 
 if (-not $SkipCapture) {
   Invoke-Step "Capturing real frontend screenshots" {
-    $env:PQC_DEMO_BASE_URL = $BaseUrl
+    $env:MORROW_DEMO_BASE_URL = $BaseUrl
     $env:NODE_PATH = $NodeModules
     node (Join-Path $RepoRoot "scripts\capture-demo-screenshots.js")
   }

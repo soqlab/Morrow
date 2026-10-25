@@ -19,17 +19,17 @@ The engineering is done. What is left is mostly decisions, accounts and one lawy
 Follow [deploy/single-host/README.md](../deploy/single-host/README.md), which is the sequenced
 version of this. The decisions it needs from you:
 
-- [ ] **A domain.** Everything else references it. `PQC_PUBLIC_BASE_URL` has to match it exactly
+- [ ] **A domain.** Everything else references it. `MORROW_PUBLIC_BASE_URL` has to match it exactly
       or the registry advertises links that do not resolve.
 - [ ] **A server.** Hetzner CPX22 or equivalent: 3 vCPU, 4 GB, 80 GB.
 - [ ] **An identity provider** for customer sign-in. The go-live gate requires RS256 with a JWKS
       URL, so this cannot be skipped or faked. Auth0's free tier covers 25,000 monthly users;
       Zitadel or Keycloak self-host on the same box if you would rather own it.
 - [ ] **A second OIDC application** for operator sign-in to `/vendor-admin`, plus
-      `PQC_ADMIN_OPERATOR_ROLES=you@your-domain.com=owner`.
-- [ ] **Generate and store the four secrets.** `PQC_VAULT_MASTER_KEY` decrypts every stored
+      `MORROW_ADMIN_OPERATOR_ROLES=you@your-domain.com=owner`.
+- [ ] **Generate and store the four secrets.** `MORROW_VAULT_MASTER_KEY` decrypts every stored
       customer credential — lose it and a restored backup is unreadable ciphertext.
-- [ ] **Set the trial caps.** `PQC_TRIAL_API_CALLS_PER_MIN` and `PQC_TRIAL_SCANS_PER_HOUR`
+- [ ] **Set the trial caps.** `MORROW_TRIAL_API_CALLS_PER_MIN` and `MORROW_TRIAL_SCANS_PER_HOUR`
       (`.env.prod.example` suggests 60 and 10). They are applied as a real rate-limit override when
       you approve a request. Leave them at 0 and a trial organization runs on the same limits as a
       paying one. There used to be a plan-based tier that could cap them; it went with the billing
@@ -57,7 +57,7 @@ version of this. The decisions it needs from you:
 
 ## Part 3 — Before the free checker faces the public
 
-`PQC_PUBLIC_CHECK_ENABLED=0` in production until all five exist. This is the only part of the
+`MORROW_PUBLIC_CHECK_ENABLED=0` in production until all five exist. This is the only part of the
 platform that connects to a machine the requester may not own, which is a different kind of
 responsibility from scanning your own estate.
 
@@ -65,7 +65,7 @@ responsibility from scanning your own estate.
 - [x] An acceptable-use policy — `/public-check/acceptable-use`
 - [x] A privacy notice covering the requester *and* the party checked — `/public-check/privacy`
 - [ ] **A monitored abuse mailbox with a stated response time.** Set
-      `PQC_PUBLIC_CHECK_ABUSE_CONTACT`, and replace the placeholder on `/abuse`. A mailbox nobody
+      `MORROW_PUBLIC_CHECK_ABUSE_CONTACT`, and replace the placeholder on `/abuse`. A mailbox nobody
       reads is worse than none, because the page promises it.
 - [ ] **Egress addresses and reverse DNS on `/scanner`.** They depend on this server. Until they
       are published, an operator who wants to block the service has to identify it by behaviour,
@@ -85,13 +85,13 @@ Certificate Transparency seeding is safe at any scale and active measurement is 
 
 - [ ] **Stand up the forge** — `../quantum-forge/docs/FORGE_SETUP.md`. Gitea, Postgres, Caddy,
       nightly backups.
-- [ ] **Publish from a clean history**: `./scripts/publish-clean-repo.sh ~/Desktop/pqc-scanner
+- [ ] **Publish from a clean history**: `./scripts/publish-clean-repo.sh ~/Desktop/morrow
       Sprint35 git@git.yourdomain.com:you/morrow.git`. It exports only tracked files,
       compares every real value in your local `backend/.env` against the export, and refuses if
       one appears.
 - [ ] **Mirror to GitHub** for discovery: `./scripts/mirror-to-github.sh`, or the forge's own push
       mirror. Say in the GitHub description that issues live on the forge.
-- [ ] **Move `../pqc-scanner-private/` into a private repository.** It holds the full security
+- [ ] **Move `../morrow-private/` into a private repository.** It holds the full security
       review, pricing and go-to-market material. Right now it exists only on this laptop.
 - [ ] **Rotate any credential ever pasted outside git** — into a chat, a terminal you screen-shared,
       a file you emailed. Cheap now, expensive later.
@@ -113,9 +113,9 @@ Certificate Transparency seeding is safe at any scale and active measurement is 
       - **Your own time.** You approve every workspace by hand. That is the bottleneck, and the
         reason verified-domain self-serve is the next thing worth building.
       - **crt.sh's goodwill.** The free checker reads Certificate Transparency from a third party,
-        with a politeness throttle (`PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS`). Being a heavy
+        with a politeness throttle (`MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS`). Being a heavy
         user gets you rate-limited or blocked. That is a cost in access, not in money. Set
-        `PQC_PUBLIC_CHECK_CT_TOKEN` if you move to CertSpotter, and watch for CT failures — the
+        `MORROW_PUBLIC_CHECK_CT_TOKEN` if you move to CertSpotter, and watch for CT failures — the
         page reports them honestly rather than guessing, so they show up as missing data.
       - **Concurrency.** Four checks at once, a 32-deep queue, 240 an hour globally. A flood
         produces 429s and a queue, not a cost. Raise the numbers only with the server in front

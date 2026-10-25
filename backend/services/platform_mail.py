@@ -4,10 +4,10 @@ services/smtp_notify.py sends email for one customer organization with that orga
 SMTP settings. Vendor-side mail (alert routing, "Email the invite") has no organization of its own,
 so it is configured here:
 
-  PQC_SMTP_HOST, PQC_SMTP_PORT (587), PQC_SMTP_USER, PQC_SMTP_PASSWORD, PQC_SMTP_FROM,
-  PQC_SMTP_STARTTLS (1; set 0 only for a local relay on a trusted network)
+  MORROW_SMTP_HOST, MORROW_SMTP_PORT (587), MORROW_SMTP_USER, MORROW_SMTP_PASSWORD, MORROW_SMTP_FROM,
+  MORROW_SMTP_STARTTLS (1; set 0 only for a local relay on a trusted network)
 
-or, when PQC_SMTP_HOST is unset and PQC_PLATFORM_SMTP_ORG_ID names an organization, the SMTP
+or, when MORROW_SMTP_HOST is unset and MORROW_PLATFORM_SMTP_ORG_ID names an organization, the SMTP
 settings that organization saved through /notifications/config (smtp_notify's notification_configs
 row, used only when its smtp_enabled flag is on).
 
@@ -38,22 +38,22 @@ def _truthy(value: str, default: bool = True) -> bool:
 
 def settings() -> Optional[Dict[str, Any]]:
     """The SMTP settings in effect, or None when platform email is not configured."""
-    host = str(os.getenv("PQC_SMTP_HOST") or "").strip()
+    host = str(os.getenv("MORROW_SMTP_HOST") or "").strip()
     if host:
         try:
-            port = int(str(os.getenv("PQC_SMTP_PORT") or "587").strip() or 587)
+            port = int(str(os.getenv("MORROW_SMTP_PORT") or "587").strip() or 587)
         except ValueError:
             port = 587
         return {
             "source": "env",
             "host": host,
             "port": port,
-            "user": str(os.getenv("PQC_SMTP_USER") or "").strip(),
-            "password": str(os.getenv("PQC_SMTP_PASSWORD") or ""),
-            "from": str(os.getenv("PQC_SMTP_FROM") or os.getenv("PQC_SMTP_USER") or "").strip(),
-            "starttls": _truthy(os.getenv("PQC_SMTP_STARTTLS", "1")),
+            "user": str(os.getenv("MORROW_SMTP_USER") or "").strip(),
+            "password": str(os.getenv("MORROW_SMTP_PASSWORD") or ""),
+            "from": str(os.getenv("MORROW_SMTP_FROM") or os.getenv("MORROW_SMTP_USER") or "").strip(),
+            "starttls": _truthy(os.getenv("MORROW_SMTP_STARTTLS", "1")),
         }
-    org_id = str(os.getenv("PQC_PLATFORM_SMTP_ORG_ID") or "").strip()
+    org_id = str(os.getenv("MORROW_PLATFORM_SMTP_ORG_ID") or "").strip()
     if not org_id:
         return None
     try:
@@ -94,7 +94,7 @@ def send_text(recipients: List[str], subject: str, body: str, timeout: float = 2
     """Send one plain-text message. Returns {"ok", "error"}; never raises."""
     cfg = settings()
     if not cfg:
-        return {"ok": False, "error": "Email is not configured: set PQC_SMTP_HOST (and PQC_SMTP_FROM)."}
+        return {"ok": False, "error": "Email is not configured: set MORROW_SMTP_HOST (and MORROW_SMTP_FROM)."}
     to = [str(a).strip() for a in recipients or [] if valid_address(a)]
     if not to:
         return {"ok": False, "error": "No valid recipient address."}

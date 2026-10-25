@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 
 _SENTRY_READY = False
-logger = logging.getLogger("pqc.observability")
+logger = logging.getLogger("morrow.observability")
 
 
 def _ensure_sentry() -> bool:
@@ -21,7 +21,7 @@ def _ensure_sentry() -> bool:
 
         sentry_sdk.init(
             dsn=dsn,
-            environment=str(os.getenv("PQC_ENVIRONMENT") or os.getenv("ENVIRONMENT") or "").strip() or None,
+            environment=str(os.getenv("MORROW_ENVIRONMENT") or os.getenv("ENVIRONMENT") or "").strip() or None,
             traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0") or 0),
         )
         _SENTRY_READY = True

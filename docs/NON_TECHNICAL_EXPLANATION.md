@@ -35,7 +35,7 @@ Morrow checks those public systems and looks for crypto and TLS posture issues.
 
 TLS is the technology behind HTTPS. When you see a padlock in the browser, TLS is part of what makes that work.
 
-PQC means post-quantum cryptography.
+Post-quantum means post-quantum cryptography.
 
 Post-quantum cryptography is about preparing for a future where quantum computers may break some older cryptographic systems. Most companies are not fully ready for that yet. Morrow helps them understand where they are and move toward safer, more flexible crypto setups.
 

@@ -1,7 +1,7 @@
 """
-PQC Compliance Framework Mapper
+Post-Quantum Compliance Framework Mapper
 
-Maps an organization's PQC posture against major regulatory and security
+Maps an organization's post-quantum posture against major regulatory and security
 frameworks. Provides gap analysis, control status, and evidence mapping.
 
 Frameworks covered:
@@ -52,42 +52,42 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "authority": "NIST (National Institute of Standards and Technology)",
         "effective_date": "2024-02-26",
         "mandatory_for": "US Federal agencies (FISMA); strongly recommended for critical infrastructure",
-        "pqc_stance": "IDENTIFY.GV-SC (supply chain risk) + PROTECT.DS (data security) require PQC inventory and roadmap",
+        "pq_stance": "IDENTIFY.GV-SC (supply chain risk) + PROTECT.DS (data security) require post-quantum inventory and roadmap",
         "controls": [
             {
                 "id": "GV.SC-07",
                 "name": "Cryptographic Inventory",
                 "description": "Organization maintains an inventory of cryptographic assets used in products and services",
-                "pqc_relevance": "critical",
+                "pq_relevance": "critical",
                 "mapping": "CBOM must exist; all algorithms classified against FIPS 203/204/205",
             },
             {
                 "id": "ID.AM-02",
                 "name": "Asset Inventory",
                 "description": "Software, hardware, services, and systems are inventoried",
-                "pqc_relevance": "high",
+                "pq_relevance": "high",
                 "mapping": "Quantum-vulnerable algorithms must be enumerated in asset inventory",
             },
             {
                 "id": "PR.DS-02",
                 "name": "Data in Transit Protected",
                 "description": "Data-in-transit is protected",
-                "pqc_relevance": "critical",
+                "pq_relevance": "critical",
                 "mapping": "TLS 1.3 with ML-KEM hybrid required; RSA/ECDH key exchange must be replaced",
             },
             {
                 "id": "PR.DS-01",
                 "name": "Data at Rest Protected",
                 "description": "Data-at-rest is protected",
-                "pqc_relevance": "high",
+                "pq_relevance": "high",
                 "mapping": "AES-256 (CNSA 2.0 approved) required for symmetric encryption",
             },
             {
                 "id": "GV.RM-06",
                 "name": "Risk Strategy",
                 "description": "A cybersecurity risk management strategy is established and communicated",
-                "pqc_relevance": "high",
-                "mapping": "Formal PQC migration roadmap required; Q-Day risk must be in risk register",
+                "pq_relevance": "high",
+                "mapping": "Formal post-quantum migration roadmap required; Q-Day risk must be in risk register",
             },
         ],
         "deadline": "No hard deadline; agencies must align with OMB M-23-02",
@@ -99,34 +99,34 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "authority": "US Department of Defense (DoD)",
         "effective_date": "2025-12-16",
         "mandatory_for": "DoD contractors handling CUI (Controlled Unclassified Information) and up",
-        "pqc_stance": "CMMC Level 3 requires compliance with NIST SP 800-172; cryptographic agility mandated",
+        "pq_stance": "CMMC Level 3 requires compliance with NIST SP 800-172; cryptographic agility mandated",
         "controls": [
             {
                 "id": "SC.3.177",
                 "name": "Cryptographic Mechanisms",
                 "description": "Employ cryptographic mechanisms to prevent unauthorized disclosure of CUI during transmission",
-                "pqc_relevance": "critical",
+                "pq_relevance": "critical",
                 "mapping": "Must adopt CNSA 2.0 suite; RSA/ECDH for CUI transmission is non-compliant after 2030",
             },
             {
                 "id": "SC.3.187",
                 "name": "Cryptographic Key Management",
                 "description": "Establish and manage cryptographic keys when cryptography is employed",
-                "pqc_relevance": "critical",
+                "pq_relevance": "critical",
                 "mapping": "Key lifecycle management must support ML-KEM and ML-DSA key types",
             },
             {
                 "id": "RA.3.077",
                 "name": "Risk Assessments",
                 "description": "Periodically assess risk to operations, assets, and individuals",
-                "pqc_relevance": "high",
+                "pq_relevance": "high",
                 "mapping": "Q-Day risk must be included in periodic risk assessments; HNDL threat documented",
             },
             {
                 "id": "CM.3.068",
                 "name": "Security Configuration",
                 "description": "Establish and maintain baseline configurations",
-                "pqc_relevance": "medium",
+                "pq_relevance": "medium",
                 "mapping": "Approved algorithm list must be updated to exclude pre-quantum algorithms",
             },
         ],
@@ -139,28 +139,28 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "authority": "GSA FedRAMP PMO / OMB",
         "effective_date": "2024-01-01",
         "mandatory_for": "Cloud Service Providers hosting US federal government High-impact data",
-        "pqc_stance": "OMB M-23-02 mandates PQC migration plan by January 2024; NSS must comply by 2030",
+        "pq_stance": "OMB M-23-02 mandates post-quantum migration plan by January 2024; NSS must comply by 2030",
         "controls": [
             {
                 "id": "SC-8(1)",
                 "name": "Cryptographic Protection",
                 "description": "Transmission Confidentiality and Integrity — cryptographic mechanisms",
-                "pqc_relevance": "critical",
-                "mapping": "Must implement CNSA 2.0 approved algorithms; TLS must support PQC key exchange",
+                "pq_relevance": "critical",
+                "mapping": "Must implement CNSA 2.0 approved algorithms; TLS must support post-quantum key exchange",
             },
             {
                 "id": "SC-28(1)",
                 "name": "Protection of Information at Rest",
                 "description": "Cryptographic protection of data at rest",
-                "pqc_relevance": "high",
-                "mapping": "AES-256 minimum; key wrapping algorithms must be PQC-ready by 2030",
+                "pq_relevance": "high",
+                "mapping": "AES-256 minimum; key wrapping algorithms must be post-quantum-ready by 2030",
             },
             {
                 "id": "SA-9",
                 "name": "External System Services",
                 "description": "Supply chain cryptographic requirements",
-                "pqc_relevance": "high",
-                "mapping": "Third-party APIs and SaaS used must document PQC roadmap by FY2026",
+                "pq_relevance": "high",
+                "mapping": "Third-party APIs and SaaS used must document post-quantum roadmap by FY2026",
             },
         ],
         "deadline": "2030-01-01 (NSS systems); 2033-01-01 (all other systems)",
@@ -172,27 +172,27 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "authority": "AICPA",
         "effective_date": "2017-09-01",
         "mandatory_for": "SaaS vendors handling customer data; required by enterprise customers",
-        "pqc_stance": "CC9.1 (risk identification) and CC6.1 (logical access) are being updated for PQC; auditors increasingly asking",
+        "pq_stance": "CC9.1 (risk identification) and CC6.1 (logical access) are being updated for post-quantum; auditors increasingly asking",
         "controls": [
             {
                 "id": "CC6.1",
                 "name": "Logical Access Security",
                 "description": "Security controls over logical access to the entity's systems",
-                "pqc_relevance": "high",
+                "pq_relevance": "high",
                 "mapping": "Encryption algorithms used must be documented; quantum risk disclosure expected by 2026",
             },
             {
                 "id": "CC9.1",
                 "name": "Risk Identification",
                 "description": "Identify risks to meeting service commitments",
-                "pqc_relevance": "high",
+                "pq_relevance": "high",
                 "mapping": "Q-Day / HNDL risk must be in risk register; migration plan is evidence",
             },
             {
                 "id": "CC6.7",
                 "name": "Encryption of Data in Transit",
                 "description": "Restricts the transmission of confidential information",
-                "pqc_relevance": "medium",
+                "pq_relevance": "medium",
                 "mapping": "TLS version and algorithm suite must be documented; auditors may flag RSA key exchange",
             },
         ],
@@ -205,28 +205,28 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "authority": "ISO / IEC",
         "effective_date": "2022-10-25",
         "mandatory_for": "Global organizations seeking ISMS certification; often required by EU enterprise contracts",
-        "pqc_stance": "Annex A.8.24 (use of cryptography) requires a cryptography policy; PQC risk must be addressed",
+        "pq_stance": "Annex A.8.24 (use of cryptography) requires a cryptography policy; post-quantum risk must be addressed",
         "controls": [
             {
                 "id": "A.8.24",
                 "name": "Use of Cryptography",
                 "description": "Rules on effective use of cryptography must be defined and implemented",
-                "pqc_relevance": "critical",
+                "pq_relevance": "critical",
                 "mapping": "Policy must reference FIPS 203/204/205; quantum-vulnerable algorithm list must be maintained",
             },
             {
                 "id": "A.5.19",
                 "name": "Information Security in Supplier Relationships",
                 "description": "Supply chain cryptographic requirements",
-                "pqc_relevance": "medium",
-                "mapping": "Supplier contracts must include PQC migration timelines from 2025 onward",
+                "pq_relevance": "medium",
+                "mapping": "Supplier contracts must include post-quantum migration timelines from 2025 onward",
             },
             {
                 "id": "A.8.20",
                 "name": "Networks Security",
                 "description": "Networks shall be managed and controlled to protect information",
-                "pqc_relevance": "high",
-                "mapping": "TLS 1.3 with forward secrecy mandatory; PQC hybrid key exchange preferred",
+                "pq_relevance": "high",
+                "mapping": "TLS 1.3 with forward secrecy mandatory; post-quantum hybrid key exchange preferred",
             },
         ],
         "deadline": "No hard deadline; 2025 transition deadline for 27001:2022 (from 27001:2013)",
@@ -238,28 +238,28 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "authority": "European Commission",
         "effective_date": "2024-10-17",
         "mandatory_for": "EU member state essential and important entities (energy, health, finance, transport, digital infrastructure)",
-        "pqc_stance": "Article 21(2)(h) requires state-of-the-art cryptography; ENISA is mapping PQC as state-of-the-art from 2025",
+        "pq_stance": "Article 21(2)(h) requires state-of-the-art cryptography; ENISA is mapping post-quantum as state-of-the-art from 2025",
         "controls": [
             {
                 "id": "Art.21(2)(h)",
                 "name": "Cryptography Policy",
                 "description": "Policies and procedures regarding the use of cryptography",
-                "pqc_relevance": "critical",
-                "mapping": "Entities must assess quantum risk and adopt ETSI/NIST PQC standards in their cryptography policy",
+                "pq_relevance": "critical",
+                "mapping": "Entities must assess quantum risk and adopt ETSI/NIST post-quantum standards in their cryptography policy",
             },
             {
                 "id": "Art.21(2)(a)",
                 "name": "Risk Analysis",
                 "description": "Risk analysis and information system security policies",
-                "pqc_relevance": "high",
+                "pq_relevance": "high",
                 "mapping": "HNDL risk from quantum computing must be in risk analysis as of 2025",
             },
             {
                 "id": "Art.21(2)(e)",
                 "name": "Supply Chain Security",
                 "description": "Security in network and information systems acquisition, development, and maintenance",
-                "pqc_relevance": "medium",
-                "mapping": "Supply chain PQC readiness required; SBOM/CBOM production expected",
+                "pq_relevance": "medium",
+                "mapping": "Supply chain post-quantum readiness required; SBOM/CBOM production expected",
             },
         ],
         "deadline": "2024-10-17 transposition deadline (member states); enforcement varies",
@@ -271,28 +271,28 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
         "authority": "European Commission / EBA / ESMA / EIOPA",
         "effective_date": "2025-01-17",
         "mandatory_for": "EU financial entities: banks, insurers, investment firms, crypto-asset providers",
-        "pqc_stance": "Article 9(2) operational resilience testing + Article 6 ICT risk framework must include quantum threats",
+        "pq_stance": "Article 9(2) operational resilience testing + Article 6 ICT risk framework must include quantum threats",
         "controls": [
             {
                 "id": "Art.9(2)",
                 "name": "ICT Security Testing",
                 "description": "Penetration testing and threat-led resilience testing",
-                "pqc_relevance": "high",
-                "mapping": "TLPT exercises must include quantum-readiness assessment; PQC migration a test scope item from 2025",
+                "pq_relevance": "high",
+                "mapping": "TLPT exercises must include quantum-readiness assessment; post-quantum migration a test scope item from 2025",
             },
             {
                 "id": "Art.6",
                 "name": "ICT Risk Framework",
                 "description": "Framework for the management of ICT risks",
-                "pqc_relevance": "critical",
+                "pq_relevance": "critical",
                 "mapping": "Quantum risk is an ICT risk; migration plan with timelines required; board-level ownership mandated",
             },
             {
                 "id": "Art.28",
                 "name": "Third-Party ICT Risk",
                 "description": "General principles on ICT third-party risk",
-                "pqc_relevance": "medium",
-                "mapping": "Critical ICT third parties must disclose PQC readiness to regulated financial entities",
+                "pq_relevance": "medium",
+                "mapping": "Critical ICT third parties must disclose post-quantum readiness to regulated financial entities",
             },
         ],
         "deadline": "2025-01-17 (fully in force); TLPT requirements by 2026 for significant entities",
@@ -302,12 +302,12 @@ _FRAMEWORKS: Dict[str, Dict[str, Any]] = {
 
 # ── Compliance scoring ──────────────────────────────────────────────────────────
 
-def _score_control(control: Dict[str, Any], pqc_report: Dict[str, Any]) -> Dict[str, Any]:
-    """Score a single control against PQC report data."""
-    relevance = control["pqc_relevance"]
-    score = pqc_report.get("overall_score", 0)
-    grade = pqc_report.get("overall_grade", "F")
-    has_cbom = bool(pqc_report.get("asset_count", 0))
+def _score_control(control: Dict[str, Any], pq_report: Dict[str, Any]) -> Dict[str, Any]:
+    """Score a single control against post-quantum report data."""
+    relevance = control["pq_relevance"]
+    score = pq_report.get("overall_score", 0)
+    grade = pq_report.get("overall_grade", "F")
+    has_cbom = bool(pq_report.get("asset_count", 0))
 
     # Map control type to relevant metric
     control_id = control["id"]
@@ -332,7 +332,7 @@ def _score_control(control: Dict[str, Any], pqc_report: Dict[str, Any]) -> Dict[
         # Inventory / CBOM controls
         if has_cbom:
             status = "partial"
-            evidence.append(f"{pqc_report.get('asset_count', 0)} assets in CBOM")
+            evidence.append(f"{pq_report.get('asset_count', 0)} assets in CBOM")
             if score < 70:
                 gap = "Algorithms not fully classified against FIPS 203/204/205"
         else:
@@ -347,8 +347,8 @@ def _score_control(control: Dict[str, Any], pqc_report: Dict[str, Any]) -> Dict[
 
     elif "transit" in control["description"].lower() or "transmission" in control["description"].lower():
         # Data in transit
-        vuln = pqc_report.get("summary", {}).get("quantum_vulnerable", 0)
-        total = pqc_report.get("asset_count", 1)
+        vuln = pq_report.get("summary", {}).get("quantum_vulnerable", 0)
+        total = pq_report.get("asset_count", 1)
         if vuln == 0:
             status = "compliant"
             evidence.append("No quantum-vulnerable key exchange detected")
@@ -363,7 +363,7 @@ def _score_control(control: Dict[str, Any], pqc_report: Dict[str, Any]) -> Dict[
         # Default scoring from overall posture
         status = "compliant" if score >= 80 else "partial" if score >= 40 else "non_compliant"
         if score < 80:
-            gap = f"Overall PQC score {score}/100 falls short of compliance threshold"
+            gap = f"Overall post-quantum score {score}/100 falls short of compliance threshold"
 
     weight = {"critical": 3, "high": 2, "medium": 1}.get(relevance, 1)
     score_val = {"compliant": 100, "partial": 50, "non_compliant": 0, "unknown": 25}.get(status, 25)
@@ -380,13 +380,13 @@ def _score_control(control: Dict[str, Any], pqc_report: Dict[str, Any]) -> Dict[
 
 
 def build_compliance_report(
-    pqc_report: Dict[str, Any],
+    pq_report: Dict[str, Any],
     frameworks: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
-    Map PQC posture against regulatory frameworks.
+    Map post-quantum posture against regulatory frameworks.
 
-    pqc_report  — output of fips_pqc.build_fips_compliance_report()
+    pq_report  — output of fips_pq.build_fips_compliance_report()
     frameworks  — list of framework IDs to include; None = all
     """
     selected = frameworks or list(_FRAMEWORKS.keys())
@@ -395,14 +395,14 @@ def build_compliance_report(
     # A framework grade needs posture to grade. With no scanned asset every
     # control would fall through to its "non_compliant" default and the report
     # would hand a new customer an F for evidence they have not supplied yet.
-    if int(pqc_report.get("asset_count") or 0) < MINIMUM_SCANNED_ASSETS:
+    if int(pq_report.get("asset_count") or 0) < MINIMUM_SCANNED_ASSETS:
         return {
             "generated_at": now.isoformat(),
             "available": False,
             "reason": UNAVAILABLE_REASON,
             "minimum_data": dict(_MINIMUM_DATA),
-            "pqc_overall_score": None,
-            "pqc_grade": None,
+            "pq_overall_score": None,
+            "pq_grade": None,
             "frameworks_assessed": 0,
             "overall_compliance_score": None,
             "frameworks": [
@@ -434,7 +434,7 @@ def build_compliance_report(
         fw = _FRAMEWORKS.get(fw_id)
         if not fw:
             continue
-        scored_controls = [_score_control(c, pqc_report) for c in fw["controls"]]
+        scored_controls = [_score_control(c, pq_report) for c in fw["controls"]]
 
         total_weighted = sum(c["weighted_score"] for c in scored_controls)
         max_weighted = sum(c["max_weighted_score"] for c in scored_controls)
@@ -469,8 +469,8 @@ def build_compliance_report(
         "available": True,
         "reason": "",
         "minimum_data": dict(_MINIMUM_DATA),
-        "pqc_overall_score": pqc_report.get("overall_score", 0),
-        "pqc_grade": pqc_report.get("overall_grade", "N/A"),
+        "pq_overall_score": pq_report.get("overall_score", 0),
+        "pq_grade": pq_report.get("overall_grade", "N/A"),
         "frameworks_assessed": len(results),
         "overall_compliance_score": overall,
         "frameworks": results,
@@ -489,7 +489,7 @@ def _priority_gaps(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                     "control": ctrl["id"],
                     "control_name": ctrl["name"],
                     "gap": ctrl["gap"],
-                    "relevance": ctrl["pqc_relevance"],
+                    "relevance": ctrl["pq_relevance"],
                     "mandatory_for": fw.get("mandatory_for", ""),
                 })
     gaps.sort(key=lambda g: {"critical": 0, "high": 1, "medium": 2}.get(g["relevance"], 3))

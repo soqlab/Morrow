@@ -37,7 +37,7 @@ _NIST_800_208_CONTROLS = [
         "id": "SP800-208-SC-13",
         "name": "Cryptographic Protection — Algorithm Selection",
         "description": "Systems must use NIST-approved cryptographic algorithms. RSA and EC are approved for now but must be migrated by 2030.",
-        "rule_ids": {"PQC_RSA_ENDPOINT", "PQC_EC_ENDPOINT", "SSH_QUANTUM_VULNERABLE_HOST_KEY", "SSH_NO_PQC_KEX"},
+        "rule_ids": {"MORROW_RSA_ENDPOINT", "MORROW_EC_ENDPOINT", "SSH_QUANTUM_VULNERABLE_HOST_KEY", "SSH_NO_MORROW_KEX"},
         "fail_severity": {"critical", "high"},
     },
     {
@@ -51,7 +51,7 @@ _NIST_800_208_CONTROLS = [
         "id": "SP800-208-SC-12",
         "name": "Cryptographic Key Establishment and Management",
         "description": "Keys must be established using approved algorithms. Plan for post-quantum key establishment.",
-        "rule_ids": {"PQC_RSA_ENDPOINT", "PQC_EC_ENDPOINT", "SSH_NO_PQC_KEX"},
+        "rule_ids": {"MORROW_RSA_ENDPOINT", "MORROW_EC_ENDPOINT", "SSH_NO_MORROW_KEX"},
         "fail_severity": {"critical", "high"},
     },
     {
@@ -75,7 +75,7 @@ _CNSA_20_CONTROLS = [
         "id": "CNSA2-KE",
         "name": "Key Establishment — ML-KEM Required by 2030",
         "description": "CNSA 2.0 requires ML-KEM-1024 for key establishment. ML-KEM-768 is acceptable for most systems until 2030.",
-        "rule_ids": {"PQC_EC_ENDPOINT", "SSH_NO_PQC_KEX", "SSH_QUANTUM_VULNERABLE_HOST_KEY"},
+        "rule_ids": {"MORROW_EC_ENDPOINT", "SSH_NO_MORROW_KEX", "SSH_QUANTUM_VULNERABLE_HOST_KEY"},
         "fail_severity": {"critical", "high"},
         "deadline": "2030",
     },
@@ -83,7 +83,7 @@ _CNSA_20_CONTROLS = [
         "id": "CNSA2-DS",
         "name": "Digital Signatures — ML-DSA Required by 2030",
         "description": "CNSA 2.0 requires ML-DSA-87 for digital signatures by 2030. RSA and ECDSA must be phased out.",
-        "rule_ids": {"PQC_RSA_ENDPOINT", "PQC_EC_ENDPOINT"},
+        "rule_ids": {"MORROW_RSA_ENDPOINT", "MORROW_EC_ENDPOINT"},
         "fail_severity": {"critical", "high"},
         "deadline": "2030",
     },
@@ -118,7 +118,7 @@ _ISO_27001_CONTROLS = [
         "id": "A.8.24",
         "name": "Use of Cryptography",
         "description": "Rules for the effective use of cryptography, including cryptographic key management, shall be defined and implemented.",
-        "rule_ids": {"PQC_RSA_ENDPOINT", "PQC_EC_ENDPOINT", "WEAK_CIPHER", "SSH_QUANTUM_VULNERABLE_HOST_KEY"},
+        "rule_ids": {"MORROW_RSA_ENDPOINT", "MORROW_EC_ENDPOINT", "WEAK_CIPHER", "SSH_QUANTUM_VULNERABLE_HOST_KEY"},
         "fail_severity": {"critical", "high"},
     },
     {
@@ -170,7 +170,7 @@ _PCI_DSS_4_CONTROLS = [
         "id": "PCI-R12.3.3",
         "name": "Cryptographic Review — Annual Algorithm Assessment",
         "description": "All cipher suites must be documented and reviewed annually.",
-        "rule_ids": {"WEAK_CIPHER", "PQC_RSA_ENDPOINT", "PQC_EC_ENDPOINT"},
+        "rule_ids": {"WEAK_CIPHER", "MORROW_RSA_ENDPOINT", "MORROW_EC_ENDPOINT"},
         "fail_severity": {"critical", "high", "medium"},
     },
 ]

@@ -32,7 +32,7 @@ def seeded(api, monkeypatch):  # noqa: F811  (api is the imported pytest fixture
     client, app, db_path = api
     make_org(client, "org-alpha")
     make_org(client, "org-beta")
-    monkeypatch.setenv("PQC_TRAFFIC_RETENTION_DAYS", "30")
+    monkeypatch.setenv("MORROW_TRAFFIC_RETENTION_DAYS", "30")
     for i in range(4):
         add_request(db_path, "org-alpha", 200, 10.0 + i, day_at(20), actor=f"alpha-{i % 2}")
     add_request(db_path, "org-alpha", 500, 900.0, day_at(20), actor="alpha-0")
@@ -48,7 +48,7 @@ def seeded(api, monkeypatch):  # noqa: F811  (api is the imported pytest fixture
     assert first["error"] is None and len(first["rolled"]) >= 25
     # Recent raw traffic, still inside the 7-day window.
     add_request(db_path, "org-alpha", 200, 20.0, now() - timedelta(minutes=5), actor="alpha-0")
-    monkeypatch.setenv("PQC_TRAFFIC_RETENTION_DAYS", "7")
+    monkeypatch.setenv("MORROW_TRAFFIC_RETENTION_DAYS", "7")
     security_journal.prune()
     pa.clear_cache()
     return client, app, db_path

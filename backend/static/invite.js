@@ -5,15 +5,15 @@
      The token arrives in the URL fragment, which never reaches a server log or a Referer header.
      It is moved into sessionStorage for this tab and removed from the address bar. The page:
        1. previews the invitation (POST /auth/invite/preview, masked summary only);
-       2. reads the console session from localStorage (pqc_token / pqc_refresh, the console's keys);
+       2. reads the console session from localStorage (morrow_token / morrow_refresh, the console's keys);
        3. offers sign-in through the console (returning here via sessionStorage), sign-out when the
           signed-in email does not match, and acceptance (POST /admin/accept-invite), which the
           server binds to the signed-in email and claims atomically.
      No third-party requests. */
 
-  const TOKEN_KEY = "pqc_invite_token";
-  const RETURN_KEY = "pqc_invite_return";
-  const FLASH_KEY = "pqc_flash";
+  const TOKEN_KEY = "pq_invite_token";
+  const RETURN_KEY = "pq_invite_return";
+  const FLASH_KEY = "pq_flash";
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
   const store = {
@@ -38,7 +38,7 @@
   async function request(path, { method = "GET", body, auth = false, timeout = 20000 } = {}) {
     const headers = {};
     if (body !== undefined) headers["Content-Type"] = "application/json";
-    const bearer = store.get("localStorage", "pqc_token");
+    const bearer = store.get("localStorage", "morrow_token");
     if (auth && bearer) headers.Authorization = "Bearer " + bearer;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeout);
@@ -63,17 +63,17 @@
     } catch { return null; }
   }
   async function identity() {
-    let jwt = store.get("localStorage", "pqc_token");
+    let jwt = store.get("localStorage", "morrow_token");
     let payload = claims(jwt);
     const expired = payload && payload.exp && payload.exp * 1000 < Date.now() + 5000;
-    if ((!payload || expired) && store.get("localStorage", "pqc_refresh")) {
-      const r = await request("/auth/refresh", { method: "POST", body: { refresh_token: store.get("localStorage", "pqc_refresh") } });
+    if ((!payload || expired) && store.get("localStorage", "morrow_refresh")) {
+      const r = await request("/auth/refresh", { method: "POST", body: { refresh_token: store.get("localStorage", "morrow_refresh") } });
       if (r.ok && r.data && r.data.access_token) {
-        store.set("localStorage", "pqc_token", r.data.access_token);
+        store.set("localStorage", "morrow_token", r.data.access_token);
         jwt = r.data.access_token;
         payload = claims(jwt);
       } else if (r.status === 401) {
-        store.del("localStorage", "pqc_token");
+        store.del("localStorage", "morrow_token");
         return null;
       }
     }
@@ -192,10 +192,10 @@
     location.assign("/ui/?signin=invite");
   }
   async function signOut() {
-    const refresh = store.get("localStorage", "pqc_refresh");
+    const refresh = store.get("localStorage", "morrow_refresh");
     if (refresh) await request("/auth/logout", { method: "POST", body: { refresh_token: refresh } });
-    store.del("localStorage", "pqc_token");
-    store.del("localStorage", "pqc_refresh");
+    store.del("localStorage", "morrow_token");
+    store.del("localStorage", "morrow_refresh");
     await render();
   }
   async function accept() {
@@ -213,7 +213,7 @@
         actions: [{ label: "Try again", primary: true, run: accept }] });
     }
     if (r.status === 401) {
-      store.del("localStorage", "pqc_token");
+      store.del("localStorage", "morrow_token");
       return state({ title: "Your session has ended.", lead: "Sign in again to accept.", tone: "bad", actions: [{ label: "Sign in to accept", primary: true, run: signIn }] });
     }
     if (r.status === 403) {

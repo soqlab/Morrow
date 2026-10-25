@@ -355,7 +355,7 @@
 <!-- Access › API keys -->
 <section class="page" data-page="api-keys" aria-label="API keys" hidden>
 <div class="card" data-width="full">
-  <div class="cardHead"><div><h2>Organization API keys</h2><div class="copy">Keys authenticate as <span class="mono">Authorization: Bearer pqc_&hellip;</span> inside exactly one organization. Only a salted hash is stored and the secret is shown once.</div></div>
+  <div class="cardHead"><div><h2>Organization API keys</h2><div class="copy">Keys authenticate as <span class="mono">Authorization: Bearer pq_&hellip;</span> inside exactly one organization. Only a salted hash is stored and the secret is shown once.</div></div>
     <form class="filterBar" id="keysFilters"><select id="keysOrg" aria-label="Organization" data-org-select data-org-all></select><select id="keysStatus" aria-label="Key status"><option value="">All status</option><option value="active">active</option><option value="expired">expired</option><option value="revoked">revoked</option></select><button class="btn secondary small" id="keysBtn" type="submit">Refresh</button></form></div>
   <div class="tableWrap"><table class="dataTable"><thead><tr><th>Key</th><th>Organization</th><th>Scopes</th><th>Created</th><th>Last used</th><th>Expires</th><th>Status</th><th><span class="srOnly">Actions</span></th></tr></thead><tbody id="keysBody"><tr><td colspan="8" class="empty">Connect to load API keys.</td></tr></tbody></table></div>
 </div>
@@ -374,7 +374,7 @@
   <div class="cardHead"><div><h2>Key hygiene</h2><div class="copy">How keys behave once issued.</div></div></div>
   <ul class="guide">
     <li>Rotate with a grace period so deployments can switch before the old key stops working.</li>
-    <li>Revocation is immediate on this server and reaches other replicas within PQC_API_KEY_CACHE_SECONDS.</li>
+    <li>Revocation is immediate on this server and reaches other replicas within MORROW_API_KEY_CACHE_SECONDS.</li>
     <li>A read key is refused on any request that is not GET, HEAD, or OPTIONS.</li>
     <li>The key's organization is authoritative; an x-org-id header cannot point it at another tenant.</li>
   </ul>
@@ -410,7 +410,7 @@
 <!-- Access › Operators & roles -->
 <section class="page" data-page="operators" aria-label="Operators and roles" hidden>
 <div class="card">
-  <div class="cardHead"><div><h2>Platform operators</h2><div class="copy">Named credentials from PQC_PLATFORM_OPERATORS. Keys are never stored or shown. Owners only.</div></div><button class="btn secondary small" id="operatorsBtn" type="button" data-owner>Refresh</button></div>
+  <div class="cardHead"><div><h2>Platform operators</h2><div class="copy">Named credentials from MORROW_PLATFORM_OPERATORS. Keys are never stored or shown. Owners only.</div></div><button class="btn secondary small" id="operatorsBtn" type="button" data-owner>Refresh</button></div>
   <div class="scroll" id="operatorsBody"><div class="empty">Owners can load the operator roster.</div></div>
 </div>
 <div class="card">

@@ -16,10 +16,10 @@ from services.log_safety import AccessLogFilter
 @pytest.fixture
 def database(tmp_path, monkeypatch):
     path = tmp_path / "journal.db"
-    monkeypatch.setenv("PQC_SCANNER_DB", str(path))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_LOG_RETENTION_DAYS", "90")
-    monkeypatch.setenv("PQC_TRAFFIC_RETENTION_DAYS", "7")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(path))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_LOG_RETENTION_DAYS", "90")
+    monkeypatch.setenv("MORROW_TRAFFIC_RETENTION_DAYS", "7")
     return path
 
 
@@ -93,15 +93,15 @@ def test_health_is_explicit_and_does_not_manufacture_events(database, monkeypatc
 
 
 def test_no_implicit_bootstrap_or_logged_password(database, monkeypatch, caplog):
-    monkeypatch.delenv("PQC_ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("MORROW_ADMIN_PASSWORD", raising=False)
     caplog.set_level(logging.INFO)
     with sqlite3.connect(database) as conn:
         auth_issuer.init_tables(conn)
-        assert conn.execute("SELECT count(*) FROM pqc_users").fetchone()[0] == 0
-        monkeypatch.setenv("PQC_ADMIN_PASSWORD", "Explicit-bootstrap-password-194!")
+        assert conn.execute("SELECT count(*) FROM morrow_users").fetchone()[0] == 0
+        monkeypatch.setenv("MORROW_ADMIN_PASSWORD", "Explicit-bootstrap-password-194!")
         auth_issuer.init_tables(conn)
-        assert conn.execute("SELECT count(*) FROM pqc_users").fetchone()[0] == 1
-        hashed = conn.execute("SELECT password_hash FROM pqc_users").fetchone()[0]
+        assert conn.execute("SELECT count(*) FROM morrow_users").fetchone()[0] == 1
+        hashed = conn.execute("SELECT password_hash FROM morrow_users").fetchone()[0]
         assert hashed.split("$")[2] == auth_issuer._dummy_hash().split("$")[2] == "12"
     assert "Explicit-bootstrap-password-194!" not in caplog.text
 
@@ -120,22 +120,22 @@ def test_access_log_omits_query_and_path_credentials():
     assert "GET" in record.getMessage() and "200" in record.getMessage()
 
 
-@pytest.mark.skipif(not os.getenv("PQC_TEST_PG_DSN"), reason="Requires a disposable Postgres test instance")
+@pytest.mark.skipif(not os.getenv("MORROW_TEST_PG_DSN"), reason="Requires a disposable Postgres test instance")
 def test_postgres_runtime_without_ddl_and_read_only_failure(monkeypatch):
     import psycopg2
     from psycopg2 import sql
     from psycopg2.extensions import make_dsn
     suffix = uuid.uuid4().hex
     database, role = "journal_test_" + suffix, "journal_role_" + suffix
-    admin = psycopg2.connect(os.environ["PQC_TEST_PG_DSN"])
+    admin = psycopg2.connect(os.environ["MORROW_TEST_PG_DSN"])
     admin.autocommit = True
     with admin.cursor() as cur:
         cur.execute(sql.SQL("CREATE DATABASE {} TEMPLATE template0").format(sql.Identifier(database)))
         cur.execute(sql.SQL("CREATE ROLE {} NOLOGIN NOSUPERUSER NOBYPASSRLS").format(sql.Identifier(role)))
     original = journal.store.feature_conn
     try:
-        monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "postgres")
-        monkeypatch.setattr(journal.store, "_feature_dsn", lambda: make_dsn(os.environ["PQC_TEST_PG_DSN"], dbname=database))
+        monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "postgres")
+        monkeypatch.setattr(journal.store, "_feature_dsn", lambda: make_dsn(os.environ["MORROW_TEST_PG_DSN"], dbname=database))
         journal.init_tables()
         with original() as conn:
             conn.execute(f"GRANT USAGE ON SCHEMA public TO {role}")

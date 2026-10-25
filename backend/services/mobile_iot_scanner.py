@@ -22,7 +22,7 @@ _DDL = """CREATE TABLE IF NOT EXISTS mobile_iot_scans (
     file_size INTEGER NOT NULL DEFAULT 0,
     findings TEXT NOT NULL DEFAULT '[]',
     finding_count INTEGER NOT NULL DEFAULT 0,
-    pqc_unsafe_count INTEGER NOT NULL DEFAULT 0,
+    pq_unsafe_count INTEGER NOT NULL DEFAULT 0,
     risk_level TEXT NOT NULL DEFAULT 'unknown',
     embedded_certs TEXT NOT NULL DEFAULT '[]',
     cert_count INTEGER NOT NULL DEFAULT 0,
@@ -30,7 +30,7 @@ _DDL = """CREATE TABLE IF NOT EXISTS mobile_iot_scans (
 )"""
 
 # ── Platform signatures ────────────────────────────────────────────────────────
-# Each entry: (pattern_bytes_or_str, library_name, algorithm, pqc_safe, description)
+# Each entry: (pattern_bytes_or_str, library_name, algorithm, pq_safe, description)
 
 _IOT_SIGNATURES: List[Tuple[str, str, str, bool, str]] = [
     # --- Embedded TLS stacks ---
@@ -98,17 +98,17 @@ _IOT_SIGNATURES: List[Tuple[str, str, str, bool, str]] = [
     ("kSecAttrKeyTypeRSA",         "AppleSecurity",   "RSA",      False, "Apple RSA key attribute"),
     ("kSecAttrKeyTypeECSECPrime",  "AppleSecurity",   "ECDSA/P-256", False, "Apple EC P-256 key"),
 
-    # --- PQC-safe signals ---
-    ("CRYSTALS-Kyber",  "Kyber/ML-KEM",     "ML-KEM",        True, "NIST PQC: ML-KEM (Kyber)"),
+    # --- quantum-safe signals ---
+    ("CRYSTALS-Kyber",  "Kyber/ML-KEM",     "ML-KEM",        True, "NIST post-quantum: ML-KEM (Kyber)"),
     ("Kyber768",        "Kyber/ML-KEM",     "ML-KEM-768",    True, "ML-KEM-768"),
-    ("CRYSTALS-Dilithium", "Dilithium",     "ML-DSA",        True, "NIST PQC: ML-DSA (Dilithium)"),
-    ("SPHINCS",         "SPHINCS+",         "SLH-DSA",       True, "NIST PQC: SLH-DSA (SPHINCS+)"),
-    ("liboqs",          "liboqs",           "PQC suite",     True, "Open Quantum Safe library"),
-    ("OQS_SIG",         "liboqs",           "PQC signatures", True, "liboqs PQC signature"),
-    ("OQS_KEM",         "liboqs",           "PQC KEM",       True, "liboqs PQC KEM"),
-    ("pqcrypto",        "pqcrypto",         "PQC suite",     True, "pqcrypto library"),
+    ("CRYSTALS-Dilithium", "Dilithium",     "ML-DSA",        True, "NIST post-quantum: ML-DSA (Dilithium)"),
+    ("SPHINCS",         "SPHINCS+",         "SLH-DSA",       True, "NIST post-quantum: SLH-DSA (SPHINCS+)"),
+    ("liboqs",          "liboqs",           "Post-quantum suite",     True, "Open Quantum Safe library"),
+    ("OQS_SIG",         "liboqs",           "Post-quantum signatures", True, "liboqs post-quantum signature"),
+    ("OQS_KEM",         "liboqs",           "Post-quantum KEM",       True, "liboqs post-quantum KEM"),
+    ("pqcrypto",        "pqcrypto",         "Post-quantum suite",     True, "pqcrypto library"),
     ("NTRU",            "NTRU",             "NTRU-KEM",      True, "NTRU post-quantum KEM"),
-    ("FALCON",          "Falcon",           "Falcon-DSA",    True, "Falcon PQC signature"),
+    ("FALCON",          "Falcon",           "Falcon-DSA",    True, "Falcon post-quantum signature"),
 ]
 
 
@@ -235,9 +235,9 @@ def _extract_pem_certs(strings: List[str]) -> List[Dict]:
                 algo = "RSA"
             elif b"\x2a\x86\x48\xce\x3d" in der:
                 algo = "EC"
-            certs.append({"algorithm": algo, "pqc_safe": False, "size_bytes": len(der)})
+            certs.append({"algorithm": algo, "pq_safe": False, "size_bytes": len(der)})
         except Exception:
-            certs.append({"algorithm": "unknown", "pqc_safe": False, "size_bytes": 0})
+            certs.append({"algorithm": "unknown", "pq_safe": False, "size_bytes": 0})
     return certs[:50]  # cap to avoid huge result sets
 
 
@@ -247,13 +247,13 @@ def _match_signatures(strings: List[str]) -> List[Dict]:
     """Match strings against IoT signature list. Deduplicates by library name."""
     string_blob = "\n".join(strings)
     seen: Dict[str, Dict] = {}
-    for pattern, library, algorithm, pqc_safe, description in _IOT_SIGNATURES:
+    for pattern, library, algorithm, pq_safe, description in _IOT_SIGNATURES:
         if pattern in string_blob and library not in seen:
-            risk = "safe" if pqc_safe else ("critical" if "RSA" in algorithm or "DES" in algorithm or "MD5" in algorithm else "high")
+            risk = "safe" if pq_safe else ("critical" if "RSA" in algorithm or "DES" in algorithm or "MD5" in algorithm else "high")
             seen[library] = {
                 "library": library,
                 "algorithm": algorithm,
-                "pqc_safe": pqc_safe,
+                "pq_safe": pq_safe,
                 "risk_level": risk,
                 "description": description,
                 "matched_pattern": pattern,
@@ -264,7 +264,7 @@ def _match_signatures(strings: List[str]) -> List[Dict]:
 def _overall_risk(findings: List[Dict]) -> str:
     if not findings:
         return "unknown"
-    unsafe = [f for f in findings if not f.get("pqc_safe")]
+    unsafe = [f for f in findings if not f.get("pq_safe")]
     if not unsafe:
         return "low"
     risk_scores = [f.get("risk_level", "high") for f in unsafe]
@@ -291,7 +291,7 @@ def scan_mobile_iot(conn: sqlite3.Connection, org_id: str,
     findings = _match_signatures(strings)
     certs = _extract_pem_certs(strings)
     risk = _overall_risk(findings)
-    pqc_unsafe = sum(1 for f in findings if not f.get("pqc_safe"))
+    pq_unsafe = sum(1 for f in findings if not f.get("pq_safe"))
 
     scan_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
@@ -299,11 +299,11 @@ def scan_mobile_iot(conn: sqlite3.Connection, org_id: str,
     conn.execute(
         """INSERT INTO mobile_iot_scans
            (id, organization_id, filename, platform, file_size, findings, finding_count,
-            pqc_unsafe_count, risk_level, embedded_certs, cert_count, created_at)
+            pq_unsafe_count, risk_level, embedded_certs, cert_count, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (scan_id, org_id, filename, platform, len(data),
          json.dumps(findings), len(findings),
-         pqc_unsafe, risk,
+         pq_unsafe, risk,
          json.dumps(certs), len(certs), now),
     )
     conn.commit()
@@ -316,7 +316,7 @@ def scan_mobile_iot(conn: sqlite3.Connection, org_id: str,
         "file_size": len(data),
         "findings": findings,
         "finding_count": len(findings),
-        "pqc_unsafe_count": pqc_unsafe,
+        "pq_unsafe_count": pq_unsafe,
         "risk_level": risk,
         "embedded_certs": certs,
         "cert_count": len(certs),
@@ -327,26 +327,26 @@ def scan_mobile_iot(conn: sqlite3.Connection, org_id: str,
 def list_scans(conn: sqlite3.Connection, org_id: str, limit: int = 100) -> List[Dict]:
     rows = conn.execute(
         """SELECT id, organization_id, filename, platform, file_size, finding_count,
-                  pqc_unsafe_count, risk_level, cert_count, created_at
+                  pq_unsafe_count, risk_level, cert_count, created_at
            FROM mobile_iot_scans WHERE organization_id=? ORDER BY created_at DESC LIMIT ?""",
         (org_id, limit),
     ).fetchall()
     cols = ["id", "organization_id", "filename", "platform", "file_size",
-            "finding_count", "pqc_unsafe_count", "risk_level", "cert_count", "created_at"]
+            "finding_count", "pq_unsafe_count", "risk_level", "cert_count", "created_at"]
     return [dict(zip(cols, r)) for r in rows]
 
 
 def get_scan(conn: sqlite3.Connection, scan_id: str, org_id: str) -> Optional[Dict]:
     row = conn.execute(
         """SELECT id, organization_id, filename, platform, file_size, findings, finding_count,
-                  pqc_unsafe_count, risk_level, embedded_certs, cert_count, created_at
+                  pq_unsafe_count, risk_level, embedded_certs, cert_count, created_at
            FROM mobile_iot_scans WHERE id=? AND organization_id=?""",
         (scan_id, org_id),
     ).fetchone()
     if not row:
         return None
     cols = ["id", "organization_id", "filename", "platform", "file_size", "findings",
-            "finding_count", "pqc_unsafe_count", "risk_level", "embedded_certs",
+            "finding_count", "pq_unsafe_count", "risk_level", "embedded_certs",
             "cert_count", "created_at"]
     d = dict(zip(cols, row))
     d["findings"] = json.loads(d["findings"])
@@ -365,7 +365,7 @@ def delete_scan(conn: sqlite3.Connection, scan_id: str, org_id: str) -> bool:
 def get_platform_stats(conn: sqlite3.Connection, org_id: str) -> Dict:
     try:
         rows = conn.execute(
-            """SELECT platform, COUNT(*) as cnt, AVG(pqc_unsafe_count) as avg_unsafe
+            """SELECT platform, COUNT(*) as cnt, AVG(pq_unsafe_count) as avg_unsafe
                FROM mobile_iot_scans WHERE organization_id=?
                GROUP BY platform ORDER BY cnt DESC""",
             (org_id,),
@@ -375,7 +375,7 @@ def get_platform_stats(conn: sqlite3.Connection, org_id: str) -> Dict:
         ).fetchone()[0]
         return {
             "total_scans": total or 0,
-            "by_platform": [{"platform": r[0], "count": r[1], "avg_pqc_unsafe": round(r[2] or 0, 1)} for r in rows],
+            "by_platform": [{"platform": r[0], "count": r[1], "avg_pq_unsafe": round(r[2] or 0, 1)} for r in rows],
         }
     except Exception:
         return {"total_scans": 0, "by_platform": []}

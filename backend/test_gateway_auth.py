@@ -10,11 +10,11 @@ from test_saas_auth_jwt import _hs256_jwt
 def test_gateway_authentication_roles_and_tenant_binding(tmp_path, monkeypatch):
     secret = "gateway-jwt-test-only-not-a-deployment-secret"
     for key, value in {
-        "PQC_SCANNER_DB": str(tmp_path / "gateway-jwt.db"), "PQC_MAIN_DB_BACKEND": "sqlite",
-        "PQC_FEATURE_STORE_BACKEND": "sqlite", "PQC_AUTH_MODE": "jwt", "PQC_AUTH_REQUIRED": "1",
-        "PQC_AUTH_JWT_SECRET": secret, "PQC_AUTH_JWT_ISSUER": "https://gateway-test.example",
-        "PQC_AUTH_JWT_AUDIENCE": "gateway-test", "PQC_AUTH_JWT_ALGORITHMS": "HS256",
-        "PQC_AUTH_USER_ID_CLAIM": "sub", "PQC_AUTH_ROLE_CLAIM": "role", "PQC_AUTH_ORG_ID_CLAIM": "org_id",
+        "MORROW_SCANNER_DB": str(tmp_path / "gateway-jwt.db"), "MORROW_MAIN_DB_BACKEND": "sqlite",
+        "MORROW_FEATURE_STORE_BACKEND": "sqlite", "MORROW_AUTH_MODE": "jwt", "MORROW_AUTH_REQUIRED": "1",
+        "MORROW_AUTH_JWT_SECRET": secret, "MORROW_AUTH_JWT_ISSUER": "https://gateway-test.example",
+        "MORROW_AUTH_JWT_AUDIENCE": "gateway-test", "MORROW_AUTH_JWT_ALGORITHMS": "HS256",
+        "MORROW_AUTH_USER_ID_CLAIM": "sub", "MORROW_AUTH_ROLE_CLAIM": "role", "MORROW_AUTH_ORG_ID_CLAIM": "org_id",
     }.items():
         monkeypatch.setenv(key, value)
     import app

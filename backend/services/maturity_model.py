@@ -1,16 +1,16 @@
 """
-PQC Maturity Model — Cryptographic Quantum Readiness Assessment
+Post-Quantum Maturity Model — Cryptographic Quantum Readiness Assessment
 
 A structured 5-level maturity model (CMMI-style) for post-quantum cryptography.
 Assesses organizations across 8 domains and produces a composite maturity score,
 board-ready maturity certificate, and targeted improvement roadmap.
 
 Maturity Levels:
-  1 — Initial:      Ad hoc, no systematic PQC awareness
+  1 — Initial:      Ad hoc, no systematic post-quantum awareness
   2 — Developing:   Inventory started, some awareness, no migration plan
   3 — Defined:      Full inventory, risk classification, migration plan documented
   4 — Managed:      Active migration, metrics tracked, CI/CD gates, supply chain assessed
-  5 — Optimizing:   Full PQC deployment, canary monitoring, regulatory compliance, ZK proofs
+  5 — Optimizing:   Full post-quantum deployment, canary monitoring, regulatory compliance, ZK proofs
 
 8 Assessment Domains:
   D1 — Cryptographic Asset Inventory
@@ -71,10 +71,10 @@ _DOMAINS: List[Dict[str, Any]] = [
         "id": "D3",
         "name": "Migration Planning & Governance",
         "weight": 0.15,
-        "description": "Structured planning and governance for PQC migration",
+        "description": "Structured planning and governance for post-quantum migration",
         "levels": {
-            1: "No migration plan. PQC not on roadmap.",
-            2: "PQC migration discussed. No formal plan.",
+            1: "No migration plan. Post-quantum not on roadmap.",
+            2: "Post-quantum migration discussed. No formal plan.",
             3: "Documented migration plan with priorities and owners. Executive sponsor assigned.",
             4: "Funded migration program. Quarterly milestones tracked. Board visibility.",
             5: "Autonomous migration tooling. Config patches auto-generated. GitHub PRs opened by platform.",
@@ -86,11 +86,11 @@ _DOMAINS: List[Dict[str, Any]] = [
         "weight": 0.20,
         "description": "Actual deployment of post-quantum cryptographic algorithms",
         "levels": {
-            1: "0% PQC deployment. All assets use classical crypto.",
-            2: "<25% PQC deployment. Pilots in non-critical systems.",
-            3: "25–74% PQC deployment. Critical assets prioritized.",
-            4: "75–99% PQC deployment. Hybrid mode (classical + PQC) for critical paths.",
-            5: "100% PQC deployment. Hybrid TLS active for all public endpoints.",
+            1: "0% post-quantum deployment. All assets use classical crypto.",
+            2: "<25% post-quantum deployment. Pilots in non-critical systems.",
+            3: "25–74% post-quantum deployment. Critical assets prioritized.",
+            4: "75–99% post-quantum deployment. Hybrid mode (classical + post-quantum) for critical paths.",
+            5: "100% post-quantum deployment. Hybrid TLS active for all public endpoints.",
         },
     },
     {
@@ -100,10 +100,10 @@ _DOMAINS: List[Dict[str, Any]] = [
         "description": "Assessment of cryptographic risk in software dependencies and vendors",
         "levels": {
             1: "No supply chain crypto assessment.",
-            2: "Awareness of key vendors' PQC roadmaps.",
+            2: "Awareness of key vendors' Post-quantum roadmaps.",
             3: "Dependency scanning (npm/pip/cargo). Critical vendors assessed.",
             4: "Automated supply chain genome scanning in CI/CD. SBOMs generated.",
-            5: "Vendor scorecards updated quarterly. Contract requirements for PQC timelines.",
+            5: "Vendor scorecards updated quarterly. Contract requirements for post-quantum timelines.",
         },
     },
     {
@@ -125,7 +125,7 @@ _DOMAINS: List[Dict[str, Any]] = [
         "weight": 0.10,
         "description": "Alignment with post-quantum regulatory requirements",
         "levels": {
-            1: "Unaware of PQC regulatory requirements.",
+            1: "Unaware of post-quantum regulatory requirements.",
             2: "Aware of NIST SP 800-208. No compliance actions taken.",
             3: "Gap analysis complete for applicable frameworks. Migration plan references compliance.",
             4: "Compliance filings submitted. Evidence packages maintained. Auditor access configured.",
@@ -167,7 +167,7 @@ def auto_score_from_scan(
     Derive domain scores automatically from scan summary + platform feature usage.
     Returns domain_scores dict (domain_id → 1-5 float score).
     """
-    pqc_pct = float(scan_summary.get("pqc_migration_pct", 0) or 0)
+    pq_pct = float(scan_summary.get("pq_migration_pct", 0) or 0)
     total_assets = int(scan_summary.get("total_assets", 0) or 0)
     critical_count = int(scan_summary.get("critical_risk_count", 0) or 0)
     has_inventory = total_assets > 0
@@ -207,7 +207,7 @@ def auto_score_from_scan(
         d3 = 5.0
     elif has_migration_plan:
         d3 = 4.0
-    elif pqc_pct > 0:
+    elif pq_pct > 0:
         d3 = 3.0
     elif has_inventory:
         d3 = 2.0
@@ -216,13 +216,13 @@ def auto_score_from_scan(
     domain_scores["D3"] = d3
 
     # D4 — Technical Implementation
-    if pqc_pct >= 100:
+    if pq_pct >= 100:
         d4 = 5.0
-    elif pqc_pct >= 75:
+    elif pq_pct >= 75:
         d4 = 4.0
-    elif pqc_pct >= 25:
+    elif pq_pct >= 25:
         d4 = 3.0
-    elif pqc_pct > 0:
+    elif pq_pct > 0:
         d4 = 2.0
     else:
         d4 = 1.0
@@ -323,7 +323,7 @@ def compute_maturity(
     weakest = sorted_by_score[:3]
 
     # Certificate ID
-    cert_id = "PQC-MM-" + hashlib.sha256(f"{org_id}:{composite:.2f}:{datetime.now(timezone.utc).date().isoformat()}".encode()).hexdigest()[:12].upper()
+    cert_id = "MORROW-MM-" + hashlib.sha256(f"{org_id}:{composite:.2f}:{datetime.now(timezone.utc).date().isoformat()}".encode()).hexdigest()[:12].upper()
 
     now = datetime.now(timezone.utc)
 
@@ -381,11 +381,11 @@ def _generate_roadmap(weakest: List[Dict], current_level: int) -> List[Dict[str,
 
 def _generate_summary(org_name: str, level: int, score: float) -> str:
     summaries = {
-        1: f"{org_name} is at the Initial stage of PQC readiness. Immediate action required: begin cryptographic asset discovery and appoint a PQC program owner.",
-        2: f"{org_name} has begun its PQC journey but lacks a formal plan. Priority: complete inventory and perform risk classification to advance to Level 3.",
-        3: f"{org_name} has a defined PQC program with documented plans and risk classification. Focus: accelerate technical migration — especially critical-risk assets.",
-        4: f"{org_name} is actively managing its PQC migration with measurable progress. Excellent work. Next: achieve full deployment and activate threat intelligence sharing.",
-        5: f"{org_name} has achieved the highest PQC maturity level. Continuous optimization through Q-TISN participation, ZK compliance proofs, and actuarial modeling is underway.",
+        1: f"{org_name} is at the Initial stage of post-quantum readiness. Immediate action required: begin cryptographic asset discovery and appoint a post-quantum program owner.",
+        2: f"{org_name} has begun its post-quantum journey but lacks a formal plan. Priority: complete inventory and perform risk classification to advance to Level 3.",
+        3: f"{org_name} has a defined post-quantum program with documented plans and risk classification. Focus: accelerate technical migration — especially critical-risk assets.",
+        4: f"{org_name} is actively managing its post-quantum migration with measurable progress. Excellent work. Next: achieve full deployment and activate threat intelligence sharing.",
+        5: f"{org_name} has achieved the highest post-quantum maturity level. Continuous optimization through Q-TISN participation, ZK compliance proofs, and actuarial modeling is underway.",
     }
     return summaries.get(level, "")
 

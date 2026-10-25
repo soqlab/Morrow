@@ -22,14 +22,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Non-root container user (`appuser`, UID 1001)
 - Docker Compose healthchecks on Redis and Postgres; dependent services wait for `service_healthy`
 - Redis password injected at runtime via `--requirepass`; hardcoded placeholder removed from `redis.conf`
-- GCP Secret Manager secrets for `PQC_PLATFORM_ADMIN_KEY` and `PQC_AUTH_JWT_SECRET`
+- GCP Secret Manager secrets for `MORROW_PLATFORM_ADMIN_KEY` and `MORROW_AUTH_JWT_SECRET`
 - Redis TLS in transit (`transit_encryption_mode = SERVER_AUTHENTICATION`) on GCP Memorystore
 - Runtime startup warnings for: missing Redis password, missing Sentry DSN, insecure auth mode
 - `SECURITY.md` responsible disclosure policy
 
 ### Changed
 - `redis.conf` no longer contains a hardcoded `requirepass` value
-- `.env.production.example` extended with `REDIS_PASSWORD`, `OTEL_*`, `SENTRY_DSN`, `PQC_SECRET_BACKEND`
+- `.env.production.example` extended with `REDIS_PASSWORD`, `OTEL_*`, `SENTRY_DSN`, `MORROW_SECRET_BACKEND`
 
 ---
 
@@ -76,6 +76,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [0.1.0] — 2025-12-01
 
 ### Added
-- Initial TLS endpoint scanner with PQC finding detection
+- Initial TLS endpoint scanner with post-quantum finding detection
 - Risk scoring and migration plan generation
 - FastAPI REST API with SQLite persistence

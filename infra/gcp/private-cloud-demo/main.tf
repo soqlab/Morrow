@@ -3,7 +3,7 @@ locals {
   image               = "${local.artifact_repository}/backend:${var.image_tag}"
 }
 
-module "pqc_private_cloud" {
+module "pq_private_cloud" {
   source = "../modules/private-cloud"
 
   project_id        = var.project_id

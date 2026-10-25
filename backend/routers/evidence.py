@@ -51,7 +51,7 @@ def _build_compliance_pdf(report: Dict[str, Any]) -> bytes:
         ["Metric", "Value"],
         ["Total assets",         str(scan.get("total_assets", 0))],
         ["Scanned assets",       str(scan.get("scanned_assets", 0))],
-        ["PQC-ready assets",     str(scan.get("pqc_ready", 0))],
+        ["Post-quantum-ready assets",     str(scan.get("pq_ready", 0))],
         ["Quantum-vulnerable",   str(scan.get("quantum_vulnerable", 0))],
         ["Open remediations",    str(remed.get("open", 0))],
         ["Validated",            str(remed.get("validated", 0))],
@@ -174,7 +174,7 @@ def create_evidence_router(require_role: RequireRole) -> APIRouter:
             except Exception as pdf_exc:
                 raise HTTPException(status_code=500, detail=f"PDF generation failed: {pdf_exc}")
             ts = time.strftime("%Y%m%d-%H%M%S")
-            filename = f"pqc-compliance-{org_id[:8]}-{ts}.pdf"
+            filename = f"pq-compliance-{org_id[:8]}-{ts}.pdf"
             return StreamingResponse(
                 io.BytesIO(pdf_bytes),
                 media_type="application/pdf",
@@ -249,7 +249,7 @@ def create_evidence_router(require_role: RequireRole) -> APIRouter:
                 "top_next_actions": [
                     {
                         "asset_key": item.get("asset_key"),
-                        "status": item.get("pqc_migration_status"),
+                        "status": item.get("pq_migration_status"),
                         "hndl_risk": item.get("harvest_now_decrypt_later_risk"),
                         "provider": item.get("provider_guess"),
                         "next_action": item.get("next_action"),
@@ -367,7 +367,7 @@ def create_evidence_router(require_role: RequireRole) -> APIRouter:
     @router.get("/v1/admin/postgres-rls/plan")
     def api_v1_postgres_rls_plan(
         request: Request,
-        app_role: str = Query("pqc_app", max_length=64),
+        app_role: str = Query("morrow_app", max_length=64),
     ):
         require_role(request, allowed_roles=["admin"], action="v1.admin.postgres_rls_plan", resource_type="database", resource_id="postgres")
         return {"api_version": "v1", "plan": build_rls_plan(app_role=app_role)}
@@ -384,7 +384,7 @@ def create_evidence_router(require_role: RequireRole) -> APIRouter:
         from every policy.
         """
         require_role(request, allowed_roles=["admin"], action="v1.admin.postgres_rls_verify", resource_type="database", resource_id="postgres")
-        dsn = os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
+        dsn = os.getenv("MORROW_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or ""
         if not str(dsn).strip():
             return {
                 "api_version": "v1",

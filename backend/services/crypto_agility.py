@@ -122,7 +122,7 @@ def _score_diversity(algorithms: List[str]) -> Tuple[Optional[float], Dict[str, 
     """
     Shannon entropy of algorithm distribution.
     More spread = more agile (no single algorithm is a single point of failure).
-    Target: 3+ distinct algorithms in use (mix of PQC + classical during transition).
+    Target: 3+ distinct algorithms in use (mix of post-quantum + classical during transition).
     Max entropy normalized to 100.
     """
     if not algorithms:
@@ -236,7 +236,7 @@ def _score_readiness(
     max_points = 0
 
     checks = [
-        ("CI/CD PQC gate configured", has_cicd_gate, 25),
+        ("CI/CD post-quantum gate configured", has_cicd_gate, 25),
         ("Canary tokens deployed (5+)", canary_token_count >= 5, 20),
         ("Remediation playbooks (3+)", playbook_count >= 3, 20),
         ("Alert rules configured (3+)", alert_rule_count >= 3, 20),
@@ -443,9 +443,9 @@ def build_crypto_agility_report(
     weakest_dim = min(measured, key=lambda d: measured[d])
     recommendations = {
         "automation_coverage": "Enroll all network assets in continuous scanning; target sub-24-hour scan cadence.",
-        "algorithm_diversity": "Introduce hybrid PQC algorithms (X25519MLKEM768) alongside classical ones to increase crypto diversity.",
+        "algorithm_diversity": "Introduce hybrid post-quantum algorithms (X25519MLKEM768) alongside classical ones to increase crypto diversity.",
         "deployment_velocity": "Integrate auto-remediation triggers; target <7-day mean-time-to-remediate for critical findings.",
-        "emergency_readiness": "Deploy CI/CD PQC gate, canary tokens on 5+ endpoints, and publish a security intent.",
+        "emergency_readiness": "Deploy CI/CD post-quantum gate, canary tokens on 5+ endpoints, and publish a security intent.",
         "hndl_exposure": "Prioritize replacing RSA/ECDH key exchange on externally-facing TLS endpoints immediately.",
     }
 

@@ -316,7 +316,7 @@ It can help identify and drive fixes for:
 - certificate problems
 - RSA/ECC classical crypto dependency
 - lack of crypto-agility
-- provider blockers for hybrid/PQC TLS
+- provider blockers for hybrid/post-quantum TLS
 - unmanaged TLS/certificate policy
 - drift when someone weakens the configuration later
 
@@ -358,7 +358,7 @@ It translates technical facts into business-oriented quantum readiness signals:
 - provider support status
 - blocker status
 - immediate hardening actions
-- PQC migration actions
+- post-quantum migration actions
 
 ### Step 3: Add business context
 
@@ -390,7 +390,7 @@ The platform creates a staged migration path:
 1. inventory public cryptography
 2. classify data sensitivity
 3. prepare crypto agility
-4. check hybrid/PQC provider support
+4. check hybrid/post-quantum provider support
 5. create a validated migration pull request
 6. verify externally and monitor drift
 
@@ -408,7 +408,7 @@ Some actions can usually happen now:
 
 Some actions may be blocked:
 
-- provider does not support required hybrid/PQC controls yet
+- provider does not support required hybrid/post-quantum controls yet
 - CDN support is incomplete
 - cloud load balancer support is incomplete
 - certificate authority support is not ready
@@ -716,7 +716,7 @@ demo/customer-edge-infra
 The simulated repository contains a TLS policy example:
 
 - before: TLS 1.2 and weak cipher assumptions
-- after: TLS 1.3, weak ciphers disabled, crypto-agility owner added, PQC migration stage tracked
+- after: TLS 1.3, weak ciphers disabled, crypto-agility owner added, post-quantum migration stage tracked
 
 The point is not to pretend this changed a real customer's infrastructure.
 
@@ -909,7 +909,7 @@ Each evidence response includes:
 - `evidence_hash`
 - `evidence_integrity`
 
-If `PQC_EVIDENCE_SIGNING_KEY` is configured, the platform returns an HMAC signature.
+If `MORROW_EVIDENCE_SIGNING_KEY` is configured, the platform returns an HMAC signature.
 
 If no signing key is configured, the platform still returns a SHA-256 digest and marks the evidence as unsigned.
 
@@ -1021,7 +1021,7 @@ The `Guide` page now works as a product usage manual. It explains:
 
 The platform now includes two additional API-first development modules inside the Automation area.
 
-### 1. PQC Migration Factory prototype
+### 1. Post-Quantum Migration Factory prototype
 
 Purpose:
 
@@ -1066,7 +1066,7 @@ Recommended order from here:
 
 1. connect the Migration Factory to real GitHub repository file discovery
 2. exercise live cloud storage inventory against scoped test credentials
-3. revisit Edge PQC only when there is a clear target customer such as drones, vehicles, or industrial IoT
+3. revisit Edge post-quantum only when there is a clear target customer such as drones, vehicles, or industrial IoT
 
 ## CareHealth demo project created
 
@@ -1101,7 +1101,7 @@ Key files:
 
 Important:
 
-- this is a separate project from `pqc-scanner`
+- this is a separate project from `morrow`
 - it should be pushed to GitHub before testing real repository discovery
 - do not put real secrets, real patient data, or real cloud credentials in it
 
@@ -1310,7 +1310,7 @@ CI/CD gate hardening update:
 
 - `POST /integrations/ci/status-check` now supports dry-run policy decisions and optional GitHub commit status or GitHub Check Run publishing.
 - In dry-run mode, the endpoint returns the merge decision without writing to GitHub.
-- In publish mode, the caller supplies `github_credential_id`, `repo`, and commit `ref`; the platform posts the `pqc-scanner/security-policy` status or check run back to GitHub.
+- In publish mode, the caller supplies `github_credential_id`, `repo`, and commit `ref`; the platform posts the `morrow/security-policy` status or check run back to GitHub.
 - The gate can fail even for an unsynced repository when changed IaC snippets contain policy violations, such as public SSH ingress.
 - This is the next step toward making the platform a real CI/CD enforcement control instead of only a dashboard.
 - publish_mode=status uses the classic commit status API; publish_mode=check_run uses the GitHub Checks API for richer PR display when the token has Checks permission.

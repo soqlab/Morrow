@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 # Ordered (top = most urgent). Include specific VERIFY_* rule_ids for actionable plans.
 RULE_TO_STEP = [
-    ("CERT_EXPIRED", ("Renew expired certificates", "Expired certs break security and can block PQC/hybrid rollout.")),
+    ("CERT_EXPIRED", ("Renew expired certificates", "Expired certs break security and can block post-quantum/hybrid rollout.")),
     ("CERT_EXPIRING_SOON", ("Renew soon-to-expire certificates", "Short validity windows complicate migration scheduling.")),
 
     # Verification failures (specific first; VERIFY_FAILED as fallback)
@@ -20,13 +20,13 @@ RULE_TO_STEP = [
     ("CHAIN_SHORT_OR_UNAVAILABLE", ("Ensure intermediates are served", "Incomplete chains complicate automation and audits.")),
     ("CERT_HOST_NOT_IN_SAN", ("Fix SAN/hostname coverage", "Correct SANs avoid outages when moving TLS termination.")),
 
-    ("LEGACY_TLS_SUPPORTED", ("Disable TLS 1.0/1.1", "Baseline modernization needed before PQC/hybrid adoption.")),
+    ("LEGACY_TLS_SUPPORTED", ("Disable TLS 1.0/1.1", "Baseline modernization needed before post-quantum/hybrid adoption.")),
     ("WEAK_CIPHER_ACCEPTED", ("Remove weak TLS 1.2 cipher suites", "Hardening reduces attack surface and increases crypto agility.")),
-    ("NO_TLS13", ("Enable TLS 1.3", "Modern TLS stacks are the foundation for future hybrid/PQC support.")),
+    ("NO_TLS13", ("Enable TLS 1.3", "Modern TLS stacks are the foundation for future hybrid/post-quantum support.")),
 
     ("RSA_KEY_EXCHANGE_ONLY", ("Remove RSA key exchange (use ECDHE)", "PFS reduces harvest-now-decrypt-later impact.")),
-    ("RSA_CERT_PRESENT", ("Plan RSA certificate replacement", "RSA certs will need migration paths toward PQC/hybrid.")),
-    ("ECDSA_CERT_PRESENT", ("Plan ECDSA certificate strategy", "ECDSA may need hybrid/PQC strategy depending on your roadmap.")),
+    ("RSA_CERT_PRESENT", ("Plan RSA certificate replacement", "RSA certs will need migration paths toward post-quantum/hybrid.")),
+    ("ECDSA_CERT_PRESENT", ("Plan ECDSA certificate strategy", "ECDSA may need hybrid/post-quantum strategy depending on your roadmap.")),
 ]
 
 PRIORITY: Dict[str, int] = {rid: i for i, (rid, _) in enumerate(RULE_TO_STEP)}

@@ -201,7 +201,7 @@ def create_ai_privacy_router(require_role):
             from services.llm import org_config
             if _forced_builtin():
                 raise privacy.PrivacyError(
-                    "This deployment makes no external model calls (PQC_LLM_DISABLED=1). "
+                    "This deployment makes no external model calls (MORROW_LLM_DISABLED=1). "
                     "An organization setting cannot override that.", 409)
             try:
                 return org_config.set_override(org, body.model_dump(exclude_none=True), actor=actor)

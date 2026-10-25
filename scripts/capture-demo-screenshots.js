@@ -4,7 +4,7 @@ const { chromium } = require("playwright");
 
 const repoRoot = path.resolve(__dirname, "..");
 const outDir = path.join(repoRoot, "demo", "video", "screens");
-const baseUrl = process.env.PQC_DEMO_BASE_URL || "http://localhost:8000";
+const baseUrl = process.env.MORROW_DEMO_BASE_URL || "http://localhost:8000";
 
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -41,8 +41,8 @@ async function main() {
     headless: true,
   });
 
-  const demoRole = process.env.PQC_DEMO_USER_ROLE || "admin";
-  const demoUserId = process.env.PQC_DEMO_USER_ID || "demo-video";
+  const demoRole = process.env.MORROW_DEMO_USER_ROLE || "admin";
+  const demoUserId = process.env.MORROW_DEMO_USER_ID || "demo-video";
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 1,

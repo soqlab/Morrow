@@ -72,7 +72,7 @@ def _timestamp(value: Any, field: str) -> str:
 
 
 def _db_identity() -> str:
-    return f"{os.getenv('PQC_FEATURE_STORE_BACKEND', '')}|{os.getenv('PQC_SCANNER_DB', '')}"
+    return f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}"
 
 
 _TABLES_READY: set = set()
@@ -284,7 +284,7 @@ def load_maintenance() -> Dict[str, Any]:
 
 def maintenance_cache_stale() -> bool:
     try:
-        ttl = max(1.0, float(os.getenv("PQC_MAINTENANCE_CACHE_SECONDS", "5") or 5))
+        ttl = max(1.0, float(os.getenv("MORROW_MAINTENANCE_CACHE_SECONDS", "5") or 5))
     except ValueError:
         ttl = 5.0
     return _MAINT_CACHE["state"] is None or _MAINT_CACHE["db"] != _db_identity() or (

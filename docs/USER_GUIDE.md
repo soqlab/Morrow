@@ -127,7 +127,7 @@ Clear the stored token in the browser and log in again.
 In the browser console:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -351,7 +351,7 @@ Important fields include:
 - `key_type`
 - `sig_algorithm`
 - `findings`
-- `pqc_recommendation`
+- `pq_recommendation`
 - `quantum_risk_score`
 
 Use scans to establish current exposure and to build historical trends.
@@ -626,7 +626,7 @@ Important limitation:
 
 Optional Docker isolation can run Terraform validation in a separate per-job container with network disabled, dropped capabilities, and CPU/memory limits. This is stronger than default workspace mode, but still should not be treated as a micro-VM hostile-code boundary.
 
-Set `PQC_VALIDATION_ISOLATION_MODE=docker` and configure `PQC_VALIDATION_DOCKER_IMAGE` if your runtime has Docker access and you want this stricter mode.
+Set `MORROW_VALIDATION_ISOLATION_MODE=docker` and configure `MORROW_VALIDATION_DOCKER_IMAGE` if your runtime has Docker access and you want this stricter mode.
 
 For Terraform, the platform runs:
 
@@ -669,7 +669,7 @@ After a remediation is approved and validation has passed, create the PR.
 Invoke-RestMethod -Method Post -Uri "http://localhost:8000/remediations/1/create-pr" `
   -Headers @{"x-user-role"="operator";"x-user-id"="operator-user";"x-org-id"="org-alpha"} `
   -ContentType "application/json" `
-  -Body '{"github_credential_id":15,"branch_prefix":"fix/pqc-remediation","allow_unvalidated":false}'
+  -Body '{"github_credential_id":15,"branch_prefix":"fix/pq-remediation","allow_unvalidated":false}'
 ```
 
 ### Notes
@@ -843,7 +843,7 @@ Use it if you want to:
 - verify token access
 - preview or dry-run policy application
 
-This is optional and not required for the core PQC remediation workflow.
+This is optional and not required for the core post-quantum remediation workflow.
 
 ## 22. Deployment and configuration reference
 
@@ -853,44 +853,44 @@ This section covers the main runtime settings you are likely to change.
 
 | Variable | Meaning |
 |---|---|
-| `PQC_MAIN_DB_BACKEND` | Main app database backend. Use `postgres` for shared/cloud mode or local SQLite flow when appropriate. |
-| `PQC_PRODUCT_DATABASE_URL` | Main Postgres connection string for app data. |
+| `MORROW_MAIN_DB_BACKEND` | Main app database backend. Use `postgres` for shared/cloud mode or local SQLite flow when appropriate. |
+| `MORROW_PRODUCT_DATABASE_URL` | Main Postgres connection string for app data. |
 | `DATABASE_URL` | General database URL used by some integrations and older paths. |
 | `CELERY_BROKER_URL` | Redis broker for background jobs. |
 | `CELERY_RESULT_BACKEND` | Redis result backend for background tasks. |
-| `PQC_VAULT_MASTER_KEY` | Encryption root for stored vault secrets. |
+| `MORROW_VAULT_MASTER_KEY` | Encryption root for stored vault secrets. |
 | `OPENAI_API_KEY` | Required for remediation suggestion generation. |
 | `OPENAI_MODEL` | Optional override for the model used in remediation generation. |
-| `PQC_API_KEY` | Optional API key protection for scan routes and docs. |
-| `PQC_DEFAULT_ORG_ID` | Default organization id in non-hosted or simplified local setups. |
-| `PQC_DEFAULT_ROLE` | Default role when using local header mode. |
+| `MORROW_API_KEY` | Optional API key protection for scan routes and docs. |
+| `MORROW_DEFAULT_ORG_ID` | Default organization id in non-hosted or simplified local setups. |
+| `MORROW_DEFAULT_ROLE` | Default role when using local header mode. |
 
 ### Auth
 
 | Variable | Meaning |
 |---|---|
-| `PQC_AUTH_MODE` | `headers` for local/dev, `jwt` for hosted auth. |
-| `PQC_AUTH_REQUIRED` | Force authenticated access when true. |
-| `PQC_AUTH_PROVIDER_NAME` | Label shown in the UI, such as `Auth0`. |
-| `PQC_AUTH_LOGIN_URL` | Hosted login URL used by the UI. |
-| `PQC_AUTH_LOGOUT_URL` | Hosted logout URL used by the UI. |
-| `PQC_AUTH_TOKEN_HELP` | Helper text shown in the UI. |
-| `PQC_AUTH_JWT_ISSUER` | Expected JWT issuer. |
-| `PQC_AUTH_JWT_AUDIENCE` | Expected JWT audience. |
-| `PQC_AUTH_JWT_JWKS_URL` | JWKS endpoint for RS256 token verification. |
-| `PQC_AUTH_JWT_SECRET` | Shared secret if using HS256 instead of JWKS. |
-| `PQC_AUTH_USER_ID_CLAIM` | User id claim name, usually `sub`. |
-| `PQC_AUTH_ROLE_CLAIM` | Role claim name. |
-| `PQC_AUTH_ORG_ID_CLAIM` | Organization id claim name. |
-| `PQC_AUTH_JWT_ALGORITHMS` | Allowed JWT algorithms. |
-| `PQC_AUTH_CLOCK_SKEW_SECONDS` | JWT clock skew tolerance. |
+| `MORROW_AUTH_MODE` | `headers` for local/dev, `jwt` for hosted auth. |
+| `MORROW_AUTH_REQUIRED` | Force authenticated access when true. |
+| `MORROW_AUTH_PROVIDER_NAME` | Label shown in the UI, such as `Auth0`. |
+| `MORROW_AUTH_LOGIN_URL` | Hosted login URL used by the UI. |
+| `MORROW_AUTH_LOGOUT_URL` | Hosted logout URL used by the UI. |
+| `MORROW_AUTH_TOKEN_HELP` | Helper text shown in the UI. |
+| `MORROW_AUTH_JWT_ISSUER` | Expected JWT issuer. |
+| `MORROW_AUTH_JWT_AUDIENCE` | Expected JWT audience. |
+| `MORROW_AUTH_JWT_JWKS_URL` | JWKS endpoint for RS256 token verification. |
+| `MORROW_AUTH_JWT_SECRET` | Shared secret if using HS256 instead of JWKS. |
+| `MORROW_AUTH_USER_ID_CLAIM` | User id claim name, usually `sub`. |
+| `MORROW_AUTH_ROLE_CLAIM` | Role claim name. |
+| `MORROW_AUTH_ORG_ID_CLAIM` | Organization id claim name. |
+| `MORROW_AUTH_JWT_ALGORITHMS` | Allowed JWT algorithms. |
+| `MORROW_AUTH_CLOCK_SKEW_SECONDS` | JWT clock skew tolerance. |
 
 ### Scan / API limits
 
 | Variable | Meaning |
 |---|---|
-| `PQC_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window length. |
-| `PQC_RATE_LIMIT_MAX_REQUESTS` | Max requests allowed in that window. |
+| `MORROW_RATE_LIMIT_WINDOW_SECONDS` | Rate-limit window length. |
+| `MORROW_RATE_LIMIT_MAX_REQUESTS` | Max requests allowed in that window. |
 | `PER_TARGET_TIMEOUT` | Target-level scan timeout. |
 
 ### Local Docker defaults
@@ -959,7 +959,7 @@ Do not mix many naming styles for the same responsibility.
 Clear the stored UI token and log in again:
 
 ```javascript
-localStorage.removeItem("pqc_auth_bearer_token");
+localStorage.removeItem("morrow_auth_bearer_token");
 location.reload();
 ```
 
@@ -1086,11 +1086,11 @@ When you click Validate on a remediation candidate, the platform:
 Set these environment variables in your `.env` file:
 
 ```
-PQC_VALIDATION_ISOLATION_MODE=workspace   # or: docker
-PQC_VALIDATION_DOCKER_IMAGE=ghcr.io/opentofu/opentofu:1.8.6
-PQC_VALIDATION_DOCKER_CPUS=1
-PQC_VALIDATION_DOCKER_MEMORY=512m
-PQC_VALIDATION_TIMEOUT_MAX_SECONDS=900
+MORROW_VALIDATION_ISOLATION_MODE=workspace   # or: docker
+MORROW_VALIDATION_DOCKER_IMAGE=ghcr.io/opentofu/opentofu:1.8.6
+MORROW_VALIDATION_DOCKER_CPUS=1
+MORROW_VALIDATION_DOCKER_MEMORY=512m
+MORROW_VALIDATION_TIMEOUT_MAX_SECONDS=900
 ```
 
 To check what your current sandbox profile looks like, call:
@@ -1142,15 +1142,15 @@ Morrow supports three secret backends for storing webhook secrets and credential
 
 | Backend | Env var value | Description |
 |---|---|---|
-| Local vault (default) | `PQC_SECRET_BACKEND=vault` | Fernet encryption + PostgreSQL |
-| AWS Secrets Manager | `PQC_SECRET_BACKEND=aws` | Requires `AWS_REGION` and IAM permissions |
-| Azure Key Vault | `PQC_SECRET_BACKEND=azure` | Requires `AZURE_KEY_VAULT_URL` and service principal |
+| Local vault (default) | `MORROW_SECRET_BACKEND=vault` | Fernet encryption + PostgreSQL |
+| AWS Secrets Manager | `MORROW_SECRET_BACKEND=aws` | Requires `AWS_REGION` and IAM permissions |
+| Azure Key Vault | `MORROW_SECRET_BACKEND=azure` | Requires `AZURE_KEY_VAULT_URL` and service principal |
 
 To check the active backend: `GET /integrations/secret-backend`
 
 ### AWS Secrets Manager
 
-Set `PQC_SECRET_BACKEND=aws` and ensure the worker has IAM access to Secrets Manager:
+Set `MORROW_SECRET_BACKEND=aws` and ensure the worker has IAM access to Secrets Manager:
 
 ```
 AWS_REGION=us-east-1
@@ -1163,7 +1163,7 @@ Install: `pip install boto3`
 
 ### Azure Key Vault
 
-Set `PQC_SECRET_BACKEND=azure`:
+Set `MORROW_SECRET_BACKEND=azure`:
 
 ```
 AZURE_KEY_VAULT_URL=https://your-vault.vault.azure.net
@@ -1189,8 +1189,8 @@ Call `POST /integrations/jira/create-issue` with:
   "email": "your@email.com",
   "api_token": "your-jira-api-token",
   "asset_key": "example.com:443",
-  "finding_ids": ["PQC_RSA_ENDPOINT"],
-  "summary": "[PQC] RSA endpoint detected",
+  "finding_ids": ["MORROW_RSA_ENDPOINT"],
+  "summary": "[post-quantum] RSA endpoint detected",
   "issue_type": "Bug"
 }
 ```

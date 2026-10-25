@@ -2,7 +2,7 @@ param(
   [string]$BackupDir = "backups\drill",
   # Postgres DSN to drill. Needs a role that can create a database, so use the owner/migration DSN,
   # not the least-privilege runtime role.
-  [string]$Dsn = $(if ($env:PQC_BACKUP_DRILL_DSN) { $env:PQC_BACKUP_DRILL_DSN } elseif ($env:PQC_PRODUCT_DATABASE_URL) { $env:PQC_PRODUCT_DATABASE_URL } else { $env:DATABASE_URL }),
+  [string]$Dsn = $(if ($env:MORROW_BACKUP_DRILL_DSN) { $env:MORROW_BACKUP_DRILL_DSN } elseif ($env:MORROW_PRODUCT_DATABASE_URL) { $env:MORROW_PRODUCT_DATABASE_URL } else { $env:DATABASE_URL }),
   # Image used for pg_dump/psql when they are not on PATH. Match your server's major version.
   [string]$PgImage = "postgres:16-alpine",
   [switch]$SkipPostgres,
@@ -23,14 +23,14 @@ $verified = @()
 # ---------------------------------------------------------------------------------------------
 if (-not $SkipSqlite) {
   # Resolve the database the application actually opens instead of guessing at filenames. The
-  # previous hardcoded list named pqc_scans.db, scans.db and pqc_scanner_test.db -- a test database
-  # and two stale 12KB files -- while omitting pqc_scanner.db, the live main database. The drill
+  # previous hardcoded list named pq_scans.db, scans.db and morrow_test.db -- a test database
+  # and two stale 12KB files -- while omitting morrow.db, the live main database. The drill
   # "passed" by backing up files nothing reads.
   $resolveDbPath = @'
 import os, sys
 sys.path.insert(0, "backend")
 import db
-print(os.path.abspath(os.environ.get("PQC_SCANNER_DB") or db.DB_PATH))
+print(os.path.abspath(os.environ.get("MORROW_SCANNER_DB") or db.DB_PATH))
 '@
   $resolvePath = Join-Path $target "resolve_db.py"
   [System.IO.File]::WriteAllText($resolvePath, $resolveDbPath, [System.Text.UTF8Encoding]::new($false))
@@ -39,7 +39,7 @@ print(os.path.abspath(os.environ.get("PQC_SCANNER_DB") or db.DB_PATH))
   $dbFiles = @()
   if ($livePath -and (Test-Path -LiteralPath $livePath)) { $dbFiles += $livePath }
   # Any additional SQLite files that exist alongside it, so nothing in use is silently skipped.
-  $dbFiles += @("backend\pqc_scans.db", "backend\scans.db") |
+  $dbFiles += @("backend\pq_scans.db", "backend\scans.db") |
     Where-Object { Test-Path $_ } |
     ForEach-Object { (Resolve-Path $_).Path } |
     Where-Object { $_ -ne $livePath }
@@ -117,7 +117,7 @@ if bad:
 # ---------------------------------------------------------------------------------------------
 if (-not $SkipPostgres) {
   if (-not $Dsn) {
-    Write-Host "Postgres: no DSN provided (-Dsn / PQC_BACKUP_DRILL_DSN / PQC_PRODUCT_DATABASE_URL / DATABASE_URL); skipping."
+    Write-Host "Postgres: no DSN provided (-Dsn / MORROW_BACKUP_DRILL_DSN / MORROW_PRODUCT_DATABASE_URL / DATABASE_URL); skipping."
   } elseif ($Dsn -notmatch '^postgres') {
     Write-Host "Postgres: DSN is not a postgresql:// URL; skipping."
   } else {
@@ -132,7 +132,7 @@ if (-not $SkipPostgres) {
       # Restore into a scratch database rather than over the source, then drop it. The name must be a
       # legal unquoted Postgres identifier: the timestamp contains a hyphen, which psql parses as the
       # start of a comment and reports as `syntax error at or near "-"`.
-      $scratch = "pqc_restore_drill_" + ($stamp -replace '[^0-9A-Za-z_]', '_')
+      $scratch = "pq_restore_drill_" + ($stamp -replace '[^0-9A-Za-z_]', '_')
 
       # Native tools write progress to stderr, and under $ErrorActionPreference='Stop' PowerShell 5.1
       # turns any stderr line from an external command into a terminating NativeCommandError -- which

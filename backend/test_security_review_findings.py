@@ -43,25 +43,25 @@ def api(tmp_path, monkeypatch):
     """The real ASGI stack in production-like mode: JWT required, header identity off."""
     import app
 
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "secreview.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", SECRET)
-    monkeypatch.delenv("PQC_PLATFORM_OPERATORS", raising=False)
-    monkeypatch.delenv("PQC_PLATFORM_ADMIN_KEY_ROLE", raising=False)
-    monkeypatch.delenv("PQC_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "secreview.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", SECRET)
+    monkeypatch.delenv("MORROW_PLATFORM_OPERATORS", raising=False)
+    monkeypatch.delenv("MORROW_PLATFORM_ADMIN_KEY_ROLE", raising=False)
+    monkeypatch.delenv("MORROW_PUBLIC_BASE_URL", raising=False)
     for name, value in {
         "AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_ISSUER_ENABLED": True,
         "AUTH_JWT_ALGORITHMS": ["HS256"], "AUTH_JWT_SECRET": SECRET,
-        "AUTH_JWT_ISSUER": "pqc-scanner", "AUTH_JWT_AUDIENCE": "pqc-scanner",
+        "AUTH_JWT_ISSUER": "morrow", "AUTH_JWT_AUDIENCE": "morrow",
         "AUTH_USER_ID_CLAIM": "sub", "AUTH_ROLE_CLAIM": "role", "AUTH_ORG_ID_CLAIM": "org_id",
         "_PLATFORM_ADMIN_KEY": LEGACY, "API_KEY": "", "PRODUCTION_ENVIRONMENT": False,
         "RATE_LIMIT_MAX_REQUESTS": 100000,
     }.items():
         monkeypatch.setattr(app, name, value)
     monkeypatch.setattr(auth_issuer, "_SECRET", SECRET)
-    monkeypatch.setattr(auth_issuer, "_ISSUER", "pqc-scanner")
-    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "pqc-scanner")
+    monkeypatch.setattr(auth_issuer, "_ISSUER", "morrow")
+    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "morrow")
     monkeypatch.setattr(auth_issuer, "_ENABLED", True)
     monkeypatch.setattr(app.limiter, "enabled", False)
 
@@ -91,8 +91,8 @@ def customer(org: str = ORG_A, role: str = "admin", email: str = "attacker@revie
     import jwt
     now = int(time.time())
     token = jwt.encode(
-        {"sub": email, "email": email, "role": role, "org_id": org, "iss": "pqc-scanner",
-         "aud": "pqc-scanner", "iat": now, "nbf": now, "exp": now + 3600, "jti": uuid.uuid4().hex},
+        {"sub": email, "email": email, "role": role, "org_id": org, "iss": "morrow",
+         "aud": "morrow", "iat": now, "nbf": now, "exp": now + 3600, "jti": uuid.uuid4().hex},
         SECRET, algorithm="HS256",
     )
     return {"Authorization": f"Bearer {token}"}
@@ -220,7 +220,7 @@ def test_api_key_guard_normalises_repeated_v1_prefixes():
 
     for path in ("/admin/x", "/v1/admin/x", "/v1/v1/admin/x", "/v1/v1/v1/admin/x",
                  "/platform/x", "/v1/v1/platform/x"):
-        claims, error, status = api_keys.claims_for_request("pqc_not_a_real_token", "GET", path)
+        claims, error, status = api_keys.claims_for_request("pq_not_a_real_token", "GET", path)
         assert status == 403 and "cannot call platform" in (error or ""), (
             f"{path} was not recognised as a blocked route (status={status}, error={error!r})"
         )
@@ -327,11 +327,11 @@ def test_operator_session_opens_the_platform_scope(api, monkeypatch):
 
     # The roster is what makes an SSO session stay valid: require_session_actor re-reads it on
     # every request so a removal takes effect immediately.
-    monkeypatch.setenv("PQC_ADMIN_OPERATOR_ROLES", "alice@corp.example=owner")
+    monkeypatch.setenv("MORROW_ADMIN_OPERATOR_ROLES", "alice@corp.example=owner")
     raw, _row = operator_auth.create_session(
         "alice@corp.example", "owner", "sso", email="alice@corp.example", mfa_verified=True,
     )
-    monkeypatch.setenv("PQC_ADMIN_REQUIRE_MFA", "0")
+    monkeypatch.setenv("MORROW_ADMIN_REQUIRE_MFA", "0")
     client.cookies.set(operator_auth.SESSION_COOKIE, raw, path="/")
     tenant_scope.reset_audit_log()
     res = client.get("/platform/customers")
@@ -602,8 +602,8 @@ def _register_and_login(client: TestClient, app_module, email: str, org: str, ro
 def _org_of(token: str) -> str:
     import jwt as _jwt
 
-    return _jwt.decode(token, SECRET, algorithms=["HS256"], audience="pqc-scanner",
-                       issuer="pqc-scanner")["org_id"]
+    return _jwt.decode(token, SECRET, algorithms=["HS256"], audience="morrow",
+                       issuer="morrow")["org_id"]
 
 
 def test_accepting_an_invitation_moves_the_built_in_token_to_the_new_tenant(api):
@@ -752,7 +752,7 @@ def test_the_webhook_ssrf_guard_pins_the_port():
 def test_an_emailed_invite_link_never_takes_its_host_from_the_request():
     """Finding 15: the link that leaves the process must come from configuration.
 
-    TrustedHostMiddleware is only installed when PQC_ALLOWED_HOSTS is not '*', so on a default
+    TrustedHostMiddleware is only installed when MORROW_ALLOWED_HOSTS is not '*', so on a default
     deployment a forged Host header would have put the attacker's origin in a real invitee's email,
     next to a real token.
     """
@@ -760,13 +760,13 @@ def test_an_emailed_invite_link_never_takes_its_host_from_the_request():
 
     from services import invite_links
 
-    saved = os.environ.pop("PQC_PUBLIC_BASE_URL", None)
+    saved = os.environ.pop("MORROW_PUBLIC_BASE_URL", None)
     try:
         with pytest.raises(invite_links.PublicBaseUrlMissing):
             invite_links.external_invite_link("a-token-value-0123456789")
-        os.environ["PQC_PUBLIC_BASE_URL"] = "https://app.example.test"
+        os.environ["MORROW_PUBLIC_BASE_URL"] = "https://app.example.test"
         assert invite_links.external_invite_link("tok") == "https://app.example.test/invite#token=tok"
     finally:
-        os.environ.pop("PQC_PUBLIC_BASE_URL", None)
+        os.environ.pop("MORROW_PUBLIC_BASE_URL", None)
         if saved is not None:
-            os.environ["PQC_PUBLIC_BASE_URL"] = saved
+            os.environ["MORROW_PUBLIC_BASE_URL"] = saved

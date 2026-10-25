@@ -2,7 +2,7 @@
 
 Tenant users exist in three places, and the operator needs one view over them:
 
-  * pqc_users            -- built-in password accounts (services/auth_issuer.py)
+  * morrow_users            -- built-in password accounts (services/auth_issuer.py)
   * organization_memberships -- per-organization roles that override token roles
   * admin_users / admin_invitations -- the invitation workflow (services/admin_console.py)
 
@@ -237,7 +237,7 @@ def bind_account_to_organization(user_id: str, organization_id: str, membership_
                                  email: str = "") -> bool:
     """Make `organization_id` the tenant the account's next built-in token is scoped to.
 
-    Recording a membership is not enough on its own: with PQC_AUTH_ISSUER_ENABLED=1 the token's
+    Recording a membership is not enough on its own: with MORROW_AUTH_ISSUER_ENABLED=1 the token's
     org claim is read from the account row, so an invitee who accepted an invitation kept operating
     in whichever organization they had registered in. The caller must already have verified that
     the account is entitled to the organization (acceptance of an invitation addressed to it, or an
@@ -293,7 +293,7 @@ def password_accounts(conn: Any, organization_id: str = "", query: str = "", lim
     params.append(max(1, min(int(limit or 500), 2000)))
     try:
         rows = conn.execute(
-            "SELECT id, email, full_name, role, org_id, is_active, created_at, last_login_at FROM pqc_users"
+            "SELECT id, email, full_name, role, org_id, is_active, created_at, last_login_at FROM morrow_users"
             + where + " ORDER BY created_at DESC LIMIT ?",
             tuple(params),
         ).fetchall()

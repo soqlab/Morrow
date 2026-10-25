@@ -54,9 +54,9 @@ def _looks_like_placeholder_url(value: str) -> bool:
     host = (parsed.hostname or "").lower()
     if parsed.scheme not in {"http", "https"} or not host:
         return True
-    if raw.lower() in {"https://legacy.internal", "https://pqc.internal"}:
+    if raw.lower() in {"https://legacy.internal", "https://morrow.internal"}:
         return True
-    if host in {"example.com", "legacy.example.com", "pqc.example.com"}:
+    if host in {"example.com", "legacy.example.com", "morrow.example.com"}:
         return True
     if host.endswith(".example.com") or host.endswith(".example"):
         return True
@@ -66,7 +66,7 @@ def _looks_like_placeholder_url(value: str) -> bool:
 def autonomous_capability_truth(runtime: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Return machine-readable truth labels so marketing cannot outrun engineering."""
     runtime = runtime or {}
-    real_pqc_available = bool(runtime.get("real_pqc_available"))
+    real_pq_available = bool(runtime.get("real_pq_available"))
     production_ready = bool(runtime.get("production_ready"))
     github_configured = bool(runtime.get("github_configured"))
     cloudflare_configured = bool(runtime.get("cloudflare_configured"))
@@ -134,7 +134,7 @@ def autonomous_capability_truth(runtime: Optional[Dict[str, Any]] = None) -> Dic
             "key": "hardware_crypto_bridge",
             "label": "HSM/KMS quantum-drift enforcer",
             "status": "active_enforcer",
-            "truth": "Evaluates submitted cloud KMS/on-prem HSM observations against key intents and blocks drift when native PQC or hardware backing is missing.",
+            "truth": "Evaluates submitted cloud KMS/on-prem HSM observations against key intents and blocks drift when native post-quantum or hardware backing is missing.",
             "customer_boundary": "Provider/HSM collectors run inside customer-controlled accounts and export metadata only.",
         },
         {
@@ -168,8 +168,8 @@ def autonomous_capability_truth(runtime: Optional[Dict[str, Any]] = None) -> Dic
         {
             "key": "hybrid_certificate_generation",
             "label": "Hybrid certificate generation",
-            "status": "active" if real_pqc_available else "blocked_real_pqc_library_missing",
-            "truth": "Real PQC key generation requires liboqs/python-oqs or pqcrypto. Placeholder PQC keys are blocked by API endpoints.",
+            "status": "active" if real_pq_available else "blocked_real_pq_library_missing",
+            "truth": "Real post-quantum key generation requires liboqs/python-oqs or pqcrypto. Placeholder post-quantum keys are blocked by API endpoints.",
             "customer_boundary": "Generated key material stays in caller response; production use should be CA/HSM-backed.",
         },
         {
@@ -189,7 +189,7 @@ def autonomous_capability_truth(runtime: Optional[Dict[str, Any]] = None) -> Dic
             "redis_configured": redis_configured,
             "github_configured": github_configured,
             "cloudflare_configured": cloudflare_configured,
-            "real_pqc_available": real_pqc_available,
+            "real_pq_available": real_pq_available,
             "production_ready": production_ready,
         },
         "capabilities": capabilities,
@@ -197,9 +197,9 @@ def autonomous_capability_truth(runtime: Optional[Dict[str, Any]] = None) -> Dic
     }
 
 
-def _contains_pqc_algorithm(values: Any) -> bool:
+def _contains_pq_algorithm(values: Any) -> bool:
     text = " ".join(str(x).lower() for x in (values if isinstance(values, list) else [values]))
-    return any(token in text for token in ("ml-kem", "ml_dsa", "ml-dsa", "slh-dsa", "kyber", "dilithium", "x25519mlkem", "pqc"))
+    return any(token in text for token in ("ml-kem", "ml_dsa", "ml-dsa", "slh-dsa", "kyber", "dilithium", "x25519mlkem", "pq"))
 
 
 def _to_float(value: Any, default: float = 0.0) -> float:
@@ -214,7 +214,7 @@ def evaluate_hardware_crypto_drift(
     key_intents: List[Dict[str, Any]],
     policy: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Detect KMS/HSM drift between intended PQC policy and observed hardware roots."""
+    """Detect KMS/HSM drift between intended post-quantum policy and observed hardware roots."""
     observations = observations or []
     key_intents = key_intents or []
     policy = policy or {}
@@ -233,7 +233,7 @@ def evaluate_hardware_crypto_drift(
             if key:
                 by_name[key].append(obs)
 
-    require_native = bool(policy.get("require_native_pqc", True))
+    require_native = bool(policy.get("require_native_pq", True))
     allow_software = bool(policy.get("allow_software_fallback", False))
     max_age_hours = _to_float(policy.get("max_observation_age_hours"), 24.0)
     decisions: List[Dict[str, Any]] = []
@@ -242,7 +242,7 @@ def evaluate_hardware_crypto_drift(
     for intent in key_intents:
         intent_id = str(intent.get("key_id") or intent.get("alias") or intent.get("workload") or intent.get("name") or "").strip()
         required_algos = [str(x).lower() for x in (intent.get("required_algorithms") or intent.get("algorithms") or [])]
-        require_intent_native = bool(intent.get("require_native_pqc", require_native))
+        require_intent_native = bool(intent.get("require_native_pq", require_native))
         allow_intent_software = bool(intent.get("allow_software_fallback", allow_software))
         candidates = by_name.get(intent_id, []) if intent_id else []
         if not candidates:
@@ -254,10 +254,10 @@ def evaluate_hardware_crypto_drift(
                 "fix": "Run the customer-boundary HSM/KMS bridge collector and submit observations before pushing keys.",
             })
             continue
-        best = max(candidates, key=lambda o: int(bool(o.get("hardware_backed"))) + int(bool(o.get("native_pqc"))))
+        best = max(candidates, key=lambda o: int(bool(o.get("hardware_backed"))) + int(bool(o.get("native_pq"))))
         obs_algos = [str(x).lower() for x in (best.get("algorithms") or best.get("supported_algorithms") or [])]
         missing = [algo for algo in required_algos if algo and not any(algo in observed for observed in obs_algos)]
-        native_pqc = bool(best.get("native_pqc") or best.get("native_pqc_supported"))
+        native_pq = bool(best.get("native_pq") or best.get("native_pq_supported"))
         hardware_backed = bool(best.get("hardware_backed") or best.get("hsm_backed"))
         software_fallback = bool(best.get("software_fallback") or best.get("software_wrapped") or best.get("emulated"))
         age_hours = _to_float(best.get("observation_age_hours"), 0.0)
@@ -266,8 +266,8 @@ def evaluate_hardware_crypto_drift(
         if missing:
             reasons.append("required_algorithm_missing")
             status = "block"
-        if require_intent_native and _contains_pqc_algorithm(required_algos) and not native_pqc:
-            reasons.append("native_pqc_not_observed")
+        if require_intent_native and _contains_pq_algorithm(required_algos) and not native_pq:
+            reasons.append("native_pq_not_observed")
             status = "block"
         if not hardware_backed:
             reasons.append("hardware_backing_not_observed")
@@ -290,11 +290,11 @@ def evaluate_hardware_crypto_drift(
             "observed_key_id_hash": _sha256_text(best.get("key_id") or best.get("alias") or intent_id)[:16],
             "required_algorithms": required_algos,
             "observed_algorithms": obs_algos,
-            "native_pqc": native_pqc,
+            "native_pq": native_pq,
             "hardware_backed": hardware_backed,
             "software_fallback": software_fallback,
             "reasons": reasons or ["policy_satisfied"],
-            "fix": "Use a native PQC-capable HSM/KMS path or explicitly approve a software fallback exception." if status != "pass" else "",
+            "fix": "Use a native post-quantum-capable HSM/KMS path or explicitly approve a software fallback exception." if status != "pass" else "",
         })
 
     return {
@@ -307,7 +307,7 @@ def evaluate_hardware_crypto_drift(
         "blocked_count": blockers,
         "warning_count": warnings,
         "decisions": decisions,
-        "truth": "Evaluates submitted customer-boundary KMS/HSM observations; does not hard-code provider PQC support.",
+        "truth": "Evaluates submitted customer-boundary KMS/HSM observations; does not hard-code provider post-quantum support.",
     }
 
 
@@ -319,8 +319,8 @@ import shutil
 import subprocess
 import urllib.request
 
-ORG_ID = os.getenv("PQC_ORG_ID", "{org_id}")
-API_BASE = os.getenv("PQC_API_BASE", "{api_base}").rstrip("/")
+ORG_ID = os.getenv("MORROW_ORG_ID", "{org_id}")
+API_BASE = os.getenv("MORROW_API_BASE", "{api_base}").rstrip("/")
 
 
 def run(cmd):
@@ -334,7 +334,7 @@ def run(cmd):
 
 
 def post(payload):
-    token = os.getenv("PQC_API_TOKEN", "").strip()
+    token = os.getenv("MORROW_API_TOKEN", "").strip()
     headers = {{"Content-Type": "application/json", "x-org-id": ORG_ID, "x-user-role": "operator", "x-user-id": "crypto-bridge"}}
     if token:
         headers["Authorization"] = "Bearer " + token
@@ -362,7 +362,7 @@ def main():
         "tpm2": run(["tpm2_getcap", "properties-fixed"]),
     }}
     print(json.dumps(evidence, indent=2))
-    if os.getenv("PQC_POST_EVIDENCE", "0") == "1":
+    if os.getenv("MORROW_POST_EVIDENCE", "0") == "1":
         print(json.dumps({{"posted_status": post({{"observations": [evidence]}})}}))
 
 
@@ -375,7 +375,7 @@ Runs inside the customer boundary and collects KMS/HSM capability metadata only.
 
 It does not export keys, secrets, plaintext, ciphertext payloads, or broad filesystem data.
 Provider CLI commands run only when the customer has already installed and authenticated them.
-Set PQC_POST_EVIDENCE=1 to post observations back to the platform.
+Set MORROW_POST_EVIDENCE=1 to post observations back to the platform.
 """
     return {
         "hardware_crypto_bridge_collector.py": collector,
@@ -395,7 +395,7 @@ def detect_crypto_anomalies(
     baseline: Optional[Dict[str, Any]] = None,
     policy: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Detect ciphertext harvesting and PQC-size anomalies from metadata only."""
+    """Detect ciphertext harvesting and post-quantum-size anomalies from metadata only."""
     records = records or []
     baseline = baseline or {}
     policy = policy or {}
@@ -487,38 +487,38 @@ def build_siem_xdr_feed_package(findings: List[Dict[str, Any]], destination: str
     events = [
         {
             "time": _now_iso(),
-            "source": "pqc-crypto-anomaly",
-            "sourcetype": "pqc:crypto_anomaly",
+            "source": "pq-crypto-anomaly",
+            "sourcetype": "morrow:crypto_anomaly",
             "event": finding,
         }
         for finding in findings
     ]
     splunk = "\n".join(json.dumps(event, sort_keys=True) for event in events) + ("\n" if events else "")
     datadog_monitor = {
-        "name": "PQC Crypto-Anomaly HNDL Harvesting Signal",
+        "name": "Post-Quantum Crypto-Anomaly HNDL Harvesting Signal",
         "type": "log alert",
-        "query": "logs(\"source:pqc-crypto-anomaly @hndl_harvesting_signal:true @score:>55\").index(\"*\").rollup(\"count\").last(\"5m\") > 0",
+        "query": "logs(\"source:pq-crypto-anomaly @hndl_harvesting_signal:true @score:>55\").index(\"*\").rollup(\"count\").last(\"5m\") > 0",
         "message": "Potential ciphertext harvesting or crypto anomaly detected. Review Morrow finding payload.",
-        "tags": ["pqc", "crypto-anomaly", "hndl"],
+        "tags": ["pq", "crypto-anomaly", "hndl"],
     }
-    sentinel_kql = """PQC_CryptoAnomaly_CL
+    sentinel_kql = """MORROW_CryptoAnomaly_CL
 | where hndl_harvesting_signal_b == true or score_d >= 55
 | summarize count(), max(score_d) by asset_key_s, segment_s, severity_s, bin(TimeGenerated, 5m)
 | order by max_score_d desc
 """
     sigma = {
-        "title": "PQC Crypto-Anomaly Harvesting Signal",
-        "id": f"pqc-{uuid.uuid4().hex[:12]}",
+        "title": "Post-Quantum Crypto-Anomaly Harvesting Signal",
+        "id": f"pq-{uuid.uuid4().hex[:12]}",
         "status": "experimental",
         "description": "Detects metadata-only signals consistent with ciphertext harvesting or abnormal encrypted blob movement.",
-        "logsource": {"product": "pqc-scanner", "service": "crypto-anomaly"},
+        "logsource": {"product": "morrow", "service": "crypto-anomaly"},
         "detection": {
             "selection": {"hndl_harvesting_signal": True},
             "condition": "selection",
         },
         "level": "high",
     }
-    readme = f"""# PQC Crypto-Anomaly SIEM/XDR Package
+    readme = f"""# Post-Quantum Crypto-Anomaly SIEM/XDR Package
 
 Destination profile: {destination}
 
@@ -670,10 +670,10 @@ def build_ebpf_crypto_sniffer_package(
     org_id: str,
     api_base: str = "http://127.0.0.1:8001",
 ) -> Dict[str, str]:
-    safe_name = "".join(c if c.isalnum() or c in "-_." else "-" for c in (name or "pqc-ebpf-sniffer")).strip("-") or "pqc-ebpf-sniffer"
+    safe_name = "".join(c if c.isalnum() or c in "-_." else "-" for c in (name or "pq-ebpf-sniffer")).strip("-") or "pq-ebpf-sniffer"
     bpftrace = r'''#!/usr/bin/env bpftrace
 /*
-  PQC passive crypto sniffer - OpenSSL/BoringSSL handshake probes.
+  post-quantum passive crypto sniffer - OpenSSL/BoringSSL handshake probes.
   Run with root/CAP_BPF on approved customer hosts only.
   This records metadata only: pid, comm, library function, timestamp. Payloads are never read.
 */
@@ -711,15 +711,15 @@ import sys
 import time
 import urllib.request
 
-API_BASE = os.getenv("PQC_API_BASE", "{api_base}").rstrip("/")
-ORG_ID = os.getenv("PQC_ORG_ID", "{org_id}")
-ROLE = os.getenv("PQC_USER_ROLE", "operator")
-USER = os.getenv("PQC_USER_ID", "pqc-ebpf-sniffer")
+API_BASE = os.getenv("MORROW_API_BASE", "{api_base}").rstrip("/")
+ORG_ID = os.getenv("MORROW_ORG_ID", "{org_id}")
+ROLE = os.getenv("MORROW_USER_ROLE", "operator")
+USER = os.getenv("MORROW_USER_ID", "pq-ebpf-sniffer")
 
 
 def post(path, payload):
     headers = {{"Content-Type": "application/json", "x-org-id": ORG_ID, "x-user-role": ROLE, "x-user-id": USER}}
-    token = os.getenv("PQC_API_TOKEN", "").strip()
+    token = os.getenv("MORROW_API_TOKEN", "").strip()
     if token:
         headers["Authorization"] = "Bearer " + token
     req = urllib.request.Request(API_BASE + path, data=json.dumps(payload).encode(), headers=headers, method="POST")
@@ -752,7 +752,7 @@ def normalize(event):
 
 
 def main():
-    script = os.getenv("PQC_EBPF_SCRIPT", "pqc_crypto_sniffer.bt")
+    script = os.getenv("MORROW_EBPF_SCRIPT", "pq_crypto_sniffer.bt")
     proc = subprocess.Popen(["bpftrace", script], stdout=subprocess.PIPE, stderr=sys.stderr, text=True)
     assert proc.stdout
     for line in proc.stdout:
@@ -771,13 +771,13 @@ if __name__ == "__main__":
     main()
 '''
     systemd = f"""[Unit]
-Description=PQC passive eBPF crypto sniffer
+Description=post-quantum passive eBPF crypto sniffer
 After=network-online.target
 
 [Service]
 Type=simple
-Environment=PQC_API_BASE={api_base}
-Environment=PQC_ORG_ID={org_id}
+Environment=MORROW_API_BASE={api_base}
+Environment=MORROW_ORG_ID={org_id}
 WorkingDirectory=/opt/{safe_name}
 ExecStart=/usr/bin/python3 /opt/{safe_name}/collector.py
 Restart=always
@@ -790,7 +790,7 @@ WantedBy=multi-user.target
     install = f"""#!/usr/bin/env bash
 set -euo pipefail
 install -d /opt/{safe_name}
-cp pqc_crypto_sniffer.bt collector.py /opt/{safe_name}/
+cp pq_crypto_sniffer.bt collector.py /opt/{safe_name}/
 cp {safe_name}.service /etc/systemd/system/{safe_name}.service
 systemctl daemon-reload
 systemctl enable --now {safe_name}.service
@@ -821,7 +821,7 @@ This is passive telemetry. It does not alter traffic or application behavior.
 """
     return {
         "README.md": readme,
-        "pqc_crypto_sniffer.bt": bpftrace,
+        "pq_crypto_sniffer.bt": bpftrace,
         "collector.py": collector,
         f"{safe_name}.service": systemd,
         "install.sh": install,
@@ -924,7 +924,7 @@ def build_dynamic_qday_countdown(model: Dict[str, Any], milestones: List[Dict[st
         "latest_milestones": recent,
         "curves": model.get("curves", {}),
         "decision": (
-            "accelerate_pqc_program" if pressure >= 65 or (countdown_years is not None and countdown_years <= 5)
+            "accelerate_pq_program" if pressure >= 65 or (countdown_years is not None and countdown_years <= 5)
             else "maintain_migration_velocity"
         ),
         "explanation": "Countdown is derived from Q-Intel milestones, logical-qubit estimates, and current break-probability curves.",
@@ -959,7 +959,7 @@ def generate_multi_variant_pr(scan_result: Dict[str, Any]) -> Dict[str, Any]:
         },
         {
             "id": "C",
-            "name": "Maximum cryptographic margin - conservative PQC lane",
+            "name": "Maximum cryptographic margin - conservative post-quantum lane",
             "algorithm": "ML-KEM-1024 or Classic McEliece test lane",
             "best_for": "offline, batch, device provisioning, and non-latency-sensitive channels",
             "predicted_latency_delta_ms": "+4 to +25 depending on implementation",
@@ -969,7 +969,7 @@ def generate_multi_variant_pr(scan_result: Dict[str, Any]) -> Dict[str, Any]:
         },
     ]
     pr_body = "\n".join([
-        f"# PQC multi-variant remediation for `{host}`",
+        f"# Post-quantum multi-variant remediation for `{host}`",
         "",
         f"Detected server/runtime: `{server}`",
         "",
@@ -990,7 +990,7 @@ def generate_multi_variant_pr(scan_result: Dict[str, Any]) -> Dict[str, Any]:
         "server_type": server,
         "variants": variants,
         "recommended_default": "B" if str(scan_result.get("legacy") or "").lower() in {"1", "true", "yes"} else "A",
-        "github_pr_title": f"[PQC] Multi-variant remediation options for {host}",
+        "github_pr_title": f"[post-quantum] Multi-variant remediation options for {host}",
         "github_pr_body": pr_body,
         "benchmark_plan": [
             "Measure handshake success rate by client family.",
@@ -1002,7 +1002,7 @@ def generate_multi_variant_pr(scan_result: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_canary_traffic_shift_package(request: Dict[str, Any]) -> Dict[str, str]:
-    service = str(request.get("service_name") or "pqc-service")
+    service = str(request.get("service_name") or "pq-service")
     baseline = str(request.get("baseline_url") or "").strip()
     candidate = str(request.get("candidate_url") or "").strip()
     invalid = []
@@ -1019,8 +1019,8 @@ def build_canary_traffic_shift_package(request: Dict[str, Any]) -> Dict[str, str
     failures = max(0.001, min(float(request.get("handshake_failure_rate") or 0.01), 0.50))
     worker = f"""export default {{
   async fetch(request, env) {{
-    const pct = Number(env.PQC_CANARY_PERCENT || "{canary_pct}");
-    const rollback = String(env.PQC_ROLLBACK || "0") === "1";
+    const pct = Number(env.MORROW_CANARY_PERCENT || "{canary_pct}");
+    const rollback = String(env.MORROW_ROLLBACK || "0") === "1";
     const key = request.headers.get("cf-connecting-ip") || crypto.randomUUID();
     const data = new TextEncoder().encode(key);
     const digest = await crypto.subtle.digest("SHA-256", data);
@@ -1047,7 +1047,7 @@ spec:
         - pause: {{duration: 10m}}
         - analysis:
             templates:
-              - templateName: pqc-handshake-slo
+              - templateName: pq-handshake-slo
         - setWeight: 25
         - pause: {{duration: 30m}}
 """
@@ -1055,7 +1055,7 @@ spec:
 import json, os, sys, time, urllib.request
 LATENCY_P95_MS = {latency}
 FAILURE_RATE = {failures}
-METRICS_URL = os.getenv("PQC_METRICS_URL", "http://localhost:9090/api/v1/query")
+METRICS_URL = os.getenv("MORROW_METRICS_URL", "http://localhost:9090/api/v1/query")
 
 def rollback(reason):
     print(json.dumps({{"decision":"rollback","reason":reason,"ts":time.time()}}))
@@ -1063,8 +1063,8 @@ def rollback(reason):
 
 def main():
     # Wire this to Prometheus/Cloudflare metrics in production.
-    p95 = float(os.getenv("PQC_CANARY_P95_MS", "0") or "0")
-    fail = float(os.getenv("PQC_CANARY_HANDSHAKE_FAILURE_RATE", "0") or "0")
+    p95 = float(os.getenv("MORROW_CANARY_P95_MS", "0") or "0")
+    fail = float(os.getenv("MORROW_CANARY_HANDSHAKE_FAILURE_RATE", "0") or "0")
     if p95 and p95 > LATENCY_P95_MS:
         rollback(f"p95 latency {{p95}} > {{LATENCY_P95_MS}}")
     if fail and fail > FAILURE_RATE:
@@ -1119,7 +1119,7 @@ def assess_hsm_virtualization(devices: List[Dict[str, Any]], workloads: List[Dic
             "recommended_device": (best or {}).get("name") or (best or {}).get("id") or None,
             "fit_score": round(max(best_score, 0), 1),
             "risk": "low" if best_score >= 80 else "medium" if best_score >= 50 else "high",
-            "reason": "hardware-backed PQC path available" if best_score >= 80 else "software emulation or capacity planning required",
+            "reason": "hardware-backed post-quantum path available" if best_score >= 80 else "software emulation or capacity planning required",
         })
     return {
         "device_count": len(devices),
@@ -1141,8 +1141,8 @@ import shutil
 import subprocess
 import urllib.request
 
-ORG_ID = os.getenv("PQC_ORG_ID", "{org_id}")
-API_BASE = os.getenv("PQC_API_BASE", "{api_base}").rstrip("/")
+ORG_ID = os.getenv("MORROW_ORG_ID", "{org_id}")
+API_BASE = os.getenv("MORROW_API_BASE", "{api_base}").rstrip("/")
 
 
 def run(cmd):
@@ -1182,7 +1182,7 @@ def generate_continuous_compliance_proof(
     threshold_pct: float = 98.0,
     approved_algorithms: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    approved = [x.lower() for x in (approved_algorithms or ["ml-kem", "ml-dsa", "slh-dsa", "x25519mlkem", "pqc", "kyber"])]
+    approved = [x.lower() for x in (approved_algorithms or ["ml-kem", "ml-dsa", "slh-dsa", "x25519mlkem", "pq", "kyber"])]
     total = len(assets)
     compliant = 0
     for asset in assets:
@@ -1194,7 +1194,7 @@ def generate_continuous_compliance_proof(
     nonce = base64.urlsafe_b64encode(uuid.uuid4().bytes).decode("ascii").rstrip("=")
     commitment = hashlib.sha256((_canonical(witness) + nonce).encode("utf-8")).hexdigest()
     claim = {
-        "statement": f"At least {threshold_pct}% of assessed endpoints use approved PQC or hybrid algorithms.",
+        "statement": f"At least {threshold_pct}% of assessed endpoints use approved post-quantum or hybrid algorithms.",
         "result": "pass" if total and pct >= threshold_pct else "fail",
         "public_value": f">={threshold_pct}%" if pct >= threshold_pct else f"<{threshold_pct}%",
         "raw_identifiers_revealed": False,
@@ -1227,14 +1227,14 @@ def build_underwriting_export(
     risk_reduction = max(0.0, min(35.0, (float(qri_score or 0) / 100.0) * 25.0 + (8.0 if controls.get("cam_enabled") else 0.0) + (2.0 if controls.get("zk_proof") else 0.0)))
     return {
         "api_version": "v1",
-        "kind": "pqc_insurance_underwriting_export",
+        "kind": "pq_insurance_underwriting_export",
         "organization_id": org_id,
         "generated_at": _now_iso(),
         "raw_asset_identifiers_included": False,
         "risk_metrics": {
             "quantum_readiness_index": round(float(qri_score or 0), 1),
             "risk_tier": risk.get("risk_tier", "unknown"),
-            "pqc_migrated_pct": risk.get("pqc_migrated_pct", 0),
+            "pq_migrated_pct": risk.get("pq_migrated_pct", 0),
             "avg_annual_breach_probability": risk.get("avg_annual_breach_probability", 0),
             "var_99_usd": risk.get("var_99_usd", 0),
             "loaded_premium_annual_usd": risk.get("loaded_premium_annual_usd", 0),
@@ -1251,7 +1251,7 @@ def build_underwriting_export(
             "suggested_premium_credit_pct": round(risk_reduction, 1),
             "credit_basis": "QRI score plus verified controls; final pricing belongs to insurer actuarial review.",
         },
-        "schema_version": "pqc-underwriting-2026-08",
+        "schema_version": "pq-underwriting-2026-08",
     }
 
 
@@ -1267,7 +1267,7 @@ def generate_proof_of_agility(
     controls = controls or {}
     underwriting_context = underwriting_context or {}
     qri = max(0.0, min(100.0, float(qri_score or 0.0)))
-    merged_prs = int(remediation_metrics.get("merged_prs_30d") or remediation_metrics.get("pqc_fixes_merged_30d") or 0)
+    merged_prs = int(remediation_metrics.get("merged_prs_30d") or remediation_metrics.get("pq_fixes_merged_30d") or 0)
     mttr_days = _to_float(remediation_metrics.get("median_crypto_fix_days"), 30.0)
     drift_closed = int(remediation_metrics.get("drift_events_closed_30d") or 0)
     critical_apps = int(remediation_metrics.get("critical_apps_assessed") or 0)
@@ -1293,7 +1293,7 @@ def generate_proof_of_agility(
     else:
         tier = "manual_review"
     public_claim = {
-        "proof_type": "pqc_proof_of_agility",
+        "proof_type": "pq_proof_of_agility",
         "score": score,
         "tier": tier,
         "qri_bucket": "80-100" if qri >= 80 else "60-79" if qri >= 60 else "40-59" if qri >= 40 else "0-39",
@@ -1310,7 +1310,7 @@ def generate_proof_of_agility(
     }
     return {
         "api_version": "v1",
-        "kind": "pqc_proof_of_agility",
+        "kind": "pq_proof_of_agility",
         "organization_id": org_id,
         "generated_at": _now_iso(),
         "public_claim": public_claim,
@@ -1327,5 +1327,5 @@ def generate_proof_of_agility(
         },
         "private_witness_hash": _sha256_text(private_witness),
         "proof_hash": _sha256_text({"public_claim": public_claim, "private_witness_hash": _sha256_text(private_witness)}),
-        "schema_version": "pqc-proof-of-agility-2026-08",
+        "schema_version": "pq-proof-of-agility-2026-08",
     }

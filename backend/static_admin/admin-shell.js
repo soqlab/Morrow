@@ -23,7 +23,7 @@
   const PORTAL = "/vendor-admin/";
   const href = route => (inPortal ? `#/${route}` : `${PORTAL}#/${route}`);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
-  const READ_KEY = "pqc_admin_read_notifications";
+  const READ_KEY = "morrow_admin_read_notifications";
 
   const IA = [
     { id: "dashboard", label: "Dashboard", route: "dashboard", desc: "KPIs, trends, and what needs attention" },

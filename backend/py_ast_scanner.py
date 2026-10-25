@@ -57,14 +57,14 @@ class _CryptoVisitor(ast.NodeVisitor):
                 node, "medium",
                 "Python key generation (cryptography)",
                 "generate_private_key",
-                "Inventory asymmetric key usage; plan PQC migration (Kyber/Dilithium) where applicable."
+                "Inventory asymmetric key usage; plan post-quantum migration (Kyber/Dilithium) where applicable."
             )
         elif fn_low in ("generate_key", "generate_key_pair"):
             self._add(
                 node, "medium",
                 "Key generation call",
                 "generate_*",
-                "Inventory key generation usage and ensure crypto-agility for PQC migration."
+                "Inventory key generation usage and ensure crypto-agility for post-quantum migration."
             )
 
         self.generic_visit(node)
@@ -145,7 +145,7 @@ def scan_python_source(filename: str, source_text: str) -> List[Dict[str, Any]]:
             "severity": "medium",
             "rule_name": "Python RSA import",
             "line_preview": "import rsa (cryptography)",
-            "recommendation": "RSA import detected. Ensure RSA usage is inventoried for PQC migration and crypto-agility.",
+            "recommendation": "RSA import detected. Ensure RSA usage is inventoried for post-quantum migration and crypto-agility.",
         })
     if "cryptography.hazmat.primitives.asymmetric.ec" in imports_joined:
         findings.append({
@@ -154,7 +154,7 @@ def scan_python_source(filename: str, source_text: str) -> List[Dict[str, Any]]:
             "severity": "medium",
             "rule_name": "Python EC import",
             "line_preview": "import ec (cryptography)",
-            "recommendation": "ECC import detected. Ensure ECC usage is inventoried for PQC migration and crypto-agility.",
+            "recommendation": "ECC import detected. Ensure ECC usage is inventoried for post-quantum migration and crypto-agility.",
         })
 
     findings.extend(v.findings)

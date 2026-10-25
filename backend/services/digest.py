@@ -1,11 +1,11 @@
 """
-Scheduled Digest Reports + PQC Trust Badge
+Scheduled Digest Reports + post-quantum Trust Badge
 
 Digest:  Weekly/monthly report card summarising migration delta, new vulns,
          deadline countdown, and maturity score changes.
          Delivered to Slack / Teams / PagerDuty via fire_alert().
 
-Badge:   SVG badge at /badge/{org_token} showing current PQC maturity.
+Badge:   SVG badge at /badge/{org_token} showing current post-quantum maturity.
          Token = SHA-256(org_id + secret_salt)[:16] stored in the DB.
 
 Tables created here:
@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 
 # ── DB ─────────────────────────────────────────────────────────────────────────
 
-_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "pqc_scanner.db")
+_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "morrow.db")
 
 
 def _db() -> sqlite3.Connection:
@@ -226,7 +226,7 @@ def build_digest(
     period_label = "since last report" if prev else "initial snapshot"
 
     summary_lines = [
-        f"PQC migration: {migration_pct}% ({'+' if mig_delta>=0 else ''}{mig_delta}% {period_label})",
+        f"Post-quantum migration: {migration_pct}% ({'+' if mig_delta>=0 else ''}{mig_delta}% {period_label})",
         f"Total assets: {total_assets} ({'+' if asset_delta>=0 else ''}{asset_delta} new)",
         f"High-risk assets: {high_risk} ({'+' if risk_delta>=0 else ''}{risk_delta} change)",
         f"Maturity: {maturity_label or 'L'+str(maturity_level) if maturity_level else 'Not assessed'}"
@@ -290,12 +290,12 @@ def send_digest(
 
     result = fire_alert(
         event_type="digest",
-        title=f"PQC Weekly Digest — {digest.get('org_name','Your Org')} — {status}",
+        title=f"Post-Quantum Weekly Digest — {digest.get('org_name','Your Org')} — {status}",
         summary=digest.get("summary", ""),
         severity=severity_map.get(status, "info"),
         facts=digest.get("facts", []),
         details=digest,
-        dedup_key=f"pqc-digest-{digest.get('org_id','')}",
+        dedup_key=f"pq-digest-{digest.get('org_id','')}",
         slack_webhook=slack_webhook,
         teams_webhook=teams_webhook,
         pagerduty_routing_key=pd_routing_key,
@@ -323,7 +323,7 @@ def list_snapshots(org_id: str, limit: int = 20) -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
-# ── PQC Trust Badge ────────────────────────────────────────────────────────────
+# ── post-quantum Trust Badge ────────────────────────────────────────────────────────────
 
 def _get_or_create_badge_token(org_id: str) -> str:
     _ensure_tables()
@@ -375,14 +375,14 @@ def generate_badge_svg(
     """
     Generate an SVG badge similar to shields.io style.
 
-    Left panel: "PQC Ready"
+    Left panel: "Post-Quantum Ready"
     Right panel: maturity level label + color
     Sub-bar: migration % as a thin progress bar
     """
     level = maturity_level if maturity_level is not None else None
     fg_color, bg_color = _MATURITY_COLORS.get(level, _MATURITY_COLORS[None])
     level_label = _LEVEL_LABELS.get(level, "Unknown")
-    label = "PQC Maturity"
+    label = "Post-Quantum Maturity"
     value = f"L{level} · {level_label}" if level is not None else "Not Assessed"
 
     # Dimensions
@@ -430,6 +430,6 @@ def generate_badge_svg(
   <!-- Migration progress bar -->
   <rect y="{h}" width="{total_w}" height="{bar_h}" fill="#1f2937"/>
   <rect y="{h}" width="{bar_fill_w}" height="{bar_h}" fill="{bar_color}" opacity="0.9"/>
-  <text x="{total_w//2}" y="{h+bar_h-1}" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="7" fill="rgba(255,255,255,.6)">{migration_pct:.0f}% PQC-ready</text>
+  <text x="{total_w//2}" y="{h+bar_h-1}" text-anchor="middle" font-family="DejaVu Sans,sans-serif" font-size="7" fill="rgba(255,255,255,.6)">{migration_pct:.0f}% post-quantum-ready</text>
 </svg>"""
     return svg

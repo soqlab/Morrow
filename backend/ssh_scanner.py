@@ -9,7 +9,7 @@ Connects to an SSH server, reads the SSH_MSG_KEXINIT packet, and extracts:
 
 No authentication is performed. The scanner disconnects after reading KEXINIT.
 
-PQC-safe algorithms to look for:
+quantum-safe algorithms to look for:
 - mlkem768x25519-sha256 (OpenSSH 9.0+ hybrid)
 - sntrup761x25519-sha512 (OpenSSH 8.5+)
 """
@@ -40,8 +40,8 @@ _VULNERABLE_KEX = frozenset({
     "curve448-sha512",
 })
 
-# KEX algorithms that offer PQC hybrid protection
-_PQC_HYBRID_KEX = frozenset({
+# KEX algorithms that offer post-quantum hybrid protection
+_MORROW_HYBRID_KEX = frozenset({
     "mlkem768x25519-sha256",
     "sntrup761x25519-sha512@openssh.com",
     "sntrup761x25519-sha512",
@@ -124,11 +124,11 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
         "host_key_algorithms": [],
         "encryption_algorithms": [],
         "mac_algorithms": [],
-        "pqc_hybrid_kex": [],
+        "pq_hybrid_kex": [],
         "findings": [],
         "quantum_risk_score": 0,
         "quantum_risk_level": "unknown",
-        "pqc_ready": False,
+        "pq_ready": False,
         "error": None,
     }
 
@@ -149,7 +149,7 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
         result["banner"] = banner_bytes.decode("utf-8", "replace").strip()
 
         # Send our banner
-        sock.sendall(b"SSH-2.0-PQCScanner_1.0\r\n")
+        sock.sendall(b"SSH-2.0-Morrow_1.0\r\n")
 
         # Read the KEXINIT packet (msg type 20)
         payload = _read_packet(sock)
@@ -170,9 +170,9 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
         result["encryption_algorithms"] = list(dict.fromkeys(enc_c2s + enc_s2c))
         result["mac_algorithms"]      = mac_c2s
 
-        pqc_kex = [k for k in kex_algs if k in _PQC_HYBRID_KEX]
-        result["pqc_hybrid_kex"] = pqc_kex
-        result["pqc_ready"] = len(pqc_kex) > 0
+        pq_kex = [k for k in kex_algs if k in _MORROW_HYBRID_KEX]
+        result["pq_hybrid_kex"] = pq_kex
+        result["pq_ready"] = len(pq_kex) > 0
 
     except (OSError, ConnectionError, ValueError, struct.error) as exc:
         result["error"] = str(exc)
@@ -197,21 +197,21 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
             "fix": f"Disable {', '.join(critical_kex)} in sshd_config. These are broken against classical and quantum attackers.",
             "confidence": "high",
             "evidence": {"algorithms": critical_kex},
-            "pqc_note": "These algorithms predate modern security requirements. Remove immediately.",
+            "pq_note": "These algorithms predate modern security requirements. Remove immediately.",
         })
         score += 40
 
-    # High: all KEX are quantum-vulnerable (no PQC hybrid)
+    # High: all KEX are quantum-vulnerable (no post-quantum hybrid)
     vulnerable_kex = [k for k in result["kex_algorithms"] if k in _VULNERABLE_KEX]
-    if vulnerable_kex and not pqc_kex:
+    if vulnerable_kex and not pq_kex:
         findings.append({
-            "rule_id": "SSH_NO_PQC_KEX",
+            "rule_id": "SSH_NO_MORROW_KEX",
             "severity": "high",
             "title": "No post-quantum key exchange available",
             "fix": "Upgrade to OpenSSH 9.0+ and add mlkem768x25519-sha256 or sntrup761x25519-sha512@openssh.com to KexAlgorithms.",
             "confidence": "high",
-            "evidence": {"vulnerable_kex": vulnerable_kex, "pqc_kex_available": pqc_kex},
-            "pqc_note": "NIST recommends ML-KEM for key exchange. OpenSSH 9.0 ships mlkem768x25519-sha256.",
+            "evidence": {"vulnerable_kex": vulnerable_kex, "pq_kex_available": pq_kex},
+            "pq_note": "NIST recommends ML-KEM for key exchange. OpenSSH 9.0 ships mlkem768x25519-sha256.",
         })
         score += 30
 
@@ -222,10 +222,10 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
             "rule_id": "SSH_QUANTUM_VULNERABLE_HOST_KEY",
             "severity": "high",
             "title": "All host key algorithms are quantum-vulnerable",
-            "fix": "Plan migration to ML-DSA-based SSH host keys when OpenSSH adds support (expected 2025-2026). Track IETF draft-ietf-sshm-pqc.",
+            "fix": "Plan migration to ML-DSA-based SSH host keys when OpenSSH adds support (expected 2025-2026). Track IETF draft-ietf-sshm-pq.",
             "confidence": "high",
             "evidence": {"host_key_algorithms": vuln_host_keys},
-            "pqc_note": "RSA and EC host keys are vulnerable to Shor's algorithm. ML-DSA support is coming to OpenSSH.",
+            "pq_note": "RSA and EC host keys are vulnerable to Shor's algorithm. ML-DSA support is coming to OpenSSH.",
         })
         score += 20
 
@@ -239,20 +239,20 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
             "fix": f"Remove {', '.join(weak_enc)} from Ciphers in sshd_config. Use aes256-gcm@openssh.com or chacha20-poly1305@openssh.com.",
             "confidence": "high",
             "evidence": {"weak_ciphers": weak_enc},
-            "pqc_note": "CBC mode ciphers are vulnerable to Lucky13 attacks and represent poor cryptographic hygiene.",
+            "pq_note": "CBC mode ciphers are vulnerable to Lucky13 attacks and represent poor cryptographic hygiene.",
         })
         score += 10
 
-    # Info: PQC hybrid is available
-    if pqc_kex:
+    # Info: post-quantum hybrid is available
+    if pq_kex:
         findings.append({
-            "rule_id": "SSH_PQC_HYBRID_AVAILABLE",
+            "rule_id": "SSH_MORROW_HYBRID_AVAILABLE",
             "severity": "info",
             "title": "Post-quantum hybrid KEX is available",
-            "fix": "No action required. Ensure clients are configured to prefer PQC hybrid algorithms.",
+            "fix": "No action required. Ensure clients are configured to prefer post-quantum hybrid algorithms.",
             "confidence": "high",
-            "evidence": {"pqc_kex": pqc_kex},
-            "pqc_note": "Good — this server supports PQC hybrid key exchange.",
+            "evidence": {"pq_kex": pq_kex},
+            "pq_note": "Good — this server supports post-quantum hybrid key exchange.",
         })
 
     result["findings"] = findings

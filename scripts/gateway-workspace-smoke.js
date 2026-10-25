@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const { chromium } = require("../.tools/video/node_modules/playwright");
-const base = process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001";
+const base = process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001";
 
 async function main() {
   let browser;
@@ -20,7 +20,7 @@ async function main() {
         const body = request.postDataJSON();
         sites.push({ id: "fixture-site", hostname: new URL(body.website).hostname,
           policy: { version: 1, mode: "observe", origin_url: body.origin, exceptions: [], retention_hours: 24, max_body_bytes: 1048576 },
-          coverage: { ownership: "verification_required", routing: "unknown", filtering: "unknown", certificate: "unknown", visitor_pqc: "unknown", origin_pqc: "unknown", basis: "Browser test fixture only" },
+          coverage: { ownership: "verification_required", routing: "unknown", filtering: "unknown", certificate: "unknown", visitor_pq: "unknown", origin_pq: "unknown", basis: "Browser test fixture only" },
           dns_records: [{ name: "_airlock-gateway.fixture.customer.com", value: "TEST_OWNERSHIP_VALUE" }] });
         return route.fulfill({ status: 201, json: sites[0] });
       }
@@ -53,10 +53,10 @@ async function main() {
         }).map(el => ({ tag: el.tagName, cls: el.className, width: el.getBoundingClientRect().width })).slice(0, 20)));
       }
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No overflow at ${width}`);
-      if (process.env.PQC_GATEWAY_SCREENSHOTS) {
-        require("node:fs").mkdirSync(process.env.PQC_GATEWAY_SCREENSHOTS, { recursive: true });
+      if (process.env.MORROW_GATEWAY_SCREENSHOTS) {
+        require("node:fs").mkdirSync(process.env.MORROW_GATEWAY_SCREENSHOTS, { recursive: true });
         await page.evaluate(() => scrollTo(0, 0));
-        await page.screenshot({ path: require("node:path").join(process.env.PQC_GATEWAY_SCREENSHOTS, `gateway-${width}.png`) });
+        await page.screenshot({ path: require("node:path").join(process.env.MORROW_GATEWAY_SCREENSHOTS, `gateway-${width}.png`) });
       }
     }
     sites[0].runtime = { checked_at: Date.now() / 1000 - 301 };

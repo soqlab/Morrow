@@ -186,7 +186,7 @@ def build_qday_forecast(
             "cnsa_2030_deadline": "2030-01-01",
             "cnsa_2030_days_remaining": days_until_2030,
             "estimated_crqc_year": reference.get("expected_year"),
-            "nist_pqc_standards_finalized": "2024-08-13",
+            "nist_pq_standards_finalized": "2024-08-13",
         },
         "reference_years": reference,
         "recommendation": _recommendation(prob, days_until_2030),
@@ -209,7 +209,7 @@ def _recommendation(prob: float, days_until_2030: int) -> str:
             "(3) cover FIPS 203/204/205 across remaining systems."
         )
     return (
-        "Begin a PQC roadmap aligned to the CNSA 2.0 target dates. "
+        "Begin a post-quantum roadmap aligned to the CNSA 2.0 target dates. "
         "Start with a crypto-agility assessment, then pilot ML-KEM-768 on lowest-risk endpoints."
     )
 

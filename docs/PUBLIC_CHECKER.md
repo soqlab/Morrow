@@ -9,7 +9,7 @@ makes the boundaries the most important thing in this document.
 - **Code:** `backend/services/public_check.py` (the engine),
   `backend/routers/public_check.py` (the routes),
   `backend/static/check.html` / `check.css` / `check.js` (the page),
-  `scripts/pqc-check.py` (the command line).
+  `scripts/pq-check.py` (the command line).
 - **Tests:** `backend/test_public_checker.py`. No network: Certificate
   Transparency, the TLS handshake and DNS are each mocked at their boundary.
 - **Tables:** `public_check_results`, `public_check_log`,
@@ -33,10 +33,10 @@ Two things to know about it:
 
 - Its JSON index does **not** carry the public key. Key type and size therefore
   cost one extra `?d=<id>` request per certificate, bounded by
-  `PQC_PUBLIC_CHECK_CT_CERT_FETCH` (default 3, newest first, `0` disables).
+  `MORROW_PUBLIC_CHECK_CT_CERT_FETCH` (default 3, newest first, `0` disables).
 - It publishes no rate limit, asks informally for about one request every five
   seconds, and its availability is unreliable. A throttle
-  (`PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS`, default 5) and a short timeout
+  (`MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS`, default 5) and a short timeout
   are enforced in code, and **any** failure is reported as
   `status: "unavailable"` with the reason.
 
@@ -44,10 +44,10 @@ Two things to know about it:
 That distinction is tested (`test_certificate_transparency_unavailable_never_becomes_no_certificates`).
 
 A built-in alternative, **CertSpotter** (SSLMate), is available with
-`PQC_PUBLIC_CHECK_CT_PROVIDER=certspotter`. It returns the certificate DER in
+`MORROW_PUBLIC_CHECK_CT_PROVIDER=certspotter`. It returns the certificate DER in
 the same response, so key history costs no extra requests; unauthenticated use
 is limited to a handful of queries an hour, which is why it is not the default.
-Set `PQC_PUBLIC_CHECK_CT_TOKEN` to raise that.
+Set `MORROW_PUBLIC_CHECK_CT_TOKEN` to raise that.
 
 ### Then one light active check
 
@@ -169,29 +169,29 @@ deployment's real values rather than a copy of this table.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `PQC_PUBLIC_CHECK_ENABLED` | `1` | master switch. `0` keeps the page readable and answers 503 to a check |
-| `PQC_PUBLIC_CHECK_CACHE_SECONDS` | `3600` | cache TTL per domain. **Floor of 600**, because serving the cache is what stops one visitor per check reaching the target |
-| `PQC_PUBLIC_CHECK_IP_LIMIT` | `10` | checks per client IP per hour |
-| `PQC_PUBLIC_CHECK_IP_BURST` | `3` | checks per client IP per minute |
-| `PQC_PUBLIC_CHECK_DOMAIN_LIMIT` | `4` | checks per **target domain** per hour, whoever asks |
-| `PQC_PUBLIC_CHECK_GLOBAL_LIMIT` | `240` | checks per hour for the whole service |
-| `PQC_PUBLIC_CHECK_CONCURRENCY` | `4` | checks running at once |
-| `PQC_PUBLIC_CHECK_MAX_QUEUE` | `32` | checks admitted but waiting; beyond this, 503 |
-| `PQC_PUBLIC_CHECK_QUEUE_WAIT_SECONDS` | `5` | how long a check may wait for a slot before 503 |
-| `PQC_PUBLIC_CHECK_DEADLINE_SECONDS` | `15` | whole-check deadline |
-| `PQC_PUBLIC_CHECK_HANDSHAKE_TIMEOUT` | `6` | TLS socket timeout |
-| `PQC_PUBLIC_CHECK_CT_ENABLED` | `1` | read Certificate Transparency at all |
-| `PQC_PUBLIC_CHECK_CT_PROVIDER` | `crtsh` | `crtsh`, `certspotter` or `none` |
-| `PQC_PUBLIC_CHECK_CT_TIMEOUT` | `6` | CT HTTP timeout |
-| `PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS` | `5` | politeness throttle between outbound CT calls |
-| `PQC_PUBLIC_CHECK_CT_MAX_CERTS` | `25` | CT entries summarised |
-| `PQC_PUBLIC_CHECK_CT_CERT_FETCH` | `3` | CT certificates downloaded to read key type and size |
-| `PQC_PUBLIC_CHECK_CT_TOKEN` | — | bearer token for CertSpotter |
-| `PQC_PUBLIC_CHECK_OPTOUT_DOMAINS` | — | comma-separated, in addition to the table |
-| `PQC_PUBLIC_CHECK_ABUSE_CONTACT` | — | shown on the page; falls back to `PQC_SUPPORT_EMAIL`, then `PQC_SECURITY_CONTACT_EMAIL` |
-| `PQC_PUBLIC_CHECK_LOG_RETENTION_DAYS` | `30` | log rows older than this are pruned on write |
-| `PQC_PUBLIC_CHECK_IP_SALT` | — | salt for the IP hash; generated once and stored if unset |
-| `PQC_RATE_LIMIT_PUBLIC_CHECK` | `30/minute` | the per-IP slowapi limit on these routes, including cache reads |
+| `MORROW_PUBLIC_CHECK_ENABLED` | `1` | master switch. `0` keeps the page readable and answers 503 to a check |
+| `MORROW_PUBLIC_CHECK_CACHE_SECONDS` | `3600` | cache TTL per domain. **Floor of 600**, because serving the cache is what stops one visitor per check reaching the target |
+| `MORROW_PUBLIC_CHECK_IP_LIMIT` | `10` | checks per client IP per hour |
+| `MORROW_PUBLIC_CHECK_IP_BURST` | `3` | checks per client IP per minute |
+| `MORROW_PUBLIC_CHECK_DOMAIN_LIMIT` | `4` | checks per **target domain** per hour, whoever asks |
+| `MORROW_PUBLIC_CHECK_GLOBAL_LIMIT` | `240` | checks per hour for the whole service |
+| `MORROW_PUBLIC_CHECK_CONCURRENCY` | `4` | checks running at once |
+| `MORROW_PUBLIC_CHECK_MAX_QUEUE` | `32` | checks admitted but waiting; beyond this, 503 |
+| `MORROW_PUBLIC_CHECK_QUEUE_WAIT_SECONDS` | `5` | how long a check may wait for a slot before 503 |
+| `MORROW_PUBLIC_CHECK_DEADLINE_SECONDS` | `15` | whole-check deadline |
+| `MORROW_PUBLIC_CHECK_HANDSHAKE_TIMEOUT` | `6` | TLS socket timeout |
+| `MORROW_PUBLIC_CHECK_CT_ENABLED` | `1` | read Certificate Transparency at all |
+| `MORROW_PUBLIC_CHECK_CT_PROVIDER` | `crtsh` | `crtsh`, `certspotter` or `none` |
+| `MORROW_PUBLIC_CHECK_CT_TIMEOUT` | `6` | CT HTTP timeout |
+| `MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS` | `5` | politeness throttle between outbound CT calls |
+| `MORROW_PUBLIC_CHECK_CT_MAX_CERTS` | `25` | CT entries summarised |
+| `MORROW_PUBLIC_CHECK_CT_CERT_FETCH` | `3` | CT certificates downloaded to read key type and size |
+| `MORROW_PUBLIC_CHECK_CT_TOKEN` | — | bearer token for CertSpotter |
+| `MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS` | — | comma-separated, in addition to the table |
+| `MORROW_PUBLIC_CHECK_ABUSE_CONTACT` | — | shown on the page; falls back to `MORROW_SUPPORT_EMAIL`, then `MORROW_SECURITY_CONTACT_EMAIL` |
+| `MORROW_PUBLIC_CHECK_LOG_RETENTION_DAYS` | `30` | log rows older than this are pruned on write |
+| `MORROW_PUBLIC_CHECK_IP_SALT` | — | salt for the IP hash; generated once and stored if unset |
+| `MORROW_RATE_LIMIT_PUBLIC_CHECK` | `30/minute` | the per-IP slowapi limit on these routes, including cache reads |
 
 ### Rate limits
 
@@ -255,13 +255,13 @@ the cached result for that domain and its subdomains.
 Every read route refuses an opted-out domain too, not only the one that runs a
 check: `GET /api/public-check/{domain}`, `export.json` and `cbom.json` all
 consult the list. Deleting the cached row usually makes that moot, but a domain
-added through `PQC_PUBLIC_CHECK_OPTOUT_DOMAINS` deletes nothing, and before this
+added through `MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS` deletes nothing, and before this
 guard existed a result cached before the opt-out stayed downloadable as JSON and
 as a CBOM while the page beside it answered 403.
 
 Two sources, both consulted: the `public_check_optouts` table (add through the
-operator route or `scripts/pqc-check.py --opt-out`) and
-`PQC_PUBLIC_CHECK_OPTOUT_DOMAINS`. If the table cannot be read, the configured
+operator route or `scripts/pq-check.py --opt-out`) and
+`MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS`. If the table cannot be read, the configured
 list still applies and the failure is logged loudly — a storage error must never
 silently un-opt-out a domain.
 
@@ -269,10 +269,10 @@ The opt-out address is on the `/check` page itself, not buried in the terms.
 
 ### The bounded queue
 
-`PQC_PUBLIC_CHECK_CONCURRENCY` checks run at once;
-`PQC_PUBLIC_CHECK_MAX_QUEUE` may wait. Past that, 503 immediately. A check that
-cannot get a slot within `PQC_PUBLIC_CHECK_QUEUE_WAIT_SECONDS` gets 503 too, and
-the whole check has `PQC_PUBLIC_CHECK_DEADLINE_SECONDS` to finish. A slow target
+`MORROW_PUBLIC_CHECK_CONCURRENCY` checks run at once;
+`MORROW_PUBLIC_CHECK_MAX_QUEUE` may wait. Past that, 503 immediately. A check that
+cannot get a slot within `MORROW_PUBLIC_CHECK_QUEUE_WAIT_SECONDS` gets 503 too, and
+the whole check has `MORROW_PUBLIC_CHECK_DEADLINE_SECONDS` to finish. A slow target
 therefore cannot occupy the server, and a slot is released even when the check
 raises.
 
@@ -280,11 +280,11 @@ raises.
 
 One row per attempt — including refusals, which is what makes an abuse report
 investigable: domain, time, a **salted** hash of the requester's address, the
-outcome, and the duration. The salt comes from `PQC_PUBLIC_CHECK_IP_SALT`, or is
+outcome, and the duration. The salt comes from `MORROW_PUBLIC_CHECK_IP_SALT`, or is
 generated once and stored in `public_check_meta` so hashes stay comparable
 across restarts. An unsalted SHA-256 of an IPv4 address is reversible by brute
 force in seconds, so it is never used. Rows are pruned past
-`PQC_PUBLIC_CHECK_LOG_RETENTION_DAYS`.
+`MORROW_PUBLIC_CHECK_LOG_RETENTION_DAYS`.
 
 Two rows with the same hash came from the same address; that is all the log
 supports. Describe it in your privacy notice (see §8).
@@ -314,7 +314,7 @@ supports. Describe it in your privacy notice (see §8).
   `cbom.key_exchange_algorithms`) decompose them first, so the page shows
   RSA-2048, SHA-256, and a hybrid group split honestly into X25519
   (quantum-vulnerable) and ML-KEM-768 (compliant).
-- **Migration advice narrowed to the role.** `services/fips_pqc.py` keys its
+- **Migration advice narrowed to the role.** `services/fips_pq.py` keys its
   advice by algorithm, not by role, so RSA-2048 is always answered with
   "Migrate to ML-KEM-768" - right for a key exchange, wrong for a certificate,
   because ML-KEM cannot sign anything. Only the *suggestion* is narrowed, only
@@ -323,7 +323,7 @@ supports. Describe it in your privacy notice (see §8).
   rewritten. Status, risk and reason pass through untouched, so the free and
   paid answers still agree about what is broken.
 - **The same classification as the paid product**:
-  `services/fips_pqc.classify_algorithm` for algorithms,
+  `services/fips_pq.classify_algorithm` for algorithms,
   `policy.evaluate_tls_findings` and `policy.derive_quantum_readiness` for the
   readiness assessment, `services/hndl.py` for the HNDL framing, and
   `services/regulatory.py` for the published deadlines. The free answer and the
@@ -360,37 +360,37 @@ A responsible minimum before you point it at the public internet:
 ```bash
 # Who to write to about abuse and opt-outs. Put a real, monitored address here;
 # the page shows it, and without it the page can only point at /support.
-PQC_PUBLIC_CHECK_ABUSE_CONTACT=abuse@your-domain.example
+MORROW_PUBLIC_CHECK_ABUSE_CONTACT=abuse@your-domain.example
 
 # Share one budget across API replicas. Without this each process counts alone.
 REDIS_URL=redis://localhost:6379/0
 
 # A stable salt for the requester-IP hash (otherwise one is generated and stored).
-PQC_PUBLIC_CHECK_IP_SALT=<32+ random characters>
+MORROW_PUBLIC_CHECK_IP_SALT=<32+ random characters>
 
 # Domains you already know must never be contacted.
-PQC_PUBLIC_CHECK_OPTOUT_DOMAINS=someone.example,another.example
+MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS=someone.example,another.example
 ```
 
 Tighten the budgets if your egress is shared or metered:
 
 ```bash
-PQC_PUBLIC_CHECK_IP_LIMIT=5
-PQC_PUBLIC_CHECK_DOMAIN_LIMIT=2
-PQC_PUBLIC_CHECK_GLOBAL_LIMIT=60
-PQC_PUBLIC_CHECK_CACHE_SECONDS=21600
+MORROW_PUBLIC_CHECK_IP_LIMIT=5
+MORROW_PUBLIC_CHECK_DOMAIN_LIMIT=2
+MORROW_PUBLIC_CHECK_GLOBAL_LIMIT=60
+MORROW_PUBLIC_CHECK_CACHE_SECONDS=21600
 ```
 
 Turn the active check off entirely and keep the page as documentation:
 
 ```bash
-PQC_PUBLIC_CHECK_ENABLED=0
+MORROW_PUBLIC_CHECK_ENABLED=0
 ```
 
 Turn off the outbound CT lookup (the handshake still runs):
 
 ```bash
-PQC_PUBLIC_CHECK_CT_ENABLED=0
+MORROW_PUBLIC_CHECK_CT_ENABLED=0
 ```
 
 ### From the command line
@@ -399,14 +399,14 @@ The same check, through the same code, so the capability is not locked behind
 the page. Every guardrail still applies.
 
 ```bash
-python scripts/pqc-check.py example.com            # the report
-python scripts/pqc-check.py example.com --json     # the full result
-python scripts/pqc-check.py example.com --cbom     # a CycloneDX 1.6 CBOM
-python scripts/pqc-check.py example.com --fresh    # ignore the cache
-python scripts/pqc-check.py --settings             # this deployment's guardrails
-python scripts/pqc-check.py --opt-out example.com  # never check it again
-python scripts/pqc-check.py --list-opt-outs
-python scripts/pqc-check.py --log                  # recent checks, for an abuse report
+python scripts/pq-check.py example.com            # the report
+python scripts/pq-check.py example.com --json     # the full result
+python scripts/pq-check.py example.com --cbom     # a CycloneDX 1.6 CBOM
+python scripts/pq-check.py example.com --fresh    # ignore the cache
+python scripts/pq-check.py --settings             # this deployment's guardrails
+python scripts/pq-check.py --opt-out example.com  # never check it again
+python scripts/pq-check.py --list-opt-outs
+python scripts/pq-check.py --log                  # recent checks, for an abuse report
 ```
 
 Exit status: `0` reached and assessed, `1` ran but reached nothing (a failure,
@@ -430,10 +430,10 @@ boundaries, and a `no_network` fixture makes any stray socket call fail.
    immediately, before DNS, and deletes the cached result:
 
    ```bash
-   python scripts/pqc-check.py --opt-out complainant.example
+   python scripts/pq-check.py --opt-out complainant.example
    # or
    curl -X POST https://your-host/platform/public-check/opt-outs \
-        -H "x-platform-key: $PQC_PLATFORM_ADMIN_KEY" \
+        -H "x-platform-key: $MORROW_PLATFORM_ADMIN_KEY" \
         -H 'content-type: application/json' \
         -d '{"domain":"complainant.example","reason":"owner request, ticket 123"}'
    ```
@@ -441,7 +441,7 @@ boundaries, and a `no_network` fixture makes any stray socket call fail.
 2. **Find out what actually happened.** The log is per domain:
 
    ```bash
-   curl -H "x-platform-key: $PQC_PLATFORM_ADMIN_KEY" \
+   curl -H "x-platform-key: $MORROW_PLATFORM_ADMIN_KEY" \
         "https://your-host/platform/public-check/log?domain=complainant.example&limit=200"
    ```
 
@@ -455,13 +455,13 @@ boundaries, and a `no_network` fixture makes any stray socket call fail.
    domain is the per-domain budget doing its job. Either way the budgets are
    visible in `GET /api/public-check/config`.
 
-4. **If it was a single requester**, tighten `PQC_PUBLIC_CHECK_IP_LIMIT` and
-   `PQC_PUBLIC_CHECK_IP_BURST`, or block the address upstream. The checker
+4. **If it was a single requester**, tighten `MORROW_PUBLIC_CHECK_IP_LIMIT` and
+   `MORROW_PUBLIC_CHECK_IP_BURST`, or block the address upstream. The checker
    itself does not maintain a requester blocklist; the salted hash means it
    could not enforce one anyway.
 
-5. **If it was the service**, lower `PQC_PUBLIC_CHECK_GLOBAL_LIMIT` or set
-   `PQC_PUBLIC_CHECK_ENABLED=0`. The page stays readable either way.
+5. **If it was the service**, lower `MORROW_PUBLIC_CHECK_GLOBAL_LIMIT` or set
+   `MORROW_PUBLIC_CHECK_ENABLED=0`. The page stays readable either way.
 
 6. **Reply with what the tool actually did**, which is narrow and easy to state:
    public CT data, and at most two TLS connections to one hostname on port 443,
@@ -517,7 +517,7 @@ The contract:
 - `keys` rows are `{not_before, not_after, issuer, key_type, key_bits,
   key_curve, sig_algorithm}`. Parse certificates with `scanner._pk_details` so
   key naming matches the rest of the platform; do not write a second parser.
-- Select it with `PQC_PUBLIC_CHECK_CT_PROVIDER=my_source`, and add a test that
+- Select it with `MORROW_PUBLIC_CHECK_CT_PROVIDER=my_source`, and add a test that
   mocks `_http_get_json` — never the network.
 
 Adding a whole new *kind* of passive source (DNS CAA, a public scan dataset) is
@@ -563,7 +563,7 @@ them is represented as legally sufficient.
   `GET /api/public-check/config` stays the authority: the page says so, and says
   that a disagreement between the two is a bug in the page.
 - **A monitored abuse address.** Still yours: set
-  `PQC_PUBLIC_CHECK_ABUSE_CONTACT`. Until it is set, every one of these pages
+  `MORROW_PUBLIC_CHECK_ABUSE_CONTACT`. Until it is set, every one of these pages
   says plainly that no address is configured and points at `/support`; none of
   them ships an address in its markup. `static/check-pages.js` fills the real one
   in from the live config, so the pages cannot drift from the deployment.
@@ -585,7 +585,7 @@ them is represented as legally sufficient.
 
 Still outstanding, and both are the operator's to supply:
 
-1. `PQC_PUBLIC_CHECK_ABUSE_CONTACT` — a real, monitored mailbox, plus a response
+1. `MORROW_PUBLIC_CHECK_ABUSE_CONTACT` — a real, monitored mailbox, plus a response
    time to replace the marked placeholder on `/abuse`.
 2. The egress addresses (and reverse DNS) on `/scanner`, which depend on where
    this is deployed. Until they are published, an operator who wants to block the

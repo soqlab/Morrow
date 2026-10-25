@@ -1,16 +1,16 @@
 const { chromium } = require("../.tools/video/node_modules/playwright");
 
-const baseUrl = (process.env.PQC_E2E_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
-const platformKey = process.env.PQC_E2E_PLATFORM_KEY || process.env.PQC_PLATFORM_ADMIN_KEY || "";
-const artifactsDir = process.env.PQC_E2E_ARTIFACTS_DIR || "reports/e2e-smoke";
-const e2eOrgId = process.env.PQC_E2E_ORG_ID || `e2e-smoke-${Date.now()}`;
+const baseUrl = (process.env.MORROW_E2E_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
+const platformKey = process.env.MORROW_E2E_PLATFORM_KEY || process.env.MORROW_PLATFORM_ADMIN_KEY || "";
+const artifactsDir = process.env.MORROW_E2E_ARTIFACTS_DIR || "reports/e2e-smoke";
+const e2eOrgId = process.env.MORROW_E2E_ORG_ID || `e2e-smoke-${Date.now()}`;
 // Overall budget. The console has 19 views and the overview alone fans out to ~14 endpoints, so the
 // old 90s ceiling could not cover a full pass even when everything worked.
-const timeoutMs = Number(process.env.PQC_E2E_TIMEOUT_MS || 600000);
+const timeoutMs = Number(process.env.MORROW_E2E_TIMEOUT_MS || 600000);
 // Per-view budget. A cold server answers its first requests in seconds; too tight a per-view timeout
 // reports a slow start as a broken view.
-const viewTimeoutMs = Number(process.env.PQC_E2E_VIEW_TIMEOUT_MS || 60000);
-const stagePauseMs = Number(process.env.PQC_E2E_STAGE_PAUSE_MS || 0);
+const viewTimeoutMs = Number(process.env.MORROW_E2E_VIEW_TIMEOUT_MS || 60000);
+const stagePauseMs = Number(process.env.MORROW_E2E_STAGE_PAUSE_MS || 0);
 let currentStage = "startup";
 
 function log(stage) {
@@ -212,7 +212,7 @@ async function testVendorAdmin(page) {
   ]);
 
   if (!platformKey) {
-    console.log("Skipping vendor admin authenticated flow; set PQC_E2E_PLATFORM_KEY to enable it.");
+    console.log("Skipping vendor admin authenticated flow; set MORROW_E2E_PLATFORM_KEY to enable it.");
     return;
   }
 
@@ -239,7 +239,7 @@ async function testTrafficMonitor(page) {
   ]);
 
   if (!platformKey) {
-    console.log("Skipping traffic monitor authenticated flow; set PQC_E2E_PLATFORM_KEY to enable it.");
+    console.log("Skipping traffic monitor authenticated flow; set MORROW_E2E_PLATFORM_KEY to enable it.");
     return;
   }
 
@@ -298,8 +298,8 @@ async function main() {
 
     await testPublicPages(page);
     await testMainUi(page);
-    // The console pass alone can use most of the per-IP request budget (PQC_RATE_LIMIT_MAX_REQUESTS
-    // per window). Set PQC_E2E_STAGE_PAUSE_MS to about one window when the smoke shares the default limit.
+    // The console pass alone can use most of the per-IP request budget (MORROW_RATE_LIMIT_MAX_REQUESTS
+    // per window). Set MORROW_E2E_STAGE_PAUSE_MS to about one window when the smoke shares the default limit.
     await page.waitForTimeout(stagePauseMs);
     await testVendorAdmin(page);
     await page.waitForTimeout(stagePauseMs);

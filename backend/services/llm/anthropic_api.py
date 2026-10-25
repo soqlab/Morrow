@@ -147,7 +147,7 @@ class AnthropicProvider(Provider):
     def stream(self, conv: Conversation, tools: Optional[List[Dict[str, Any]]] = None, *,
                org_id: str = "", purpose: str = "assistant",
                policy_version: Optional[int] = None, chunk_chars: int = 30) -> Iterator[Chunk]:
-        wire = (os.getenv("PQC_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
+        wire = (os.getenv("MORROW_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
         completion = (self.complete_streaming if wire else self.complete)(
             conv, tools, org_id=org_id, purpose=purpose, policy_version=policy_version)
         text = completion.text or ""

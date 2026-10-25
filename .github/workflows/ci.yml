@@ -17,13 +17,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: pqc
-          POSTGRES_PASSWORD: pqc
-          POSTGRES_DB: pqc
+          POSTGRES_USER: morrow
+          POSTGRES_PASSWORD: morrow
+          POSTGRES_DB: morrow
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U pqc -d pqc"
+          --health-cmd "pg_isready -U morrow -d morrow"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -40,9 +40,9 @@ jobs:
 
     env:
       PYTHONPATH: .
-      PQC_MAIN_DB_BACKEND: postgres
-      DATABASE_URL: postgresql://pqc:pqc@localhost:5432/pqc
-      PQC_PRODUCT_DATABASE_URL: postgresql://pqc:pqc@localhost:5432/pqc
+      MORROW_MAIN_DB_BACKEND: postgres
+      DATABASE_URL: postgresql://morrow:morrow@localhost:5432/morrow
+      MORROW_PRODUCT_DATABASE_URL: postgresql://morrow:morrow@localhost:5432/morrow
       CELERY_BROKER_URL: redis://localhost:6379/0
       CELERY_RESULT_BACKEND: redis://localhost:6379/1
       # Must be a valid Fernet key: 32 raw bytes, url-safe base64 encoded. The previous value
@@ -50,17 +50,17 @@ jobs:
       # Fernet() rejected it with "Fernet key must be 32 url-safe base64-encoded bytes" — and
       # because backend/conftest.py sets its key with os.environ.setdefault, this invalid value
       # won over the valid one, failing vault-backed tests in CI while they passed locally.
-      # This is base64url of b"pqc-scanner-test-only-key-32byte" — a throwaway, never a real key.
-      PQC_VAULT_MASTER_KEY: cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=
-      PQC_AUTH_REQUIRED: "0"
-      PQC_DEFAULT_ROLE: admin
+      # This is base64url of b"morrow-test-only-key-32byte" — a throwaway, never a real key.
+      MORROW_VAULT_MASTER_KEY: cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=
+      MORROW_AUTH_REQUIRED: "0"
+      MORROW_DEFAULT_ROLE: admin
       # Runs the dual-backend feature-store tests against the postgres service
       # above instead of skipping them. Without this the tests that prove a
       # migrated module behaves identically on both engines skip silently, and CI
       # goes green on exactly the bug they exist to catch (a constraint failure
       # aborts the transaction on Postgres but not on SQLite).
       # See docs/FEATURE_STORE_POSTGRES_MIGRATION.md.
-      PQC_TEST_PG_DSN: postgresql://pqc:pqc@localhost:5432/pqc
+      MORROW_TEST_PG_DSN: postgresql://morrow:morrow@localhost:5432/morrow
 
     steps:
       - uses: actions/checkout@v4
@@ -115,9 +115,9 @@ jobs:
 
       - name: Exercise real vault storage and Redis rate limits
         env:
-          PQC_MAIN_DB_BACKEND: sqlite
-          PQC_FEATURE_STORE_BACKEND: sqlite
-          PQC_TEST_REDIS_URL: redis://localhost:6379/1
+          MORROW_MAIN_DB_BACKEND: sqlite
+          MORROW_FEATURE_STORE_BACKEND: sqlite
+          MORROW_TEST_REDIS_URL: redis://localhost:6379/1
         run: |
           pytest -q test_integration_secrets.py test_redis_integration.py --junitxml=service-tests.xml
           python - <<'PY'
@@ -134,12 +134,12 @@ jobs:
         working-directory: .
 
     env:
-      PQC_PLATFORM_ADMIN_KEY: ci-platform-admin-key-32-chars-min
-      PQC_E2E_PLATFORM_KEY: ci-platform-admin-key-32-chars-min
-      PQC_ALLOW_PLATFORM_KEY_QUERY: "0"
-      PQC_ENVIRONMENT: local
-      PQC_AUTH_REQUIRED: "0"
-      PQC_DEFAULT_ROLE: admin
+      MORROW_PLATFORM_ADMIN_KEY: ci-platform-admin-key-32-chars-min
+      MORROW_E2E_PLATFORM_KEY: ci-platform-admin-key-32-chars-min
+      MORROW_ALLOW_PLATFORM_KEY_QUERY: "0"
+      MORROW_ENVIRONMENT: local
+      MORROW_AUTH_REQUIRED: "0"
+      MORROW_DEFAULT_ROLE: admin
 
     steps:
       - uses: actions/checkout@v4
@@ -184,44 +184,44 @@ jobs:
 
       - name: Run E2E browser smoke
         env:
-          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+          MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         run: node scripts/e2e-smoke.js
 
       - name: Verify landing motion and public status
         env:
-          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+          MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         run: node scripts/landing-motion-smoke.js
 
       - name: Verify console workspace and public experience
         env:
-          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+          MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         run: node scripts/console-workspace-smoke.js
 
       - name: Verify customer AI data controls
         env:
-          PQC_TEST_PYTHON: python
+          MORROW_TEST_PYTHON: python
         run: node scripts/test-data-control-ui.cjs
 
       - name: Verify admin workspace behavior
         env:
-          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+          MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         run: node scripts/admin-workspace-smoke.js
 
       - name: Verify gateway workspace and customer journey runner
         env:
-          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+          MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         run: |
           node scripts/gateway-workspace-smoke.js
           node scripts/gateway-journeys-smoke.js
 
       - name: Verify the generative fabric on every surface
         env:
-          PQC_E2E_BASE_URL: http://127.0.0.1:8001
+          MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         run: node scripts/fabric-smoke.js
 
       - name: Verify local launch guardrails
         shell: pwsh
-        run: ./scripts/verify-cloud-deployment.ps1 -BaseUrl http://127.0.0.1:8001 -PlatformKey $env:PQC_PLATFORM_ADMIN_KEY -ExpectLocalNoGo
+        run: ./scripts/verify-cloud-deployment.ps1 -BaseUrl http://127.0.0.1:8001 -PlatformKey $env:MORROW_PLATFORM_ADMIN_KEY -ExpectLocalNoGo
 
       - name: Upload API log
         if: always()

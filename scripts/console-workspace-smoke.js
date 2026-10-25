@@ -1,7 +1,7 @@
 const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const base = (process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 
 async function main() {
   let browser;

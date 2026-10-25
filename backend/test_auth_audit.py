@@ -18,22 +18,22 @@ KEY = "audit-tests-platform-key"
 @pytest.fixture
 def api(tmp_path, monkeypatch):
     import app
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "auth-audit.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", "audit-test-jwt-signing-key-197-not-for-deployment")
-    monkeypatch.setenv("PQC_ADMIN_PASSWORD", PASSWORD)
-    monkeypatch.setenv("PQC_ADMIN_EMAIL", EMAIL)
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "auth-audit.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", "audit-test-jwt-signing-key-197-not-for-deployment")
+    monkeypatch.setenv("MORROW_ADMIN_PASSWORD", PASSWORD)
+    monkeypatch.setenv("MORROW_ADMIN_EMAIL", EMAIL)
     for name, value in {"AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_ISSUER_ENABLED": True,
                         "AUTH_JWT_ALGORITHMS": ["HS256"], "AUTH_JWT_SECRET": "audit-test-jwt-signing-key-197-not-for-deployment",
-                        "AUTH_JWT_ISSUER": "pqc-scanner", "AUTH_JWT_AUDIENCE": "pqc-scanner",
+                        "AUTH_JWT_ISSUER": "morrow", "AUTH_JWT_AUDIENCE": "morrow",
                         "AUTH_USER_ID_CLAIM": "sub", "AUTH_ROLE_CLAIM": "role", "AUTH_ORG_ID_CLAIM": "org_id",
                         "_PLATFORM_ADMIN_KEY": KEY, "_TRAFFIC_PERSIST_TO_DB": True, "_TRAFFIC_MONITOR_ENABLED": True,
                         "API_KEY": "", "PRODUCTION_ENVIRONMENT": False, "RATE_LIMIT_MAX_REQUESTS": 100000}.items():
         monkeypatch.setattr(app, name, value)
     monkeypatch.setattr(auth_issuer, "_SECRET", app.AUTH_JWT_SECRET)
-    monkeypatch.setattr(auth_issuer, "_ISSUER", "pqc-scanner")
-    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "pqc-scanner")
+    monkeypatch.setattr(auth_issuer, "_ISSUER", "morrow")
+    monkeypatch.setattr(auth_issuer, "_AUDIENCE", "morrow")
     monkeypatch.setattr(auth_issuer, "_ENABLED", True)
     monkeypatch.setattr(app.limiter, "enabled", False)
     app.init_db()
@@ -108,13 +108,13 @@ def test_journal_failure_blocks_issuance_but_not_revocation(api, monkeypatch):
     assert failed_login.status_code == 503 and "access_token" not in failed_login.json()
     assert "private-internal-detail" not in failed_login.text
     with app._db() as conn:
-        assert conn.execute("SELECT count(*) FROM pqc_refresh_tokens").fetchone()[0] == 1
+        assert conn.execute("SELECT count(*) FROM morrow_refresh_tokens").fetchone()[0] == 1
     body = {"refresh_token": session["refresh_token"]}
     assert client.post("/auth/refresh", json=body).status_code == 503
     revoked = client.post("/auth/logout", json=body)
     assert revoked.json()["refresh_token_revoked"] is True and revoked.json()["audit_recorded"] is False
     with app._db() as conn:
-        assert conn.execute("SELECT count(*) FROM pqc_refresh_tokens").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM morrow_refresh_tokens").fetchone()[0] == 0
 
 
 def test_durable_archive_access_control_filters_and_export(api):

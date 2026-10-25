@@ -1,19 +1,19 @@
 """SAML 2.0 SSO support for Morrow.
 
 Activated when all three env vars are set:
-  PQC_SAML_SP_ENTITY_ID      e.g., https://pqc.yourco.com
-  PQC_SAML_IDP_METADATA_URL  e.g., https://sso.yourco.com/saml/metadata
-  PQC_SAML_SP_ACS_URL        e.g., https://pqc.yourco.com/auth/saml/acs
+  MORROW_SAML_SP_ENTITY_ID      e.g., https://morrow.yourco.com
+  MORROW_SAML_IDP_METADATA_URL  e.g., https://sso.yourco.com/saml/metadata
+  MORROW_SAML_SP_ACS_URL        e.g., https://morrow.yourco.com/auth/saml/acs
 
 Optional:
-  PQC_SAML_ROLE_ATTRIBUTE    SAML attribute name that maps to PQC roles (default: role)
-  PQC_SAML_NAMEID_AS_ACTOR   1 = use NameID as actor_id (default: 1)
-  PQC_SAML_SESSION_HOURS     JWT session duration after SAML login (default: 8)
+  MORROW_SAML_ROLE_ATTRIBUTE    SAML attribute name that maps to post-quantum roles (default: role)
+  MORROW_SAML_NAMEID_AS_ACTOR   1 = use NameID as actor_id (default: 1)
+  MORROW_SAML_SESSION_HOURS     JWT session duration after SAML login (default: 8)
 
 How it works:
   1. User visits /auth/saml/login -> redirected to IdP
   2. IdP posts assertion to /auth/saml/acs
-  3. ACS validates assertion, issues a short-lived JWT signed with PQC_VAULT_MASTER_KEY
+  3. ACS validates assertion, issues a short-lived JWT signed with MORROW_VAULT_MASTER_KEY
   4. Frontend receives the JWT and stores it for subsequent API calls
   5. Existing JWT middleware validates all subsequent requests
 """
@@ -27,24 +27,24 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 SAML_ENABLED = bool(
-    os.getenv("PQC_SAML_SP_ENTITY_ID", "").strip()
-    and os.getenv("PQC_SAML_IDP_METADATA_URL", "").strip()
-    and os.getenv("PQC_SAML_SP_ACS_URL", "").strip()
+    os.getenv("MORROW_SAML_SP_ENTITY_ID", "").strip()
+    and os.getenv("MORROW_SAML_IDP_METADATA_URL", "").strip()
+    and os.getenv("MORROW_SAML_SP_ACS_URL", "").strip()
 )
 
-SP_ENTITY_ID       = os.getenv("PQC_SAML_SP_ENTITY_ID", "").strip()
-IDP_METADATA_URL   = os.getenv("PQC_SAML_IDP_METADATA_URL", "").strip()
-SP_ACS_URL         = os.getenv("PQC_SAML_SP_ACS_URL", "").strip()
-ROLE_ATTRIBUTE     = os.getenv("PQC_SAML_ROLE_ATTRIBUTE", "role").strip() or "role"
-NAMEID_AS_ACTOR    = os.getenv("PQC_SAML_NAMEID_AS_ACTOR", "1").strip() in {"1", "true", "yes"}
-SESSION_HOURS      = max(1, min(72, int(os.getenv("PQC_SAML_SESSION_HOURS", "8") or "8")))
+SP_ENTITY_ID       = os.getenv("MORROW_SAML_SP_ENTITY_ID", "").strip()
+IDP_METADATA_URL   = os.getenv("MORROW_SAML_IDP_METADATA_URL", "").strip()
+SP_ACS_URL         = os.getenv("MORROW_SAML_SP_ACS_URL", "").strip()
+ROLE_ATTRIBUTE     = os.getenv("MORROW_SAML_ROLE_ATTRIBUTE", "role").strip() or "role"
+NAMEID_AS_ACTOR    = os.getenv("MORROW_SAML_NAMEID_AS_ACTOR", "1").strip() in {"1", "true", "yes"}
+SESSION_HOURS      = max(1, min(72, int(os.getenv("MORROW_SAML_SESSION_HOURS", "8") or "8")))
 
 
 def _saml_settings() -> Dict[str, Any]:
     """Build python3-saml settings dict from environment variables."""
     return {
         "strict": True,
-        "debug": os.getenv("PQC_SAML_DEBUG", "0").strip() in {"1", "true"},
+        "debug": os.getenv("MORROW_SAML_DEBUG", "0").strip() in {"1", "true"},
         "sp": {
             "entityId": SP_ENTITY_ID,
             "assertionConsumerService": {
@@ -112,13 +112,13 @@ def _prepare_request(request) -> Dict[str, Any]:
 
 
 def _issue_jwt(actor_id: str, actor_role: str, org_id: str) -> str:
-    """Issue a short-lived JWT signed with PQC_VAULT_MASTER_KEY."""
+    """Issue a short-lived JWT signed with MORROW_VAULT_MASTER_KEY."""
     import hmac as _hmac
     import hashlib as _hashlib
 
-    key = os.getenv("PQC_VAULT_MASTER_KEY", "").strip().encode()
+    key = os.getenv("MORROW_VAULT_MASTER_KEY", "").strip().encode()
     if not key:
-        raise RuntimeError("PQC_VAULT_MASTER_KEY is required for SAML JWT issuance")
+        raise RuntimeError("MORROW_VAULT_MASTER_KEY is required for SAML JWT issuance")
 
     now = int(time.time())
     header  = base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode()).rstrip(b"=").decode()

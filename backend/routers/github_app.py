@@ -98,7 +98,7 @@ def create_github_app_router(require_role: RequireRole, celery_app: Any, default
         org_id = getattr(request.state, "org_id", default_org_id)
         if req.async_mode:
             task = celery_app.send_task(
-                "pqc.sync_github_app_installations",
+                "morrow.sync_github_app_installations",
                 args=[req.credential_id, org_id],
             )
             return {"async": True, "job_id": task.id}
@@ -117,7 +117,7 @@ def create_github_app_router(require_role: RequireRole, celery_app: Any, default
         org_id = getattr(request.state, "org_id", default_org_id)
         if req.async_mode:
             task = celery_app.send_task(
-                "pqc.sync_github_app_repositories",
+                "morrow.sync_github_app_repositories",
                 args=[req.credential_id, req.installation_id, org_id],
             )
             return {"async": True, "job_id": task.id}

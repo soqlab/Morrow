@@ -42,7 +42,7 @@ The export buttons call `/platform/traffic/export.ndjson` and `/platform/traffic
 OpenTelemetry ingestion. Destructive actions such as clearing the buffer require an `owner` or
 `operator` platform admin role; `support` and `auditor` are read-only.
 
-Production note: set `PQC_TRUST_PROXY_HEADERS=1` only behind a trusted reverse proxy. Otherwise the
+Production note: set `MORROW_TRUST_PROXY_HEADERS=1` only behind a trusted reverse proxy. Otherwise the
 monitor uses the direct client IP from the ASGI server.
 
 ### Guide & Tutorial
@@ -467,7 +467,7 @@ What it checks:
 - chain confidence
 - legacy TLS support
 - weak cipher posture
-- PQC-readiness signals
+- post-quantum-readiness signals
 
 ### Set Baseline
 

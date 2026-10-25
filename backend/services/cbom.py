@@ -39,7 +39,7 @@ PLATFORM_GENERIC = "generic"
 # ---------------------------------------------------------------------------------------------
 # Algorithm knowledge base.
 #
-# nist is the NIST PQC security *category* (1-5), which is defined by reference to AES-128
+# nist is the NIST post-quantum security *category* (1-5), which is defined by reference to AES-128
 # (category 1), AES-192 (category 3) and AES-256 (category 5). 0 means no post-quantum security:
 # everything broken by Shor's algorithm -- RSA, finite-field Diffie-Hellman, and all elliptic-curve
 # key agreement and signatures -- belongs there regardless of key size.
@@ -341,9 +341,9 @@ def key_exchange_algorithms(group_name: str) -> List[str]:
             if classical in flat:
                 out.append(key)
                 break
-        pqc = canonical_algorithm(raw)
-        if pqc:
-            out.append(pqc)
+        pq = canonical_algorithm(raw)
+        if pq:
+            out.append(pq)
         return out
     if raw in _KEY_EXCHANGE_GROUPS:
         return list(_KEY_EXCHANGE_GROUPS[raw])
@@ -552,7 +552,7 @@ def generate_cbom(scan_results: List[Dict[str, Any]],
 
         add_dependency(proto_ref, depends_on)
 
-    root_ref = _stable_ref("root", org_name or "pqc-scanner", scan_id or "")
+    root_ref = _stable_ref("root", org_name or "morrow", scan_id or "")
     components = endpoints + certificates + registry.components
     top_level = sorted({c["bom-ref"] for c in endpoints + certificates})
     if top_level:
@@ -571,7 +571,7 @@ def generate_cbom(scan_results: List[Dict[str, Any]],
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "tools": {"components": [{
                 "type": "application",
-                "name": "pqc-scanner",
+                "name": "morrow",
                 "publisher": "Morrow",
                 "version": TOOL_VERSION,
             }]},
@@ -593,7 +593,7 @@ def get_cbom_for_org(org_id: str, limit: int = 5000) -> Dict[str, Any]:
 
     services/ai_agent.py imported this name and it did not exist, so its CBOM tool fell through to a
     hand-rolled document declaring `"type": "crypto-algo"` -- not a CycloneDX component type -- built
-    from columns (`algorithm`, `pqc_safe`) that scan_results does not have. Both paths raised, so the
+    from columns (`algorithm`, `pq_safe`) that scan_results does not have. Both paths raised, so the
     tool never returned a CBOM at all. One generator now serves every caller.
     """
     from db import list_scan_results_since
@@ -645,7 +645,7 @@ def _vulnerabilities_from_results(results: List[Dict[str, Any]]) -> List[Dict[st
             seen.add(vuln_ref)
             entry: Dict[str, Any] = {
                 "bom-ref": vuln_ref,
-                "id": f"PQC-{rule}",
+                "id": f"Post-quantum-{rule}",
                 "source": {"name": "Morrow"},
                 "ratings": [{"severity": severity, "method": "other"}],
                 "affects": [{"ref": target_ref}],

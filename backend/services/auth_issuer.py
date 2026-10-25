@@ -1,7 +1,7 @@
 """Built-in JWT issuer — email/password login when no external IdP is configured.
 
-Activated when PQC_AUTH_ISSUER_ENABLED=1 (or AUTH_MODE=hosted).
-Issues HS256 JWTs signed with PQC_AUTH_JWT_SECRET.
+Activated when MORROW_AUTH_ISSUER_ENABLED=1 (or AUTH_MODE=hosted).
+Issues HS256 JWTs signed with MORROW_AUTH_JWT_SECRET.
 Falls through gracefully if the env var is absent.
 """
 import hashlib
@@ -17,12 +17,12 @@ import jwt
 
 logger = logging.getLogger(__name__)
 
-_SECRET = str(os.getenv("PQC_AUTH_JWT_SECRET") or "").strip()
-_ISSUER = str(os.getenv("PQC_AUTH_JWT_ISSUER") or "pqc-scanner").strip()
-_AUDIENCE = str(os.getenv("PQC_AUTH_JWT_AUDIENCE") or "pqc-scanner").strip()
-_TOKEN_TTL = int(os.getenv("PQC_AUTH_TOKEN_TTL_SECONDS") or 86400)  # 24 h default
-_REFRESH_TTL = int(os.getenv("PQC_AUTH_REFRESH_TTL_SECONDS") or 604800)  # 7 d default
-_ENABLED = str(os.getenv("PQC_AUTH_ISSUER_ENABLED") or "1").strip().lower() in {"1", "true", "yes", "on"}
+_SECRET = str(os.getenv("MORROW_AUTH_JWT_SECRET") or "").strip()
+_ISSUER = str(os.getenv("MORROW_AUTH_JWT_ISSUER") or "morrow").strip()
+_AUDIENCE = str(os.getenv("MORROW_AUTH_JWT_AUDIENCE") or "morrow").strip()
+_TOKEN_TTL = int(os.getenv("MORROW_AUTH_TOKEN_TTL_SECONDS") or 86400)  # 24 h default
+_REFRESH_TTL = int(os.getenv("MORROW_AUTH_REFRESH_TTL_SECONDS") or 604800)  # 7 d default
+_ENABLED = str(os.getenv("MORROW_AUTH_ISSUER_ENABLED") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
 ALGORITHM = "HS256"
 
@@ -31,7 +31,7 @@ ALGORITHM = "HS256"
 
 def init_tables(db) -> None:
     db.execute("""
-        CREATE TABLE IF NOT EXISTS pqc_users (
+        CREATE TABLE IF NOT EXISTS morrow_users (
             id TEXT PRIMARY KEY,
             email TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
@@ -44,7 +44,7 @@ def init_tables(db) -> None:
         )
     """)
     db.execute("""
-        CREATE TABLE IF NOT EXISTS pqc_refresh_tokens (
+        CREATE TABLE IF NOT EXISTS morrow_refresh_tokens (
             token_hash TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
             expires_at INTEGER NOT NULL,
@@ -63,13 +63,13 @@ def _ensure_default_admin(db) -> None:
     "changeme123!" is a publicly known credential on every deployment that forgets to override it.
     Bootstrap requires an explicitly supplied secret; credentials must never be emitted into logs.
     """
-    count = db.execute("SELECT COUNT(*) FROM pqc_users").fetchone()[0]
+    count = db.execute("SELECT COUNT(*) FROM morrow_users").fetchone()[0]
     if count > 0:
         return
-    default_email = str(os.getenv("PQC_ADMIN_EMAIL") or "admin@pqcscanner.io").strip()
-    configured = str(os.getenv("PQC_ADMIN_PASSWORD") or "").strip()
+    default_email = str(os.getenv("MORROW_ADMIN_EMAIL") or "admin@morrow.soqlab.com").strip()
+    configured = str(os.getenv("MORROW_ADMIN_PASSWORD") or "").strip()
     if not configured:
-        logger.warning("[AuthIssuer] No bootstrap account created: supply PQC_ADMIN_PASSWORD through a secret manager or configure an external identity provider.")
+        logger.warning("[AuthIssuer] No bootstrap account created: supply MORROW_ADMIN_PASSWORD through a secret manager or configure an external identity provider.")
         return
     _validate_password_strength(configured)
     _create_user(db, default_email, configured, "Platform Admin", "admin", "org-alpha")
@@ -93,7 +93,7 @@ def _create_user(db, email: str, password: str, full_name: str, role: str, org_i
     uid = str(uuid.uuid4())
     now = int(time.time())
     db.execute(
-        "INSERT INTO pqc_users (id, email, password_hash, full_name, role, org_id, is_active, created_at) "
+        "INSERT INTO morrow_users (id, email, password_hash, full_name, role, org_id, is_active, created_at) "
         "VALUES (?,?,?,?,?,?,1,?)",
         (uid, email.lower().strip(), _hash_password(password), full_name, role, org_id, now),
     )
@@ -104,7 +104,7 @@ def _create_user(db, email: str, password: str, full_name: str, role: str, org_i
 def create_user(db, email: str, password: str, full_name: str = "",
                 role: str = "viewer", org_id: str = "org-alpha") -> dict:
     _validate_password_strength(password)
-    existing = db.execute("SELECT id FROM pqc_users WHERE email=?", (email.lower().strip(),)).fetchone()
+    existing = db.execute("SELECT id FROM morrow_users WHERE email=?", (email.lower().strip(),)).fetchone()
     if existing:
         raise ValueError("Email already registered")
     return _create_user(db, email, password, full_name, role, org_id)
@@ -112,7 +112,7 @@ def create_user(db, email: str, password: str, full_name: str = "",
 
 def get_user_by_email(db, email: str) -> Optional[dict]:
     row = db.execute(
-        "SELECT id, email, password_hash, full_name, role, org_id, is_active FROM pqc_users WHERE email=?",
+        "SELECT id, email, password_hash, full_name, role, org_id, is_active FROM morrow_users WHERE email=?",
         (email.lower().strip(),),
     ).fetchone()
     if not row:
@@ -123,7 +123,7 @@ def get_user_by_email(db, email: str) -> Optional[dict]:
 
 def get_user_by_id(db, user_id: str) -> Optional[dict]:
     row = db.execute(
-        "SELECT id, email, full_name, role, org_id, is_active, created_at, last_login_at FROM pqc_users WHERE id=?",
+        "SELECT id, email, full_name, role, org_id, is_active, created_at, last_login_at FROM morrow_users WHERE id=?",
         (user_id,),
     ).fetchone()
     if not row:
@@ -153,14 +153,14 @@ def set_user_organization(db, user_id: str, org_id: str, role: str = "", email: 
         return False
     where, args = ("id=?", [uid]) if uid else ("email=?", [address])
     if role:
-        cur = db.execute(f"UPDATE pqc_users SET org_id=?, role=? WHERE {where}", (org, role, *args))
+        cur = db.execute(f"UPDATE morrow_users SET org_id=?, role=? WHERE {where}", (org, role, *args))
     else:
-        cur = db.execute(f"UPDATE pqc_users SET org_id=? WHERE {where}", (org, *args))
+        cur = db.execute(f"UPDATE morrow_users SET org_id=? WHERE {where}", (org, *args))
     if cur.rowcount == 0 and address and uid:
         if role:
-            cur = db.execute("UPDATE pqc_users SET org_id=?, role=? WHERE email=?", (org, role, address))
+            cur = db.execute("UPDATE morrow_users SET org_id=?, role=? WHERE email=?", (org, role, address))
         else:
-            cur = db.execute("UPDATE pqc_users SET org_id=? WHERE email=?", (org, address))
+            cur = db.execute("UPDATE morrow_users SET org_id=? WHERE email=?", (org, address))
     db.commit()
     return cur.rowcount > 0
 
@@ -168,7 +168,7 @@ def set_user_organization(db, user_id: str, org_id: str, role: str = "", email: 
 def list_users(db, org_id: str) -> list[dict]:
     rows = db.execute(
         "SELECT id, email, full_name, role, org_id, is_active, created_at, last_login_at "
-        "FROM pqc_users WHERE org_id=? ORDER BY created_at DESC",
+        "FROM morrow_users WHERE org_id=? ORDER BY created_at DESC",
         (org_id,),
     ).fetchall()
     return [{"id": r[0], "email": r[1], "full_name": r[2], "role": r[3],
@@ -178,7 +178,7 @@ def list_users(db, org_id: str) -> list[dict]:
 
 def update_user_role(db, user_id: str, role: str, org_id: str) -> bool:
     cur = db.execute(
-        "UPDATE pqc_users SET role=? WHERE id=? AND org_id=?", (role, user_id, org_id)
+        "UPDATE morrow_users SET role=? WHERE id=? AND org_id=?", (role, user_id, org_id)
     )
     db.commit()
     return cur.rowcount > 0
@@ -186,7 +186,7 @@ def update_user_role(db, user_id: str, role: str, org_id: str) -> bool:
 
 def deactivate_user(db, user_id: str, org_id: str) -> bool:
     cur = db.execute(
-        "UPDATE pqc_users SET is_active=0 WHERE id=? AND org_id=?", (user_id, org_id)
+        "UPDATE morrow_users SET is_active=0 WHERE id=? AND org_id=?", (user_id, org_id)
     )
     db.commit()
     return cur.rowcount > 0
@@ -196,11 +196,11 @@ def change_password(db, user_id: str, old_password: str, new_password: str) -> b
     user = get_user_by_id(db, user_id)
     if not user:
         return False
-    row = db.execute("SELECT password_hash FROM pqc_users WHERE id=?", (user_id,)).fetchone()
+    row = db.execute("SELECT password_hash FROM morrow_users WHERE id=?", (user_id,)).fetchone()
     if not row or not _verify_password(old_password, row[0]):
         return False
     _validate_password_strength(new_password)
-    db.execute("UPDATE pqc_users SET password_hash=? WHERE id=?", (_hash_password(new_password), user_id))
+    db.execute("UPDATE morrow_users SET password_hash=? WHERE id=?", (_hash_password(new_password), user_id))
     db.commit()
     return True
 
@@ -219,7 +219,7 @@ def _validate_password_strength(password: str) -> None:
 def _require_secret() -> str:
     if not _SECRET:
         raise RuntimeError(
-            "PQC_AUTH_JWT_SECRET is not set. "
+            "MORROW_AUTH_JWT_SECRET is not set. "
             "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
         )
     return _SECRET
@@ -249,7 +249,7 @@ def issue_refresh_token(db, user_id: str) -> str:
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     now = int(time.time())
     db.execute(
-        "INSERT OR REPLACE INTO pqc_refresh_tokens (token_hash, user_id, expires_at, created_at) VALUES (?,?,?,?)",
+        "INSERT OR REPLACE INTO morrow_refresh_tokens (token_hash, user_id, expires_at, created_at) VALUES (?,?,?,?)",
         (token_hash, user_id, now + _REFRESH_TTL, now),
     )
     db.commit()
@@ -265,7 +265,7 @@ def refresh_access_token(db, refresh_token: str) -> Optional[str]:
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
     now = int(time.time())
     row = db.execute(
-        "SELECT user_id FROM pqc_refresh_tokens WHERE token_hash=? AND expires_at>?",
+        "SELECT user_id FROM morrow_refresh_tokens WHERE token_hash=? AND expires_at>?",
         (token_hash, now),
     ).fetchone()
     if not row:
@@ -278,13 +278,13 @@ def refresh_access_token(db, refresh_token: str) -> Optional[str]:
 
 def revoke_refresh_token(db, refresh_token: str) -> None:
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
-    db.execute("DELETE FROM pqc_refresh_tokens WHERE token_hash=?", (token_hash,))
+    db.execute("DELETE FROM morrow_refresh_tokens WHERE token_hash=?", (token_hash,))
     db.commit()
 
 
 def refresh_token_owner(db, refresh_token: str) -> Optional[dict]:
     token_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
-    row = db.execute("SELECT user_id FROM pqc_refresh_tokens WHERE token_hash=? AND expires_at>?", (token_hash, int(time.time()))).fetchone()
+    row = db.execute("SELECT user_id FROM morrow_refresh_tokens WHERE token_hash=? AND expires_at>?", (token_hash, int(time.time()))).fetchone()
     if not row:
         return None
     user = get_user_by_id(db, row[0])
@@ -310,7 +310,7 @@ def list_refresh_sessions(db, org_id: str = "", user_id: str = "", limit: int = 
     params.append(max(1, min(int(limit or 200), 1000)))
     rows = db.execute(
         "SELECT t.token_hash, t.user_id, t.created_at, t.expires_at, u.email, u.org_id, u.role, u.is_active "
-        "FROM pqc_refresh_tokens t LEFT JOIN pqc_users u ON u.id = t.user_id WHERE "
+        "FROM morrow_refresh_tokens t LEFT JOIN morrow_users u ON u.id = t.user_id WHERE "
         + " AND ".join(clauses) + " ORDER BY t.created_at DESC LIMIT ?",
         tuple(params),
     ).fetchall()
@@ -329,16 +329,16 @@ def revoke_refresh_sessions(db, *, session_id: str = "", user_id: str = "", org_
             return 0
         if org_id:
             cur = db.execute(
-                "DELETE FROM pqc_refresh_tokens WHERE token_hash LIKE ? AND user_id IN (SELECT id FROM pqc_users WHERE org_id=?)",
+                "DELETE FROM morrow_refresh_tokens WHERE token_hash LIKE ? AND user_id IN (SELECT id FROM morrow_users WHERE org_id=?)",
                 (sid + "%", org_id),
             )
         else:
-            cur = db.execute("DELETE FROM pqc_refresh_tokens WHERE token_hash LIKE ?", (sid + "%",))
+            cur = db.execute("DELETE FROM morrow_refresh_tokens WHERE token_hash LIKE ?", (sid + "%",))
     elif user_id:
-        cur = db.execute("DELETE FROM pqc_refresh_tokens WHERE user_id=?", (user_id,))
+        cur = db.execute("DELETE FROM morrow_refresh_tokens WHERE user_id=?", (user_id,))
     elif org_id:
         cur = db.execute(
-            "DELETE FROM pqc_refresh_tokens WHERE user_id IN (SELECT id FROM pqc_users WHERE org_id=?)", (org_id,)
+            "DELETE FROM morrow_refresh_tokens WHERE user_id IN (SELECT id FROM morrow_users WHERE org_id=?)", (org_id,)
         )
     else:
         return 0
@@ -348,7 +348,7 @@ def revoke_refresh_sessions(db, *, session_id: str = "", user_id: str = "", org_
 
 def set_user_active(db, user_id: str, org_id: str, active: bool) -> bool:
     cur = db.execute(
-        "UPDATE pqc_users SET is_active=? WHERE id=? AND org_id=?", (1 if active else 0, user_id, org_id)
+        "UPDATE morrow_users SET is_active=? WHERE id=? AND org_id=?", (1 if active else 0, user_id, org_id)
     )
     db.commit()
     return cur.rowcount > 0
@@ -370,7 +370,7 @@ def login(db, email: str, password: str) -> Optional[dict]:
     valid = _verify_password(password, user["password_hash"] if user else _dummy_hash())
     if not user or not user["is_active"] or not valid:
         return None
-    db.execute("UPDATE pqc_users SET last_login_at=? WHERE id=?", (int(time.time()), user["id"]))
+    db.execute("UPDATE morrow_users SET last_login_at=? WHERE id=?", (int(time.time()), user["id"]))
     db.commit()
     access_token = issue_access_token(user)
     refresh_token = issue_refresh_token(db, user["id"])

@@ -1,7 +1,7 @@
 """
 Remediation Playbooks
 
-Pre-built, step-by-step PQC migration guides per technology stack.
+Pre-built, step-by-step post-quantum migration guides per technology stack.
 Each playbook contains:
   - Prerequisites check
   - Ordered steps with copy-paste config/code snippets
@@ -25,7 +25,7 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
     "nginx": {
         "id": "nginx",
         "name": "nginx / OpenSSL TLS Upgrade",
-        "description": "Upgrade nginx to support hybrid PQC key exchange (X25519Kyber768) and restrict legacy cipher suites.",
+        "description": "Upgrade nginx to support hybrid post-quantum key exchange (X25519Kyber768) and restrict legacy cipher suites.",
         "stack": "nginx",
         "difficulty": "medium",
         "estimated_time": "2–4 hours",
@@ -70,8 +70,8 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
             },
             {
                 "id": 3,
-                "title": "Configure hybrid PQC cipher suite",
-                "description": "Enable X25519Kyber768 hybrid group in nginx.conf for forward-secret PQC key exchange.",
+                "title": "Configure hybrid post-quantum cipher suite",
+                "description": "Enable X25519Kyber768 hybrid group in nginx.conf for forward-secret post-quantum key exchange.",
                 "snippet": (
                     "# /etc/nginx/nginx.conf (or site config)\n"
                     "ssl_protocols TLSv1.3;\n"
@@ -98,7 +98,7 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
             },
             {
                 "id": 5,
-                "title": "Verify hybrid PQC handshake",
+                "title": "Verify hybrid post-quantum handshake",
                 "description": "Confirm a client negotiates X25519Kyber768 during the TLS 1.3 handshake.",
                 "snippet": (
                     "# Using oqs-openssl client\n"
@@ -177,32 +177,32 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
                 "description": "Issue X.509 certificates with a hybrid RSA+ML-DSA or ECDSA+ML-DSA signature scheme.",
                 "snippet": (
                     "# Generate hybrid ML-DSA-65 certificate via OpenSSL CLI\n"
-                    "openssl genpkey -algorithm mldsa65 -out server-pqc.key\n"
-                    "openssl req -new -key server-pqc.key -out server-pqc.csr \\\n"
+                    "openssl genpkey -algorithm mldsa65 -out server-pq.key\n"
+                    "openssl req -new -key server-pq.key -out server-pq.csr \\\n"
                     "  -subj '/CN=myserver.example.com/O=MyOrg'\n"
-                    "openssl x509 -req -in server-pqc.csr -signkey server-pqc.key \\\n"
-                    "  -out server-pqc.crt -days 825"
+                    "openssl x509 -req -in server-pq.csr -signkey server-pq.key \\\n"
+                    "  -out server-pq.crt -days 825"
                 ),
-                "verification": "openssl x509 -in server-pqc.crt -text | grep 'Public Key Algorithm'",
+                "verification": "openssl x509 -in server-pq.crt -text | grep 'Public Key Algorithm'",
             },
         ],
     },
     "java": {
         "id": "java",
-        "name": "Java / JVM PQC Migration",
+        "name": "Java / JVM post-quantum Migration",
         "description": "Migrate Java applications using JCA/JCE or Bouncy Castle to ML-KEM and ML-DSA.",
         "stack": "java",
         "difficulty": "medium",
         "estimated_time": "3–6 hours",
         "prerequisites": [
             "Java 17+ (Java 21 recommended for Virtual Threads)",
-            "Bouncy Castle >= 1.77 (includes PQC provider) or JDK 21+ with OQS PKCS#11 bridge",
+            "Bouncy Castle >= 1.77 (includes post-quantum provider) or JDK 21+ with OQS PKCS#11 bridge",
             "Maven or Gradle build system",
         ],
         "steps": [
             {
                 "id": 1,
-                "title": "Add Bouncy Castle PQC provider",
+                "title": "Add Bouncy Castle post-quantum provider",
                 "description": "Include the bcprov-jdk18on and bcpqc-jdk18on artifacts in your build.",
                 "snippet": (
                     "<!-- Maven pom.xml -->\n"
@@ -288,7 +288,7 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
     },
     "nodejs": {
         "id": "nodejs",
-        "name": "Node.js / npm PQC Migration",
+        "name": "Node.js / npm post-quantum Migration",
         "description": "Migrate Node.js applications from RSA/ECDSA crypto to ML-KEM and ML-DSA using liboqs-node or @noble/post-quantum.",
         "stack": "nodejs",
         "difficulty": "easy",
@@ -301,7 +301,7 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
         "steps": [
             {
                 "id": 1,
-                "title": "Install PQC library",
+                "title": "Install post-quantum library",
                 "description": "Choose liboqs-node (native bindings) or @noble/post-quantum (pure JS, no native build).",
                 "snippet": (
                     "# Option A: liboqs-node (native, fastest)\n"
@@ -368,8 +368,8 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
     },
     "python": {
         "id": "python",
-        "name": "Python PQC Migration",
-        "description": "Migrate Python applications using cryptography, PyCryptodome, or paramiko to PQC-safe algorithms.",
+        "name": "Python post-quantum Migration",
+        "description": "Migrate Python applications using cryptography, PyCryptodome, or paramiko to quantum-safe algorithms.",
         "stack": "python",
         "difficulty": "easy",
         "estimated_time": "2–3 hours",
@@ -434,8 +434,8 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
                 "title": "Update SSH keys (paramiko / OpenSSH)",
                 "description": "Generate ML-DSA SSH host keys and update known_hosts for post-quantum SSH.",
                 "snippet": (
-                    "# Generate PQC SSH key (requires OpenSSH >= 9.0 with OQS patch)\n"
-                    "ssh-keygen -t dilithium3 -f ~/.ssh/id_dilithium3 -C 'pqc-key'\n\n"
+                    "# Generate post-quantum SSH key (requires OpenSSH >= 9.0 with OQS patch)\n"
+                    "ssh-keygen -t dilithium3 -f ~/.ssh/id_dilithium3 -C 'pq-key'\n\n"
                     "# Or generate in Python via paramiko + oqs\n"
                     "import oqs, paramiko\n"
                     "sig = oqs.Signature('Dilithium3')\n"
@@ -448,7 +448,7 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
     },
     "golang": {
         "id": "golang",
-        "name": "Go / Golang PQC Migration",
+        "name": "Go / Golang post-quantum Migration",
         "description": "Migrate Go applications to ML-KEM and ML-DSA using the cloudflare/circl or open-quantum-safe/liboqs-go libraries.",
         "stack": "golang",
         "difficulty": "medium",
@@ -515,7 +515,7 @@ _PLAYBOOKS: Dict[str, Dict[str, Any]] = {
             },
             {
                 "id": 4,
-                "title": "Configure TLS 1.3 with hybrid PQC",
+                "title": "Configure TLS 1.3 with hybrid post-quantum",
                 "description": "Use Go's crypto/tls with TLS 1.3 preference. For X25519Kyber768, use cloudflare's ztls fork or an nginx proxy.",
                 "snippet": (
                     "cfg := &tls.Config{\n"

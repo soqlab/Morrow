@@ -30,7 +30,7 @@
   let who = null;
   let flow = null; // { mode: "verify" | "enrol" | "codes", recovery: bool }
 
-  const csrfCookie = () => document.cookie.split("; ").some(c => c.startsWith("pqc_admin_csrf="));
+  const csrfCookie = () => document.cookie.split("; ").some(c => c.startsWith("morrow_admin_csrf="));
   const codeOf = data => (data && data.detail && typeof data.detail === "object" && data.detail.code) || "";
   const messageOf = (data, res) => {
     const d = data && data.detail;
@@ -74,7 +74,7 @@
     if (!csrfCookie() || A()?.isConnected()) return;
     const { res, data } = await call("/platform/whoami");
     if (!res.ok) {
-      document.cookie = "pqc_admin_csrf=; Max-Age=0; path=/; SameSite=Strict";
+      document.cookie = "morrow_admin_csrf=; Max-Age=0; path=/; SameSite=Strict";
       if (!error) showError(res.status === 401 ? "Your console session ended. Sign in again." : messageOf(data, res));
       return;
     }

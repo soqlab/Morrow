@@ -1,8 +1,8 @@
 """
-Vendor PQC Assessment Workflow
+Vendor post-quantum Assessment Workflow
 
 Active vendor assessment lifecycle: create questionnaires, send them to
-vendors, record their responses, auto-score PQC readiness, and track
+vendors, record their responses, auto-score post-quantum readiness, and track
 score trends over time.
 
 No emails are sent here — callers are responsible for delivery (e.g.
@@ -48,7 +48,7 @@ QUESTIONNAIRE_TEMPLATE: List[Dict[str, Any]] = [
     {
         "id": "q3",
         "category": "Awareness",
-        "question": "Are you tracking NIST PQC standardization (FIPS 203/204/205)?",
+        "question": "Are you tracking NIST post-quantum standardization (FIPS 203/204/205)?",
         "scoring_weight": 1.0,
         "options": [
             {"label": "Yes, actively tracking and implementing", "points": 10},
@@ -59,7 +59,7 @@ QUESTIONNAIRE_TEMPLATE: List[Dict[str, Any]] = [
     {
         "id": "q4",
         "category": "Timeline",
-        "question": "What is your target date for full PQC migration?",
+        "question": "What is your target date for full post-quantum migration?",
         "scoring_weight": 1.0,
         "options": [
             {"label": "Before 2027", "points": 10},
@@ -71,7 +71,7 @@ QUESTIONNAIRE_TEMPLATE: List[Dict[str, Any]] = [
     {
         "id": "q5",
         "category": "Implementation",
-        "question": "Do you currently use any NIST-approved PQC algorithms?",
+        "question": "Do you currently use any NIST-approved post-quantum algorithms?",
         "scoring_weight": 1.0,
         "options": [
             {"label": "Yes, in production systems", "points": 10},

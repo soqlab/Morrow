@@ -24,9 +24,9 @@ def test_db_helpers_never_use_bare_connection_transaction_contexts():
 def test_webhook_connections_release_on_success_and_error(monkeypatch, tmp_path, pooled):
     import db
 
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "lifetimes.db"))
-    monkeypatch.setenv("PQC_SQLITE_POOL", "1")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "lifetimes.db"))
+    monkeypatch.setenv("MORROW_SQLITE_POOL", "1")
     db.disable_connection_pool()
     db.init_db()
     if pooled:

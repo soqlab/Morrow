@@ -12,10 +12,10 @@
 #   python -c "import app; print(app._production_startup_blockers() or 'config OK')"
 
 x-api-env: &api-env
-  # Runtime. PQC_ENVIRONMENT is what activates the production safety checks in
+  # Runtime. MORROW_ENVIRONMENT is what activates the production safety checks in
   # app.py; an earlier revision of this file set PRODUCTION_ENVIRONMENT, which the
   # application never reads, so those checks silently never ran.
-  PQC_ENVIRONMENT: "${PQC_ENVIRONMENT:-production}"
+  MORROW_ENVIRONMENT: "${MORROW_ENVIRONMENT:-production}"
   HOST: "0.0.0.0"
   # PORT is what uvicorn binds inside the container. The published mapping and the healthcheck below
   # must use this same value: the mapping was previously "${PORT:-8000}:8000" with the container port
@@ -24,98 +24,98 @@ x-api-env: &api-env
   # the container permanently unhealthy — which an orchestrator answers by restarting it forever.
   PORT: "${PORT:-8000}"
   AUTO_MIGRATE: "${AUTO_MIGRATE:-0}"
-  PQC_API_REPLICA_COUNT: "${PQC_API_REPLICA_COUNT:-1}"
-  PQC_AUXILIARY_STATE_MIGRATED: "${PQC_AUXILIARY_STATE_MIGRATED:-0}"
+  MORROW_API_REPLICA_COUNT: "${MORROW_API_REPLICA_COUNT:-1}"
+  MORROW_AUXILIARY_STATE_MIGRATED: "${MORROW_AUXILIARY_STATE_MIGRATED:-0}"
 
   # Database — managed Postgres required in production
   DATABASE_URL: "${DATABASE_URL}"
-  PQC_PRODUCT_DATABASE_URL: "${PQC_PRODUCT_DATABASE_URL:-${DATABASE_URL}}"
-  PQC_MAIN_DB_BACKEND: "postgres"
-  # Auxiliary feature tables. Unset it follows PQC_MAIN_DB_BACKEND; set it
+  MORROW_PRODUCT_DATABASE_URL: "${MORROW_PRODUCT_DATABASE_URL:-${DATABASE_URL}}"
+  MORROW_MAIN_DB_BACKEND: "postgres"
+  # Auxiliary feature tables. Unset it follows MORROW_MAIN_DB_BACKEND; set it
   # explicitly while migrating modules. See
   # docs/FEATURE_STORE_POSTGRES_MIGRATION.md.
-  PQC_FEATURE_STORE_BACKEND: "${PQC_FEATURE_STORE_BACKEND:-}"
+  MORROW_FEATURE_STORE_BACKEND: "${MORROW_FEATURE_STORE_BACKEND:-}"
 
   # Task queue — durable scans and remediation jobs
   CELERY_BROKER_URL: "${CELERY_BROKER_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}"
   CELERY_RESULT_BACKEND: "${CELERY_RESULT_BACKEND:-redis://:${REDIS_PASSWORD}@redis:6379/1}"
 
-  # Auth. These must be PQC_-prefixed: AUTH_JWT_ISSUER / AUTH_JWT_AUDIENCE /
+  # Auth. These must be MORROW_-prefixed: AUTH_JWT_ISSUER / AUTH_JWT_AUDIENCE /
   # AUTH_JWT_JWKS_URL / CORS_ORIGINS are not read by the application, and a
   # deployment using those names had no JWT verification and wildcard CORS.
-  PQC_AUTH_MODE: "jwt"
-  PQC_AUTH_REQUIRED: "1"
-  PQC_AUTH_JWT_ALGORITHMS: "${PQC_AUTH_JWT_ALGORITHMS:-RS256}"
-  PQC_AUTH_JWT_ISSUER: "${PQC_AUTH_JWT_ISSUER}"
-  PQC_AUTH_JWT_AUDIENCE: "${PQC_AUTH_JWT_AUDIENCE}"
-  PQC_AUTH_JWT_JWKS_URL: "${PQC_AUTH_JWT_JWKS_URL}"
-  PQC_AUTH_USER_ID_CLAIM: "${PQC_AUTH_USER_ID_CLAIM:-sub}"
-  PQC_AUTH_ROLE_CLAIM: "${PQC_AUTH_ROLE_CLAIM:-role}"
-  PQC_AUTH_ORG_ID_CLAIM: "${PQC_AUTH_ORG_ID_CLAIM:-org_id}"
-  PQC_AUTH_CLOCK_SKEW_SECONDS: "${PQC_AUTH_CLOCK_SKEW_SECONDS:-60}"
-  PQC_AUTH_ISSUER_ENABLED: "${PQC_AUTH_ISSUER_ENABLED:-0}"
+  MORROW_AUTH_MODE: "jwt"
+  MORROW_AUTH_REQUIRED: "1"
+  MORROW_AUTH_JWT_ALGORITHMS: "${MORROW_AUTH_JWT_ALGORITHMS:-RS256}"
+  MORROW_AUTH_JWT_ISSUER: "${MORROW_AUTH_JWT_ISSUER}"
+  MORROW_AUTH_JWT_AUDIENCE: "${MORROW_AUTH_JWT_AUDIENCE}"
+  MORROW_AUTH_JWT_JWKS_URL: "${MORROW_AUTH_JWT_JWKS_URL}"
+  MORROW_AUTH_USER_ID_CLAIM: "${MORROW_AUTH_USER_ID_CLAIM:-sub}"
+  MORROW_AUTH_ROLE_CLAIM: "${MORROW_AUTH_ROLE_CLAIM:-role}"
+  MORROW_AUTH_ORG_ID_CLAIM: "${MORROW_AUTH_ORG_ID_CLAIM:-org_id}"
+  MORROW_AUTH_CLOCK_SKEW_SECONDS: "${MORROW_AUTH_CLOCK_SKEW_SECONDS:-60}"
+  MORROW_AUTH_ISSUER_ENABLED: "${MORROW_AUTH_ISSUER_ENABLED:-0}"
   # Signing key for tokens this server issues (built-in password sign-in, refresh tokens). It was
   # documented in .env.prod.example but never passed through, so entrypoint.sh generated an ephemeral
   # key on every start: every restart or redeploy invalidated every issued token and signed users
   # out, and two replicas would reject each other's tokens outright.
-  PQC_AUTH_JWT_SECRET: "${PQC_AUTH_JWT_SECRET:-}"
+  MORROW_AUTH_JWT_SECRET: "${MORROW_AUTH_JWT_SECRET:-}"
   # Documented escape hatches. Both were absent here too, so an operator who set them in .env.prod
   # saw no effect and had no way to override the check they are meant to override.
-  PQC_ALLOW_HS256_IN_PRODUCTION: "${PQC_ALLOW_HS256_IN_PRODUCTION:-0}"
-  PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP: "${PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP:-0}"
-  PQC_AUTH_LOGIN_URL: "${PQC_AUTH_LOGIN_URL:-}"
-  PQC_AUTH_LOGOUT_URL: "${PQC_AUTH_LOGOUT_URL:-}"
-  PQC_AUTH_PROVIDER_NAME: "${PQC_AUTH_PROVIDER_NAME:-}"
+  MORROW_ALLOW_HS256_IN_PRODUCTION: "${MORROW_ALLOW_HS256_IN_PRODUCTION:-0}"
+  MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP: "${MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP:-0}"
+  MORROW_AUTH_LOGIN_URL: "${MORROW_AUTH_LOGIN_URL:-}"
+  MORROW_AUTH_LOGOUT_URL: "${MORROW_AUTH_LOGOUT_URL:-}"
+  MORROW_AUTH_PROVIDER_NAME: "${MORROW_AUTH_PROVIDER_NAME:-}"
   # Unmapped identities must remain viewers in production. Elevated access comes
   # from verified role claims, not the default role.
-  PQC_DEFAULT_ROLE: "${PQC_DEFAULT_ROLE:-viewer}"
-  PQC_ADMIN_EMAIL: "${PQC_ADMIN_EMAIL:-}"
-  PQC_ADMIN_PASSWORD: "${PQC_ADMIN_PASSWORD:-}"
+  MORROW_DEFAULT_ROLE: "${MORROW_DEFAULT_ROLE:-viewer}"
+  MORROW_ADMIN_EMAIL: "${MORROW_ADMIN_EMAIL:-}"
+  MORROW_ADMIN_PASSWORD: "${MORROW_ADMIN_PASSWORD:-}"
 
   # Operator SSO is separate from customer JWT verification. Do not require a
   # shared-key break-glass exception merely to open the production admin console.
-  PQC_PUBLIC_BASE_URL: "${PQC_PUBLIC_BASE_URL}"
-  PQC_ADMIN_OIDC_ISSUER: "${PQC_ADMIN_OIDC_ISSUER}"
-  PQC_ADMIN_OIDC_CLIENT_ID: "${PQC_ADMIN_OIDC_CLIENT_ID}"
-  PQC_ADMIN_OIDC_CLIENT_SECRET: "${PQC_ADMIN_OIDC_CLIENT_SECRET:-}"
-  PQC_ADMIN_OIDC_REDIRECT_URI: "${PQC_ADMIN_OIDC_REDIRECT_URI:-}"
-  PQC_ADMIN_OIDC_SCOPES: "${PQC_ADMIN_OIDC_SCOPES:-openid email profile}"
-  PQC_ADMIN_OIDC_EMAIL_CLAIM: "${PQC_ADMIN_OIDC_EMAIL_CLAIM:-email}"
-  PQC_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED: "1"
-  PQC_ADMIN_OPERATOR_ROLES: "${PQC_ADMIN_OPERATOR_ROLES}"
-  PQC_ADMIN_OIDC_ALLOWED_DOMAINS: "${PQC_ADMIN_OIDC_ALLOWED_DOMAINS:-}"
-  PQC_ADMIN_OIDC_DOMAIN_ROLE: "${PQC_ADMIN_OIDC_DOMAIN_ROLE:-auditor}"
-  PQC_ADMIN_REQUIRE_MFA: "1"
-  PQC_ALLOW_BREAK_GLASS_KEY: "0"
-  PQC_ADMIN_SESSION_ABSOLUTE_SECONDS: "${PQC_ADMIN_SESSION_ABSOLUTE_SECONDS:-28800}"
-  PQC_ADMIN_SESSION_IDLE_SECONDS: "${PQC_ADMIN_SESSION_IDLE_SECONDS:-1800}"
-  PQC_ADMIN_STEP_UP_SECONDS: "${PQC_ADMIN_STEP_UP_SECONDS:-900}"
-  PQC_PLATFORM_OPERATORS: "${PQC_PLATFORM_OPERATORS:-}"
-  PQC_PLATFORM_ADMIN_KEY_ROLE: "${PQC_PLATFORM_ADMIN_KEY_ROLE:-auditor}"
+  MORROW_PUBLIC_BASE_URL: "${MORROW_PUBLIC_BASE_URL}"
+  MORROW_ADMIN_OIDC_ISSUER: "${MORROW_ADMIN_OIDC_ISSUER}"
+  MORROW_ADMIN_OIDC_CLIENT_ID: "${MORROW_ADMIN_OIDC_CLIENT_ID}"
+  MORROW_ADMIN_OIDC_CLIENT_SECRET: "${MORROW_ADMIN_OIDC_CLIENT_SECRET:-}"
+  MORROW_ADMIN_OIDC_REDIRECT_URI: "${MORROW_ADMIN_OIDC_REDIRECT_URI:-}"
+  MORROW_ADMIN_OIDC_SCOPES: "${MORROW_ADMIN_OIDC_SCOPES:-openid email profile}"
+  MORROW_ADMIN_OIDC_EMAIL_CLAIM: "${MORROW_ADMIN_OIDC_EMAIL_CLAIM:-email}"
+  MORROW_ADMIN_OIDC_REQUIRE_EMAIL_VERIFIED: "1"
+  MORROW_ADMIN_OPERATOR_ROLES: "${MORROW_ADMIN_OPERATOR_ROLES}"
+  MORROW_ADMIN_OIDC_ALLOWED_DOMAINS: "${MORROW_ADMIN_OIDC_ALLOWED_DOMAINS:-}"
+  MORROW_ADMIN_OIDC_DOMAIN_ROLE: "${MORROW_ADMIN_OIDC_DOMAIN_ROLE:-auditor}"
+  MORROW_ADMIN_REQUIRE_MFA: "1"
+  MORROW_ALLOW_BREAK_GLASS_KEY: "0"
+  MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS: "${MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS:-28800}"
+  MORROW_ADMIN_SESSION_IDLE_SECONDS: "${MORROW_ADMIN_SESSION_IDLE_SECONDS:-1800}"
+  MORROW_ADMIN_STEP_UP_SECONDS: "${MORROW_ADMIN_STEP_UP_SECONDS:-900}"
+  MORROW_PLATFORM_OPERATORS: "${MORROW_PLATFORM_OPERATORS:-}"
+  MORROW_PLATFORM_ADMIN_KEY_ROLE: "${MORROW_PLATFORM_ADMIN_KEY_ROLE:-auditor}"
 
   # Security
-  PQC_VAULT_MASTER_KEY: "${PQC_VAULT_MASTER_KEY}"
-  PQC_PLATFORM_ADMIN_KEY: "${PQC_PLATFORM_ADMIN_KEY}"
-  PQC_CORS_ALLOW_ALL: "0"
-  PQC_CORS_ORIGINS: "${PQC_CORS_ORIGINS}"
-  PQC_ALLOWED_HOSTS: "${PQC_ALLOWED_HOSTS}"
-  PQC_CSP_ENABLED: "1"
-  PQC_CSP_VALUE: "${PQC_CSP_VALUE:-default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'}"
-  PQC_ALLOW_PLATFORM_KEY_QUERY: "0"
-  PQC_ALLOW_DEMO_IN_PRODUCTION: "0"
-  PQC_AIRLOCK_SIGNING_KEY: "${PQC_AIRLOCK_SIGNING_KEY}"
-  PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE: "${PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE:-1}"
-  PQC_AIRLOCK_MAX_CLOCK_SKEW_SECONDS: "${PQC_AIRLOCK_MAX_CLOCK_SKEW_SECONDS:-600}"
-  PQC_TRAFFIC_MONITOR_ENABLED: "${PQC_TRAFFIC_MONITOR_ENABLED:-1}"
-  PQC_TRAFFIC_PERSIST_TO_DB: "${PQC_TRAFFIC_PERSIST_TO_DB:-1}"
-  PQC_TRAFFIC_EVENTS_MAX: "${PQC_TRAFFIC_EVENTS_MAX:-5000}"
-  PQC_TRAFFIC_IP_MAX: "${PQC_TRAFFIC_IP_MAX:-2000}"
-  PQC_TRUST_PROXY_HEADERS: "${PQC_TRUST_PROXY_HEADERS:-0}"
-  PQC_AUTH_LOG_RETENTION_DAYS: "${PQC_AUTH_LOG_RETENTION_DAYS:-90}"
-  PQC_TRAFFIC_RETENTION_DAYS: "${PQC_TRAFFIC_RETENTION_DAYS:-7}"
-  PQC_TOKEN_REVOCATION_CACHE_SECONDS: "${PQC_TOKEN_REVOCATION_CACHE_SECONDS:-10}"
-  PQC_API_KEY_CACHE_SECONDS: "${PQC_API_KEY_CACHE_SECONDS:-15}"
-  PQC_MAINTENANCE_CACHE_SECONDS: "${PQC_MAINTENANCE_CACHE_SECONDS:-5}"
+  MORROW_VAULT_MASTER_KEY: "${MORROW_VAULT_MASTER_KEY}"
+  MORROW_PLATFORM_ADMIN_KEY: "${MORROW_PLATFORM_ADMIN_KEY}"
+  MORROW_CORS_ALLOW_ALL: "0"
+  MORROW_CORS_ORIGINS: "${MORROW_CORS_ORIGINS}"
+  MORROW_ALLOWED_HOSTS: "${MORROW_ALLOWED_HOSTS}"
+  MORROW_CSP_ENABLED: "1"
+  MORROW_CSP_VALUE: "${MORROW_CSP_VALUE:-default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'}"
+  MORROW_ALLOW_PLATFORM_KEY_QUERY: "0"
+  MORROW_ALLOW_DEMO_IN_PRODUCTION: "0"
+  MORROW_AIRLOCK_SIGNING_KEY: "${MORROW_AIRLOCK_SIGNING_KEY}"
+  MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE: "${MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE:-1}"
+  MORROW_AIRLOCK_MAX_CLOCK_SKEW_SECONDS: "${MORROW_AIRLOCK_MAX_CLOCK_SKEW_SECONDS:-600}"
+  MORROW_TRAFFIC_MONITOR_ENABLED: "${MORROW_TRAFFIC_MONITOR_ENABLED:-1}"
+  MORROW_TRAFFIC_PERSIST_TO_DB: "${MORROW_TRAFFIC_PERSIST_TO_DB:-1}"
+  MORROW_TRAFFIC_EVENTS_MAX: "${MORROW_TRAFFIC_EVENTS_MAX:-5000}"
+  MORROW_TRAFFIC_IP_MAX: "${MORROW_TRAFFIC_IP_MAX:-2000}"
+  MORROW_TRUST_PROXY_HEADERS: "${MORROW_TRUST_PROXY_HEADERS:-0}"
+  MORROW_AUTH_LOG_RETENTION_DAYS: "${MORROW_AUTH_LOG_RETENTION_DAYS:-90}"
+  MORROW_TRAFFIC_RETENTION_DAYS: "${MORROW_TRAFFIC_RETENTION_DAYS:-7}"
+  MORROW_TOKEN_REVOCATION_CACHE_SECONDS: "${MORROW_TOKEN_REVOCATION_CACHE_SECONDS:-10}"
+  MORROW_API_KEY_CACHE_SECONDS: "${MORROW_API_KEY_CACHE_SECONDS:-15}"
+  MORROW_MAINTENANCE_CACHE_SECONDS: "${MORROW_MAINTENANCE_CACHE_SECONDS:-5}"
 
   # Observability — required in production
   SENTRY_DSN: "${SENTRY_DSN}"
@@ -131,10 +131,10 @@ x-api-env: &api-env
   OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
   OPENAI_MODEL: "${OPENAI_MODEL:-}"
   OPENAI_AGENT_MODEL: "${OPENAI_AGENT_MODEL:-}"
-  PQC_AI_DEPLOYMENT_LOCATION: "${PQC_AI_DEPLOYMENT_LOCATION:-platform}"
-  PQC_AI_LOCAL_URL: "${PQC_AI_LOCAL_URL:-}"
-  PQC_AI_LOCAL_MODEL: "${PQC_AI_LOCAL_MODEL:-}"
-  PQC_AI_LOCAL_API_KEY: "${PQC_AI_LOCAL_API_KEY:-}"
+  MORROW_AI_DEPLOYMENT_LOCATION: "${MORROW_AI_DEPLOYMENT_LOCATION:-platform}"
+  MORROW_AI_LOCAL_URL: "${MORROW_AI_LOCAL_URL:-}"
+  MORROW_AI_LOCAL_MODEL: "${MORROW_AI_LOCAL_MODEL:-}"
+  MORROW_AI_LOCAL_API_KEY: "${MORROW_AI_LOCAL_API_KEY:-}"
 
   # GitHub OAuth (optional)
   GITHUB_CLIENT_ID: "${GITHUB_CLIENT_ID:-}"
@@ -157,9 +157,9 @@ x-runtime-hardening: &runtime-hardening
 # The core tables (assets, scans, scan_results, remediations, organizations, audit_logs, ...) live
 # in Postgres. A number of later features — the TLS observatory, canaries, QTISN, maturity model,
 # regulatory filings, autopilot, ZK proofs, and built-in password accounts among them — are still
-# SQLite-backed and open the path in PQC_SCANNER_DB.
+# SQLite-backed and open the path in MORROW_SCANNER_DB.
 #
-# db._default_db_path() prefers /data/pqc_scanner.db when /data exists, so mounting this volume is
+# db._default_db_path() prefers /data/morrow.db when /data exists, so mounting this volume is
 # what keeps that state across a redeploy. Without it the file sits on the container filesystem and
 # every one of those features is silently reset when the container is replaced.
 #
@@ -167,7 +167,7 @@ x-runtime-hardening: &runtime-hardening
 # deployment, but SQLite is not a network database. Do not run multiple api replicas against it —
 # use one replica until those features are moved to Postgres.
 x-sqlite-state: &sqlite-state
-  - pqc-sqlite-state:/data
+  - pq-sqlite-state:/data
 
 services:
   api:
@@ -175,7 +175,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: pqc-scanner:latest
+    image: morrow:latest
     restart: unless-stopped
     depends_on:
       redis:
@@ -183,7 +183,7 @@ services:
     ports:
       # Same value on both sides: the container binds PORT (see x-api-env), so the container side of
       # the mapping cannot be hardcoded.
-      - "${PQC_LISTEN_ADDRESS:-127.0.0.1}:${PORT:-8000}:${PORT:-8000}"
+      - "${MORROW_LISTEN_ADDRESS:-127.0.0.1}:${PORT:-8000}:${PORT:-8000}"
     environment:
       <<: *api-env
       APP_COMPONENT: "api"
@@ -204,7 +204,7 @@ services:
 
   worker:
     <<: *runtime-hardening
-    image: pqc-scanner:latest
+    image: morrow:latest
     restart: unless-stopped
     depends_on:
       redis:
@@ -226,7 +226,7 @@ services:
 
   beat:
     <<: *runtime-hardening
-    image: pqc-scanner:latest
+    image: morrow:latest
     restart: unless-stopped
     depends_on:
       redis:
@@ -257,4 +257,4 @@ services:
 
 volumes:
   redis-data:
-  pqc-sqlite-state:
+  pq-sqlite-state:

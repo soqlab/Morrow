@@ -37,7 +37,7 @@ output "runtime_secret_names" {
   description = "Secret Manager secret names used by runtime services."
   value = {
     openai_api_key        = google_secret_manager_secret.runtime["openai-api-key"].secret_id
-    pqc_vault_master_key  = google_secret_manager_secret.runtime["pqc-vault-master-key"].secret_id
+    morrow_vault_master_key  = google_secret_manager_secret.runtime["morrow-vault-master-key"].secret_id
     github_webhook_secret = google_secret_manager_secret.runtime["github-webhook-secret"].secret_id
   }
 }

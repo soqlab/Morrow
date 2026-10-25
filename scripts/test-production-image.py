@@ -17,12 +17,12 @@ API_CHECK = r'''
 import json, os, secrets, socket, threading, time, urllib.request
 assert os.geteuid() != 0, "The API image must not run as root"
 os.environ.update(
-    PYTHON_DOTENV_DISABLED="1", PQC_ENVIRONMENT="test", WORKER_ROLE="api",
-    PQC_MAIN_DB_BACKEND="sqlite", PQC_FEATURE_STORE_BACKEND="sqlite",
-    PQC_SCANNER_DB="/tmp/image-check.db", DATABASE_URL="", PQC_PRODUCT_DATABASE_URL="",
+    PYTHON_DOTENV_DISABLED="1", MORROW_ENVIRONMENT="test", WORKER_ROLE="api",
+    MORROW_MAIN_DB_BACKEND="sqlite", MORROW_FEATURE_STORE_BACKEND="sqlite",
+    MORROW_SCANNER_DB="/tmp/image-check.db", DATABASE_URL="", MORROW_PRODUCT_DATABASE_URL="",
     REDIS_URL="", CELERY_BROKER_URL="", CELERY_RESULT_BACKEND="",
-    PQC_AUTH_MODE="headers", PQC_AUTH_REQUIRED="0", PQC_DEFAULT_ROLE="viewer",
-    PQC_AUTH_JWT_SECRET=secrets.token_hex(32), PQC_ADMIN_PASSWORD="",
+    MORROW_AUTH_MODE="headers", MORROW_AUTH_REQUIRED="0", MORROW_DEFAULT_ROLE="viewer",
+    MORROW_AUTH_JWT_SECRET=secrets.token_hex(32), MORROW_ADMIN_PASSWORD="",
     OPENAI_API_KEY="", ANTHROPIC_API_KEY="",
 )
 import uvicorn
@@ -65,7 +65,7 @@ finally:
 
 
 def run(image, output_dir=None):
-    directory = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="pqc-image-check-"))
+    directory = Path(output_dir) if output_dir else Path(tempfile.mkdtemp(prefix="pq-image-check-"))
     directory.mkdir(parents=True, exist_ok=True)
     print(json.dumps({"status": "running", "image": image, "artifacts": str(directory)}), flush=True)
     containers = []
@@ -77,8 +77,8 @@ def run(image, output_dir=None):
                               text=True, encoding="utf-8", errors="replace", timeout=timeout, check=False)
 
     def check(name, args, expected_exit=0, expected_text=None, data=None):
-        created = docker("create", "--interactive", "--name", "pqc-image-check-" + uuid.uuid4().hex,
-                         "--label", "pqc.purpose=disposable-image-check", "--network", "none",
+        created = docker("create", "--interactive", "--name", "pq-image-check-" + uuid.uuid4().hex,
+                         "--label", "pq.purpose=disposable-image-check", "--network", "none",
                          "--cap-drop", "ALL", "--security-opt", "no-new-privileges", *args)
         container = created.stdout.strip()
         if created.returncode or not re.fullmatch(r"[a-f0-9]{64}", container):
@@ -99,7 +99,7 @@ def run(image, output_dir=None):
         report["image_id"] = image_id
         check("dependency-consistency", [image_id, "python", "-m", "pip", "check"])
         for mode in ("production", "prod"):
-            check("missing-config-" + mode, ["--env", "PQC_ENVIRONMENT=" + mode, image_id],
+            check("missing-config-" + mode, ["--env", "MORROW_ENVIRONMENT=" + mode, image_id],
                   expected_exit=1, expected_text="Required environment variable DATABASE_URL is not set")
         check("api-startup-and-shutdown", [image_id, "python", "-"], data=API_CHECK)
         report["status"] = "pass"

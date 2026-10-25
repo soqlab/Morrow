@@ -1,22 +1,22 @@
 // Traffic Lens with an operator session cookie (SSO cookie mode) instead of a typed platform key.
 //
-// Needs an existing operator session: PQC_E2E_OPERATOR_SESSION is the raw pqc_admin_session value
+// Needs an existing operator session: MORROW_E2E_OPERATOR_SESSION is the raw morrow_admin_session value
 // (backend/test_traffic_lens_session.py mints one with services/operator_auth.create_session). Optional:
-// PQC_E2E_OPERATOR_CSRF (the pqc_admin_csrf cookie value) and PQC_E2E_OPERATOR_SESSION_MFA_PENDING (a
+// MORROW_E2E_OPERATOR_CSRF (the morrow_admin_csrf cookie value) and MORROW_E2E_OPERATOR_SESSION_MFA_PENDING (a
 // session whose MFA check is still pending, which must be sent back to /vendor-admin/).
 // Never prints the session values.
 const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
-const base = (process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
-const session = process.env.PQC_E2E_OPERATOR_SESSION;
-const csrfCookie = process.env.PQC_E2E_OPERATOR_CSRF || "present";
-const pending = process.env.PQC_E2E_OPERATOR_SESSION_MFA_PENDING;
-if (!session) throw new Error("PQC_E2E_OPERATOR_SESSION is required.");
+const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const session = process.env.MORROW_E2E_OPERATOR_SESSION;
+const csrfCookie = process.env.MORROW_E2E_OPERATOR_CSRF || "present";
+const pending = process.env.MORROW_E2E_OPERATOR_SESSION_MFA_PENDING;
+if (!session) throw new Error("MORROW_E2E_OPERATOR_SESSION is required.");
 
 function cookies(raw) {
   const url = new URL(base);
   const common = { domain: url.hostname, path: "/", secure: url.protocol === "https:", sameSite: "Strict" };
-  return [{ name: "pqc_admin_session", value: raw, httpOnly: true, ...common }, { name: "pqc_admin_csrf", value: csrfCookie, httpOnly: false, ...common }];
+  return [{ name: "morrow_admin_session", value: raw, httpOnly: true, ...common }, { name: "morrow_admin_csrf", value: csrfCookie, httpOnly: false, ...common }];
 }
 
 async function main() {

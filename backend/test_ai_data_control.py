@@ -23,12 +23,12 @@ from test_support_sessions import api as authenticated_api, customer_admin_token
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "ai-control.db"))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "ai-control.db"))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-real")
     monkeypatch.setenv("OPENAI_AGENT_MODEL", "test-model")
-    monkeypatch.delenv("PQC_AI_LOCAL_URL", raising=False)
+    monkeypatch.delenv("MORROW_AI_LOCAL_URL", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
 
@@ -214,13 +214,13 @@ def test_equal_clock_ticks_still_have_verifiable_order_and_pagination(monkeypatc
 
 
 def test_customer_hosted_requires_deployment_and_safe_url(monkeypatch):
-    monkeypatch.setenv("PQC_AI_LOCAL_URL", "https://model.customer.test/v1/chat/completions")
-    monkeypatch.setenv("PQC_AI_LOCAL_MODEL", "customer-model")
+    monkeypatch.setenv("MORROW_AI_LOCAL_URL", "https://model.customer.test/v1/chat/completions")
+    monkeypatch.setenv("MORROW_AI_LOCAL_MODEL", "customer-model")
     with pytest.raises(privacy.PrivacyError, match="customer deployment"):
         approve(mode="customer_hosted", provider="local")
-    monkeypatch.setenv("PQC_AI_DEPLOYMENT_LOCATION", "customer")
+    monkeypatch.setenv("MORROW_AI_DEPLOYMENT_LOCATION", "customer")
     assert approve(mode="customer_hosted", provider="local")["provider"] == "local"
-    monkeypatch.setenv("PQC_AI_LOCAL_URL", "https://user:never-display@model.test/path")
+    monkeypatch.setenv("MORROW_AI_LOCAL_URL", "https://user:never-display@model.test/path")
     assert "never-display" not in canonical(privacy.status("org-a"))
 
 
@@ -378,14 +378,14 @@ def test_real_loopback_model_exchange_filters_and_refuses_redirects(monkeypatch)
     worker = threading.Thread(target=server.serve_forever, daemon=True); worker.start()
     try:
         base = f"http://127.0.0.1:{server.server_port}"
-        monkeypatch.setenv("PQC_AI_DEPLOYMENT_LOCATION", "customer")
-        monkeypatch.setenv("PQC_AI_LOCAL_URL", base + "/v1/chat/completions")
-        monkeypatch.setenv("PQC_AI_LOCAL_MODEL", "local-test-model")
+        monkeypatch.setenv("MORROW_AI_DEPLOYMENT_LOCATION", "customer")
+        monkeypatch.setenv("MORROW_AI_LOCAL_URL", base + "/v1/chat/completions")
+        monkeypatch.setenv("MORROW_AI_LOCAL_MODEL", "local-test-model")
         approve(mode="customer_hosted", provider="local")
         reply = privacy.openai_completion("org-a", "assistant", payload())
         assert reply["choices"][0]["message"]["content"] == "RSA observed"
         assert "secret.internal" not in canonical(received)
-        monkeypatch.setenv("PQC_AI_LOCAL_URL", base + "/redirect")
+        monkeypatch.setenv("MORROW_AI_LOCAL_URL", base + "/redirect")
         approve(mode="customer_hosted", provider="local")
         with pytest.raises(privacy.PrivacyError, match="redirect"):
             privacy.openai_completion("org-a", "assistant", payload())
@@ -394,7 +394,7 @@ def test_real_loopback_model_exchange_filters_and_refuses_redirects(monkeypatch)
         server.shutdown(); server.server_close(); worker.join(5)
 
 
-@pytest.mark.skipif(not os.getenv("PQC_TEST_PG_DSN"), reason="Requires disposable PostgreSQL server")
+@pytest.mark.skipif(not os.getenv("MORROW_TEST_PG_DSN"), reason="Requires disposable PostgreSQL server")
 def test_postgres_restricted_runtime_is_tenant_scoped(monkeypatch):
     import uuid
     import psycopg2
@@ -402,13 +402,13 @@ def test_postgres_restricted_runtime_is_tenant_scoped(monkeypatch):
     from services.postgres_rls import build_rls_sql
     suffix = uuid.uuid4().hex
     name, role = "ai_test_" + suffix, "ai_role_" + suffix
-    admin = psycopg2.connect(os.environ["PQC_TEST_PG_DSN"]); admin.autocommit = True
+    admin = psycopg2.connect(os.environ["MORROW_TEST_PG_DSN"]); admin.autocommit = True
     admin.cursor().execute(f"CREATE DATABASE {name}")
     admin.cursor().execute(f"CREATE ROLE {role} NOLOGIN NOSUPERUSER NOBYPASSRLS")
     original = privacy.store.feature_conn
     try:
-        monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "postgres")
-        monkeypatch.setattr(privacy.store, "_feature_dsn", lambda: make_dsn(os.environ["PQC_TEST_PG_DSN"], dbname=name))
+        monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "postgres")
+        monkeypatch.setattr(privacy.store, "_feature_dsn", lambda: make_dsn(os.environ["MORROW_TEST_PG_DSN"], dbname=name))
         privacy.init_tables()
         owner = psycopg2.connect(privacy.store._feature_dsn())
         try:

@@ -16,7 +16,7 @@ from db import (
 def test_legacy_schema_migrates_to_tenant_unique_keys():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
     db_path = tmp_db.name
-    os.environ["PQC_SCANNER_DB"] = db_path
+    os.environ["MORROW_SCANNER_DB"] = db_path
 
     conn = sqlite3.connect(db_path)
     conn.execute(

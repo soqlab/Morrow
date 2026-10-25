@@ -9,7 +9,7 @@ answer is known by construction. Each case starts a real TLS server on loopback 
 freshly-minted certificate and scans it through the same scanner.scan_host() the product uses.
 
 Scope: classical algorithms, which is what `cryptography` can mint. Post-quantum certificates
-(ML-DSA, SLH-DSA) need a PQC-capable TLS stack and stay out of scope; the CBOM side of those is
+(ML-DSA, SLH-DSA) need a post-quantum-capable TLS stack and stay out of scope; the CBOM side of those is
 covered by test_cbom_conformance.py.
 """
 from __future__ import annotations
@@ -300,13 +300,13 @@ def test_self_signed_certificate_is_still_inspected():
 # Risk verdict
 # --------------------------------------------------------------------------------------------
 
-def test_classical_endpoint_is_not_reported_as_pqc_ready():
+def test_classical_endpoint_is_not_reported_as_pq_ready():
     """Every algorithm here is broken by Shor's algorithm; nothing may be called quantum-safe."""
     key_pem, cert_pem = _make_rsa(2048, hashes.SHA256())
 
     facts = _scan(cert_pem, key_pem)
 
-    for field in ("pqc_ready", "pqc_safe", "quantum_safe"):
+    for field in ("pq_ready", "pq_safe", "quantum_safe"):
         if field in facts:
             assert not facts[field], f"RSA endpoint reported {field}=True"
 
@@ -333,9 +333,9 @@ def test_unreachable_host_reports_an_error_not_a_clean_result():
 # The regression this pins: an Ed25519 certificate used to be reported with key_type
 # "Ed25519PublicKey" -- the raw cryptography class name, which matches no algorithm table in the
 # product. Every consumer classified it "unknown", and "unknown" reads downstream as *not*
-# quantum-vulnerable: the endpoint came out at pqc_relevance LOW, quantum_risk_level "low",
+# quantum-vulnerable: the endpoint came out at pq_relevance LOW, quantum_risk_level "low",
 # harvest-now-decrypt-later "unknown", crypto_agility_score 90 and quantum_readiness_level
-# "ready_to_track_pqc_rollout". EdDSA over Curve25519 is broken by Shor exactly like ECDSA.
+# "ready_to_track_pq_rollout". EdDSA over Curve25519 is broken by Shor exactly like ECDSA.
 # --------------------------------------------------------------------------------------------
 
 _GROUND_TRUTH = [
@@ -351,11 +351,11 @@ _GROUND_TRUTH = [
 
 
 @pytest.mark.parametrize(
-    "case_id,make,key_type,key_bits,curve,pqc_relevance,quantum_risk",
+    "case_id,make,key_type,key_bits,curve,pq_relevance,quantum_risk",
     _GROUND_TRUTH,
     ids=[row[0] for row in _GROUND_TRUTH],
 )
-def test_ground_truth_matrix(case_id, make, key_type, key_bits, curve, pqc_relevance, quantum_risk):
+def test_ground_truth_matrix(case_id, make, key_type, key_bits, curve, pq_relevance, quantum_risk):
     key_pem, cert_pem = make()
 
     facts = _scan(cert_pem, key_pem)
@@ -370,13 +370,13 @@ def test_ground_truth_matrix(case_id, make, key_type, key_bits, curve, pqc_relev
     # Every algorithm in this table is broken by Shor's algorithm. None may be reported as having
     # no classical dependency, and none may score "low" quantum risk.
     assert facts["classical_crypto_dependency"] is True, f"{key_type} reported no classical dependency"
-    assert facts["pqc_relevance"] == pqc_relevance, facts["pqc_relevance"]
+    assert facts["pq_relevance"] == pq_relevance, facts["pq_relevance"]
     assert facts["quantum_risk_level"] == quantum_risk, facts["quantum_risk_level"]
     assert facts["harvest_now_decrypt_later_risk"] in ("high", "critical"), (
         facts["harvest_now_decrypt_later_risk"]
     )
-    assert facts["quantum_readiness_level"] != "ready_to_track_pqc_rollout", (
-        f"{key_type} endpoint reported ready for PQC rollout"
+    assert facts["quantum_readiness_level"] != "ready_to_track_pq_rollout", (
+        f"{key_type} endpoint reported ready for post-quantum rollout"
     )
     # classical_algorithm is the upper-cased key type ("RSA", "EC", "ED25519").
     assert facts["classical_algorithm"] == key_type.upper(), facts["classical_algorithm"]
@@ -390,10 +390,10 @@ def test_ed25519_is_quantum_vulnerable_not_unknown():
 
     assert facts["key_type"] == "Ed25519", facts["key_type"]
     assert facts["classical_crypto_dependency"] is True
-    assert facts["pqc_relevance"] != "LOW"
+    assert facts["pq_relevance"] != "LOW"
     assert facts["quantum_risk_level"] != "low"
     assert facts["harvest_now_decrypt_later_risk"] != "unknown"
-    assert any(f["rule_id"] == "PQC_CLASSICAL_ENDPOINT" for f in facts["findings"]), (
+    assert any(f["rule_id"] == "MORROW_CLASSICAL_ENDPOINT" for f in facts["findings"]), (
         [f["rule_id"] for f in facts["findings"]]
     )
 
@@ -476,7 +476,7 @@ def _assert_failed_scan_is_not_a_clean_one(facts: Dict[str, Any], expected_statu
     Before this, an unreachable host produced three findings about a certificate that was never
     retrieved -- "No CRL distribution points advertised", "No OCSP responder advertised (AIA)" and
     "Certificate chain short or unavailable" -- and came out at quantum_risk_level "low",
-    pqc_relevance "LOW" and crypto_agility_score 70. An unreachable host scored *better* than a
+    pq_relevance "LOW" and crypto_agility_score 70. An unreachable host scored *better* than a
     scanned RSA one.
     """
     assert facts.get("error"), "a failed scan reported no error"
@@ -487,7 +487,7 @@ def _assert_failed_scan_is_not_a_clean_one(facts: Dict[str, Any], expected_statu
     rule_ids = {f["rule_id"] for f in facts["findings"]}
     assert "SCAN_FAILED" in rule_ids, sorted(rule_ids)
     fabricated = {"CERT_NO_CRL_DP", "CERT_NO_OCSP_AIA", "CHAIN_SHORT_OR_UNAVAILABLE",
-                  "PQC_RSA_ENDPOINT", "PQC_EC_ENDPOINT", "PQC_CLASSICAL_ENDPOINT"}
+                  "MORROW_RSA_ENDPOINT", "MORROW_EC_ENDPOINT", "MORROW_CLASSICAL_ENDPOINT"}
     assert not (rule_ids & fabricated), (
         "findings assert certificate facts for an endpoint with no certificate: "
         f"{sorted(rule_ids & fabricated)}"
@@ -495,7 +495,7 @@ def _assert_failed_scan_is_not_a_clean_one(facts: Dict[str, Any], expected_statu
 
     # Unknown must never be presented as safe.
     assert facts["quantum_risk_level"] == "unknown", facts["quantum_risk_level"]
-    assert facts["pqc_relevance"] == "UNKNOWN", facts["pqc_relevance"]
+    assert facts["pq_relevance"] == "UNKNOWN", facts["pq_relevance"]
     assert facts["harvest_now_decrypt_later_risk"] == "unknown", facts["harvest_now_decrypt_later_risk"]
     assert facts["classical_crypto_dependency"] is False
     assert facts["crypto_agility_score"] is None, (
@@ -606,7 +606,7 @@ class _KeyExchangeServer(_TlsServer):
 @pytest.mark.parametrize("curve,expected,tls_version", [
     ("X25519", "x25519", ssl.TLSVersion.TLSv1_3),
     # The server prefers a group we sent no key share for, so it answers with a
-    # HelloRetryRequest. That is exactly the shape of the reply a PQC-enabled server gives, so
+    # HelloRetryRequest. That is exactly the shape of the reply a post-quantum-enabled server gives, so
     # covering it here is what makes the hybrid case reachable.
     ("secp384r1", "secp384r1", ssl.TLSVersion.TLSv1_3),
     ("secp521r1", "secp521r1", ssl.TLSVersion.TLSv1_2),
@@ -616,7 +616,7 @@ def test_negotiated_key_exchange_group_is_observed(curve, expected, tls_version)
 
     `scan_host()` had no negotiated_group / key_exchange field, so the CBOM's key-exchange
     algorithm was always absent, the trust passport's hybrid observation count was structurally
-    zero, and HNDL's pqc_hybrid and pqc_pure buckets could never be reached from a TLS scan.
+    zero, and HNDL's pq_hybrid and pq_pure buckets could never be reached from a TLS scan.
     """
     key_pem, cert_pem = _make_rsa(2048, hashes.SHA256())
     with _KeyExchangeServer(cert_pem, key_pem, curve, tls_version) as server:
@@ -716,15 +716,15 @@ def test_hybrid_post_quantum_key_exchange_is_recognised():
     assert result["key_exchange_observed"] is True, result["key_exchange_unobservable_reason"]
     assert result["key_exchange"] == "X25519MLKEM768", result["key_exchange"]
     assert result["key_exchange_group_id"] == 0x11EC
-    assert result["key_exchange_family"] == "pqc_hybrid", result["key_exchange_family"]
+    assert result["key_exchange_family"] == "pq_hybrid", result["key_exchange_family"]
     assert result["key_exchange_hello_retry"] is True
 
 
 @pytest.mark.parametrize("name,expected", [
-    ("X25519MLKEM768", "pqc_hybrid"),
-    ("SecP256r1MLKEM768", "pqc_hybrid"),
-    ("X25519Kyber768Draft00", "pqc_hybrid"),
-    ("MLKEM768", "pqc_pure"),
+    ("X25519MLKEM768", "pq_hybrid"),
+    ("SecP256r1MLKEM768", "pq_hybrid"),
+    ("X25519Kyber768Draft00", "pq_hybrid"),
+    ("MLKEM768", "pq_pure"),
     ("x25519", "classical"),
     ("secp384r1", "classical"),
     ("", ""),

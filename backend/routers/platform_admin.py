@@ -267,7 +267,7 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
             "items": _operators.public_operator_list(),
             "configuration_errors": _operators.configuration_errors(),
             "legacy_key": {"enabled": bool(deps.legacy_key_enabled()), "role": _operators.legacy_key_role()},
-            "note": "Operators are configured with PQC_PLATFORM_OPERATORS; keys are never stored or shown.",
+            "note": "Operators are configured with MORROW_PLATFORM_OPERATORS; keys are never stored or shown.",
         }
 
     # ── Customer lifecycle ───────────────────────────────────────────────────
@@ -346,7 +346,7 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         finally:
             reset_current_organization_id(token)
         record(organization_id, "platform.gdpr_export", "", {"exported_at": export["exported_at"]})
-        filename = f"pqc-gdpr-export-{organization_id[:24]}-{time.strftime('%Y%m%d')}.json"
+        filename = f"pq-gdpr-export-{organization_id[:24]}-{time.strftime('%Y%m%d')}.json"
         return StreamingResponse(
             iter([json.dumps(export, indent=2, default=str)]),
             media_type="application/json",
@@ -551,13 +551,13 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         from services import org_rate_limits as _org_limits
         state = _org_limits.describe(organization_id)
         if not _org_limits.enabled():
-            note = "Per-organization enforcement is switched off (PQC_ORG_RATE_LIMITS_ENABLED=0); values are stored only."
+            note = "Per-organization enforcement is switched off (MORROW_ORG_RATE_LIMITS_ENABLED=0); values are stored only."
         elif state["override"]:
             note = (f"Enforced per organization (operator override): requests authenticated as this organization over the "
                     f"per-minute limit, and scan starts over the hourly limit, get HTTP 429 with Retry-After. Changes reach "
                     f"every API replica within {int(state['cache_seconds'])} s. Counters: {state['backend']}.")
         elif state["enforced"]:
-            note = "No override saved: the platform defaults (PQC_ORG_DEFAULT_*) are enforced for this organization."
+            note = "No override saved: the platform defaults (MORROW_ORG_DEFAULT_*) are enforced for this organization."
         else:
             note = ("No override saved, so no per-organization limit applies; the per-IP limits still do. The values shown are "
                     "the suggested defaults. Save them to enforce them.")
@@ -721,7 +721,7 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
                                      int(limit), 0)
         record(organization_id.strip(), "platform.admin_events_exported", "", {"rows": len(result["items"])})
         return _csv_response(result["items"], ["id", "created_at", "organization_id", "action", "actor_id", "operator_role", "reason", "details"],
-                             f"pqc-platform-admin-events-{time.strftime('%Y%m%d')}.csv")
+                             f"morrow-platform-admin-events-{time.strftime('%Y%m%d')}.csv")
 
     # ── Tenant audit log ─────────────────────────────────────────────────────
 
@@ -752,7 +752,7 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         require_org(organization_id)
         rows = tenant_audit(organization_id, min(int(limit), 2000), actor_id.strip(), action.strip(), decision.strip())
         record(organization_id, "platform.tenant_audit_exported", "", {"rows": len(rows)})
-        return _csv_response(rows, tenant_audit_fields, f"pqc-audit-{organization_id[:24]}-{time.strftime('%Y%m%d')}.csv")
+        return _csv_response(rows, tenant_audit_fields, f"pq-audit-{organization_id[:24]}-{time.strftime('%Y%m%d')}.csv")
 
     # ── Sessions ─────────────────────────────────────────────────────────────
 
@@ -781,7 +781,7 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
             "revocation": {
                 "refresh_sessions": "deleted immediately; the session can no longer be renewed",
                 "access_tokens": "rejected by the request middleware once each replica refreshes its revocation list "
-                                 "(PQC_TOKEN_REVOCATION_CACHE_SECONDS, default 10)",
+                                 "(MORROW_TOKEN_REVOCATION_CACHE_SECONDS, default 10)",
                 "external_identity_provider": "sessions issued by an external IdP must also be ended at that IdP",
             },
         }
@@ -836,7 +836,7 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         guard(request)
         return {"api_version": "v1", "items": _api_keys.list_keys(organization_id.strip(), status),
                 "scopes": {"read": "viewer, GET only", "write": "operator", "admin": "admin"},
-                "usage": "Authorization: Bearer pqc_<prefix>_<secret>"}
+                "usage": "Authorization: Bearer pq_<prefix>_<secret>"}
 
     @router.get("/platform/customers/{organization_id}/api-keys")
     def platform_customer_api_keys(organization_id: str, request: Request):

@@ -210,7 +210,7 @@ def build_facts(entry, scan_idx: int, scanned_at: datetime):
     kx, kx_family, kx_observed = "", "", False
     if tls13:
         if host == HYBRID_HOST and scan_idx >= HYBRID_FROM_SCAN:
-            kx, kx_family, kx_observed = "X25519MLKEM768", "pqc_hybrid", True
+            kx, kx_family, kx_observed = "X25519MLKEM768", "pq_hybrid", True
         else:
             kx, kx_family, kx_observed = ("X25519", "x25519", True) if key_type == "EC" else ("secp256r1", "ec_classical", True)
 
@@ -275,6 +275,6 @@ def build_facts(entry, scan_idx: int, scanned_at: datetime):
     findings = policy.evaluate_policies(facts)
     facts["findings"] = findings
     facts.update(policy.derive_risk_and_score(findings))
-    facts.update(policy.derive_pqc_relevance(findings))
+    facts.update(policy.derive_pq_relevance(findings))
     facts.update(policy.derive_quantum_readiness(facts, findings))
     return facts

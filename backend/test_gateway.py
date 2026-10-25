@@ -19,9 +19,9 @@ from services.e2e_readiness import build_e2e_readiness
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "gateway.db"))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "gateway.db"))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", Fernet.generate_key().decode())
     app = FastAPI()
 
     def role(request, allowed_roles, **kwargs):
@@ -104,7 +104,7 @@ def clear_cooldown(site):
 def test_onboarding_is_not_active_protection_and_is_tenant_isolated(client, monkeypatch):
     site = create(client)
     assert site["coverage"]["filtering"] == "unknown"
-    assert site["coverage"]["visitor_pqc"] == "unknown"
+    assert site["coverage"]["visitor_pq"] == "unknown"
     assert len(site["dns_records"]) == 2
     assert client.get("/gateway/sites", headers={**ADMIN, "x-org-id": "org-b"}).json()["items"] == []
     for suffix, method in [("", "get"), ("/history", "get"), ("/ownership", "post"), ("/bootstrap", "post"), ("/probe", "post")]:

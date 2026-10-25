@@ -32,8 +32,8 @@ The security boundary is the API:
 - `owner` can perform all platform operations, including state migration and destructive controls.
 - `operator` can perform day-to-day write operations.
 - `support` and `auditor` are read-only.
-- Production must set `PQC_PLATFORM_ADMIN_KEY` to a high-entropy value.
-- Production must keep `PQC_ALLOW_PLATFORM_KEY_QUERY=0`.
+- Production must set `MORROW_PLATFORM_ADMIN_KEY` to a high-entropy value.
+- Production must keep `MORROW_ALLOW_PLATFORM_KEY_QUERY=0`.
 - Production should place vendor admin routes behind SSO, VPN, or an identity-aware proxy.
 
 ## Traffic Data Boundary
@@ -62,4 +62,4 @@ By default, traffic data is an in-memory ring buffer and disappears on restart. 
 
 ## Proxy Header Rule
 
-`PQC_TRUST_PROXY_HEADERS=0` is the safe default. Turn on `PQC_TRUST_PROXY_HEADERS=1` only when the app is behind a trusted reverse proxy such as Cloudflare, nginx, or a cloud load balancer that strips untrusted forwarding headers.
+`MORROW_TRUST_PROXY_HEADERS=0` is the safe default. Turn on `MORROW_TRUST_PROXY_HEADERS=1` only when the app is behind a trusted reverse proxy such as Cloudflare, nginx, or a cloud load balancer that strips untrusted forwarding headers.

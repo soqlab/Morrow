@@ -1,7 +1,7 @@
 locals {
   labels = merge(
     {
-      app        = "pqc-scanner"
+      app        = "morrow"
       managed_by = "terraform"
     },
     var.labels,
@@ -15,19 +15,19 @@ locals {
   network_name       = "${var.name_prefix}-net"
   subnet_name        = "${var.name_prefix}-serverless"
   sql_instance_name  = "${var.name_prefix}-sql"
-  sql_database_name  = "pqc"
-  sql_user_name      = "pqc"
+  sql_database_name  = "pq"
+  sql_user_name      = "pq"
   redis_name         = "${var.name_prefix}-redis"
 
   secret_ids = {
     "database-url"            = "${var.name_prefix}-database-url"
     "celery-broker-url"       = "${var.name_prefix}-celery-broker-url"
     "celery-result-backend"   = "${var.name_prefix}-celery-result-backend"
-    "pqc-vault-master-key"    = "${var.name_prefix}-pqc-vault-master-key"
+    "morrow-vault-master-key"    = "${var.name_prefix}-morrow-vault-master-key"
     "openai-api-key"          = "${var.name_prefix}-openai-api-key"
     "github-webhook-secret"   = "${var.name_prefix}-github-webhook-secret"
     "platform-admin-key"      = "${var.name_prefix}-platform-admin-key"
-    "pqc-auth-jwt-secret"     = "${var.name_prefix}-pqc-auth-jwt-secret"
+    "morrow-auth-jwt-secret"     = "${var.name_prefix}-morrow-auth-jwt-secret"
   }
 
   database_url = format(
@@ -72,7 +72,7 @@ resource "google_project_service" "required" {
 resource "google_artifact_registry_repository" "containers" {
   location      = var.region
   repository_id = local.artifact_repo_name
-  description   = "PQC backend container images"
+  description   = "Post-quantum backend container images"
   format        = "DOCKER"
   labels        = local.labels
 
@@ -181,7 +181,7 @@ resource "google_redis_instance" "cache" {
 
 resource "google_service_account" "runtime" {
   account_id   = local.runtime_sa_id
-  display_name = "PQC runtime identity"
+  display_name = "Post-quantum runtime identity"
 }
 
 resource "google_project_iam_member" "runtime_cloudsql_client" {
@@ -216,7 +216,7 @@ resource "random_password" "platform_admin_key" {
   special = false
 }
 
-resource "random_password" "pqc_auth_jwt_secret" {
+resource "random_password" "morrow_auth_jwt_secret" {
   length  = 64
   special = false
 }
@@ -228,7 +228,7 @@ resource "google_secret_manager_secret_version" "generated" {
     "celery-result-backend" = local.celery_result_backend
     "github-webhook-secret" = random_password.github_webhook_secret.result
     "platform-admin-key"    = random_password.platform_admin_key.result
-    "pqc-auth-jwt-secret"   = random_password.pqc_auth_jwt_secret.result
+    "morrow-auth-jwt-secret"   = random_password.morrow_auth_jwt_secret.result
   }
 
   secret      = google_secret_manager_secret.runtime[each.key].id
@@ -307,12 +307,12 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name  = "PQC_ENVIRONMENT"
+        name  = "MORROW_ENVIRONMENT"
         value = "production"
       }
 
       env {
-        name  = "PQC_MAIN_DB_BACKEND"
+        name  = "MORROW_MAIN_DB_BACKEND"
         value = "postgres"
       }
 
@@ -332,82 +332,82 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name  = "PQC_AUTH_MODE"
+        name  = "MORROW_AUTH_MODE"
         value = var.auth_mode
       }
 
       env {
-        name  = "PQC_AUTH_REQUIRED"
+        name  = "MORROW_AUTH_REQUIRED"
         value = var.auth_required ? "1" : "0"
       }
 
       env {
-        name  = "PQC_DEFAULT_ROLE"
+        name  = "MORROW_DEFAULT_ROLE"
         value = "viewer"
       }
 
       env {
-        name  = "PQC_AUTH_PROVIDER_NAME"
+        name  = "MORROW_AUTH_PROVIDER_NAME"
         value = var.auth_provider_name
       }
 
       env {
-        name  = "PQC_AUTH_LOGIN_URL"
+        name  = "MORROW_AUTH_LOGIN_URL"
         value = var.auth_login_url
       }
 
       env {
-        name  = "PQC_AUTH_LOGOUT_URL"
+        name  = "MORROW_AUTH_LOGOUT_URL"
         value = var.auth_logout_url
       }
 
       env {
-        name  = "PQC_AUTH_TOKEN_HELP"
+        name  = "MORROW_AUTH_TOKEN_HELP"
         value = var.auth_token_help
       }
 
       env {
-        name  = "PQC_AUTH_JWT_ISSUER"
+        name  = "MORROW_AUTH_JWT_ISSUER"
         value = var.auth_jwt_issuer
       }
 
       env {
-        name  = "PQC_AUTH_JWT_AUDIENCE"
+        name  = "MORROW_AUTH_JWT_AUDIENCE"
         value = var.auth_jwt_audience
       }
 
       env {
-        name  = "PQC_AUTH_JWT_JWKS_URL"
+        name  = "MORROW_AUTH_JWT_JWKS_URL"
         value = var.auth_jwt_jwks_url
       }
 
       env {
-        name  = "PQC_AUTH_JWT_ALGORITHMS"
+        name  = "MORROW_AUTH_JWT_ALGORITHMS"
         value = var.auth_jwt_algorithms
       }
 
       env {
-        name  = "PQC_AUTH_ISSUER_ENABLED"
+        name  = "MORROW_AUTH_ISSUER_ENABLED"
         value = "0"
       }
 
       env {
-        name  = "PQC_ALLOW_HS256_IN_PRODUCTION"
+        name  = "MORROW_ALLOW_HS256_IN_PRODUCTION"
         value = "0"
       }
 
       env {
-        name  = "PQC_AUTH_USER_ID_CLAIM"
+        name  = "MORROW_AUTH_USER_ID_CLAIM"
         value = var.auth_user_id_claim
       }
 
       env {
-        name  = "PQC_AUTH_ROLE_CLAIM"
+        name  = "MORROW_AUTH_ROLE_CLAIM"
         value = var.auth_role_claim
       }
 
       env {
-        name  = "PQC_AUTH_ORG_ID_CLAIM"
+        name  = "MORROW_AUTH_ORG_ID_CLAIM"
         value = var.auth_org_id_claim
       }
 
@@ -417,32 +417,32 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name  = "PQC_CORS_ALLOW_ALL"
+        name  = "MORROW_CORS_ALLOW_ALL"
         value = "0"
       }
 
       env {
-        name  = "PQC_CORS_ORIGINS"
+        name  = "MORROW_CORS_ORIGINS"
         value = var.cors_origins
       }
 
       env {
-        name  = "PQC_CSP_ENABLED"
+        name  = "MORROW_CSP_ENABLED"
         value = "1"
       }
 
       env {
-        name  = "PQC_CSP_VALUE"
+        name  = "MORROW_CSP_VALUE"
         value = var.csp_value
       }
 
       env {
-        name  = "PQC_ALLOW_PLATFORM_KEY_QUERY"
+        name  = "MORROW_ALLOW_PLATFORM_KEY_QUERY"
         value = "0"
       }
 
       env {
-        name  = "PQC_ALLOW_DEMO_IN_PRODUCTION"
+        name  = "MORROW_ALLOW_DEMO_IN_PRODUCTION"
         value = "0"
       }
 
@@ -462,7 +462,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name = "PQC_PRODUCT_DATABASE_URL"
+        name = "MORROW_PRODUCT_DATABASE_URL"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.runtime["database-url"].secret_id
@@ -472,10 +472,10 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name = "PQC_VAULT_MASTER_KEY"
+        name = "MORROW_VAULT_MASTER_KEY"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.runtime["pqc-vault-master-key"].secret_id
+            secret  = google_secret_manager_secret.runtime["morrow-vault-master-key"].secret_id
             version = "latest"
           }
         }
@@ -522,7 +522,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name = "PQC_PLATFORM_ADMIN_KEY"
+        name = "MORROW_PLATFORM_ADMIN_KEY"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.runtime["platform-admin-key"].secret_id
@@ -532,10 +532,10 @@ resource "google_cloud_run_v2_service" "api" {
       }
 
       env {
-        name = "PQC_AUTH_JWT_SECRET"
+        name = "MORROW_AUTH_JWT_SECRET"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.runtime["pqc-auth-jwt-secret"].secret_id
+            secret  = google_secret_manager_secret.runtime["morrow-auth-jwt-secret"].secret_id
             version = "latest"
           }
         }
@@ -620,12 +620,12 @@ resource "google_cloud_run_v2_worker_pool" "worker" {
       }
 
       env {
-        name  = "PQC_ENVIRONMENT"
+        name  = "MORROW_ENVIRONMENT"
         value = "production"
       }
 
       env {
-        name  = "PQC_MAIN_DB_BACKEND"
+        name  = "MORROW_MAIN_DB_BACKEND"
         value = "postgres"
       }
 
@@ -645,77 +645,77 @@ resource "google_cloud_run_v2_worker_pool" "worker" {
       }
 
       env {
-        name  = "PQC_AUTH_MODE"
+        name  = "MORROW_AUTH_MODE"
         value = var.auth_mode
       }
 
       env {
-        name  = "PQC_AUTH_REQUIRED"
+        name  = "MORROW_AUTH_REQUIRED"
         value = var.auth_required ? "1" : "0"
       }
 
       env {
-        name  = "PQC_DEFAULT_ROLE"
+        name  = "MORROW_DEFAULT_ROLE"
         value = "viewer"
       }
 
       env {
-        name  = "PQC_AUTH_JWT_ISSUER"
+        name  = "MORROW_AUTH_JWT_ISSUER"
         value = var.auth_jwt_issuer
       }
 
       env {
-        name  = "PQC_AUTH_JWT_AUDIENCE"
+        name  = "MORROW_AUTH_JWT_AUDIENCE"
         value = var.auth_jwt_audience
       }
 
       env {
-        name  = "PQC_AUTH_JWT_JWKS_URL"
+        name  = "MORROW_AUTH_JWT_JWKS_URL"
         value = var.auth_jwt_jwks_url
       }
 
       env {
-        name  = "PQC_AUTH_JWT_ALGORITHMS"
+        name  = "MORROW_AUTH_JWT_ALGORITHMS"
         value = var.auth_jwt_algorithms
       }
 
       env {
-        name  = "PQC_AUTH_ISSUER_ENABLED"
+        name  = "MORROW_AUTH_ISSUER_ENABLED"
         value = "0"
       }
 
       env {
-        name  = "PQC_ALLOW_HS256_IN_PRODUCTION"
+        name  = "MORROW_ALLOW_HS256_IN_PRODUCTION"
         value = "0"
       }
 
       env {
-        name  = "PQC_CORS_ALLOW_ALL"
+        name  = "MORROW_CORS_ALLOW_ALL"
         value = "0"
       }
 
       env {
-        name  = "PQC_CORS_ORIGINS"
+        name  = "MORROW_CORS_ORIGINS"
         value = var.cors_origins
       }
 
       env {
-        name  = "PQC_CSP_ENABLED"
+        name  = "MORROW_CSP_ENABLED"
         value = "1"
       }
 
       env {
-        name  = "PQC_CSP_VALUE"
+        name  = "MORROW_CSP_VALUE"
         value = var.csp_value
       }
 
       env {
-        name  = "PQC_ALLOW_PLATFORM_KEY_QUERY"
+        name  = "MORROW_ALLOW_PLATFORM_KEY_QUERY"
         value = "0"
       }
 
       env {
-        name  = "PQC_ALLOW_DEMO_IN_PRODUCTION"
+        name  = "MORROW_ALLOW_DEMO_IN_PRODUCTION"
         value = "0"
       }
 
@@ -735,7 +735,7 @@ resource "google_cloud_run_v2_worker_pool" "worker" {
       }
 
       env {
-        name = "PQC_PRODUCT_DATABASE_URL"
+        name = "MORROW_PRODUCT_DATABASE_URL"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.runtime["database-url"].secret_id
@@ -745,10 +745,10 @@ resource "google_cloud_run_v2_worker_pool" "worker" {
       }
 
       env {
-        name = "PQC_VAULT_MASTER_KEY"
+        name = "MORROW_VAULT_MASTER_KEY"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.runtime["pqc-vault-master-key"].secret_id
+            secret  = google_secret_manager_secret.runtime["morrow-vault-master-key"].secret_id
             version = "latest"
           }
         }
@@ -837,12 +837,12 @@ resource "google_cloud_run_v2_worker_pool" "beat" {
       }
 
       env {
-        name  = "PQC_ENVIRONMENT"
+        name  = "MORROW_ENVIRONMENT"
         value = "production"
       }
 
       env {
-        name  = "PQC_MAIN_DB_BACKEND"
+        name  = "MORROW_MAIN_DB_BACKEND"
         value = "postgres"
       }
 
@@ -857,77 +857,77 @@ resource "google_cloud_run_v2_worker_pool" "beat" {
       }
 
       env {
-        name  = "PQC_AUTH_MODE"
+        name  = "MORROW_AUTH_MODE"
         value = var.auth_mode
       }
 
       env {
-        name  = "PQC_AUTH_REQUIRED"
+        name  = "MORROW_AUTH_REQUIRED"
         value = var.auth_required ? "1" : "0"
       }
 
       env {
-        name  = "PQC_DEFAULT_ROLE"
+        name  = "MORROW_DEFAULT_ROLE"
         value = "viewer"
       }
 
       env {
-        name  = "PQC_AUTH_JWT_ISSUER"
+        name  = "MORROW_AUTH_JWT_ISSUER"
         value = var.auth_jwt_issuer
       }
 
       env {
-        name  = "PQC_AUTH_JWT_AUDIENCE"
+        name  = "MORROW_AUTH_JWT_AUDIENCE"
         value = var.auth_jwt_audience
       }
 
       env {
-        name  = "PQC_AUTH_JWT_JWKS_URL"
+        name  = "MORROW_AUTH_JWT_JWKS_URL"
         value = var.auth_jwt_jwks_url
       }
 
       env {
-        name  = "PQC_AUTH_JWT_ALGORITHMS"
+        name  = "MORROW_AUTH_JWT_ALGORITHMS"
         value = var.auth_jwt_algorithms
       }
 
       env {
-        name  = "PQC_AUTH_ISSUER_ENABLED"
+        name  = "MORROW_AUTH_ISSUER_ENABLED"
         value = "0"
       }
 
       env {
-        name  = "PQC_ALLOW_HS256_IN_PRODUCTION"
+        name  = "MORROW_ALLOW_HS256_IN_PRODUCTION"
         value = "0"
       }
 
       env {
-        name  = "PQC_CORS_ALLOW_ALL"
+        name  = "MORROW_CORS_ALLOW_ALL"
         value = "0"
       }
 
       env {
-        name  = "PQC_CORS_ORIGINS"
+        name  = "MORROW_CORS_ORIGINS"
         value = var.cors_origins
       }
 
       env {
-        name  = "PQC_CSP_ENABLED"
+        name  = "MORROW_CSP_ENABLED"
         value = "1"
       }
 
       env {
-        name  = "PQC_CSP_VALUE"
+        name  = "MORROW_CSP_VALUE"
         value = var.csp_value
       }
 
       env {
-        name  = "PQC_ALLOW_PLATFORM_KEY_QUERY"
+        name  = "MORROW_ALLOW_PLATFORM_KEY_QUERY"
         value = "0"
       }
 
       env {
-        name  = "PQC_ALLOW_DEMO_IN_PRODUCTION"
+        name  = "MORROW_ALLOW_DEMO_IN_PRODUCTION"
         value = "0"
       }
 
@@ -947,7 +947,7 @@ resource "google_cloud_run_v2_worker_pool" "beat" {
       }
 
       env {
-        name = "PQC_PRODUCT_DATABASE_URL"
+        name = "MORROW_PRODUCT_DATABASE_URL"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.runtime["database-url"].secret_id
@@ -957,10 +957,10 @@ resource "google_cloud_run_v2_worker_pool" "beat" {
       }
 
       env {
-        name = "PQC_VAULT_MASTER_KEY"
+        name = "MORROW_VAULT_MASTER_KEY"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.runtime["pqc-vault-master-key"].secret_id
+            secret  = google_secret_manager_secret.runtime["morrow-vault-master-key"].secret_id
             version = "latest"
           }
         }

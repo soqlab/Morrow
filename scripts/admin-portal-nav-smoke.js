@@ -4,9 +4,9 @@
 // request, and the phone drawer works without horizontal overflow. Read-only: nothing is created.
 const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
-const base = (process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
-const key = process.env.PQC_E2E_PLATFORM_KEY;
-if (!key) throw new Error("PQC_E2E_PLATFORM_KEY is required for the portal navigation smoke.");
+const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const key = process.env.MORROW_E2E_PLATFORM_KEY;
+if (!key) throw new Error("MORROW_E2E_PLATFORM_KEY is required for the portal navigation smoke.");
 
 const PAGE_FOR_ROUTE = { "customer-360": "customer360" };
 const hashOf = page => page.evaluate(() => location.hash);
@@ -172,7 +172,7 @@ async function main() {
     await page.locator('#rangePicker [data-range="30d"]').click();
     await ranged;
     assert.equal(await page.locator('#rangePicker [data-range="30d"]').getAttribute("aria-checked"), "true");
-    assert.equal(await page.evaluate(() => sessionStorage.getItem("pqc_admin_range")), "30d");
+    assert.equal(await page.evaluate(() => sessionStorage.getItem("morrow_admin_range")), "30d");
     console.log("Range picker drives the analytics request.");
 
     // Phone drawer.

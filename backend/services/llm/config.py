@@ -2,17 +2,17 @@
 
 Precedence, highest first:
 
-  1. PQC_LLM_DISABLED=1            -- the built-in answerer, always. A
+  1. MORROW_LLM_DISABLED=1            -- the built-in answerer, always. A
                                       deployment that forbids external model
                                       calls sets this, and nothing below can
                                       override it.
   2. the organization's own override, if one is stored (see org_config.py)
-  3. PQC_LLM_PROVIDER              -- the operator's choice for the deployment
+  3. MORROW_LLM_PROVIDER              -- the operator's choice for the deployment
   4. today's behaviour             -- ANTHROPIC_API_KEY if set, else
                                       OPENAI_API_KEY, else the built-in
                                       answerer
 
-Rule 4 is why an existing deployment that sets none of the PQC_LLM_* variables
+Rule 4 is why an existing deployment that sets none of the MORROW_LLM_* variables
 behaves exactly as it did before this layer existed.
 """
 
@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from services.llm.base import Settings
 
-#: Every adapter this build ships, by the name PQC_LLM_PROVIDER takes.
+#: Every adapter this build ships, by the name MORROW_LLM_PROVIDER takes.
 PROVIDER_IDS = ("anthropic", "openai", "azure-openai", "gemini", "openai-compatible",
                 "ollama", "builtin", "custom")
 
@@ -82,7 +82,7 @@ def _integer(name: str, default: Optional[int], low: int, high: int) -> Optional
 
 def disabled() -> bool:
     """True when this deployment forbids any external model call."""
-    return _flag("PQC_LLM_DISABLED") is True
+    return _flag("MORROW_LLM_DISABLED") is True
 
 
 def normalise(name: str) -> str:
@@ -93,7 +93,7 @@ def normalise(name: str) -> str:
 
 
 def parse_headers(raw: str) -> Tuple[Dict[str, str], List[str]]:
-    """Parse PQC_LLM_HEADERS. Accepts a JSON object or `k=v,k=v`.
+    """Parse MORROW_LLM_HEADERS. Accepts a JSON object or `k=v,k=v`.
 
     Returns (headers, rejected names). Bad input is dropped with a name, never
     a value, so nothing a gateway token lives in reaches a log.
@@ -137,7 +137,7 @@ def env_provider() -> Tuple[str, str]:
     """
     if disabled():
         return "builtin", "disabled"
-    chosen = _env("PQC_LLM_PROVIDER")
+    chosen = _env("MORROW_LLM_PROVIDER")
     if chosen:
         return normalise(chosen), "environment"
     # Today's behaviour, preserved for deployments that set none of the above.
@@ -151,13 +151,13 @@ def env_provider() -> Tuple[str, str]:
 def _alias_base_url() -> str:
     """The base URL implied by naming a gateway directly.
 
-    PQC_LLM_PROVIDER=groq resolves to the openai-compatible adapter; there is no
+    MORROW_LLM_PROVIDER=groq resolves to the openai-compatible adapter; there is no
     reason to also make the operator look up the URL. An explicit
-    PQC_LLM_BASE_URL always wins.
+    MORROW_LLM_BASE_URL always wins.
     """
     from services.llm.openai_compatible import KNOWN_ENDPOINTS
 
-    raw = _env("PQC_LLM_PROVIDER").lower().replace(" ", "").replace("_", "-")
+    raw = _env("MORROW_LLM_PROVIDER").lower().replace(" ", "").replace("_", "-")
     return KNOWN_ENDPOINTS.get(raw, "")
 
 
@@ -173,9 +173,9 @@ def _legacy(provider: str) -> Dict[str, Any]:
                 "model": _env("OPENAI_AGENT_MODEL") or _env("OPENAI_MODEL")}
     if provider in ("openai-compatible", "ollama", "azure-openai", "gemini", "custom"):
         # The customer-hosted destination variables the Data Control page already uses.
-        return {"api_key": _env("PQC_AI_LOCAL_API_KEY"),
-                "base_url": _env("PQC_AI_LOCAL_URL"),
-                "model": _env("PQC_AI_LOCAL_MODEL")}
+        return {"api_key": _env("MORROW_AI_LOCAL_API_KEY"),
+                "base_url": _env("MORROW_AI_LOCAL_URL"),
+                "model": _env("MORROW_AI_LOCAL_MODEL")}
     return {}
 
 
@@ -185,26 +185,26 @@ def from_environment(provider: str = "", source: str = "") -> Settings:
         provider, source = env_provider()
     source = source or "environment"
     legacy = _legacy(provider)
-    headers, _ = parse_headers(_env("PQC_LLM_HEADERS"))
+    headers, _ = parse_headers(_env("MORROW_LLM_HEADERS"))
     return Settings(
         provider=provider,
-        model=_env("PQC_LLM_MODEL") or str(legacy.get("model") or ""),
-        base_url=(_env("PQC_LLM_BASE_URL") or _alias_base_url()
+        model=_env("MORROW_LLM_MODEL") or str(legacy.get("model") or ""),
+        base_url=(_env("MORROW_LLM_BASE_URL") or _alias_base_url()
                   or str(legacy.get("base_url") or "")),
-        api_key=_env("PQC_LLM_API_KEY") or str(legacy.get("api_key") or ""),
-        temperature=float(_number("PQC_LLM_TEMPERATURE", 0.1, 0.0, 2.0) or 0.0),
-        max_tokens=int(_integer("PQC_LLM_MAX_TOKENS", legacy.get("max_tokens") or 3000, 256, 200_000) or 3000),
-        timeout=int(_integer("PQC_LLM_TIMEOUT", legacy.get("timeout") or 60, 1, 600) or 60),
-        retries=int(_integer("PQC_LLM_RETRIES", 2, 0, 5) or 0),
+        api_key=_env("MORROW_LLM_API_KEY") or str(legacy.get("api_key") or ""),
+        temperature=float(_number("MORROW_LLM_TEMPERATURE", 0.1, 0.0, 2.0) or 0.0),
+        max_tokens=int(_integer("MORROW_LLM_MAX_TOKENS", legacy.get("max_tokens") or 3000, 256, 200_000) or 3000),
+        timeout=int(_integer("MORROW_LLM_TIMEOUT", legacy.get("timeout") or 60, 1, 600) or 60),
+        retries=int(_integer("MORROW_LLM_RETRIES", 2, 0, 5) or 0),
         headers=headers,
-        api_version=_env("PQC_LLM_API_VERSION"),
-        deployment=_env("PQC_LLM_AZURE_DEPLOYMENT"),
-        custom_module=_env("PQC_LLM_CUSTOM_MODULE"),
-        context_window=_integer("PQC_LLM_CONTEXT_WINDOW", None, 1024, 10_000_000),
-        price_input_per_mtok=_number("PQC_LLM_PRICE_INPUT_PER_MTOK", None, 0.0, 10_000.0),
-        price_output_per_mtok=_number("PQC_LLM_PRICE_OUTPUT_PER_MTOK", None, 0.0, 10_000.0),
-        tools_supported=_flag("PQC_LLM_TOOLS"),
-        stream_supported=_flag("PQC_LLM_STREAM"),
+        api_version=_env("MORROW_LLM_API_VERSION"),
+        deployment=_env("MORROW_LLM_AZURE_DEPLOYMENT"),
+        custom_module=_env("MORROW_LLM_CUSTOM_MODULE"),
+        context_window=_integer("MORROW_LLM_CONTEXT_WINDOW", None, 1024, 10_000_000),
+        price_input_per_mtok=_number("MORROW_LLM_PRICE_INPUT_PER_MTOK", None, 0.0, 10_000.0),
+        price_output_per_mtok=_number("MORROW_LLM_PRICE_OUTPUT_PER_MTOK", None, 0.0, 10_000.0),
+        tools_supported=_flag("MORROW_LLM_TOOLS"),
+        stream_supported=_flag("MORROW_LLM_STREAM"),
         source=source,
     )
 

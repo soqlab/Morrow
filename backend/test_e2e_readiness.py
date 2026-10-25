@@ -22,8 +22,8 @@ from db import (
 def _setup_tmp_db():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
     tmp_db.close()
-    os.environ["PQC_MAIN_DB_BACKEND"] = ""
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_MAIN_DB_BACKEND"] = ""
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     init_db()
@@ -75,7 +75,7 @@ def test_e2e_readiness_counts_core_money_flow_evidence():
             file_path="infra/tls.tf",
             vulnerability="RSA-2048 certificate",
             suggested_fix="",
-            suggested_content='resource "tls" "pqc" {}',
+            suggested_content='resource "tls" "pq" {}',
             status="approved",
         )
         validation = create_validation_job(int(remediation["id"]), status="queued")
@@ -105,7 +105,7 @@ def test_e2e_readiness_export_markdown_and_compact_json():
         with TestClient(fastapi_app.app) as client:
             md = client.get("/v1/readiness/e2e/export", headers=_headers(), params={"format": "markdown"})
             assert md.status_code == 200
-            assert "PQC Platform E2E Readiness Handoff" in md.text
+            assert "Post-Quantum Platform E2E Readiness Handoff" in md.text
             assert "## Blockers" in md.text
 
             js = client.get("/readiness/e2e/export", headers=_headers(), params={"format": "json"})

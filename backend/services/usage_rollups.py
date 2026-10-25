@@ -1,7 +1,7 @@
 """Daily usage rollups: long-term request, sign-in and active-user trends per organization.
 
-The security journal keeps raw request rows for PQC_TRAFFIC_RETENTION_DAYS (default 7) and sign-in rows
-for PQC_AUTH_LOG_RETENTION_DAYS (default 90). The admin analytics need 30- and 90-day trends and a
+The security journal keeps raw request rows for MORROW_TRAFFIC_RETENTION_DAYS (default 7) and sign-in rows
+for MORROW_AUTH_LOG_RETENTION_DAYS (default 90). The admin analytics need 30- and 90-day trends and a
 previous period to compare with, so every closed UTC day is summarised here before its raw rows expire.
 
 Tables (feature store: SQLite file or Postgres, the same home as the journal):
@@ -65,12 +65,12 @@ _salt_cache: Dict[str, bytes] = {}
 
 
 def enabled() -> bool:
-    return str(os.getenv("PQC_USAGE_ROLLUPS_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    return str(os.getenv("MORROW_USAGE_ROLLUPS_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def interval_seconds() -> float:
     try:
-        return max(60.0, float(os.getenv("PQC_USAGE_ROLLUP_INTERVAL_SECONDS", "3600") or 3600))
+        return max(60.0, float(os.getenv("MORROW_USAGE_ROLLUP_INTERVAL_SECONDS", "3600") or 3600))
     except ValueError:
         return 3600.0
 
@@ -78,14 +78,14 @@ def interval_seconds() -> float:
 def max_days_per_pass() -> int:
     """How many days one rollup pass may aggregate before yielding. Bounds a backfill."""
     try:
-        return max(1, min(3650, int(os.getenv("PQC_USAGE_ROLLUP_MAX_DAYS_PER_PASS", "40") or 40)))
+        return max(1, min(3650, int(os.getenv("MORROW_USAGE_ROLLUP_MAX_DAYS_PER_PASS", "40") or 40)))
     except ValueError:
         return 40
 
 
 def retention_days() -> int:
     try:
-        return max(35, min(3650, int(os.getenv("PQC_USAGE_ROLLUP_RETENTION_DAYS", "400") or 400)))
+        return max(35, min(3650, int(os.getenv("MORROW_USAGE_ROLLUP_RETENTION_DAYS", "400") or 400)))
     except ValueError:
         return 400
 
@@ -207,14 +207,14 @@ def _state_set(conn: Any, name: str, value: str) -> None:
 
 
 def salt() -> bytes:
-    """Key for actor hashes: PQC_USAGE_ACTOR_SALT, else derived from the vault/JWT secret, else a random
+    """Key for actor hashes: MORROW_USAGE_ACTOR_SALT, else derived from the vault/JWT secret, else a random
     salt generated once and kept in platform_usage_rollup_state (development only)."""
-    configured = os.getenv("PQC_USAGE_ACTOR_SALT") or ""
+    configured = os.getenv("MORROW_USAGE_ACTOR_SALT") or ""
     if configured:
         return hashlib.sha256(("usage-actor-salt:" + configured).encode()).digest()
-    secret = os.getenv("PQC_VAULT_MASTER_KEY") or os.getenv("PQC_AUTH_JWT_SECRET") or ""
+    secret = os.getenv("MORROW_VAULT_MASTER_KEY") or os.getenv("MORROW_AUTH_JWT_SECRET") or ""
     if secret:
-        return hmac.new(secret.encode(), b"pqc-usage-actor-salt", hashlib.sha256).digest()
+        return hmac.new(secret.encode(), b"pq-usage-actor-salt", hashlib.sha256).digest()
     key = _key()
     with _lock:
         if key in _salt_cache:
@@ -474,7 +474,7 @@ def roll_day(day: datetime, now: Optional[datetime] = None) -> Dict[str, Any]:
             # Every API replica runs maintain(). Without this, two replicas replacing the same day both delete
             # nothing and then both insert, and one fails on the primary key. The lock serializes the
             # delete-and-insert per day; the second writer simply replaces the first's identical rows.
-            conn.execute("SELECT pg_advisory_xact_lock(hashtext(?))", ("pqc_usage_rollup:" + key,))
+            conn.execute("SELECT pg_advisory_xact_lock(hashtext(?))", ("pq_usage_rollup:" + key,))
         conn.execute("DELETE FROM platform_usage_daily WHERE day = ?", (key,))
         conn.execute("DELETE FROM platform_active_users_daily WHERE day = ?", (key,))
         conn.execute("DELETE FROM platform_usage_routes_daily WHERE day = ?", (key,))

@@ -11,14 +11,14 @@ def test_security_intent_evaluate_returns_controls():
         res = client.post(
             "/security-intents/evaluate",
             headers=HEADERS,
-            json={"intent": "No RSA-2048 after 2027 and all vendors need PQC attestation evidence."},
+            json={"intent": "No RSA-2048 after 2027 and all vendors need post-quantum attestation evidence."},
         )
     assert res.status_code == 200
     body = res.json()
     assert body["intent_id"]
     assert body["summary"]["controls"] >= 1
-    assert any(c["id"] == "pqc.crypto_agility" for c in body["controls"])
-    assert any(c["id"] == "vendor.pqc_attestation" for c in body["controls"])
+    assert any(c["id"] == "pq.crypto_agility" for c in body["controls"])
+    assert any(c["id"] == "vendor.pq_attestation" for c in body["controls"])
 
 
 def test_security_truth_blocks_unsafe_change():
@@ -50,7 +50,7 @@ def test_vendor_attestation_scoring():
         res = client.post(
             "/vendor-attestations/score",
             headers=HEADERS,
-            json={"dependent_assets": 2, "attestation": {"roadmap": "NIST PQC migration by 2027 with CBOM evidence."}},
+            json={"dependent_assets": 2, "attestation": {"roadmap": "NIST post-quantum migration by 2027 with CBOM evidence."}},
         )
     assert res.status_code == 200
     body = res.json()
@@ -120,7 +120,7 @@ def test_vendor_private_proof_flow():
             json={
                 "vendor_name": "Example Vendor",
                 "scan_summary": {"scan_time": "2026-06-12T00:00:00Z", "topology_hash": "private"},
-                "claims": {"pqc_compliant": True, "legacy_rsa_keys": 0, "nist_profile": "ML-KEM/ML-DSA readiness"},
+                "claims": {"pq_compliant": True, "legacy_rsa_keys": 0, "nist_profile": "ML-KEM/ML-DSA readiness"},
             },
         )
         assert proof.status_code == 200

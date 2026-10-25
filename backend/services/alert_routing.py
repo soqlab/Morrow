@@ -6,7 +6,7 @@ module delivers those items outside the admin portal.
 
 Storage (feature store: SQLite locally, Postgres when the feature store is on Postgres)
   platform_alert_channels    one row per destination. The target (webhook URL, PagerDuty routing key)
-                             is sealed with vault_crypto (Fernet, PQC_VAULT_MASTER_KEY); email
+                             is sealed with vault_crypto (Fernet, MORROW_VAULT_MASTER_KEY); email
                              recipient lists are not secrets and are stored as JSON. API responses
                              carry only target_hint.
   platform_alert_ledger      one row per (channel, notification id): first/last sent, send count,
@@ -14,18 +14,18 @@ Storage (feature store: SQLite locally, Postgres when the feature store is on Po
   platform_alert_deliveries  every attempt: event, status, HTTP status, error, latency.
   platform_alert_pending_resolves  a PagerDuty resolve that deleting or disabling a channel could not
                              send, with the sealed routing key, until the dispatcher gets it through or
-                             gives up after PQC_ALERT_RESOLVE_MAX_ATTEMPTS tries.
+                             gives up after MORROW_ALERT_RESOLVE_MAX_ATTEMPTS tries.
   platform_alert_dispatcher  a single row: the lease that stops two API replicas dispatching the same
                              tick, and the last run's outcome for GET /platform/jobs.
 
-Dispatch (run_once, every PQC_ALERT_DISPATCH_INTERVAL_SECONDS, default 60)
+Dispatch (run_once, every MORROW_ALERT_DISPATCH_INTERVAL_SECONDS, default 60)
   * An item matching a channel (min_severity, optional kinds filter, quiet hours) and absent from
     the ledger, or resolved there, is sent ("trigger").
-  * An item still open after PQC_ALERT_RENOTIFY_HOURS (default 24) is sent again ("renotify").
+  * An item still open after MORROW_ALERT_RENOTIFY_HOURS (default 24) is sent again ("renotify").
   * An item that disappears is marked resolved; PagerDuty gets a resolve event with
     dedup_key = notification id. Nothing is resolved from a partial snapshot: a source that failed
     to load, or a list truncated by the notifications cap, resolves nothing.
-  * Each channel sends at most PQC_ALERT_RATE_CAP (20) messages per PQC_ALERT_RATE_WINDOW_MINUTES
+  * Each channel sends at most MORROW_ALERT_RATE_CAP (20) messages per MORROW_ALERT_RATE_WINDOW_MINUTES
     (10). When more are due, the last slot becomes one digest message listing the rest.
   * A failed send is logged and retried on the next tick. run_once never raises.
   * Deleting or disabling a PagerDuty channel resolves every incident it still has open before the
@@ -102,32 +102,32 @@ def _env_float(name: str, default: float, low: float, high: float) -> float:
 
 
 def renotify_hours() -> float:
-    return _env_float("PQC_ALERT_RENOTIFY_HOURS", 24.0, 0.25, 24.0 * 30)
+    return _env_float("MORROW_ALERT_RENOTIFY_HOURS", 24.0, 0.25, 24.0 * 30)
 
 
 def rate_cap() -> int:
-    return int(_env_float("PQC_ALERT_RATE_CAP", 20, 2, 1000))
+    return int(_env_float("MORROW_ALERT_RATE_CAP", 20, 2, 1000))
 
 
 def rate_window_minutes() -> float:
-    return _env_float("PQC_ALERT_RATE_WINDOW_MINUTES", 10, 1, 24 * 60)
+    return _env_float("MORROW_ALERT_RATE_WINDOW_MINUTES", 10, 1, 24 * 60)
 
 
 def interval_seconds() -> float:
-    return _env_float("PQC_ALERT_DISPATCH_INTERVAL_SECONDS", 60, 10, 3600)
+    return _env_float("MORROW_ALERT_DISPATCH_INTERVAL_SECONDS", 60, 10, 3600)
 
 
 def retention_days() -> float:
-    return _env_float("PQC_ALERT_DELIVERY_RETENTION_DAYS", 30, 1, 3650)
+    return _env_float("MORROW_ALERT_DELIVERY_RETENTION_DAYS", 30, 1, 3650)
 
 
 def resolve_max_attempts() -> int:
     """How often the dispatcher retries a resolve that a delete or a disable could not send."""
-    return int(_env_float("PQC_ALERT_RESOLVE_MAX_ATTEMPTS", 10, 1, 100))
+    return int(_env_float("MORROW_ALERT_RESOLVE_MAX_ATTEMPTS", 10, 1, 100))
 
 
 def dispatch_enabled() -> bool:
-    return str(os.getenv("PQC_ALERT_DISPATCH_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
+    return str(os.getenv("MORROW_ALERT_DISPATCH_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def public_settings() -> Dict[str, Any]:
@@ -165,7 +165,7 @@ _TABLES_LOCK = threading.Lock()
 
 
 def _db_identity() -> str:
-    return f"{os.getenv('PQC_FEATURE_STORE_BACKEND', '')}|{os.getenv('PQC_SCANNER_DB', '')}|{os.getenv('DATABASE_URL', '')[:12]}"
+    return f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}|{os.getenv('DATABASE_URL', '')[:12]}"
 
 
 def init_tables() -> None:
@@ -267,7 +267,7 @@ def seal(plain: str) -> str:
         return "fernet:" + encrypt_secret(plain)
     except Exception:
         raise AlertRoutingError(
-            503, "Alert channel secrets are stored encrypted. Set PQC_VAULT_MASTER_KEY (a Fernet key) to configure "
+            503, "Alert channel secrets are stored encrypted. Set MORROW_VAULT_MASTER_KEY (a Fernet key) to configure "
                  "Slack, PagerDuty or webhook channels.") from None
 
 
@@ -706,7 +706,7 @@ def resolve_open_incidents(channel: Dict[str, Any], now: Optional[datetime] = No
     try:
         plain = unseal(channel["target_sealed"])
     except Exception:
-        unseal_error = ("The stored routing key could not be decrypted; check PQC_VAULT_MASTER_KEY. The resolve is retried "
+        unseal_error = ("The stored routing key could not be decrypted; check MORROW_VAULT_MASTER_KEY. The resolve is retried "
                         "by the dispatcher.")
     for notification_id, kind, severity, title, via_digest in rows:
         if int(via_digest or 0):
@@ -774,7 +774,7 @@ def retry_pending_resolves(now: Optional[datetime] = None, summary: Optional[Dic
             result = send(channel, plain, "resolve", [item])
         except Exception:
             result = {"ok": False, "http_status": None, "error": "The stored routing key could not be decrypted; check "
-                                                                 "PQC_VAULT_MASTER_KEY.", "latency_ms": 0}
+                                                                 "MORROW_VAULT_MASTER_KEY.", "latency_ms": 0}
         tries = int(attempts or 0) + 1
         done = bool(result["ok"]) or tries >= limit
         error = result.get("error") or ""
@@ -955,7 +955,7 @@ def send(channel: Dict[str, Any], plain: str, event: str, items: List[Dict[str, 
             payload["text"] = message["subject"]
             result = post_json(plain, payload)
         elif kind == "generic_webhook":
-            payload = {"source": "pqc-scanner", "type": "platform.alert", "event": "test" if test else event, "test": bool(test),
+            payload = {"source": "morrow", "type": "platform.alert", "event": "test" if test else event, "test": bool(test),
                        "subject": message["subject"], "text": message["text"], "severity": message["severity"],
                        "link": message["link"] or None, "sent_at": iso(now_utc()),
                        "notifications": [] if test else [{k: i.get(k) for k in ("id", "severity", "kind", "title", "detail",
@@ -974,12 +974,12 @@ def send(channel: Dict[str, Any], plain: str, event: str, items: List[Dict[str, 
             if event == "resolve":
                 pd = alerting.resolve_pagerduty_incident(plain, str(items[0].get("id")))
             else:
-                dedup = f"pqc-alert-test-{channel['id']}" if test else (
-                    "pqc-digest-" + hashlib.sha256("|".join(sorted(str(i.get("id")) for i in items)).encode()).hexdigest()[:16]
+                dedup = f"pq-alert-test-{channel['id']}" if test else (
+                    "pq-digest-" + hashlib.sha256("|".join(sorted(str(i.get("id")) for i in items)).encode()).hexdigest()[:16]
                     if event == "digest" else str(items[0].get("id")))
                 pd = alerting.send_pagerduty_alert(
                     routing_key=plain, summary=message["subject"], severity=PD_SEVERITY.get(message["severity"], "warning"),
-                    source="pqc-scanner-platform", dedup_key=dedup,
+                    source="morrow-platform", dedup_key=dedup,
                     details={"detail": message["text"], "event": event, "test": bool(test),
                              "notification_ids": [str(i.get("id")) for i in items]},
                     component="platform", group="operations", class_=("test" if test else str(items[0].get("kind") or event)),
@@ -1011,7 +1011,7 @@ def test_send(channel_id: str, base_url: str = "") -> Dict[str, Any]:
     try:
         plain = unseal(channel["target_sealed"])
     except Exception:
-        result = {"ok": False, "http_status": None, "error": "The stored target could not be decrypted; check PQC_VAULT_MASTER_KEY or "
+        result = {"ok": False, "http_status": None, "error": "The stored target could not be decrypted; check MORROW_VAULT_MASTER_KEY or "
                                                              "re-enter the target.", "latency_ms": 0}
     else:
         result = send(channel, plain, "test", [], base_url, test=True)
@@ -1112,7 +1112,7 @@ def _dispatch_channel(channel: Dict[str, Any], items: List[Dict[str, Any]], curr
                                 "AND created_at >= ?", (channel["id"], since)).fetchone()[0]
         if not int(seen or 0):
             record_delivery(channel, "config_error", "failed", None, None,
-                            "The stored target could not be decrypted; check PQC_VAULT_MASTER_KEY or re-enter the target.", 0, now)
+                            "The stored target could not be decrypted; check MORROW_VAULT_MASTER_KEY or re-enter the target.", 0, now)
         return
     renotify_before = iso(now - timedelta(hours=renotify_hours()))
     quiet = in_quiet_hours(channel.get("quiet_hours"), now)
@@ -1287,7 +1287,7 @@ def job_state(now: Optional[datetime] = None) -> Dict[str, Any]:
     sent, failed = int((day or [0, 0])[0] or 0), int((day or [0, 0])[1] or 0)
     detail = (f"{enabled} enabled of {total} channels; every {interval_seconds():g}s; loop "
               f"{'running in this process' if running else 'not running in this process'}"
-              f"{'' if dispatch_enabled() else ' (PQC_ALERT_DISPATCH_ENABLED=0)'}. {sent} attempts and {failed} failures in the last 24h; "
+              f"{'' if dispatch_enabled() else ' (MORROW_ALERT_DISPATCH_ENABLED=0)'}. {sent} attempts and {failed} failures in the last 24h; "
               f"renotify after {renotify_hours():g}h; cap {rate_cap()} per {rate_window_minutes():g} min."
               + (f" {waiting} PagerDuty resolve(s) from a deleted or disabled channel are waiting to be retried."
                  if waiting else ""))

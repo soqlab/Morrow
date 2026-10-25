@@ -32,7 +32,7 @@ CRYPTO_MIGRATION_RECIPES: List[Dict[str, Any]] = [
         "patterns": [r"\bECDH\b", r"\bECDSA\b", r"secp256r1", r"prime256v1", r"nistp256"],
         "severity": "medium",
         "legacy_dependency": "Elliptic-curve key exchange/signatures",
-        "migration_target": "Hybrid PQC plus classical mode while client/provider support matures.",
+        "migration_target": "Hybrid post-quantum plus classical mode while client/provider support matures.",
         "safe_next_step": "Mark as crypto-agility work and prepare hybrid-capable configuration paths.",
     },
     {
@@ -40,7 +40,7 @@ CRYPTO_MIGRATION_RECIPES: List[Dict[str, Any]] = [
         "patterns": [r"TLSv1\.0", r"TLSv1\.1", r"ssl_policy", r"min_tls", r"cipher_suite", r"ssl_protocols"],
         "severity": "medium",
         "legacy_dependency": "Static TLS policy/configuration",
-        "migration_target": "Policy-as-code with modern TLS baseline and provider PQC/hybrid capability tracking.",
+        "migration_target": "Policy-as-code with modern TLS baseline and provider post-quantum/hybrid capability tracking.",
         "safe_next_step": "Move TLS policy into IaC, validate, open PR, then rescan for evidence.",
     },
     {
@@ -221,7 +221,7 @@ def _discover_crypto_legacy_usage(files: List[Dict[str, str]], limit: int = 200)
             "discover legacy crypto call sites",
             "group findings by crypto boundary",
             "create adapter abstraction",
-            "generate PQC/hybrid candidate patch",
+            "generate post-quantum/hybrid candidate patch",
             "run sandbox validation and tests",
             "open PR with rollout notes",
         ] if findings else ["keep scanning repository changes through CI gate"],

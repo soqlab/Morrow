@@ -22,7 +22,7 @@ What these guard, concretely:
   * The custom-module loader raising a traceback out of an operator's own file
     instead of a message naming what is wrong.
   * A per-organization override leaking across tenants.
-  * PQC_LLM_DISABLED being overridable by a customer.
+  * MORROW_LLM_DISABLED being overridable by a customer.
   * A provider outage becoming a dead end rather than a built-in answer.
 """
 
@@ -116,15 +116,15 @@ def no_gate(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
-    for name in ("PQC_LLM_PROVIDER", "PQC_LLM_MODEL", "PQC_LLM_BASE_URL", "PQC_LLM_API_KEY",
-                 "PQC_LLM_HEADERS", "PQC_LLM_API_VERSION", "PQC_LLM_AZURE_DEPLOYMENT",
-                 "PQC_LLM_CUSTOM_MODULE", "PQC_LLM_DISABLED", "PQC_LLM_TOOLS",
-                 "PQC_LLM_STREAM", "PQC_LLM_WIRE_STREAM", "PQC_LLM_TEMPERATURE",
-                 "PQC_LLM_MAX_TOKENS", "PQC_LLM_TIMEOUT", "PQC_LLM_RETRIES",
-                 "PQC_LLM_PRICE_INPUT_PER_MTOK", "PQC_LLM_PRICE_OUTPUT_PER_MTOK",
-                 "PQC_LLM_CONTEXT_WINDOW", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+    for name in ("MORROW_LLM_PROVIDER", "MORROW_LLM_MODEL", "MORROW_LLM_BASE_URL", "MORROW_LLM_API_KEY",
+                 "MORROW_LLM_HEADERS", "MORROW_LLM_API_VERSION", "MORROW_LLM_AZURE_DEPLOYMENT",
+                 "MORROW_LLM_CUSTOM_MODULE", "MORROW_LLM_DISABLED", "MORROW_LLM_TOOLS",
+                 "MORROW_LLM_STREAM", "MORROW_LLM_WIRE_STREAM", "MORROW_LLM_TEMPERATURE",
+                 "MORROW_LLM_MAX_TOKENS", "MORROW_LLM_TIMEOUT", "MORROW_LLM_RETRIES",
+                 "MORROW_LLM_PRICE_INPUT_PER_MTOK", "MORROW_LLM_PRICE_OUTPUT_PER_MTOK",
+                 "MORROW_LLM_CONTEXT_WINDOW", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
                  "OPENAI_AGENT_MODEL", "OPENAI_MODEL", "ANTHROPIC_AGENT_MODEL",
-                 "PQC_AI_LOCAL_URL", "PQC_AI_LOCAL_MODEL", "PQC_AI_LOCAL_API_KEY"):
+                 "MORROW_AI_LOCAL_URL", "MORROW_AI_LOCAL_MODEL", "MORROW_AI_LOCAL_API_KEY"):
         monkeypatch.delenv(name, raising=False)
 
 
@@ -132,7 +132,7 @@ def clean_env(monkeypatch):
 # Fixtures: one request/response pair per adapter
 # --------------------------------------------------------------------------- #
 
-SYSTEM = "You are PQC Scout."
+SYSTEM = "You are post-quantum Scout."
 QUESTION = "What is my posture?"
 TOOLS = [{"name": "get_org_posture", "description": "Bounded posture sample.",
           "input_schema": {"type": "object", "properties": {}}}]
@@ -397,7 +397,7 @@ def test_azure_without_a_deployment_fails_with_a_config_error():
     with pytest.raises(LLMError) as caught:
         provider.complete(provider.start(SYSTEM, [], QUESTION), None)
     assert caught.value.kind == CONFIG
-    assert "PQC_LLM_AZURE_DEPLOYMENT" in caught.value.remedy
+    assert "MORROW_LLM_AZURE_DEPLOYMENT" in caught.value.remedy
 
 
 def test_gemini_sends_its_own_wire_format_with_the_key_in_a_header(wire, no_gate):
@@ -488,7 +488,7 @@ def _sse(*events) -> bytes:
 
 
 def test_openai_stream_assembles_text_tool_calls_and_usage(wire, no_gate, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_WIRE_STREAM", "1")
+    monkeypatch.setenv("MORROW_LLM_WIRE_STREAM", "1")
     provider = make("openai-compatible")
     wire.enqueue(_sse(
         {"model": "llama-3.3-70b", "choices": [{"index": 0, "delta": {"content": "Two "}}]},
@@ -510,7 +510,7 @@ def test_openai_stream_assembles_text_tool_calls_and_usage(wire, no_gate, monkey
 
 
 def test_anthropic_stream_assembles_text_thinking_and_tool_input(wire, no_gate, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_WIRE_STREAM", "1")
+    monkeypatch.setenv("MORROW_LLM_WIRE_STREAM", "1")
     provider = make("anthropic")
     wire.enqueue(_sse(
         {"type": "message_start", "message": {"model": "claude-opus-5",
@@ -548,7 +548,7 @@ def test_anthropic_stream_assembles_text_thinking_and_tool_input(wire, no_gate, 
 
 
 def test_gemini_stream_assembles_candidate_parts(wire, no_gate, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_WIRE_STREAM", "1")
+    monkeypatch.setenv("MORROW_LLM_WIRE_STREAM", "1")
     provider = make("gemini")
     wire.enqueue(_sse(
         {"modelVersion": "gemini-2.0-flash",
@@ -564,7 +564,7 @@ def test_gemini_stream_assembles_candidate_parts(wire, no_gate, monkeypatch):
 
 
 def test_ollama_stream_is_newline_delimited_json_not_sse(wire, no_gate, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_WIRE_STREAM", "1")
+    monkeypatch.setenv("MORROW_LLM_WIRE_STREAM", "1")
     provider = make("ollama")
     wire.enqueue(b"".join(json.dumps(event).encode() + b"\n" for event in (
         {"message": {"role": "assistant", "content": "Two "}, "done": False},
@@ -714,7 +714,7 @@ def test_a_timeout_is_a_timeout_not_a_connection_failure(wire, no_gate):
     with pytest.raises(LLMError) as caught:
         provider.complete(provider.start(SYSTEM, [], QUESTION), None)
     assert caught.value.kind == TIMEOUT
-    assert "PQC_LLM_TIMEOUT" in caught.value.remedy
+    assert "MORROW_LLM_TIMEOUT" in caught.value.remedy
 
 
 def test_an_unreachable_host_is_a_connection_failure(wire, no_gate):
@@ -774,7 +774,7 @@ def test_an_openai_key_alone_keeps_todays_behaviour(monkeypatch):
 
 def test_an_explicit_provider_beats_a_stray_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "ollama")
     assert config.env_provider() == ("ollama", "environment")
 
 
@@ -784,7 +784,7 @@ def test_an_explicit_provider_beats_a_stray_key(monkeypatch):
     ("vllm", "openai-compatible"), ("off", "builtin"), ("none", "builtin"),
 ])
 def test_an_operators_likely_spelling_is_accepted(spelling, expected, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", spelling)
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", spelling)
     assert config.env_provider()[0] == expected
 
 
@@ -799,11 +799,11 @@ def test_legacy_anthropic_variables_are_still_honoured(monkeypatch):
 
 
 def test_numeric_settings_are_clamped_not_trusted(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "openai")
-    monkeypatch.setenv("PQC_LLM_TEMPERATURE", "99")
-    monkeypatch.setenv("PQC_LLM_MAX_TOKENS", "1")
-    monkeypatch.setenv("PQC_LLM_TIMEOUT", "99999")
-    monkeypatch.setenv("PQC_LLM_RETRIES", "not a number")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "openai")
+    monkeypatch.setenv("MORROW_LLM_TEMPERATURE", "99")
+    monkeypatch.setenv("MORROW_LLM_MAX_TOKENS", "1")
+    monkeypatch.setenv("MORROW_LLM_TIMEOUT", "99999")
+    monkeypatch.setenv("MORROW_LLM_RETRIES", "not a number")
     settings = config.from_environment()
     assert settings.temperature == 2.0 and settings.max_tokens == 256
     assert settings.timeout == 600 and settings.retries == 2
@@ -870,9 +870,9 @@ class MyProvider(Provider):
 
 
 def test_a_valid_custom_module_loads_and_answers(monkeypatch):
-    _install(monkeypatch, "pqc_test_valid", _VALID)
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "custom")
-    monkeypatch.setenv("PQC_LLM_CUSTOM_MODULE", "pqc_test_valid")
+    _install(monkeypatch, "pq_test_valid", _VALID)
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "custom")
+    monkeypatch.setenv("MORROW_LLM_CUSTOM_MODULE", "pq_test_valid")
     provider, notes = llm.resolve()
     assert provider.id == "my-provider"
     assert provider.capabilities().context_window == 8192
@@ -881,15 +881,15 @@ def test_a_valid_custom_module_loads_and_answers(monkeypatch):
 
 
 def test_the_factory_form_is_accepted(monkeypatch):
-    _install(monkeypatch, "pqc_test_factory",
+    _install(monkeypatch, "pq_test_factory",
              _VALID + "\n\ndef get_provider(settings):\n    return MyProvider(settings)\n")
-    provider = custom.load(Settings(provider="custom", custom_module="pqc_test_factory"))
+    provider = custom.load(Settings(provider="custom", custom_module="pq_test_factory"))
     assert provider.id == "my-provider"
 
 
 def test_a_class_named_provider_is_accepted(monkeypatch):
-    _install(monkeypatch, "pqc_test_named", _VALID + "\n\nProvider = MyProvider\n")
-    assert custom.load(Settings(provider="custom", custom_module="pqc_test_named")).id == "my-provider"
+    _install(monkeypatch, "pq_test_named", _VALID + "\n\nProvider = MyProvider\n")
+    assert custom.load(Settings(provider="custom", custom_module="pq_test_named")).id == "my-provider"
 
 
 def test_a_missing_module_fails_with_a_message_not_a_traceback():
@@ -903,7 +903,7 @@ def test_a_missing_module_fails_with_a_message_not_a_traceback():
 def test_no_module_named_at_all_says_which_variable_to_set():
     with pytest.raises(LLMError) as caught:
         custom.load(Settings(provider="custom"))
-    assert "PQC_LLM_CUSTOM_MODULE" in caught.value.remedy
+    assert "MORROW_LLM_CUSTOM_MODULE" in caught.value.remedy
 
 
 @pytest.mark.parametrize("path", ["/etc/passwd", "my-package.mod", "http://x/y", "a..b", "1bad"])
@@ -915,22 +915,22 @@ def test_a_value_that_is_not_an_import_path_is_refused(path):
 
 
 def test_a_module_with_no_provider_says_what_to_define(monkeypatch):
-    _install(monkeypatch, "pqc_test_empty", "VALUE = 1\n")
+    _install(monkeypatch, "pq_test_empty", "VALUE = 1\n")
     with pytest.raises(LLMError) as caught:
-        custom.load(Settings(provider="custom", custom_module="pqc_test_empty"))
+        custom.load(Settings(provider="custom", custom_module="pq_test_empty"))
     assert "exposes no provider" in caught.value.message
     assert "examples/custom_llm_provider.py" in caught.value.remedy
 
 
 def test_a_module_with_two_providers_asks_which_one(monkeypatch):
-    _install(monkeypatch, "pqc_test_two", _VALID + _VALID.replace("MyProvider", "OtherProvider"))
+    _install(monkeypatch, "pq_test_two", _VALID + _VALID.replace("MyProvider", "OtherProvider"))
     with pytest.raises(LLMError) as caught:
-        custom.load(Settings(provider="custom", custom_module="pqc_test_two"))
+        custom.load(Settings(provider="custom", custom_module="pq_test_two"))
     assert "defines 2 providers" in caught.value.message
 
 
 def test_a_module_missing_part_of_the_interface_is_named_precisely(monkeypatch):
-    _install(monkeypatch, "pqc_test_partial", """
+    _install(monkeypatch, "pq_test_partial", """
 from services.llm.base import Capabilities, Provider
 
 
@@ -944,10 +944,10 @@ class Half(Provider):
     def complete(self, conv, tools=None, **kwargs):
         return None
 """)
-    instance = sys.modules["pqc_test_partial"].Half(Settings(provider="custom"))
+    instance = sys.modules["pq_test_partial"].Half(Settings(provider="custom"))
     object.__setattr__(instance, "add_assistant", None)
     with pytest.raises(LLMError) as caught:
-        custom.validate(instance, "pqc_test_partial")
+        custom.validate(instance, "pq_test_partial")
     assert "add_assistant()" in caught.value.message
 
 
@@ -959,7 +959,7 @@ def test_capabilities_returning_the_wrong_type_is_caught():
         start = complete = add_assistant = add_tool_results = lambda *a, **k: None
 
     with pytest.raises(LLMError) as caught:
-        custom.validate(Wrong(), "pqc_test_wrong")
+        custom.validate(Wrong(), "pq_test_wrong")
     assert "not Capabilities" in caught.value.message
 
 
@@ -972,13 +972,13 @@ def test_capabilities_that_names_no_model_is_caught():
         start = complete = add_assistant = add_tool_results = lambda *a, **k: None
 
     with pytest.raises(LLMError) as caught:
-        custom.validate(Nameless(), "pqc_test_nameless")
+        custom.validate(Nameless(), "pq_test_nameless")
     assert "no model" in caught.value.message, "the console must never misreport what answered"
 
 
 def test_a_broken_custom_module_degrades_to_the_builtin_answerer(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "custom")
-    monkeypatch.setenv("PQC_LLM_CUSTOM_MODULE", "no_such_package.at_all")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "custom")
+    monkeypatch.setenv("MORROW_LLM_CUSTOM_MODULE", "no_such_package.at_all")
     provider, notes = llm.resolve()
     assert provider.id == "builtin"
     assert any("Could not import" in note for note in notes)
@@ -991,7 +991,7 @@ def test_the_shipped_example_satisfies_the_contract():
 
     path = pathlib.Path(__file__).resolve().parents[1] / "examples" / "custom_llm_provider.py"
     assert path.exists(), "the documented example must exist"
-    spec = importlib.util.spec_from_file_location("pqc_example_provider", path)
+    spec = importlib.util.spec_from_file_location("morrow_example_provider", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     instance = module.get_provider(Settings(provider="custom", base_url="https://x/v1",
@@ -1010,11 +1010,11 @@ def test_an_unknown_provider_name_lists_the_real_ones():
 
 
 def test_a_selected_but_unconfigured_provider_answers_from_rules_and_says_so(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "azure-openai")   # no base URL, no key
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "azure-openai")   # no base URL, no key
     provider, notes = llm.resolve()
     assert provider.id == "builtin"
     assert any("not fully configured" in note for note in notes)
-    assert any("PQC_LLM_BASE_URL" in note for note in notes)
+    assert any("MORROW_LLM_BASE_URL" in note for note in notes)
 
 
 # --------------------------------------------------------------------------- #
@@ -1023,17 +1023,17 @@ def test_a_selected_but_unconfigured_provider_answers_from_rules_and_says_so(mon
 
 def test_disabled_forces_the_builtin_answerer_whatever_else_is_set(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "anthropic")
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     assert llm.disabled() is True
     provider, notes = llm.resolve()
     assert provider.id == "builtin"
-    assert any("PQC_LLM_DISABLED" in note for note in notes)
+    assert any("MORROW_LLM_DISABLED" in note for note in notes)
 
 
 def test_disabled_is_decided_before_the_organization_is_consulted(monkeypatch):
     """Otherwise a customer could re-enable a model call the operator forbade."""
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     consulted = []
     from services.llm import org_config
 
@@ -1044,11 +1044,11 @@ def test_disabled_is_decided_before_the_organization_is_consulted(monkeypatch):
 
 
 def test_describe_reports_the_disabled_state_to_the_console(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     described = llm.describe()
     assert described["disabled"] is True
     assert described["active"]["network"] is False
-    assert described["precedence"][0].startswith("PQC_LLM_DISABLED")
+    assert described["precedence"][0].startswith("MORROW_LLM_DISABLED")
 
 
 # --------------------------------------------------------------------------- #
@@ -1084,7 +1084,7 @@ def test_an_unregistered_builtin_says_so_instead_of_answering_emptily(monkeypatc
     monkeypatch.setattr(builtin, "_answerer", None)
     provider = registry.build(Settings(provider="builtin"))
     assert provider.check()["ready"] is False
-    assert "PQC_LLM_PROVIDER" in provider.complete(provider.start("", [], "q")).text
+    assert "MORROW_LLM_PROVIDER" in provider.complete(provider.start("", [], "q")).text
 
 
 # --------------------------------------------------------------------------- #
@@ -1093,9 +1093,9 @@ def test_an_unregistered_builtin_says_so_instead_of_answering_emptily(monkeypatc
 
 @pytest.fixture()
 def org_store(tmp_path, monkeypatch):
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "llm-org.db"))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "llm-org.db"))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
     import importlib
 
     from services.llm import org_config
@@ -1199,7 +1199,7 @@ def test_an_unreadable_override_falls_back_with_a_note(monkeypatch):
         raise RuntimeError("feature store down")
 
     monkeypatch.setattr(org_config, "load", boom)
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "ollama")
     settings, notes = registry.settings_for("org-a")
     assert settings.provider == "ollama"
     assert any("could not be read" in note for note in notes)
@@ -1239,14 +1239,14 @@ def test_selecting_the_builtin_answerer_clears_any_destination(org_store):
 @pytest.fixture()
 def gated(tmp_path, monkeypatch):
     """A real Data Control policy approving the brought-your-own destination."""
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "llm-gate.db"))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "openai-compatible")
-    monkeypatch.setenv("PQC_LLM_BASE_URL", "https://llm.acme.example/v1")
-    monkeypatch.setenv("PQC_LLM_MODEL", "acme-7b")
-    monkeypatch.setenv("PQC_LLM_API_KEY", "acme-wire-key")
-    monkeypatch.setenv("PQC_LLM_TOOLS", "1")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "llm-gate.db"))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "openai-compatible")
+    monkeypatch.setenv("MORROW_LLM_BASE_URL", "https://llm.acme.example/v1")
+    monkeypatch.setenv("MORROW_LLM_MODEL", "acme-7b")
+    monkeypatch.setenv("MORROW_LLM_API_KEY", "acme-wire-key")
+    monkeypatch.setenv("MORROW_LLM_TOOLS", "1")
     import importlib
 
     from services import ai_privacy
@@ -1292,7 +1292,7 @@ def test_an_approved_dispatch_reaches_the_wire_and_is_receipted(gated, wire):
 
 def test_changing_the_destination_requires_the_customer_to_reapprove(gated, monkeypatch, wire):
     _approve(gated, "org-a")
-    monkeypatch.setenv("PQC_LLM_BASE_URL", "https://somewhere-else.example/v1")
+    monkeypatch.setenv("MORROW_LLM_BASE_URL", "https://somewhere-else.example/v1")
     provider, _ = llm.resolve("org-a")
     with pytest.raises(LLMError) as caught:
         provider.complete(provider.start(SYSTEM, [], QUESTION), None, org_id="org-a")
@@ -1364,7 +1364,7 @@ def test_data_control_strips_every_tool_but_the_read_only_posture_summary(gated,
 
 
 def test_the_organizations_own_provider_is_what_dispatches(gated, org_store, wire, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "anthropic")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-deployment")
     org_store.set_override("org-a", {"provider": "openai-compatible", "model": "acme-7b",
                                      "base_url": "https://llm.acme.example/v1",
@@ -1442,7 +1442,7 @@ def test_a_policy_refusal_is_reported_and_not_routed_around(gated, wire, monkeyp
 
 
 def test_a_provider_without_tools_says_so_and_still_answers(gated, wire, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_TOOLS", "0")
+    monkeypatch.setenv("MORROW_LLM_TOOLS", "0")
     _approve(gated, "org-a")
     from services import ai_agent
 
@@ -1470,7 +1470,7 @@ def test_the_stream_names_the_model_that_answered(gated, wire):
 
 
 def test_disabled_mode_answers_from_rules_before_the_policy_is_read(gated, wire, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     from services import ai_agent
     from services.llm import builtin
 
@@ -1479,7 +1479,7 @@ def test_disabled_mode_answers_from_rules_before_the_policy_is_read(gated, wire,
     # that would raise, and here it must simply answer.
     events = _drain(ai_agent.run_agent_stream(QUESTION, [], "org-never-approved"))
     assert "".join(e.get("text", "") for e in events if e["type"] == "token") == "Local rules only."
-    assert any("PQC_LLM_DISABLED" in e.get("text", "") for e in events if e["type"] == "notice")
+    assert any("MORROW_LLM_DISABLED" in e.get("text", "") for e in events if e["type"] == "notice")
     assert wire.sent == []
 
 
@@ -1488,10 +1488,10 @@ def test_disabled_mode_answers_from_rules_before_the_policy_is_read(gated, wire,
 # --------------------------------------------------------------------------- #
 
 def test_active_provider_is_safe_to_render_and_names_what_is_sent(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "openai-compatible")
-    monkeypatch.setenv("PQC_LLM_BASE_URL", "https://llm.acme.example/v1")
-    monkeypatch.setenv("PQC_LLM_MODEL", "acme-7b")
-    monkeypatch.setenv("PQC_LLM_API_KEY", "console-secret-key")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "openai-compatible")
+    monkeypatch.setenv("MORROW_LLM_BASE_URL", "https://llm.acme.example/v1")
+    monkeypatch.setenv("MORROW_LLM_MODEL", "acme-7b")
+    monkeypatch.setenv("MORROW_LLM_API_KEY", "console-secret-key")
     from services import ai_agent
 
     described = ai_agent.active_provider("")
@@ -1536,9 +1536,9 @@ def test_the_anthropic_path_names_its_model_and_records_its_tokens(tmp_path, mon
     """The default deployment is the one most users see, so the attribution and
     the token ledger have to work there too -- not only on the new adapters."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "legacy.db"))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "legacy.db"))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
     import importlib
 
     from services import ai_privacy
@@ -1586,11 +1586,11 @@ class _Message:
 # --------------------------------------------------------------------------- #
 
 def test_the_health_check_states_the_provider_without_a_credential(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "openai-compatible")
-    monkeypatch.setenv("PQC_LLM_BASE_URL", "https://llm.acme.example/v1")
-    monkeypatch.setenv("PQC_LLM_MODEL", "acme-7b")
-    monkeypatch.setenv("PQC_LLM_API_KEY", "health-secret-key")
-    monkeypatch.setenv("PQC_LLM_TOOLS", "1")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "openai-compatible")
+    monkeypatch.setenv("MORROW_LLM_BASE_URL", "https://llm.acme.example/v1")
+    monkeypatch.setenv("MORROW_LLM_MODEL", "acme-7b")
+    monkeypatch.setenv("MORROW_LLM_API_KEY", "health-secret-key")
+    monkeypatch.setenv("MORROW_LLM_TOOLS", "1")
     import app
 
     check = app._ai_provider_health()
@@ -1601,7 +1601,7 @@ def test_the_health_check_states_the_provider_without_a_credential(monkeypatch):
 
 
 def test_the_health_check_calls_a_half_configured_provider_an_error(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "gemini")   # no key
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "gemini")   # no key
     import app
 
     check = app._ai_provider_health()
@@ -1610,12 +1610,12 @@ def test_the_health_check_calls_a_half_configured_provider_an_error(monkeypatch)
 
 
 def test_the_health_check_treats_the_builtin_answerer_as_a_valid_state(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     import app
 
     check = app._ai_provider_health()
     assert check["status"] == "configured", "a deliberate off switch is not a fault"
-    assert "PQC_LLM_DISABLED=1" in check["detail"]
+    assert "MORROW_LLM_DISABLED=1" in check["detail"]
 
 
 # --------------------------------------------------------------------------- #
@@ -1713,11 +1713,11 @@ def test_a_refused_header_name_is_rejected_with_a_reason(api):
 
 
 def test_a_disabled_deployment_refuses_a_per_organization_override(api, monkeypatch):
-    monkeypatch.setenv("PQC_LLM_DISABLED", "1")
+    monkeypatch.setenv("MORROW_LLM_DISABLED", "1")
     refused = api.put("/ai-control/provider", headers=ADMIN, json={"provider": "gemini",
                                                                    "api_key": "k"})
     assert refused.status_code == 409
-    assert "PQC_LLM_DISABLED=1" in refused.text
+    assert "MORROW_LLM_DISABLED=1" in refused.text
     assert api.get("/ai-control/provider", headers=ADMIN).json()["disabled"] is True
 
 
@@ -1760,17 +1760,17 @@ def test_the_test_prompt_says_when_the_policy_has_not_been_approved(api, wire):
 ])
 def test_naming_a_gateway_fills_in_its_base_url(named, expected_url, monkeypatch):
     """There is no reason to make an operator look up a URL they just named."""
-    monkeypatch.setenv("PQC_LLM_PROVIDER", named)
-    monkeypatch.setenv("PQC_LLM_MODEL", "some-model")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", named)
+    monkeypatch.setenv("MORROW_LLM_MODEL", "some-model")
     settings = config.from_environment()
     assert settings.provider == "openai-compatible"
     assert settings.base_url == expected_url
 
 
 def test_an_explicit_base_url_always_wins_over_the_implied_one(monkeypatch):
-    monkeypatch.setenv("PQC_LLM_PROVIDER", "groq")
-    monkeypatch.setenv("PQC_LLM_BASE_URL", "https://my-proxy.internal/v1")
-    monkeypatch.setenv("PQC_LLM_MODEL", "some-model")
+    monkeypatch.setenv("MORROW_LLM_PROVIDER", "groq")
+    monkeypatch.setenv("MORROW_LLM_BASE_URL", "https://my-proxy.internal/v1")
+    monkeypatch.setenv("MORROW_LLM_MODEL", "some-model")
     assert config.from_environment().base_url == "https://my-proxy.internal/v1"
 
 

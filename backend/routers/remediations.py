@@ -65,7 +65,7 @@ class RemediationDecisionRequest(BaseModel):
 
 class RemediationCreatePRRequest(BaseModel):
     github_credential_id: int
-    branch_prefix: str = "fix/pqc-remediation"
+    branch_prefix: str = "fix/pq-remediation"
     base_branch: str = ""
     title: str = ""
     body: str = ""
@@ -381,7 +381,7 @@ def create_remediations_router(
             if not repo_meta.get("ok"):
                 raise HTTPException(status_code=502, detail={"error": "failed to fetch repo metadata", "github": repo_meta})
             base = str((repo_meta.get("json") or {}).get("default_branch") or "main").strip() or "main"
-        branch_prefix = (req.branch_prefix or "fix/pqc-remediation").strip().rstrip("/")
+        branch_prefix = (req.branch_prefix or "fix/pq-remediation").strip().rstrip("/")
         branch = ""
         br: Dict[str, Any] = {}
         for _attempt in range(5):

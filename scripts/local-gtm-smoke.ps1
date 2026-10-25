@@ -101,7 +101,7 @@ if ($RunPytest) {
   Invoke-Step "Running backend regression suite" {
     Push-Location $BackendDir
     try {
-      docker compose --env-file .env -f compose.yml exec -T api sh -lc "PYTHONPATH=/app PQC_MAIN_DB_BACKEND=sqlite PQC_SCANNER_DB=/tmp/pqc_regression.sqlite pytest -q"
+      docker compose --env-file .env -f compose.yml exec -T api sh -lc "PYTHONPATH=/app MORROW_MAIN_DB_BACKEND=sqlite MORROW_SCANNER_DB=/tmp/pq_regression.sqlite pytest -q"
     } finally {
       Pop-Location
     }

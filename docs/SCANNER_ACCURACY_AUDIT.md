@@ -52,12 +52,12 @@ exercised.
 | all RSA/EC | key_type, TLS version, cipher, issuer, subject, notAfter, days-to-expiry | correct | correct | ✅ matched throughout |
 | all | `key_bits` / `key_curve` | **absent** | 2048 / 3072 / 4096 / 256 / 384 / 521, curve name | ✅ |
 | `ed25519` | key_type | `Ed25519PublicKey` | `Ed25519` | Ed25519 |
-| `ed25519` | pqc_relevance | `LOW` | `HIGH` | quantum-vulnerable |
+| `ed25519` | pq_relevance | `LOW` | `HIGH` | quantum-vulnerable |
 | `ed25519` | quantum_risk_level | `low` | `high` | high |
 | `ed25519` | classical_crypto_dependency | `False` | `True` | True |
 | `ed25519` | harvest_now_decrypt_later_risk | `unknown` | `high` | high |
 | `ed25519` | crypto_agility_score | `90` | `60` | — |
-| `ed25519` | quantum_readiness_level | `ready_to_track_pqc_rollout` | `needs_crypto_agility_work` | not ready |
+| `ed25519` | quantum_readiness_level | `ready_to_track_pq_rollout` | `needs_crypto_agility_work` | not ready |
 | `self_signed` | verify_reason | `other` (generic VERIFY_FAILED) | `untrusted_issuer` (VERIFY_UNTRUSTED_ISSUER) | self-signed |
 | `expired` | findings | CERT_EXPIRED + VERIFY_EXPIRED | unchanged | ✅ correct before and after |
 | `hostname_mismatch` | findings | CERT_HOST_NOT_IN_SAN + VERIFY_HOSTNAME_MISMATCH | unchanged | ✅ |
@@ -66,7 +66,7 @@ exercised.
 | `tls12_only` | tls_supported_versions | `["TLSv1.2"]`, NO_TLS13 fired | unchanged | ✅ |
 | 9115–9118 (4 failures) | findings | CERT_NO_CRL_DP, CERT_NO_OCSP_AIA, CHAIN_SHORT_OR_UNAVAILABLE | `SCAN_FAILED` only | no certificate exists |
 | 9115–9118 | quantum_risk_level | `low` | `unknown` | unknown |
-| 9115–9118 | pqc_relevance | `LOW` | `UNKNOWN` | unknown |
+| 9115–9118 | pq_relevance | `LOW` | `UNKNOWN` | unknown |
 | 9115–9118 | crypto_agility_score | `70` | `None` | no score is knowable |
 | 9115–9118 | quantum_readiness_level | `needs_crypto_agility_work` | `not_assessed` | not assessed |
 | 9115–9118 | scan_status | *(field did not exist)* | `timeout` / `unreachable` / `tls_error` | ✅ |
@@ -85,16 +85,16 @@ downstream.
 `scanner._pk_info()` recognised RSA and EC and fell through to `pk.__class__.__name__` for
 everything else, so an Ed25519 certificate was reported with `key_type = "Ed25519PublicKey"` — a
 string that matches no algorithm table in the product. Every consumer classified it "unknown", and
-unknown reads downstream as *not vulnerable*: the endpoint came out at `pqc_relevance: LOW`,
+unknown reads downstream as *not vulnerable*: the endpoint came out at `pq_relevance: LOW`,
 `quantum_risk_level: low`, `harvest_now_decrypt_later_risk: unknown`,
 `classical_crypto_dependency: false`, `crypto_agility_score: 90` and
-`quantum_readiness_level: ready_to_track_pqc_rollout`. EdDSA over Curve25519 is broken by Shor's
+`quantum_readiness_level: ready_to_track_pq_rollout`. EdDSA over Curve25519 is broken by Shor's
 algorithm exactly like ECDSA. The product told the customer a quantum-vulnerable endpoint was ready.
 
 **Fix** — `backend/scanner.py`: new `_pk_details()` names Ed25519/Ed448/X25519/X448/DSA/DH, returns
 `UNKNOWN` (not a class name) for anything genuinely unrecognised, and adds numeric `key_bits` and
 `key_curve`. `backend/policy.py`: `QUANTUM_VULNERABLE_KEY_TYPES` and
-`is_quantum_vulnerable_key_type()`; new rule `PQC_CLASSICAL_ENDPOINT` (high) for the EdDSA/DSA/DH
+`is_quantum_vulnerable_key_type()`; new rule `MORROW_CLASSICAL_ENDPOINT` (high) for the EdDSA/DSA/DH
 class; `derive_quantum_readiness` uses the full set for `classical_crypto_dependency`.
 
 ### B2 — A failed scan was reported as a graded, low-quantum-risk asset — **Critical**
@@ -102,7 +102,7 @@ class; `derive_quantum_readiness` uses the full set for `classical_crypto_depend
 With no certificate, no TLS version and no key, the rule set still fired three findings that assert
 things about a certificate that was never retrieved: "No CRL distribution points advertised", "No
 OCSP responder advertised (AIA)" and "Certificate chain short or unavailable". The endpoint was then
-scored `quantum_risk_level: low`, `pqc_relevance: LOW`, `crypto_agility_score: 70`,
+scored `quantum_risk_level: low`, `pq_relevance: LOW`, `crypto_agility_score: 70`,
 `quantum_readiness_level: needs_crypto_agility_work`, with the control list reading "Legacy crypto
 cleanup: acceptable — No weak TLS/cipher finding was produced" and "Certificate hygiene:
 acceptable". An unreachable host scored **better on quantum risk than a scanned RSA endpoint**, and
@@ -114,7 +114,7 @@ that could not fire.
 
 **Fix** — `backend/scanner.py`: `scan_status` and `error_code` fields, set by
 `_finalise_scan_status()`. `backend/policy.py`: `_scan_observed_crypto()` gates the three
-certificate rules; new `SCAN_FAILED` rule; `quantum_risk_level` and `pqc_relevance` become
+certificate rules; new `SCAN_FAILED` rule; `quantum_risk_level` and `pq_relevance` become
 `unknown`/`UNKNOWN`; `crypto_agility_score` becomes `None` and readiness `not_assessed`; the two
 control rows become `unknown` instead of `acceptable`. `backend/app.py`: the migration-report
 average excludes unscored assets rather than folding them in, and reports
@@ -124,7 +124,7 @@ average excludes unscored assets rather than folding them in, and reports
 
 `services/migration_velocity.py` held `ECDSA`, `ECDH`, `P-256` … in its vulnerable list but not the
 bare `"EC"`, which is exactly what `scan_results.key_type` stores for every elliptic-curve
-certificate — the same data-mapping bug as the one already found in `fips_pqc.py`. The report had
+certificate — the same data-mapping bug as the one already found in `fips_pq.py`. The report had
 only two buckets, so a non-match meant *safe*. A blank algorithm (a failed scan) also counted as
 safe.
 
@@ -136,15 +136,15 @@ two-bucket split with three: only an asset positively identified as ML-KEM/ML-DS
 NTRU/BIKE/HQC/XMSS/LMS counts as migrated. Unobserved algorithms are reported in a new
 `quantum_unknown_assets` field instead of being absorbed into "safe".
 
-### B4 — The compliance export marked Ed25519 and X25519 endpoints "PQC-safe, compliant: YES" — **Critical**
+### B4 — The compliance export marked Ed25519 and X25519 endpoints "quantum-safe, compliant: YES" — **Critical**
 
-`GET /compliance/export.csv` had `"x25519"` and `"ed25519"` in its `pqc_safe` set. Both are classical
+`GET /compliance/export.csv` had `"x25519"` and `"ed25519"` in its `pq_safe` set. Both are classical
 elliptic-curve algorithms broken by Shor. The Ed25519 fixture was exported to auditors as
-`compliant=YES, finding=PQC-safe`. Unreachable endpoints were exported as
-`compliant=NO, finding=" is quantum-vulnerable under NIST-PQC"` — a verdict on an asset that was
+`compliant=YES, finding=quantum-safe`. Unreachable endpoints were exported as
+`compliant=NO, finding=" is quantum-vulnerable under NIST-PQ"` — a verdict on an asset that was
 never contacted, with a blank algorithm name.
 
-**Fix** — `backend/app.py`: the PQC-safe set now contains only the NIST PQC families; an asset with
+**Fix** — `backend/app.py`: the quantum-safe set now contains only the NIST post-quantum families; an asset with
 no observed algorithm exports as `compliant=UNKNOWN` with an explicit "cryptography was not
 observed" finding.
 
@@ -220,7 +220,7 @@ neutral "info" tone. `unknown` already mapped to `info` — importantly, neither
 ### B11 — `scan_results` could not hold what the scanner observed — **High**
 
 The table was `(asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-pqc_relevance, tls_version, key_type, sig_algorithm, owner, team, environment, criticality)`. There
+pq_relevance, tls_version, key_type, sig_algorithm, owner, team, environment, criticality)`. There
 was no key size, no curve, no cipher suite and no scan status, so every org-level report had to
 invent the missing half of each observation:
 
@@ -231,7 +231,7 @@ invent the missing half of each observation:
 * `hndl._classify_algorithm()` bucketed every RSA asset as `rsa2048` and every EC asset as
   `ecc256`, so P-384/P-521 and RSA-3072/4096 endpoints were priced at the Q-Day probability of the
   weakest key in their family.
-* `fips_pqc.classify_algorithm()` has separate verdicts for RSA-2048 (`critical`), RSA-3072 and
+* `fips_pq.classify_algorithm()` has separate verdicts for RSA-2048 (`critical`), RSA-3072 and
   RSA-4096 (`high`), P-256 (`critical`), P-384 and P-521 (`high`) — none of which could ever be
   reached, because the caller only ever had the bare `"RSA"` or `"EC"`.
 * Three input builders in `backend/app.py` (ZK compliance attestation, insurance underwriting
@@ -245,7 +245,7 @@ observed* and every reader renders it as unknown. New module `backend/scan_obser
 single mapping from `scan_host()` output to those columns, shared by both backends so they cannot
 drift. `canonical_algorithm()` returns `None` for a bare RSA/EC with no size instead of guessing;
 `hndl._classify_algorithm()` returns `unknown_classical` rather than `rsa2048`;
-`fips_pqc.classify_algorithm()` takes exact matches before prefix matches, which also removes the
+`fips_pq.classify_algorithm()` takes exact matches before prefix matches, which also removes the
 undocumented load-bearing ordering noted in §5.5; the four hardcoded `"rsa"`/`2048` defaults now
 read `""` / `0`. `/cbom.csv` and `/compliance/export.csv` carry the observed key size as its own
 column, empty when it was not observed.
@@ -291,14 +291,14 @@ field that matters most: whether an endpoint has already enabled `X25519MLKEM768
 appear, so the count was structurally 0 — a fixed 10-point deduction on every estate and an
 unreachable `verified` status. `hndl._classify_algorithm()` looked for "kyber"/"mlkem" in the
 cipher-suite name; TLS 1.3 suite names (`TLS_AES_256_GCM_SHA384`) never name the key exchange, so
-the `pqc_hybrid` and `pqc_pure` Q-Day buckets were unreachable from any TLS 1.3 scan.
+the `pq_hybrid` and `pq_pure` Q-Day buckets were unreachable from any TLS 1.3 scan.
 
 The previous audit concluded this needed an OpenSSL upgrade. It does not — see §6 for what was
 actually possible and why.
 
 **Fix** — `scanner._probe_key_exchange_group()` builds a TLS ClientHello by hand and parses the
 ServerHello. `scan_host()` gains `key_exchange`, `key_exchange_group_id`, `key_exchange_family`
-(`pqc_hybrid` / `pqc_pure` / `classical`), `key_exchange_observed`,
+(`pq_hybrid` / `pq_pure` / `classical`), `key_exchange_observed`,
 `key_exchange_observation_method`, `key_exchange_unobservable_reason` and
 `key_exchange_hello_retry`. The group is persisted on `scan_results` and consumed by the CBOM, the
 HNDL buckets and the trust passport, whose evidence block now reports
@@ -325,10 +325,10 @@ figures.
 | Migration velocity — "% migrated" | EC assets counted as migrated. Fixture estate: **44.4%**, 8 of 18 "quantum-safe" | **0%**, 0 safe, 14 vulnerable, 4 unknown. **Progress will drop for every customer with ECDSA certificates** |
 | Migration velocity — response shape | two buckets | new `quantum_unknown_assets` field |
 | Trust passport (shareable) | fixture estate scored **90 / monitored**, `high_risk_findings: 0` | **45 / action_required**, `high_risk_findings: 10`. Scores will fall across the board; estates with high-risk assets may move from `monitored` to `action_required` |
-| Compliance export CSV | Ed25519/X25519 rows `compliant=YES, PQC-safe` | `compliant=NO, quantum-vulnerable`. Unscanned rows move from `NO` to `UNKNOWN` |
+| Compliance export CSV | Ed25519/X25519 rows `compliant=YES, quantum-safe` | `compliant=NO, quantum-vulnerable`. Unscanned rows move from `NO` to `UNKNOWN` |
 | Org CBOM (`GET /cbom`) | 1 component | 14 protocols + 14 certificates + algorithms |
 | Per-scan CBOM (`/scans/{id}/cbom.json`) | no certificate components | certificates with public key and signature algorithm refs |
-| Ed25519 endpoints everywhere | `pqc_relevance LOW`, `quantum_risk_level low`, agility 90, "ready to track PQC rollout" | `HIGH` / `high` / 60 / "needs crypto agility work". Org-level risk counts rise |
+| Ed25519 endpoints everywhere | `pq_relevance LOW`, `quantum_risk_level low`, agility 90, "ready to track post-quantum rollout" | `HIGH` / `high` / 60 / "needs crypto agility work". Org-level risk counts rise |
 | Unreachable / non-TLS / timed-out endpoints | agility score 70, readiness "needs_crypto_agility_work", `quantum_risk_level low` | `crypto_agility_score: null`, readiness `not_assessed`, `quantum_risk_level unknown` |
 | Average crypto-agility score | unscanned assets folded in at 70 | excluded; new `assets_with_agility_score` / `assets_not_assessed` counters |
 | Scan result shape | — | new fields `scan_status`, `error_code`, `key_bits`, `key_curve` |
@@ -341,7 +341,7 @@ figures.
 | `GET /hndl/dashboard` on a scanned-only estate | `asset_count: 0`, `total_exposure_usd: 0` | real asset count and exposure. **A customer who has only ever scanned goes from $0 to a non-zero figure** |
 | HNDL exposure per asset | every RSA asset priced at the RSA-2048 curve, every EC asset at P-256's | priced at the observed size. **Exposure falls for RSA-3072/4096 and P-384/P-521 endpoints** (the old figure overstated it) |
 | HNDL asset never scanned | priced at `unknown_classical` and folded into the org total | `exposure_usd: null`, `risk_tier: "unmeasured"`, excluded from the total; new `measured_asset_count` / `unmeasured_asset_count` / `exposure_basis` |
-| HNDL `pqc_hybrid` / `pqc_pure` buckets | unreachable | reached when the observed group is hybrid or pure ML-KEM |
+| HNDL `pq_hybrid` / `pq_pure` buckets | unreachable | reached when the observed group is hybrid or pure ML-KEM |
 | FIPS report / compliance mapping | every RSA asset graded at the RSA-2048 verdict (`critical`), every EC asset at P-256's | RSA-3072/4096 and P-384/P-521 grade `high`. **Org FIPS scores rise slightly for estates with larger keys** |
 | Trust passport `hybrid_tls_observations` | structurally always 0, costing a fixed 10 points | counted from the observed group; new `key_exchange_observed_endpoints`, `key_exchange_unobserved_endpoints`, `hybrid_tls_basis`. The 10-point deduction no longer applies where nothing was observed, so scores rise for estates that have not been re-scanned |
 | ZK compliance attestation, insurance underwriting export, actuarial risk, migration autopilot | an unscanned asset was submitted as **RSA-2048 over TLS 1.2** | `key_type: ""`, `key_bits: 0`, `tls_version: ""` |
@@ -355,7 +355,7 @@ figures.
 
 * `backend/test_scanner_accuracy.py`
   * `test_ground_truth_matrix` — table-driven over RSA 2048/3072/4096, P-256/384/521 and Ed25519,
-    asserting key type, key bits, curve, classical dependency, PQC relevance, quantum risk level,
+    asserting key type, key bits, curve, classical dependency, post-quantum relevance, quantum risk level,
     HNDL tier and readiness. A new key type cannot be added without an answer in every column.
   * `test_ed25519_is_quantum_vulnerable_not_unknown` (B1)
   * `test_ec_curve_size_is_reported_numerically` (B1 / key_bits)
@@ -365,15 +365,15 @@ figures.
     no fabricated certificate findings, unknown not low, no agility score.
   * `test_self_signed_certificate_is_classified_as_untrusted_issuer` (B9)
 * `backend/test_scan_pipeline_accuracy.py` (new) — the downstream half:
-  * migration velocity over EC / blank / every classical key type / PQC algorithms (B3)
+  * migration velocity over EC / blank / every classical key type / post-quantum algorithms (B3)
   * `generate_cbom` on genuinely scanner-shaped input, plus a key-size table (B5)
-  * `/compliance/export.csv` over a seeded estate — Ed25519 is not PQC-safe, unknown is UNKNOWN (B4)
+  * `/compliance/export.csv` over a seeded estate — Ed25519 is not quantum-safe, unknown is UNKNOWN (B4)
   * `/cbom` is not a single empty endpoint (B6)
   * `/trust-passport` reflects high-risk assets (B7)
 
 * `backend/test_scanner_accuracy.py` — key-exchange observation (B13)
   * `test_negotiated_key_exchange_group_is_observed` — x25519 on TLS 1.3, secp384r1 through a
-    HelloRetryRequest (the reply shape a PQC-enabled server gives), secp521r1 on TLS 1.2
+    HelloRetryRequest (the reply shape a post-quantum-enabled server gives), secp521r1 on TLS 1.2
   * `test_hybrid_post_quantum_key_exchange_is_recognised` — a fixture server returns a real,
     spec-shaped HelloRetryRequest naming `X25519MLKEM768` (0x11EC). No TLS stack available here
     can *perform* hybrid key exchange, so handing the scanner the bytes such a server would send
@@ -400,7 +400,7 @@ figures.
   * `test_trust_passport_counts_hybrid_key_exchange_it_actually_observed` (B13)
   * `test_populated_sqlite_database_upgrades_cleanly`,
     `test_populated_sqlite_database_upgrades_through_alembic`,
-    `test_populated_postgres_database_upgrades_cleanly` (skipped unless `PQC_TEST_PG_DSN` is set)
+    `test_populated_postgres_database_upgrades_cleanly` (skipped unless `MORROW_TEST_PG_DSN` is set)
     — each builds a database in the *pre-change* shape, fills it with rows, upgrades it, and
     checks that Ed25519/X25519 were backfilled while RSA and EC stayed NULL
 
@@ -433,7 +433,7 @@ what changed.
 4. **`services/dev_portal.list_findings_for_scope`** (B10) — still queries eight non-existent
    columns inside a bare `except`.
 
-5. ~~**`fips_pqc.classify_algorithm` uses prefix matching over an ordered dict.**~~ *(fixed with
+5. ~~**`fips_pq.classify_algorithm` uses prefix matching over an ordered dict.**~~ *(fixed with
    B11)* The ordering was load-bearing and undocumented — moving `"EC"` earlier would silently
    reclassify every ECDH asset — and it was also why `"RSA-4096"` hit the bare `"RSA"` row and was
    graded `critical` instead of its own `high`. Exact matches are now taken across all three tables
@@ -448,8 +448,8 @@ what changed.
    key_type` substring test. The probability curve is close enough that it is not a live defect, but
    it matches by coincidence rather than by classification.
 
-8. **Not verified:** PQC certificates (ML-DSA/SLH-DSA — `cryptography` cannot mint them and no
-   PQC-capable TLS stack is installed), and the SSH and code scanners, which were out of scope.
+8. **Not verified:** Post-quantum certificates (ML-DSA/SLH-DSA — `cryptography` cannot mint them and no
+   post-quantum-capable TLS stack is installed), and the SSH and code scanners, which were out of scope.
    Postgres is no longer on this list: the schema change was applied to a populated Postgres
    database through both the runtime path and an alembic upgrade, and the scan → asset → report
    path was exercised end to end against a real server (see §4). The `assets` table is now
@@ -485,7 +485,7 @@ It needs no TLS library, no new dependency and no completed handshake: the serve
   (0x11EB), `SecP384r1MLKEM1024` (0x11ED) and the pre-standard Kyber draft code points, followed
   by the classical groups. The ClientHello carries a single x25519 key share.
 * A server that prefers a group we sent no share for answers with a **HelloRetryRequest naming
-  that group** — which is exactly what a PQC-enabled server does. Both the ServerHello and the
+  that group** — which is exactly what a post-quantum-enabled server does. Both the ServerHello and the
   HelloRetryRequest branch are parsed, so the hybrid case is reachable and is covered by a test.
 * TLS 1.2 is covered too: the named curve is read from `ServerKeyExchange` in the same flight.
 * Every failure path sets `key_exchange_observed: False` with a `key_exchange_unobservable_reason`
@@ -502,11 +502,11 @@ Against local fixtures (`cryptography`-minted certificates, loopback only):
 | TLS 1.3, server restricted to X25519 | `x25519`, `classical` |
 | TLS 1.3, server restricted to secp384r1 | `secp384r1`, `classical`, **HelloRetryRequest** |
 | TLS 1.2, server restricted to secp521r1 | `secp521r1`, `classical` |
-| Server answering with a HelloRetryRequest naming 0x11EC | `X25519MLKEM768`, **`pqc_hybrid`** |
+| Server answering with a HelloRetryRequest naming 0x11EC | `X25519MLKEM768`, **`pq_hybrid`** |
 | Closed port | not observed — "connection failed: …" |
 | Plaintext HTTP | not observed — "no ServerHello in the first flight" |
 
-The hybrid row is a synthesised ServerHello rather than a live PQC server, and that is a real limit
+The hybrid row is a synthesised ServerHello rather than a live post-quantum server, and that is a real limit
 of this evidence: no TLS stack installed here can perform hybrid key exchange, so the handshake
 *after* the HelloRetryRequest cannot be exercised. The probe never gets that far — it reads the
 group and closes the socket — so what is proven is exactly what the product relies on: the group is
@@ -524,9 +524,9 @@ rather than penalising an estate for a measurement nobody took.
 ### Still open
 
 * No post-quantum **certificate** can be minted or served here (`cryptography` cannot produce
-  ML-DSA/SLH-DSA certificates and no PQC-capable TLS stack is installed), so the `pqc_pure`
+  ML-DSA/SLH-DSA certificates and no post-quantum-capable TLS stack is installed), so the `pq_pure`
   classification of a *signature* algorithm remains untested against a live endpoint. The
-  key-exchange side of `pqc_pure` (a bare ML-KEM group) is covered by the classifier tests only.
+  key-exchange side of `pq_pure` (a bare ML-KEM group) is covered by the classifier tests only.
 * The probe reports which group the server selects **from what this scanner offers**. That is the
   right measurement for "has this endpoint enabled hybrid key exchange", but it is not a
   transcript of what the endpoint negotiates with any particular real client.

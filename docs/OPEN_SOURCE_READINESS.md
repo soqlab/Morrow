@@ -57,11 +57,11 @@ prefix).
 
 | Finding | Location | Verdict |
 |---|---|---|
-| `postgresql://pqc:pqc@…` ×54 | `backend/compose.yml`, `.github/workflows/ci.yml` | Local dev and CI service credentials for a throwaway container. Benign. |
+| `postgresql://morrow:morrow@…` ×54 | `backend/compose.yml`, `.github/workflows/ci.yml` | Local dev and CI service credentials for a throwaway container. Benign. |
 | `postgresql://unused:unused@localhost/unused` | `backend/alembic.ini` | Placeholder; Alembic reads the real URL from the environment. Benign. |
-| `PQC_VAULT_MASTER_KEY` ×6 | `.github/workflows/ci.yml` | Base64 of the ASCII string `pqc-scanner-test-only-key-32byte`, with a comment saying so. A deliberate throwaway Fernet key. Benign. |
+| `MORROW_VAULT_MASTER_KEY` ×6 | `.github/workflows/ci.yml` | Base64 of the ASCII string `morrow-test-only-key-32byte`, with a comment saying so. A deliberate throwaway Fernet key. Benign. |
 | PEM `PRIVATE KEY` headers ×78 | `backend/services/secrets_scanner.py`, `backend/app.py`, `backend/static/index.html`, tests | **The product's own detection patterns** — this is a scanner that looks for leaked keys. Verified: no header anywhere in history is followed by base64 key material. Benign by design. |
-| `token_hash = …` ×29 | `backend/services/auth_issuer.py`, `backend/services/operator_auth.py` | False positive: the matched "value" is the SQL string `INSERT OR REPLACE INTO pqc_refresh_tokens (token_hash, …)`. The code hashes a `secrets.token_urlsafe(48)` generated at runtime. Benign. |
+| `token_hash = …` ×29 | `backend/services/auth_issuer.py`, `backend/services/operator_auth.py` | False positive: the matched "value" is the SQL string `INSERT OR REPLACE INTO morrow_refresh_tokens (token_hash, …)`. The code hashes a `secrets.token_urlsafe(48)` generated at runtime. Benign. |
 | `AKIA…` ×12 | `backend/static/index.html` | An HTML `placeholder=` attribute on the AWS key-ID input field. Benign. |
 | `AKIA…` ×1 | `backend/test_secrets_scanner_aws.py` | AWS's own published documentation example key. Benign. |
 | Slack webhook ×3 | `backend/test_security_review_findings.py`, private security review | Synthetic fixture of the form `…/T000…/REVIEW…/SECRET…`. Benign. |
@@ -115,7 +115,7 @@ found later, the procedure is:
 
 | What | Where | Action taken |
 |---|---|---|
-| **Live Cloud Run hostname** `pqc-api-…-ew.a.run.app` | `docs/COMPLETE_DOCUMENTATION.md` (5), `docs/TRY_IT_IN_THE_CLOUD.md` (3), `docs/USER_GUIDE.md` (2) | **Replaced with `YOUR_DEPLOYED_HOST`.** This was a reachable, deployed service presented as the live app UI and an org compliance-report endpoint — publishing it invites traffic and probing. |
+| **Live Cloud Run hostname** `pq-api-…-ew.a.run.app` | `docs/COMPLETE_DOCUMENTATION.md` (5), `docs/TRY_IT_IN_THE_CLOUD.md` (3), `docs/USER_GUIDE.md` (2) | **Replaced with `YOUR_DEPLOYED_HOST`.** This was a reachable, deployed service presented as the live app UI and an org compliance-report endpoint — publishing it invites traffic and probing. |
 
 **Note:** the hostname remains in git history. It is a hostname, not a credential, so this is a
 nuisance rather than a breach — but it is one more argument for [section 6](#6-the-history-problem).
@@ -181,12 +181,12 @@ artefacts.
 
 ## 5. What was moved out, and why
 
-Moved to **`../pqc-scanner-private/`**, preserved rather than deleted. Nothing was removed silently;
+Moved to **`../morrow-private/`**, preserved rather than deleted. Nothing was removed silently;
 every file below is listed so the owner can relocate it to a private repository.
 
 ### The security review — the delicate case
 
-`pqc-scanner-private/docs/SECURITY_REVIEW_2026-09.md` (58 KB, 860 lines) documents 17 findings: 14 fixed with named
+`morrow-private/docs/SECURITY_REVIEW_2026-09.md` (58 KB, 860 lines) documents 17 findings: 14 fixed with named
 regression tests, and **three still open**.
 
 Publishing the fixed findings would be good practice. Publishing the open ones would not. The file
@@ -236,7 +236,7 @@ publishes unflattering scale ceilings in a form that reads as a vulnerability in
 |---|---|
 | `reports/` (5.6 MB, 46 tracked files) | Dated internal release-evidence bundles from specific local runs. Verified free of secrets (localhost URLs only), but point-in-time internal artefacts of no value to a reader. |
 | `scripts/launch-collateral-check.ps1` | Gates on the presence of the GTM collateral above; broken without it. |
-| `pqc-scanner-private/scripts/open-demo-recording.ps1` | Opens the moved marketing storyboard. |
+| `morrow-private/scripts/open-demo-recording.ps1` | Opens the moved marketing storyboard. |
 
 Seven cross-references from documents that remain were rewritten to say the material is maintained
 privately, rather than left as broken links.
@@ -398,7 +398,7 @@ present** and every relevant environment variable unset.
 | `docker compose run --rm seed` | **Pass** — 38 assets, 8 scans of history, CBOM readable |
 
 `/health/deep` on an unconfigured server returns exactly the right thing: the two deliberately
-insecure local defaults (`PQC_AUTH_MODE=headers`, `PQC_DEFAULT_ROLE=admin`) and the unset
+insecure local defaults (`MORROW_AUTH_MODE=headers`, `MORROW_DEFAULT_ROLE=admin`) and the unset
 `SENTRY_DSN`, each naming the variable to change. That is a genuinely good first-run experience and
 nothing needed changing.
 
@@ -412,11 +412,11 @@ nothing needed changing.
    when no database URL is configured, instead of failing. **This would have broken the quick start
    for every single newcomer.**
 2. **The seeder failed on its first direct write.** It authenticated over HTTP, then raised
-   `PQC_PRODUCT_DATABASE_URL is required for Postgres cutover` because the seed container inherited
-   the Dockerfile's `PQC_MAIN_DB_BACKEND=postgres` default. Fixed in `docker-compose.yml`.
+   `MORROW_PRODUCT_DATABASE_URL is required for Postgres cutover` because the seed container inherited
+   the Dockerfile's `MORROW_MAIN_DB_BACKEND=postgres` default. Fixed in `docker-compose.yml`.
 3. **The seeder assumed a repository-root layout.** The image contains only `backend/`, with no repo
-   root above it. `demo/video/seed-demo-data.py` now honours `PQC_BACKEND_DIR`, `PQC_DEMO_EMAIL` and
-   `PQC_DEMO_PASSWORD` so it works both from a checkout and inside a container.
+   root above it. `demo/video/seed-demo-data.py` now honours `MORROW_BACKEND_DIR`, `MORROW_DEMO_EMAIL` and
+   `MORROW_DEMO_PASSWORD` so it works both from a checkout and inside a container.
 
 ### Test suite
 
@@ -427,7 +427,7 @@ Run from the clean export with no credentials and no services available:
 ```
 
 The 61 skips are the correct behaviour: tests needing a real Postgres, Redis or third-party API skip
-with a reason naming the variable that enables them (`PQC_TEST_PG_DSN`, `PQC_TEST_REDIS_URL`), rather
+with a reason naming the variable that enables them (`MORROW_TEST_PG_DSN`, `MORROW_TEST_REDIS_URL`), rather
 than failing. **No test needs a credential to pass**, which is the contract
 `.github/workflows/tests.yml` depends on.
 
@@ -496,7 +496,7 @@ accept an absolute path) or tighten the guard so it skips unless explicitly enab
 
 `demo/video/demo.db` is now git-ignored. The workspace is built by
 `demo/video/seed-demo-data.py`, which generates every row through the platform's own evaluation
-pipeline (`policy.evaluate_policies` → `derive_risk_and_score` → `derive_pqc_relevance` →
+pipeline (`policy.evaluate_policies` → `derive_risk_and_score` → `derive_pq_relevance` →
 `derive_quantum_readiness`) and posts it through the API, so the dashboards are internally consistent
 rather than hand-written numbers. The company (`Example Financial Group`), every hostname
 (`*.example.com`, `*.internal.example`) and every certificate issuer are invented.
@@ -548,8 +548,8 @@ These are now two deliberately different documents rather than overlapping appen
 
 Each now points at the other, so a reader is never in the wrong file. The AI section of
 `.env.example` was reconciled against the provider-agnostic layer in `backend/services/llm/` and
-uses its real variable names (`PQC_LLM_PROVIDER`, `PQC_LLM_API_KEY`, `PQC_LLM_BASE_URL`,
-`PQC_LLM_DISABLED`, …) and its real provider ids (`anthropic`, `openai`, `azure-openai`, `gemini`,
+uses its real variable names (`MORROW_LLM_PROVIDER`, `MORROW_LLM_API_KEY`, `MORROW_LLM_BASE_URL`,
+`MORROW_LLM_DISABLED`, …) and its real provider ids (`anthropic`, `openai`, `azure-openai`, `gemini`,
 `openai-compatible`, `ollama`, `builtin`, `custom`), cross-referenced to `docs/AI_PROVIDERS.md`.
 
 ---
@@ -564,7 +564,7 @@ uses its real variable names (`PQC_LLM_PROVIDER`, `PQC_LLM_API_KEY`, `PQC_LLM_BA
 - [ ] **Resolve Terraform BUSL-1.1** in `backend/Dockerfile`: OpenTofu, pin 1.5.7, or make it
       operator-supplied. Until then every published image redistributes a non-open-source binary
       without its licence text.
-- [ ] **Move `../pqc-scanner-private/` into a private repository** so it is backed up rather than
+- [ ] **Move `../morrow-private/` into a private repository** so it is backed up rather than
       sitting in a sibling directory.
 - [ ] **Rotate any credential** that has ever been in a local `.env`, a screenshot, a terminal or a
       chat window. The scan proves nothing leaked *via git*; it cannot prove anything else.
@@ -599,7 +599,7 @@ launched separately. Full reasoning in [section 11](#11-planned-public-osint-mod
 - [ ] Enable Dependabot alerts and security updates.
 - [ ] Pin `bandit` and `pip-audit` in `.github/workflows/security.yml` — currently unpinned, so a new
       release can turn a green build red with no commit.
-- [ ] Set the repository description, topics (`post-quantum-cryptography`, `pqc`, `cbom`,
+- [ ] Set the repository description, topics (`post-quantum-cryptography`, `pq`, `cbom`,
       `cryptography`, `security`, `fastapi`) and social preview image.
 - [ ] Run `go-licenses report ./...` in `gateway/` to confirm the Go licences from metadata rather
       than knowledge, since that module graph is statically linked into a distributed binary.

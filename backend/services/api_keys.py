@@ -1,6 +1,6 @@
 """Per-organization API keys.
 
-Format: ``pqc_<12 hex prefix>_<secret>``. Only a salted HMAC-SHA256 of the full key
+Format: ``pq_<12 hex prefix>_<secret>``. Only a salted HMAC-SHA256 of the full key
 is stored, next to the public prefix used to find the row. The secret is shown
 exactly once, when the key is created or rotated.
 
@@ -13,7 +13,7 @@ cannot be pointed at another tenant. Scopes map onto the existing roles:
     admin -> admin    (implies write and read)
 
 API keys never authenticate /platform/*, /admin/* or credential-management /auth/*
-routes. Verified keys are cached per process for PQC_API_KEY_CACHE_SECONDS
+routes. Verified keys are cached per process for MORROW_API_KEY_CACHE_SECONDS
 (default 15): revocation is immediate on the replica that revoked the key and
 takes at most that long elsewhere.
 """
@@ -36,14 +36,14 @@ from services import route_paths as _route_paths
 
 logger = logging.getLogger(__name__)
 
-TOKEN_PREFIX = "pqc_"
+TOKEN_PREFIX = "pq_"
 SCOPES = ("read", "write", "admin")
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 BLOCKED_PREFIXES = ("/platform", "/admin", "/vendor-admin")
 AUTH_READ_ALLOWED = frozenset({"/auth/context", "/auth/memberships"})
 MAX_EXPIRY_DAYS = 730
 
-_TOKEN_RE = re.compile(r"^pqc_([0-9a-f]{12})_([A-Za-z0-9_-]{32,128})$")
+_TOKEN_RE = re.compile(r"^pq_([0-9a-f]{12})_([A-Za-z0-9_-]{32,128})$")
 _LOCK = threading.Lock()
 _VERIFY_CACHE: Dict[str, Tuple[float, str, Dict[str, Any]]] = {}
 _LAST_TOUCH: Dict[str, float] = {}
@@ -75,13 +75,13 @@ def _parse(value: str) -> Optional[datetime]:
 
 def _cache_seconds() -> float:
     try:
-        return max(0.0, float(os.getenv("PQC_API_KEY_CACHE_SECONDS", "15") or 15))
+        return max(0.0, float(os.getenv("MORROW_API_KEY_CACHE_SECONDS", "15") or 15))
     except ValueError:
         return 15.0
 
 
 def _db_identity() -> str:
-    return f"{os.getenv('PQC_FEATURE_STORE_BACKEND', '')}|{os.getenv('PQC_SCANNER_DB', '')}"
+    return f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}"
 
 
 _TABLES_READY: set = set()

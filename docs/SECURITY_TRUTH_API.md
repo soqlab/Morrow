@@ -4,7 +4,7 @@ The Security Truth API is the external guardrail contract for coding agents, IDE
 
 It answers one question:
 
-> Is this proposed change allowed by the organization's PQC/security policy?
+> Is this proposed change allowed by the organization's post-quantum/security policy?
 
 ## Endpoint
 
@@ -17,7 +17,7 @@ The endpoint is read/evaluate only. It does not merge, approve, apply, or revert
 For external tools, configure:
 
 ```text
-PQC_TOOL_API_KEYS=wiz:REDACTED_KEY:guardrails:evaluate|findings:write|findings:read|write_path:request
+MORROW_TOOL_API_KEYS=wiz:REDACTED_KEY:guardrails:evaluate|findings:write|findings:read|write_path:request
 ```
 
 Then call APIs with:

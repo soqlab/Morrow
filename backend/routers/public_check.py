@@ -140,14 +140,14 @@ def create_public_check_router(deps: Any) -> APIRouter:
     # API being used to hammer the checker; a record page is meant to be crawled, shared and
     # embedded, and applying the checker's budget to it would throttle exactly the traffic the
     # registry exists to attract -- a search engine indexing a catalogue would collect 429s.
-    # They are still covered by the limiter's per-IP default (PQC_RATE_LIMIT_DEFAULT, 300/minute)
+    # They are still covered by the limiter's per-IP default (MORROW_RATE_LIMIT_DEFAULT, 300/minute)
     # and by the request-count middleware, and none of them can start a check, so the worst a
     # flood achieves is reading cached HTML.
 
     def _origin(request: Request) -> str:
         """The address to build absolute URLs from.
 
-        PQC_PUBLIC_BASE_URL when the deployment sets it, because that is the host people type and
+        MORROW_PUBLIC_BASE_URL when the deployment sets it, because that is the host people type and
         the one a canonical link and a badge URL have to name. request.base_url is the fallback,
         and behind a proxy it is only right if forwarded headers are honoured -- which is why the
         configured value wins.
@@ -306,7 +306,7 @@ def create_public_check_router(deps: Any) -> APIRouter:
         """An opted-out domain is refused on every read route, not only the HTML one.
 
         Adding an opt-out deletes the cached result, so these routes usually have nothing to serve
-        anyway. "Usually" is not a guarantee: a domain added through PQC_PUBLIC_CHECK_OPTOUT_DOMAINS
+        anyway. "Usually" is not a guarantee: a domain added through MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS
         deletes nothing, and a cached result from before the opt-out would then still have been
         downloadable as JSON and as a CBOM while the page itself answered 403. The guard is cheap
         and the promise made to a domain owner is unconditional, so it is made on every route.
@@ -377,7 +377,7 @@ def create_public_check_router(deps: Any) -> APIRouter:
                                 headers={"Cache-Control": "no-store"})
         return JSONResponse(_check.export_json(result), headers={
             "Cache-Control": _RESULT_CACHE_CONTROL,
-            "Content-Disposition": f'attachment; filename="pqc-check-{host}.json"'})
+            "Content-Disposition": f'attachment; filename="pq-check-{host}.json"'})
 
     @router.get("/api/public-check/{domain}/cbom.json")
     @deps.limiter.limit(deps.public_check_rate)
@@ -396,7 +396,7 @@ def create_public_check_router(deps: Any) -> APIRouter:
                                 headers={"Cache-Control": "no-store"})
         return JSONResponse(_check.export_cbom(result), headers={
             "Cache-Control": _RESULT_CACHE_CONTROL,
-            "Content-Disposition": f'attachment; filename="pqc-check-{host}-cbom.json"'})
+            "Content-Disposition": f'attachment; filename="pq-check-{host}-cbom.json"'})
 
     # ── Operator surface ─────────────────────────────────────────────────────
 

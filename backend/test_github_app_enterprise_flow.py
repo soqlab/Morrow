@@ -11,8 +11,8 @@ from integrations import github_app as github_app_mod
 def _setup_tmp_db():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
     tmp_db.close()
-    os.environ["PQC_MAIN_DB_BACKEND"] = ""
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_MAIN_DB_BACKEND"] = ""
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     init_db()

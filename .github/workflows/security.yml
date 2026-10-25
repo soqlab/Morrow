@@ -63,13 +63,13 @@ jobs:
         with:
           python-version: "3.11"
       - name: Build the actual production image
-        run: docker build -t pqc-security-check backend
+        run: docker build -t pq-security-check backend
       - name: Verify isolated image startup and fail-closed production entrypoint
-        run: python scripts/test-production-image.py --image pqc-security-check --output-dir image-smoke
+        run: python scripts/test-production-image.py --image pq-security-check --output-dir image-smoke
       - name: Inventory the complete installed environment
         run: |
-          docker run --rm --network none pqc-security-check python -m pip check
-          docker run --rm --network none pqc-security-check python -m pip list --format=json > image-packages.json
+          docker run --rm --network none pq-security-check python -m pip check
+          docker run --rm --network none pq-security-check python -m pip list --format=json > image-packages.json
           python - <<'PY'
           import json
           from pathlib import Path

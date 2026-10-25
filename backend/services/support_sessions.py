@@ -35,7 +35,7 @@ Rules, in order:
     the presenting session itself;
   * the path must not match DENY_* and must match ALLOWED_GET_ROUTES.
 
-Tokens are signed with the built-in issuer's key (PQC_AUTH_JWT_SECRET) with role "viewer" and a
+Tokens are signed with the built-in issuer's key (MORROW_AUTH_JWT_SECRET) with role "viewer" and a
 subject that can never match an organization member, so the normal role checks treat support as a
 viewer. The token is never accepted by the ordinary JWT path because this check runs first.
 """
@@ -123,7 +123,7 @@ ALLOWED_GET_ROUTES: Tuple[str, ...] = (
     "/metrics/trends", "/metrics/scan/{scan_id}/overview", "/migration-tasks", "/migration-velocity",
     "/crypto-agility", "/crypto-mesh", "/crypto-mesh/profiles", "/dark-matter/map", "/security-graph",
     "/peer-benchmark", "/peer-benchmark/sectors", "/roi-calculator/effort-catalog", "/roi-calculator/sectors",
-    "/fips-pqc/report", "/hybrid-cert/libraries", "/pqc-codegen/targets", "/providers/capabilities",
+    "/fips-pq/report", "/hybrid-cert/libraries", "/pq-codegen/targets", "/providers/capabilities",
     "/providers/{provider}/playbook", "/org/compliance-report",
     "/org/{organization_id}/agility-leaderboard", "/org/{organization_id}/crypto-weather",
     "/org/{organization_id}/drift-analytics", "/org/{organization_id}/flight-recorder",
@@ -283,14 +283,14 @@ def _parse(value: Any) -> Optional[datetime]:
 
 def _cache_seconds() -> float:
     try:
-        value = float(os.getenv("PQC_SUPPORT_SESSION_CACHE_SECONDS", "5") or 5)
+        value = float(os.getenv("MORROW_SUPPORT_SESSION_CACHE_SECONDS", "5") or 5)
     except ValueError:
         value = 5.0
     return max(0.0, min(value, 5.0))  # never longer than 5 seconds
 
 
 def _db_identity() -> str:
-    return f"{os.getenv('PQC_FEATURE_STORE_BACKEND', '')}|{os.getenv('PQC_SCANNER_DB', '')}"
+    return f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}"
 
 
 _TABLES_READY: set = set()
@@ -395,7 +395,7 @@ def get_session(session_id: str) -> Optional[Dict[str, Any]]:
 
 
 def cached_session(session_id: str) -> Optional[Dict[str, Any]]:
-    """Session row, re-read at most every PQC_SUPPORT_SESSION_CACHE_SECONDS (capped at 5)."""
+    """Session row, re-read at most every MORROW_SUPPORT_SESSION_CACHE_SECONDS (capped at 5)."""
     identity = _db_identity()
     now = time.monotonic()
     with _LOCK:
@@ -590,7 +590,7 @@ def _signing_key() -> str:
 
     secret = str(getattr(auth_issuer, "_SECRET", "") or "").strip()
     if not secret:
-        raise SupportSessionError(503, "Support sessions need a token signing key: set PQC_AUTH_JWT_SECRET on the server.")
+        raise SupportSessionError(503, "Support sessions need a token signing key: set MORROW_AUTH_JWT_SECRET on the server.")
     return secret
 
 

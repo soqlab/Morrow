@@ -4,15 +4,15 @@ from fastapi.testclient import TestClient
 
 
 def _load_app(tmp_path, monkeypatch):
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "security_truth.db"))
-    monkeypatch.setenv("PQC_DEFAULT_ORG_ID", f"test-org-{tmp_path.name}")
-    monkeypatch.setenv("PQC_AUTH_MODE", "headers")
-    monkeypatch.setenv("PQC_AUTH_REQUIRED", "0")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "security_truth.db"))
+    monkeypatch.setenv("MORROW_DEFAULT_ORG_ID", f"test-org-{tmp_path.name}")
+    monkeypatch.setenv("MORROW_AUTH_MODE", "headers")
+    monkeypatch.setenv("MORROW_AUTH_REQUIRED", "0")
     monkeypatch.setenv(
-        "PQC_TOOL_API_KEYS",
+        "MORROW_TOOL_API_KEYS",
         "wiz:tool-secret:guardrails:evaluate|findings:write|findings:read|write_path:request",
     )
-    monkeypatch.setenv("PQC_PLATFORM_ADMIN_KEY", "admin-secret")
+    monkeypatch.setenv("MORROW_PLATFORM_ADMIN_KEY", "admin-secret")
 
     import app as fastapi_app
 

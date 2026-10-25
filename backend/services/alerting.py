@@ -137,7 +137,7 @@ def send_pagerduty_alert(
     source: str = "Morrow",
     dedup_key: str = "",
     details: Optional[Dict[str, Any]] = None,
-    component: str = "pqc-scanner",
+    component: str = "morrow",
     group: str = "cryptography",
     class_: str = "quantum_vulnerability",
     links: Optional[list] = None,
@@ -282,7 +282,7 @@ def fire_alert(
             routing_key=pagerduty_routing_key,
             summary=f"{title} — {summary}",
             severity=severity,
-            dedup_key=dedup_key or f"pqc-{event_type}",
+            dedup_key=dedup_key or f"pq-{event_type}",
             details=details or {},
         )
 

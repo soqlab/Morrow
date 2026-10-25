@@ -3,39 +3,39 @@ import json
 import re
 import time
 
-# Known packages that bundle classical-only crypto (no PQC support)
+# Known packages that bundle classical-only crypto (no post-quantum support)
 _CLASSICAL_SIGS = {
     # Python
-    "pycryptodome": {"severity": "HIGH", "reason": "RSA/AES-only, no PQC"},
-    "pycrypto": {"severity": "CRITICAL", "reason": "Unmaintained, RSA/DES, no PQC"},
-    "cryptography": {"severity": "MEDIUM", "reason": "Classical by default; PQC via OpenSSL 3.x only"},
-    "paramiko": {"severity": "MEDIUM", "reason": "SSH using RSA/ECDSA; no PQC KEX"},
-    "pyopenssl": {"severity": "MEDIUM", "reason": "Wraps OpenSSL; PQC depends on version"},
+    "pycryptodome": {"severity": "HIGH", "reason": "RSA/AES-only, no post-quantum"},
+    "pycrypto": {"severity": "CRITICAL", "reason": "Unmaintained, RSA/DES, no post-quantum"},
+    "cryptography": {"severity": "MEDIUM", "reason": "Classical by default; post-quantum via OpenSSL 3.x only"},
+    "paramiko": {"severity": "MEDIUM", "reason": "SSH using RSA/ECDSA; no post-quantum KEX"},
+    "pyopenssl": {"severity": "MEDIUM", "reason": "Wraps OpenSSL; post-quantum depends on version"},
     # "rsa" is both the Python package and the Rust crate. This lookup is keyed by name only, and a
     # dict literal keeps the last duplicate, so the Rust entry below used to win and a Python
     # dependency was reported with the reason "RSA crate, classical only". One entry, worded for both.
-    "rsa": {"severity": "HIGH", "reason": "Pure RSA implementation (Python rsa package / Rust rsa crate), no PQC"},
-    "ecdsa": {"severity": "HIGH", "reason": "Pure ECDSA, no PQC path"},
+    "rsa": {"severity": "HIGH", "reason": "Pure RSA implementation (Python rsa package / Rust rsa crate), no post-quantum"},
+    "ecdsa": {"severity": "HIGH", "reason": "Pure ECDSA, no post-quantum path"},
     "jwcrypto": {"severity": "MEDIUM", "reason": "JWK/JWE using classical algorithms"},
     # Node / npm
     "node-forge": {"severity": "HIGH", "reason": "RSA/AES/TLS classical only"},
-    "jsrsasign": {"severity": "HIGH", "reason": "RSA/ECDSA signing, no PQC"},
+    "jsrsasign": {"severity": "HIGH", "reason": "RSA/ECDSA signing, no post-quantum"},
     "elliptic": {"severity": "HIGH", "reason": "ECDSA/ECDH classical curves only"},
     "node-rsa": {"severity": "HIGH", "reason": "RSA-only library"},
-    "crypto-js": {"severity": "MEDIUM", "reason": "AES/SHA classical, no asymmetric PQC"},
+    "crypto-js": {"severity": "MEDIUM", "reason": "AES/SHA classical, no asymmetric post-quantum"},
     "jose": {"severity": "MEDIUM", "reason": "JWT/JWK; classical algorithms by default"},
     "jsonwebtoken": {"severity": "MEDIUM", "reason": "RS256/ES256 classical signing"},
     "bcrypt": {"severity": "LOW", "reason": "bcrypt is quantum-resistant for passwords"},
-    "ssh2": {"severity": "MEDIUM", "reason": "SSH using RSA/ECDSA; no PQC KEX"},
+    "ssh2": {"severity": "MEDIUM", "reason": "SSH using RSA/ECDSA; no post-quantum KEX"},
     # Java (Maven artifact IDs)
-    "bcprov-jdk15on": {"severity": "MEDIUM", "reason": "Bouncy Castle classical; PQC via bcpqc jar"},
-    "bcprov-jdk18on": {"severity": "MEDIUM", "reason": "Bouncy Castle classical; PQC via bcpqc jar"},
+    "bcprov-jdk15on": {"severity": "MEDIUM", "reason": "Bouncy Castle classical; post-quantum via bcpq jar"},
+    "bcprov-jdk18on": {"severity": "MEDIUM", "reason": "Bouncy Castle classical; post-quantum via bcpq jar"},
     # Go modules
     "golang.org/x/crypto": {"severity": "LOW", "reason": "Mostly classical; ML-KEM in newer versions"},
-    "github.com/cloudflare/circl": {"severity": "LOW", "reason": "Has PQC — verify version ≥1.3"},
+    "github.com/cloudflare/circl": {"severity": "LOW", "reason": "Has post-quantum — verify version ≥1.3"},
     # Rust crates ("rsa" is covered by the shared entry above)
-    "p256": {"severity": "HIGH", "reason": "ECDSA P-256, no PQC"},
-    "ring": {"severity": "MEDIUM", "reason": "Classical TLS crypto; no PQC"},
+    "p256": {"severity": "HIGH", "reason": "ECDSA P-256, no post-quantum"},
+    "ring": {"severity": "MEDIUM", "reason": "Classical TLS crypto; no post-quantum"},
 }
 
 _LOW = {"LOW", "MEDIUM"}

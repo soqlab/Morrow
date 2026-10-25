@@ -9,7 +9,7 @@ from db import init_db
 
 def test_vendor_attestation_invite_and_public_submission_flow():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     try:
@@ -34,7 +34,7 @@ def test_vendor_attestation_invite_and_public_submission_flow():
             assert portal_html.status_code == 200
             assert "text/html" in portal_html.headers["content-type"]
             assert "Vendor self-attestation portal" in portal_html.text
-            assert "Acme SaaS PQC readiness attestation" in portal_html.text
+            assert "Acme SaaS post-quantum readiness attestation" in portal_html.text
 
             submitted = client.post(
                 f"/vendor-attestation/{invite['token']}/submit",
@@ -42,7 +42,7 @@ def test_vendor_attestation_invite_and_public_submission_flow():
                     "submitted_by": "Jane Vendor",
                     "signer_title": "CISO",
                     "domains": ["api.acme.test:443"],
-                    "answers": {"pqc_roadmap": True, "tls13": True},
+                    "answers": {"pq_roadmap": True, "tls13": True},
                     "evidence_refs": {"soc2": "available-under-nda"},
                     "readiness_score": 82,
                 },

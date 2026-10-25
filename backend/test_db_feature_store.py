@@ -3,16 +3,16 @@
 Two layers:
 
   * Pure translation tests, which always run.
-  * Round-trip tests against a REAL Postgres, which run when PQC_TEST_PG_DSN is
+  * Round-trip tests against a REAL Postgres, which run when MORROW_TEST_PG_DSN is
     set and skip otherwise. These are the ones that matter -- a translator that
     only satisfies its own regexes proves nothing. They execute the translated
     SQL against a live server and compare the result to the SQLite behaviour the
     services were written against.
 
 Start a server for the Postgres half with:
-    docker run -d --name pqc-pg -e POSTGRES_PASSWORD=pqcdev -e POSTGRES_DB=pqc \\
+    docker run -d --name morrow-pg -e POSTGRES_PASSWORD=morrowdev -e POSTGRES_DB=morrow \\
         -p 5433:5432 postgres:16-alpine
-    PQC_TEST_PG_DSN=postgresql://postgres:pqcdev@127.0.0.1:5433/pqc
+    MORROW_TEST_PG_DSN=postgresql://postgres:morrowdev@127.0.0.1:5433/morrow
 """
 
 import os
@@ -30,8 +30,8 @@ from db_feature_store import (
     _split_statements,
 )
 
-PG_DSN = os.getenv("PQC_TEST_PG_DSN", "").strip()
-requires_pg = pytest.mark.skipif(not PG_DSN, reason="set PQC_TEST_PG_DSN to run against real Postgres")
+PG_DSN = os.getenv("MORROW_TEST_PG_DSN", "").strip()
+requires_pg = pytest.mark.skipif(not PG_DSN, reason="set MORROW_TEST_PG_DSN to run against real Postgres")
 
 
 # --------------------------------------------------------------------------- #

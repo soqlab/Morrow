@@ -1,4 +1,4 @@
-"""HTTP router for the PQC Scout agent (/agent/chat)."""
+"""HTTP router for the post-quantum Scout agent (/agent/chat)."""
 
 from __future__ import annotations
 

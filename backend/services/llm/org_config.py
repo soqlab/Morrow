@@ -12,7 +12,7 @@ Postgres the row-level-security variable is set for the connection. A customer
 can read and write only their own row -- there is no cross-tenant read, no
 "list all overrides", and no way to pass another organization's id.
 
-PQC_LLM_DISABLED is not a field here. A deployment that forbids external model
+MORROW_LLM_DISABLED is not a field here. A deployment that forbids external model
 calls cannot have that decision overridden by a tenant.
 """
 

@@ -33,7 +33,7 @@ def _github_api(method: str, url: str, token: str, timeout_s: int = 30) -> Dict[
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "pqc-remediation-drift",
+        "User-Agent": "pq-remediation-drift",
     }
     req = urllib.request.Request(url=url, method=method.upper(), headers=headers)
     try:
@@ -223,7 +223,7 @@ def _create_drift_followup(
     )
     set_remediation_drift_followup(int(remediation.get("id") or 0), int(followup.get("id") or 0))
     append_audit_log(
-        actor_id="pqc-drift",
+        actor_id="pq-drift",
         actor_role="system",
         action="remediation.drift_followup_created",
         resource_type="remediation",
@@ -321,7 +321,7 @@ def check_remediation_drift(remediation_id: int, github_credential_id: int = 0) 
 
     if drifted and previous_status != "drifted":
         append_audit_log(
-            actor_id="pqc-drift",
+            actor_id="pq-drift",
             actor_role="system",
             action="remediation.drifted",
             resource_type="remediation",
@@ -342,7 +342,7 @@ def check_remediation_drift(remediation_id: int, github_credential_id: int = 0) 
             pass
     elif (not drifted) and previous_status == "drifted":
         append_audit_log(
-            actor_id="pqc-drift",
+            actor_id="pq-drift",
             actor_role="system",
             action="remediation.drift_cleared",
             resource_type="remediation",
@@ -405,7 +405,7 @@ def check_all_remediation_drift(limit: int = 200, github_credential_id: int = 0)
                 "error": str(e),
             })
             append_audit_log(
-                actor_id="pqc-drift",
+                actor_id="pq-drift",
                 actor_role="system",
                 action="remediation.drift_check_failed",
                 resource_type="remediation",

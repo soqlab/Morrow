@@ -18,7 +18,7 @@ def _now() -> str:
 
 
 def _secret() -> bytes:
-    seed = os.getenv("PQC_PLATFORM_ADMIN_KEY") or os.getenv("PQC_VAULT_MASTER_KEY") or "local-dev-secret"
+    seed = os.getenv("MORROW_PLATFORM_ADMIN_KEY") or os.getenv("MORROW_VAULT_MASTER_KEY") or "local-dev-secret"
     return hashlib.sha256(str(seed).encode("utf-8")).digest()
 
 
@@ -104,7 +104,7 @@ def build_crypto_mesh_profile(name: str, intent: str = "", emergency_algorithm: 
     profile = {
         "api_version": "v1",
         "name": str(name or "Default crypto agility mesh").strip()[:180],
-        "intent": str(intent or "Maintain standards-based hybrid PQC transport where supported.").strip(),
+        "intent": str(intent or "Maintain standards-based hybrid post-quantum transport where supported.").strip(),
         "mode": "control-plane",
         "primary_profile": {
             "tls_groups": [preferred, "X25519"],
@@ -261,7 +261,7 @@ def generate_vendor_private_proof(vendor_name: str, scan_summary: Dict[str, Any]
     claims = claims or {}
     public_claim = {
         "vendor_name": str(vendor_name or "vendor").strip()[:180],
-        "pqc_compliant": bool(claims.get("pqc_compliant", scan_summary.get("pqc_compliant", False))),
+        "pq_compliant": bool(claims.get("pq_compliant", scan_summary.get("pq_compliant", False))),
         "legacy_rsa_keys": int(claims.get("legacy_rsa_keys", scan_summary.get("legacy_rsa_keys", 0)) or 0),
         "nist_profile": str(claims.get("nist_profile", scan_summary.get("nist_profile", "ML-KEM/ML-DSA readiness"))),
         "scan_time": str(scan_summary.get("scan_time") or _now()),
@@ -315,6 +315,6 @@ def verify_vendor_private_proof(proof: Dict[str, Any]) -> Dict[str, Any]:
         "valid": valid,
         "proof_id": proof.get("proof_id"),
         "claim": claim,
-        "decision": "accept" if valid and bool(claim.get("pqc_compliant")) and int(claim.get("legacy_rsa_keys") or 0) == 0 else "review",
+        "decision": "accept" if valid and bool(claim.get("pq_compliant")) and int(claim.get("legacy_rsa_keys") or 0) == 0 else "review",
         "verified_at": _now(),
     }

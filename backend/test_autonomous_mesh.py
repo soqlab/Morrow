@@ -16,13 +16,13 @@ def _headers(role="operator"):
 
 
 def _client(tmp_path):
-    keys = ("PQC_SCANNER_DB", "PQC_AUTH_MODE", "PQC_AUTH_REQUIRED", "PQC_DEFAULT_ROLE", "PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE")
+    keys = ("MORROW_SCANNER_DB", "MORROW_AUTH_MODE", "MORROW_AUTH_REQUIRED", "MORROW_DEFAULT_ROLE", "MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE")
     old_env = {k: os.environ.get(k) for k in keys}
-    os.environ["PQC_SCANNER_DB"] = str(tmp_path / "mesh.db")
-    os.environ["PQC_AUTH_MODE"] = "headers"
-    os.environ["PQC_AUTH_REQUIRED"] = "1"
-    os.environ["PQC_DEFAULT_ROLE"] = "viewer"
-    os.environ["PQC_AIRLOCK_REQUIRE_AGENT_SIGNATURE"] = "0"
+    os.environ["MORROW_SCANNER_DB"] = str(tmp_path / "mesh.db")
+    os.environ["MORROW_AUTH_MODE"] = "headers"
+    os.environ["MORROW_AUTH_REQUIRED"] = "1"
+    os.environ["MORROW_DEFAULT_ROLE"] = "viewer"
+    os.environ["MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE"] = "0"
 
     import app as fastapi_app
 
@@ -55,11 +55,11 @@ def test_autonomous_mesh_packages_and_predictive_controls(tmp_path):
         assert truth.json()["kind"] == "capability_truth_matrix"
         assert any(c["key"] == "hybrid_certificate_generation" for c in truth.json()["capabilities"])
 
-        ebpf = client.post("/autonomous-mesh/ebpf-package", headers=_headers(), json={"name": "pqc-ebpf"})
+        ebpf = client.post("/autonomous-mesh/ebpf-package", headers=_headers(), json={"name": "pq-ebpf"})
         assert ebpf.status_code == 200
         ebpf_body = ebpf.json()
         assert ebpf_body["capabilities"]["payload_collection"] is False
-        assert "pqc_crypto_sniffer.bt" in ebpf_body["artifacts"]
+        assert "pq_crypto_sniffer.bt" in ebpf_body["artifacts"]
         compile(ebpf_body["artifacts"]["collector.py"], "collector.py", "exec")
         with zipfile.ZipFile(io.BytesIO(base64.b64decode(ebpf_body["bundle"]["content_base64"]))) as zf:
             assert "collector.py" in set(zf.namelist())
@@ -104,7 +104,7 @@ def test_autonomous_mesh_packages_and_predictive_controls(tmp_path):
         shift = client.post("/autopilot/canary-traffic-shift", headers=_headers(), json={
             "service_name": "payments",
             "baseline_url": "https://legacy-payments.acme-corp.net",
-            "candidate_url": "https://pqc-payments.acme-corp.net",
+            "candidate_url": "https://pq-payments.acme-corp.net",
             "canary_percent": 1,
         })
         assert shift.status_code == 200
@@ -133,7 +133,7 @@ def test_autonomous_mesh_packages_and_predictive_controls(tmp_path):
             "key_id": "payments-signing-key",
             "algorithms": ["rsa-2048"],
             "hardware_backed": True,
-            "native_pqc": False,
+            "native_pq": False,
             "software_fallback": True,
         }
         receipt = client.post("/hardware/crypto-drift/observations", headers=_headers(), json={"observations": [observation]})
@@ -145,7 +145,7 @@ def test_autonomous_mesh_packages_and_predictive_controls(tmp_path):
             "key_intents": [{
                 "key_id": "payments-signing-key",
                 "required_algorithms": ["ml-dsa"],
-                "require_native_pqc": True,
+                "require_native_pq": True,
             }],
             "policy": {"allow_software_fallback": False},
         })
@@ -197,7 +197,7 @@ def test_autonomous_mesh_packages_and_predictive_controls(tmp_path):
             "scan_assets": [{"key_type": "rsa", "risk_level": "high"}],
         })
         assert insurance.status_code == 200
-        assert insurance.json()["kind"] == "pqc_insurance_underwriting_export"
+        assert insurance.json()["kind"] == "pq_insurance_underwriting_export"
         assert insurance.json()["raw_asset_identifiers_included"] is False
 
         agility = client.post("/insurance/proof-of-agility", headers=_headers(), json={
@@ -234,7 +234,7 @@ def test_autonomous_mesh_packages_and_predictive_controls(tmp_path):
 
         placeholder_shift = client.post("/autopilot/canary-traffic-shift", headers=_headers(), json={
             "baseline_url": "https://legacy.example.com",
-            "candidate_url": "https://pqc.example.com",
+            "candidate_url": "https://morrow.example.com",
         })
         assert placeholder_shift.status_code == 422
 
@@ -245,12 +245,12 @@ def test_autonomous_mesh_packages_and_predictive_controls(tmp_path):
 
         libs = client.get("/hybrid-cert/libraries", headers=_headers("viewer"))
         cert = client.post("/hybrid-cert/generate", headers=_headers(), json={"common_name": "api.acme-corp.net"})
-        if libs.json()["real_pqc_available"]:
+        if libs.json()["real_pq_available"]:
             assert cert.status_code == 200
-            assert cert.json()["pqc_key_real"] is True
+            assert cert.json()["pq_key_real"] is True
         else:
             assert cert.status_code == 503
-            assert cert.json()["detail"]["error"] == "real_pqc_library_unavailable"
+            assert cert.json()["detail"]["error"] == "real_pq_library_unavailable"
     finally:
         _restore(fastapi_app, old_env)
 

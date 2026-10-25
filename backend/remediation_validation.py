@@ -21,15 +21,15 @@ from db import (
 from integrations.github_app import resolve_github_repo_token
 from iac_security import evaluate_iac_security_content
 
-VALIDATION_ISOLATION_MODE = str(os.getenv("PQC_VALIDATION_ISOLATION_MODE", "workspace") or "workspace").strip().lower()
+VALIDATION_ISOLATION_MODE = str(os.getenv("MORROW_VALIDATION_ISOLATION_MODE", "workspace") or "workspace").strip().lower()
 # OpenTofu by default: Terraform's BUSL-1.1 licence bars redistribution, and the published image
 # must stay open source. Both CLIs take the same arguments, so an operator may point this at
 # hashicorp/terraform instead if their own licence position allows it.
-VALIDATION_DOCKER_IMAGE = str(os.getenv("PQC_VALIDATION_DOCKER_IMAGE", "ghcr.io/opentofu/opentofu:1.8.6") or "").strip()
-VALIDATION_DOCKER_CPUS = str(os.getenv("PQC_VALIDATION_DOCKER_CPUS", "1") or "1").strip()
-VALIDATION_DOCKER_MEMORY = str(os.getenv("PQC_VALIDATION_DOCKER_MEMORY", "512m") or "512m").strip()
-VALIDATION_TIMEOUT_MAX_SECONDS = int(os.getenv("PQC_VALIDATION_TIMEOUT_MAX_SECONDS", "900") or "900")
-VALIDATION_STDOUT_LIMIT = int(os.getenv("PQC_VALIDATION_STDOUT_LIMIT", "20000") or "20000")
+VALIDATION_DOCKER_IMAGE = str(os.getenv("MORROW_VALIDATION_DOCKER_IMAGE", "ghcr.io/opentofu/opentofu:1.8.6") or "").strip()
+VALIDATION_DOCKER_CPUS = str(os.getenv("MORROW_VALIDATION_DOCKER_CPUS", "1") or "1").strip()
+VALIDATION_DOCKER_MEMORY = str(os.getenv("MORROW_VALIDATION_DOCKER_MEMORY", "512m") or "512m").strip()
+VALIDATION_TIMEOUT_MAX_SECONDS = int(os.getenv("MORROW_VALIDATION_TIMEOUT_MAX_SECONDS", "900") or "900")
+VALIDATION_STDOUT_LIMIT = int(os.getenv("MORROW_VALIDATION_STDOUT_LIMIT", "20000") or "20000")
 
 
 def validation_sandbox_profile() -> Dict[str, Any]:
@@ -84,7 +84,7 @@ def _github_api(method: str, url: str, token: str, body: Optional[Dict[str, Any]
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "pqc-remediation-validator",
+        "User-Agent": "pq-remediation-validator",
     }
     data = None
     if body is not None:
@@ -239,7 +239,7 @@ def _run_docker_terraform_command(repo_root: str, work_dir: str, terraform_args:
             "cwd": work_dir,
             "exit_code": 127,
             "stdout": "",
-            "stderr": "PQC_VALIDATION_DOCKER_IMAGE is empty",
+            "stderr": "MORROW_VALIDATION_DOCKER_IMAGE is empty",
         }
 
     rel_work = os.path.relpath(work_dir, repo_root).replace("\\", "/")
@@ -423,7 +423,7 @@ def execute_validation_job(
         updated_content = str(remediation.get("suggested_content") or "")
         actual_validator = _detect_validator(file_rel, validator_type)
 
-        with tempfile.TemporaryDirectory(prefix="pqc-remediation-validate-") as tmpdir:
+        with tempfile.TemporaryDirectory(prefix="pq-remediation-validate-") as tmpdir:
             repo_root = _download_repo_archive(owner, repo, effective_ref, token, tmpdir)
             target_path = os.path.join(repo_root, *file_rel.split("/"))
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
@@ -481,7 +481,7 @@ def execute_validation_job(
             }
             try:
                 append_audit_log(
-                    actor_id="pqc-validator",
+                    actor_id="pq-validator",
                     actor_role="system",
                     action="validation.failed",
                     resource_type="validation_job",
@@ -515,7 +515,7 @@ def execute_validation_job(
         ) or {"id": int(validation_job_id), "status": "failed"}
         try:
             append_audit_log(
-                actor_id="pqc-validator",
+                actor_id="pq-validator",
                 actor_role="system",
                 action="validation.failed",
                 resource_type="validation_job",

@@ -5,8 +5,8 @@ param(
   # Supply a credential to include endpoints that require authentication. Without one the probe
   # covers only endpoints that are reachable unauthenticated, which is what a load balancer or
   # uptime monitor sees.
-  [string]$Token = $env:PQC_LOAD_SMOKE_TOKEN,
-  [string]$PlatformKey = $env:PQC_PLATFORM_ADMIN_KEY
+  [string]$Token = $env:MORROW_LOAD_SMOKE_TOKEN,
+  [string]$PlatformKey = $env:MORROW_PLATFORM_ADMIN_KEY
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,7 +14,7 @@ $BaseUrl = $BaseUrl.TrimEnd("/")
 
 # /health, /healthz and /ui/ are auth-public (see _auth_public_path in backend/app.py), so they can
 # be probed on a hardened deployment without credentials. /health/deep is NOT public: it reports
-# component-level internals, so it answers 401 under PQC_AUTH_REQUIRED=1. Probing it anyway made
+# component-level internals, so it answers 401 under MORROW_AUTH_REQUIRED=1. Probing it anyway made
 # this script exit 1 against every correctly-hardened deployment -- a third of all calls "failing"
 # on a server that was behaving exactly as designed.
 $endpoints = @("/health", "/healthz", "/ui/")

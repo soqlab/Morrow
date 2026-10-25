@@ -102,7 +102,7 @@ def public(site):
         "certificate": "verified" if current else "unknown",
         "filtering": (proof.get("mode", "unknown") if current and owned and proof.get("waf_self_test") is True else "unknown"),
         "desired_mode": site["policy"]["mode"],
-        "visitor_pqc": "unknown", "origin_pqc": "unknown", "origin_bypass": "not_verified",
+        "visitor_pq": "unknown", "origin_pq": "unknown", "origin_bypass": "not_verified",
         "availability": "not_independently_verified",
         "basis": "HTTPS challenge to this hostname and signed customer-managed gateway observation; not an independent security certification",
     }

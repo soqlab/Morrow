@@ -12,7 +12,7 @@ variable "region" {
 variable "name_prefix" {
   description = "Short prefix for all deployed resources."
   type        = string
-  default     = "pqc"
+  default     = "pq"
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{1,20}[a-z0-9]$", var.name_prefix))
@@ -278,7 +278,7 @@ variable "alert_notification_channels" {
 }
 
 variable "api_hostname" {
-  description = "Public hostname of the API service used for the uptime check (e.g. pqc.yourco.com)."
+  description = "Public hostname of the API service used for the uptime check (e.g. morrow.yourco.com)."
   type        = string
   default     = ""
 }

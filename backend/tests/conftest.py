@@ -9,21 +9,21 @@ import pytest
 # Create a shared temp DB file before importing app
 _tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _tmp_db.close()
-os.environ["PQC_SCANNER_DB"] = _tmp_db.name
-os.environ.setdefault("PQC_AUTH_REQUIRED", "0")
-os.environ.setdefault("PQC_DEFAULT_ROLE", "admin")
-os.environ.setdefault("PQC_AUTH_MODE", "headers")
-os.environ.setdefault("PQC_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001")
+os.environ["MORROW_SCANNER_DB"] = _tmp_db.name
+os.environ.setdefault("MORROW_AUTH_REQUIRED", "0")
+os.environ.setdefault("MORROW_DEFAULT_ROLE", "admin")
+os.environ.setdefault("MORROW_AUTH_MODE", "headers")
+os.environ.setdefault("MORROW_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001")
 os.environ.setdefault("OPENAI_API_KEY", "sk-test-placeholder")
-os.environ.setdefault("PQC_MAIN_DB_BACKEND", "sqlite")
+os.environ.setdefault("MORROW_MAIN_DB_BACKEND", "sqlite")
 
 from fastapi.testclient import TestClient
 
 TEST_ORG = "00000000-0000-0000-0000-000000000001"
 AUTH_HEADERS = {
-    "x-pqc-org-id": TEST_ORG,
-    "x-pqc-role": "admin",
-    "x-pqc-user-id": "test-user-001",
+    "x-pq-org-id": TEST_ORG,
+    "x-morrow-role": "admin",
+    "x-pq-user-id": "test-user-001",
 }
 
 

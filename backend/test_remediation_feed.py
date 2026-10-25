@@ -19,8 +19,8 @@ from db import (
 def _setup_tmp_db():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
     tmp_db.close()
-    os.environ["PQC_MAIN_DB_BACKEND"] = ""
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_MAIN_DB_BACKEND"] = ""
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     init_db()
@@ -41,7 +41,7 @@ def test_remediation_feed_returns_action_cards_and_summary():
             int(repo["id"]),
             "infra/tls.tf",
             "high risk RSA certificate dependency",
-            "Replace RSA with hybrid PQC-ready TLS configuration",
+            "Replace RSA with hybrid post-quantum-ready TLS configuration",
             status="pending",
         )
         approved = create_remediation(

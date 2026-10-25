@@ -10,9 +10,9 @@ A Morrow deployment is **four** things, and restoring one of them is not a resto
 | Artefact | What it holds | Taken with |
 | --- | --- | --- |
 | Product Postgres database | assets, scans, scan_results, remediations, organizations, audit_logs, invitations, operator MFA enrolments — and the tenant-isolation policies | `pg_dump --format=custom` |
-| Cluster globals | the runtime role (`pqc_app`) the GRANTs in that dump refer to | `pg_dumpall --globals-only` |
-| SQLite state file (`PQC_SCANNER_DB`, `/data/pqc_scanner.db` in the container) | TLS observatory, canaries, QTISN, maturity model, regulatory filings, autopilot, ZK proofs, **built-in password accounts** | `VACUUM INTO` (see `scripts/backup-restore-drill.ps1`) |
-| Secrets | `PQC_VAULT_MASTER_KEY`, `PQC_AUTH_JWT_SECRET`, `PQC_EVIDENCE_SIGNING_KEY`, `PQC_USAGE_ACTOR_SALT` | Secret Manager |
+| Cluster globals | the runtime role (`morrow_app`) the GRANTs in that dump refer to | `pg_dumpall --globals-only` |
+| SQLite state file (`MORROW_SCANNER_DB`, `/data/morrow.db` in the container) | TLS observatory, canaries, QTISN, maturity model, regulatory filings, autopilot, ZK proofs, **built-in password accounts** | `VACUUM INTO` (see `scripts/backup-restore-drill.ps1`) |
+| Secrets | `MORROW_VAULT_MASTER_KEY`, `MORROW_AUTH_JWT_SECRET`, `MORROW_EVIDENCE_SIGNING_KEY`, `MORROW_USAGE_ACTOR_SALT` | Secret Manager |
 
 Restoring the database without the vault master key leaves every sealed value — scanner
 credentials, operator MFA secrets and recovery codes, alert channel targets, gateway site secrets —
@@ -23,7 +23,7 @@ out of existence.
 
 - Use managed Postgres automated backups and keep point-in-time recovery per the customer contract.
 - Take `pg_dumpall --globals-only` on the same schedule. It is small, and without it a restore into a
-  new cluster fails on the first `GRANT ... TO pqc_app`.
+  new cluster fails on the first `GRANT ... TO morrow_app`.
 - Back up the SQLite state file while the API is running with `VACUUM INTO`, never with a file copy:
   a plain copy of a live SQLite database can capture a torn page or miss the `-wal` file.
 - Redis is transient queue/cache data; do not treat it as system of record.
@@ -70,7 +70,7 @@ ORDER BY 1;" > rowcounts-before.txt
 ### 2. Back up
 
 ```powershell
-pg_dump --format=custom --file=pqc.dump $OWNER_DSN
+pg_dump --format=custom --file=pq.dump $OWNER_DSN
 pg_dumpall --globals-only --file=globals.sql $OWNER_ADMIN_DSN
 ```
 
@@ -82,20 +82,20 @@ nothing short of connecting as the runtime role notices.
 ### 3. Restore into a fresh target
 
 ```powershell
-psql -d postgres -f globals.sql          # first, on a new cluster: creates pqc_app
-psql -d postgres -c "CREATE DATABASE pqc_restored;"
-pg_restore --no-owner --exit-on-error -d pqc_restored pqc.dump
+psql -d postgres -f globals.sql          # first, on a new cluster: creates morrow_app
+psql -d postgres -c "CREATE DATABASE pq_restored;"
+pg_restore --no-owner --exit-on-error -d pq_restored pq.dump
 ```
 
 `--exit-on-error` is not optional. Without it `pg_restore` reports a successful restore after
 skipping every statement that failed, including the GRANTs.
 
-Restore the SQLite state file to the path `PQC_SCANNER_DB` points at (the `/data` volume in
+Restore the SQLite state file to the path `MORROW_SCANNER_DB` points at (the `/data` volume in
 `docker-compose.prod.yml`) in the same window.
 
 ### 4. Point the application at it and start api, worker and beat
 
-Set `DATABASE_URL` and `PQC_PRODUCT_DATABASE_URL` to the restored database, as the **runtime**
+Set `DATABASE_URL` and `MORROW_PRODUCT_DATABASE_URL` to the restored database, as the **runtime**
 role, not the owner.
 
 ### 5. Verify — in this order, because each step can pass while the next one fails
@@ -111,7 +111,7 @@ role, not the owner.
 | Isolation holds in the database, not just the API | connect as the runtime role and run `SELECT count(*) FROM assets` with no `app.current_organization_id` set: it must return **0** | policies exist but are inert (superuser/BYPASSRLS role) |
 | Operator console | `/platform/customers`, Customer 360 counts | cross-tenant read path |
 
-If the restore target is a **new cluster**, `pqc_app`'s password comes from `globals.sql`. If you
+If the restore target is a **new cluster**, `morrow_app`'s password comes from `globals.sql`. If you
 recreate the role by hand instead, it must again be `NOSUPERUSER NOBYPASSRLS` (see
 `docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md` section 4a) — a restore is the easiest place to accidentally
 hand the application a superuser and lose every policy silently.
@@ -124,7 +124,7 @@ hand the application a superuser and lose every policy silently.
 2. Snapshot current database state for forensics.
 3. Restore to a new database instance, following the drill above including the globals.
 4. Validate integrity and tenant isolation with the table in step 5 before any traffic.
-5. Shift runtime `DATABASE_URL`/`PQC_PRODUCT_DATABASE_URL` to the restored instance.
+5. Shift runtime `DATABASE_URL`/`MORROW_PRODUCT_DATABASE_URL` to the restored instance.
 6. Keep the old instance read-only until incident review is complete.
 
 ## Evidence To Keep

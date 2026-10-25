@@ -49,7 +49,7 @@ class GeminiProvider(Provider):
     def check(self) -> Dict[str, Any]:
         missing: List[str] = []
         if not self.settings.api_key:
-            missing.append("PQC_LLM_API_KEY")
+            missing.append("MORROW_LLM_API_KEY")
         return {"ready": not missing, "missing": missing,
                 "detail": "configured" if not missing else "set " + ", ".join(missing)}
 
@@ -64,7 +64,7 @@ class GeminiProvider(Provider):
     def _headers(self) -> Dict[str, str]:
         if not self.settings.api_key:
             raise LLMError(CONFIG, "Gemini needs an API key.", provider=self.id,
-                           remedy="Set PQC_LLM_API_KEY to a Google AI Studio key.")
+                           remedy="Set MORROW_LLM_API_KEY to a Google AI Studio key.")
         # The key goes in a header, never in the URL: a URL reaches logs and
         # proxies, and the pinned destination in the Data Control receipt must
         # not contain a credential.
@@ -151,7 +151,7 @@ class GeminiProvider(Provider):
                org_id: str = "", purpose: str = "assistant",
                policy_version: Optional[int] = None, chunk_chars: int = 40) -> Iterator[Chunk]:
         import os
-        wire = (os.getenv("PQC_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
+        wire = (os.getenv("MORROW_LLM_WIRE_STREAM") or "").strip() in {"1", "true", "yes"}
         completion = (self.complete_streaming if wire else self.complete)(
             conv, tools, org_id=org_id, purpose=purpose, policy_version=policy_version)
         text = completion.text or ""

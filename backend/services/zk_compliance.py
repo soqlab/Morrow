@@ -1,7 +1,7 @@
 """
-Cryptographically Signed PQC Compliance Attestations
+Cryptographically Signed post-quantum Compliance Attestations
 
-Enables organisations to share evidence of their PQC posture with regulators
+Enables organisations to share evidence of their post-quantum posture with regulators
 and auditors WITHOUT revealing the underlying cryptographic configuration
 (which would create a new attack surface).
 
@@ -11,7 +11,7 @@ Implementation: Hash-based commitment scheme.
   2. COMMITMENT: SHA-256(witness || nonce) — binds the attestation to the config
      without revealing it
   3. CLAIMS: Public statements derived from the witness (e.g., "all RSA keys ≥ 4096",
-     "0 critical-risk endpoints", "PQC migration ≥ 80%")
+     "0 critical-risk endpoints", "Post-quantum migration ≥ 80%")
   4. PROOF: A Merkle-style hash chain over the claims + commitment
   5. VERIFICATION: Verifier checks proof_hash = H(claims || commitment)
      without ever seeing the witness
@@ -50,7 +50,7 @@ from typing import Any, Dict, List
 
 COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
     "NIST_SP_800_208": {
-        "name": "NIST SP 800-208 — PQC Transition",
+        "name": "NIST SP 800-208 — post-quantum Transition",
         "description": "NIST recommendation for migration to quantum-resistant algorithms.",
         "thresholds_authored_by": "morrow",
         "thresholds_note": (
@@ -58,7 +58,7 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
             "platform's own policy profile, not text quoted from the publication."
         ),
         "requirements": {
-            "pqc_migration_pct_min": 80,
+            "pq_migration_pct_min": 80,
             "critical_risk_max": 0,
             "rsa_min_bits": 3072,
             "tls_min_version": "TLSv1.2",
@@ -74,7 +74,7 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
             "numeric thresholds below are this platform's own policy profile."
         ),
         "requirements": {
-            "pqc_migration_pct_min": 100,
+            "pq_migration_pct_min": 100,
             "critical_risk_max": 0,
             "high_risk_max": 0,
             "rsa_min_bits": 4096,
@@ -87,11 +87,11 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
         "description": "EU NIS2 cybersecurity requirements for essential entities.",
         "thresholds_authored_by": "morrow",
         "thresholds_note": (
-            "NIS2 sets no PQC migration percentage or endpoint count. The numeric thresholds below "
+            "NIS2 sets no post-quantum migration percentage or endpoint count. The numeric thresholds below "
             "are this platform's own policy profile, not text quoted from the Directive."
         ),
         "requirements": {
-            "pqc_migration_pct_min": 50,
+            "pq_migration_pct_min": 50,
             "critical_risk_max": 5,
             "rsa_min_bits": 2048,
             "tls_min_version": "TLSv1.2",
@@ -103,11 +103,11 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
         "description": "EU DORA requirements for financial sector cryptographic resilience.",
         "thresholds_authored_by": "morrow",
         "thresholds_note": (
-            "DORA sets no PQC migration percentage. The numeric thresholds below are this "
+            "DORA sets no post-quantum migration percentage. The numeric thresholds below are this "
             "platform's own policy profile, not text quoted from the Regulation."
         ),
         "requirements": {
-            "pqc_migration_pct_min": 60,
+            "pq_migration_pct_min": 60,
             "critical_risk_max": 0,
             "rsa_min_bits": 3072,
             "tls_min_version": "TLSv1.2",
@@ -160,8 +160,8 @@ def _build_witness(scan_summary: Dict[str, Any]) -> Dict[str, Any]:
 
     critical_count = sum(1 for a in assets if str(a.get("risk_level", "")).lower() == "critical")
     high_count = sum(1 for a in assets if str(a.get("risk_level", "")).lower() == "high")
-    pqc_count = sum(1 for a in assets if _is_pqc(a.get("key_type", "")))
-    classical_only = sum(1 for a in assets if not _is_pqc(a.get("key_type", "")))
+    pq_count = sum(1 for a in assets if _is_pq(a.get("key_type", "")))
+    classical_only = sum(1 for a in assets if not _is_pq(a.get("key_type", "")))
 
     rsa_bits = [int(a.get("key_bits") or 0) for a in assets
                 if "rsa" in str(a.get("key_type", "")).lower()]
@@ -177,18 +177,18 @@ def _build_witness(scan_summary: Dict[str, Any]) -> Dict[str, Any]:
         "total_endpoints": total,
         "critical_risk_count": critical_count,
         "high_risk_count": high_count,
-        "pqc_endpoint_count": pqc_count,
+        "pq_endpoint_count": pq_count,
         "classical_only_count": classical_only,
-        "pqc_migration_pct": round(100 * pqc_count / total, 1),
+        "pq_migration_pct": round(100 * pq_count / total, 1),
         "min_rsa_bits": min_rsa_bits,
         "min_tls_version": min_tls,
         "has_weak_tls": has_weak_tls,
     }
 
 
-def _is_pqc(key_type: str) -> bool:
+def _is_pq(key_type: str) -> bool:
     kt = (key_type or "").lower()
-    return any(x in kt for x in ("ml-kem", "kyber", "dilithium", "slh", "falcon", "pqc", "mlkem"))
+    return any(x in kt for x in ("ml-kem", "kyber", "dilithium", "slh", "falcon", "pq", "mlkem"))
 
 
 # ── Proof generation ──────────────────────────────────────────────────────────
@@ -204,14 +204,14 @@ def _build_claims(witness: Dict[str, Any], reqs: Dict[str, Any]) -> List[Dict[st
     """
     claims = []
 
-    # PQC migration progress
-    pqc_pct = witness["pqc_migration_pct"]
-    min_pct = reqs.get("pqc_migration_pct_min", 0)
+    # Post-quantum migration progress
+    pq_pct = witness["pq_migration_pct"]
+    min_pct = reqs.get("pq_migration_pct_min", 0)
     claims.append({
-        "claim_id": "pqc_migration_threshold",
-        "statement": f"PQC migration ≥ {min_pct}%",
-        "result": "pass" if pqc_pct >= min_pct else "fail",
-        "public_value": f"≥{min_pct}%" if pqc_pct >= min_pct else f"<{min_pct}%",
+        "claim_id": "pq_migration_threshold",
+        "statement": f"Post-quantum migration ≥ {min_pct}%",
+        "result": "pass" if pq_pct >= min_pct else "fail",
+        "public_value": f"≥{min_pct}%" if pq_pct >= min_pct else f"<{min_pct}%",
     })
 
     # Critical risk count
@@ -276,7 +276,7 @@ def generate_compliance_proof(
     Generate a cryptographically signed compliance attestation.
 
     The attestation can be shared with regulators/auditors as supporting
-    evidence of your PQC posture without revealing the underlying configuration.
+    evidence of your post-quantum posture without revealing the underlying configuration.
 
     This uses a hash-based commitment scheme (NOT a zero-knowledge proof system).
     It proves that the attested claims were derived from a fixed configuration

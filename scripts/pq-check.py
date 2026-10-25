@@ -7,13 +7,13 @@ page. Every guardrail still applies: the opt-out list, the SSRF guard, the
 per-domain rate limit, the bounded queue, the deadline, the cache and the log.
 They are not a web-only courtesy.
 
-    python scripts/pqc-check.py example.com
-    python scripts/pqc-check.py example.com --json
-    python scripts/pqc-check.py example.com --fresh          # ignore the cache
-    python scripts/pqc-check.py example.com --cbom > cbom.json
-    python scripts/pqc-check.py --opt-out example.com        # never check it again
-    python scripts/pqc-check.py --list-opt-outs
-    python scripts/pqc-check.py --settings                  # the guardrails here
+    python scripts/pq-check.py example.com
+    python scripts/pq-check.py example.com --json
+    python scripts/pq-check.py example.com --fresh          # ignore the cache
+    python scripts/pq-check.py example.com --cbom > cbom.json
+    python scripts/pq-check.py --opt-out example.com        # never check it again
+    python scripts/pq-check.py --list-opt-outs
+    python scripts/pq-check.py --settings                  # the guardrails here
 
 Exit status
     0  the endpoint was reached and a verdict was produced
@@ -41,7 +41,7 @@ if BACKEND not in sys.path:
 
 # The check needs no language model, and a self-hoster running one command should not have to
 # configure one. Set before the backend packages are imported.
-os.environ.setdefault("PQC_LLM_DISABLED", "1")
+os.environ.setdefault("MORROW_LLM_DISABLED", "1")
 
 
 def _bold(text: str) -> str:
@@ -157,7 +157,7 @@ def _print_verdict(result: dict) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="pqc-check",
+        prog="pq-check",
         description="Free post-quantum readiness check for one public TLS endpoint.",
         epilog="One hostname, port 443, at most two connections, plus a passive Certificate "
                "Transparency lookup. No port scanning, no subdomain discovery, no vulnerability "

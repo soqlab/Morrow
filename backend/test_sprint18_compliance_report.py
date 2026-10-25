@@ -27,8 +27,8 @@ from db import (
 @pytest.fixture(scope="module")
 def client_and_report_data():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    _previous_db = os.environ.get("PQC_SCANNER_DB")
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    _previous_db = os.environ.get("MORROW_SCANNER_DB")
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
 
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
@@ -47,7 +47,7 @@ def client_and_report_data():
             "findings": [{"id": "tls-old"}],
             "risk_level": "critical",
             "quantum_score": 91.0,
-            "pqc_relevance": "high",
+            "pq_relevance": "high",
             "tls_version": "TLSv1.2",
             "key_type": "RSA",
             "sig_algorithm": "sha256WithRSAEncryption",
@@ -124,12 +124,12 @@ def client_and_report_data():
     finally:
         reset_current_organization_id(token)
         # Put the database selection back. This fixture is module-scoped, so its teardown runs
-        # after the per-test cleanup in conftest; without this, PQC_SCANNER_DB keeps pointing at
+        # after the per-test cleanup in conftest; without this, MORROW_SCANNER_DB keeps pointing at
         # this (now deleted) file for every module that runs afterwards.
         if _previous_db is None:
-            os.environ.pop("PQC_SCANNER_DB", None)
+            os.environ.pop("MORROW_SCANNER_DB", None)
         else:
-            os.environ["PQC_SCANNER_DB"] = _previous_db
+            os.environ["MORROW_SCANNER_DB"] = _previous_db
         try:
             os.remove(tmp_db.name)
         except OSError:

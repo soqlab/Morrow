@@ -1,10 +1,10 @@
 """Cloud-native secret store backends for Morrow credentials.
 
-Activated via the PQC_SECRET_BACKEND environment variable:
+Activated via the MORROW_SECRET_BACKEND environment variable:
 
-  PQC_SECRET_BACKEND=aws        Use AWS Secrets Manager
-  PQC_SECRET_BACKEND=azure      Use Azure Key Vault
-  PQC_SECRET_BACKEND=vault      Use local Fernet/Postgres vault (default)
+  MORROW_SECRET_BACKEND=aws        Use AWS Secrets Manager
+  MORROW_SECRET_BACKEND=azure      Use Azure Key Vault
+  MORROW_SECRET_BACKEND=vault      Use local Fernet/Postgres vault (default)
 
 AWS Secrets Manager config:
   AWS_REGION                   e.g., us-east-1
@@ -22,7 +22,7 @@ from __future__ import annotations
 import os
 
 
-_BACKEND = str(os.getenv("PQC_SECRET_BACKEND", "vault") or "vault").strip().lower()
+_BACKEND = str(os.getenv("MORROW_SECRET_BACKEND", "vault") or "vault").strip().lower()
 
 
 def store_secret(name: str, value: str, description: str = "") -> str:
@@ -70,7 +70,7 @@ def _aws_store(name: str, value: str, description: str = "") -> str:
         )
     region = str(os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1").strip()
     client = boto3.client("secretsmanager", region_name=region)
-    secret_name = f"pqc-scanner/{name}"
+    secret_name = f"morrow/{name}"
     try:
         client.create_secret(
             Name=secret_name,
@@ -132,7 +132,7 @@ def _azure_store(name: str, value: str) -> str:
     )
     client = SecretClient(vault_url=vault_url, credential=credential)
     # Azure secret names must be alphanumeric + hyphens
-    secret_name = "pqc-" + name.replace("_", "-").replace("/", "-").replace(":", "-")[:100]
+    secret_name = "pq-" + name.replace("_", "-").replace("/", "-").replace(":", "-")[:100]
     try:
         client.set_secret(secret_name, value)
     except Exception as exc:

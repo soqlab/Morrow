@@ -9,7 +9,7 @@ from db import init_db, list_flight_recorder_events
 
 def test_circuit_breaker_blocks_iac_policy_violation_and_records_flight_event():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     try:
@@ -56,7 +56,7 @@ def test_circuit_breaker_blocks_iac_policy_violation_and_records_flight_event():
 
 def test_circuit_breaker_warn_mode_does_not_block_exit_code():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     try:
@@ -91,7 +91,7 @@ def test_circuit_breaker_warn_mode_does_not_block_exit_code():
 
 def test_circuit_breaker_uses_org_policy_default_mode():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     try:
@@ -133,7 +133,7 @@ def test_circuit_breaker_uses_org_policy_default_mode():
 
 def test_github_required_check_publishes_circuit_breaker_decision(monkeypatch):
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     published = {}
@@ -181,12 +181,12 @@ def test_github_required_check_publishes_circuit_breaker_decision(monkeypatch):
             body = response.json()
             assert body["decision"] == "block"
             assert body["github_required_check"]["published"] is True
-            assert body["github_required_check"]["context"] == "pqc-scanner/security-policy"
+            assert body["github_required_check"]["context"] == "morrow/security-policy"
             assert published["owner"] == "acme"
             assert published["repo"] == "platform-infra"
             assert published["head_sha"] == "abc123"
             assert published["conclusion"] == "failure"
-            assert "Blocking PQC/security policy violations" in published["text"]
+            assert "Blocking post-quantum/security policy violations" in published["text"]
     finally:
         try:
             os.remove(tmp_db.name)

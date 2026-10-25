@@ -2,7 +2,7 @@ import os
 import sqlite3
 
 def main():
-    db = os.environ.get("PQC_SCANNER_DB", "/data/pqc_scanner.db")
+    db = os.environ.get("MORROW_SCANNER_DB", "/data/morrow.db")
     print("DB:", db)
 
     conn = sqlite3.connect(db)

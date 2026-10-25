@@ -33,7 +33,7 @@
 }
 
 # www -> apex, so one hostname is canonical. The registry's canonical links and badge URLs are
-# built from PQC_PUBLIC_BASE_URL, and two hostnames serving one record splits its search ranking.
+# built from MORROW_PUBLIC_BASE_URL, and two hostnames serving one record splits its search ranking.
 www.{$SITE_DOMAIN} {
 	redir https://{$SITE_DOMAIN}{uri} permanent
 }

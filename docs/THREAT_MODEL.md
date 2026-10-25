@@ -31,7 +31,7 @@ Primary trust boundaries:
 | Threat | Impact | Required Control |
 | --- | --- | --- |
 | Tenant data leakage | Critical | Postgres RLS, org claim enforcement, multi-tenant tests |
-| Forged role/org headers in production | Critical | `PQC_AUTH_MODE=jwt`, `PQC_AUTH_REQUIRED=1`, no header auth |
+| Forged role/org headers in production | Critical | `MORROW_AUTH_MODE=jwt`, `MORROW_AUTH_REQUIRED=1`, no header auth |
 | Compromised platform admin key | Critical | Store in Secret Manager, rotate, monitor `/platform/*` logs |
 | Malicious write-path request | Critical | Guardrails, human approval, validation sandbox, audit |
 | GitHub token leakage | Critical | GitHub App short-lived tokens, secret scrubbing, vault isolation |

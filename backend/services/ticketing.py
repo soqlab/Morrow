@@ -1,5 +1,5 @@
 """
-Ticketing integration: create issues in Jira or ServiceNow from PQC findings.
+Ticketing integration: create issues in Jira or ServiceNow from post-quantum findings.
 
 Jira config (store as credentials via vault or env):
   JIRA_URL          e.g. https://yourco.atlassian.net
@@ -82,7 +82,7 @@ def create_jira_issue(
     issue_type: str = "",
     extra_labels: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Create a single Jira issue from a PQC finding. Returns the created issue key/URL."""
+    """Create a single Jira issue from a post-quantum finding. Returns the created issue key/URL."""
     url      = jira_url      or os.getenv("JIRA_URL", "").strip().rstrip("/")
     user     = jira_user     or os.getenv("JIRA_USER", "").strip()
     token    = jira_api_token or os.getenv("JIRA_API_TOKEN", "").strip()
@@ -90,13 +90,13 @@ def create_jira_issue(
     itype    = issue_type    or os.getenv("JIRA_ISSUE_TYPE", "Bug").strip()
 
     severity = (finding.get("severity") or "medium").lower()
-    title    = finding.get("title") or finding.get("rule_id") or "PQC Finding"
+    title    = finding.get("title") or finding.get("rule_id") or "Post-Quantum Finding"
     fix      = finding.get("fix") or ""
     evidence = finding.get("evidence") or {}
     rule_id  = finding.get("rule_id") or ""
-    pqc_note = finding.get("pqc_note") or ""
+    pq_note = finding.get("pq_note") or ""
 
-    labels = ["pqc-scanner", "post-quantum", severity] + (extra_labels or [])
+    labels = ["morrow", "post-quantum", severity] + (extra_labels or [])
 
     description = {
         "type": "doc",
@@ -111,8 +111,8 @@ def create_jira_issue(
             {"type": "paragraph", "content": [{"type": "text", "text": fix or "See Morrow for details."}]},
             *([{"type": "heading", "attrs": {"level": 4},
                 "content": [{"type": "text", "text": "Post-Quantum Note"}]},
-               {"type": "paragraph", "content": [{"type": "text", "text": pqc_note}]}]
-              if pqc_note else []),
+               {"type": "paragraph", "content": [{"type": "text", "text": pq_note}]}]
+              if pq_note else []),
             {"type": "heading", "attrs": {"level": 4},
              "content": [{"type": "text", "text": "Evidence"}]},
             {"type": "codeBlock", "attrs": {"language": "json"},
@@ -124,7 +124,7 @@ def create_jira_issue(
     payload = {
         "fields": {
             "project":     {"key": proj},
-            "summary":     f"[PQC] {title} — {asset_key}",
+            "summary":     f"[post-quantum] {title} — {asset_key}",
             "description": description,
             "issuetype":   {"name": itype},
             "priority":    {"name": _severity_to_priority_jira(severity)},
@@ -191,7 +191,7 @@ def create_servicenow_incident(
     caller_id: str = "",
     assignment_group: str = "",
 ) -> Dict[str, Any]:
-    """Create a ServiceNow incident or task from a PQC finding."""
+    """Create a ServiceNow incident or task from a post-quantum finding."""
     instance = (snow_instance or os.getenv("SNOW_INSTANCE", "")).strip().rstrip("/")
     tab      = table or os.getenv("SNOW_TABLE", "incident").strip()
 
@@ -199,17 +199,17 @@ def create_servicenow_incident(
         raise ValueError("SNOW_INSTANCE is required (e.g. yourco.service-now.com).")
 
     severity  = (finding.get("severity") or "medium").lower()
-    title     = finding.get("title") or finding.get("rule_id") or "PQC Finding"
+    title     = finding.get("title") or finding.get("rule_id") or "Post-Quantum Finding"
     fix       = finding.get("fix") or ""
     evidence  = finding.get("evidence") or {}
-    pqc_note  = finding.get("pqc_note") or ""
+    pq_note  = finding.get("pq_note") or ""
 
     description = (
         f"Asset: {asset_key}\n"
         f"Severity: {severity.upper()}\n"
         f"Rule: {finding.get('rule_id', '')}\n\n"
         f"Remediation:\n{fix}\n\n"
-        + (f"Post-Quantum Note:\n{pqc_note}\n\n" if pqc_note else "")
+        + (f"Post-Quantum Note:\n{pq_note}\n\n" if pq_note else "")
         + f"Evidence:\n{json.dumps(evidence, indent=2, default=str)}"
     )
 
@@ -355,7 +355,7 @@ def create_ticket(
             "Accept": "application/vnd.github+json",
             "Content-Type": "application/json",
         }
-        labels = cfg.get("labels", ["pqc-finding"])
+        labels = cfg.get("labels", ["pq-finding"])
         if isinstance(labels, str):
             labels = [label.strip() for label in labels.split(",") if label.strip()]
         payload_bytes = json.dumps({"title": title, "body": body, "labels": labels}).encode()

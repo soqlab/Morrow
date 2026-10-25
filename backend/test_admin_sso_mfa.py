@@ -25,7 +25,7 @@ SECRET = "sso-mfa-tests-jwt-signing-key-not-for-deployment-91"
 LEGACY = "legacy-shared-platform-key-for-sso-tests-0123456789"
 ALICE_KEY = "alice-named-operator-key-for-sso-tests-0123456789"
 ISSUER = "https://idp.example.test"
-CLIENT_ID = "pqc-admin-portal"
+CLIENT_ID = "morrow-admin-portal"
 OWNER = "owner@corp.example"
 OPS = "ops@corp.example"
 
@@ -86,24 +86,24 @@ class FakeIdP:
 def api(tmp_path, monkeypatch):
     import app
 
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "sso.db"))
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", SECRET)
-    monkeypatch.setenv("PQC_ENVIRONMENT", "local")
-    monkeypatch.setenv("PQC_PLATFORM_OPERATORS", json.dumps([{"name": "alice", "role": "owner", "key_sha256": _sha(ALICE_KEY)}]))
-    monkeypatch.setenv("PQC_ADMIN_OIDC_ISSUER", ISSUER)
-    monkeypatch.setenv("PQC_ADMIN_OIDC_CLIENT_ID", CLIENT_ID)
-    monkeypatch.setenv("PQC_ADMIN_OIDC_CLIENT_SECRET", "client-secret-for-tests")
-    monkeypatch.setenv("PQC_ADMIN_OIDC_REDIRECT_URI", "https://testserver/vendor-admin/sso/callback")
-    monkeypatch.setenv("PQC_ADMIN_OIDC_ALLOWED_DOMAINS", "corp.example")
-    monkeypatch.setenv("PQC_ADMIN_OPERATOR_ROLES", f"{OWNER}=owner,{OPS}=operator")
-    for name in ("PQC_ADMIN_REQUIRE_MFA", "PQC_ALLOW_BREAK_GLASS_KEY", "PQC_PLATFORM_ADMIN_KEY_ROLE",
-                 "PQC_ADMIN_SESSION_IDLE_SECONDS", "PQC_ADMIN_SESSION_ABSOLUTE_SECONDS", "PQC_ADMIN_STEP_UP_SECONDS"):
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "sso.db"))
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", SECRET)
+    monkeypatch.setenv("MORROW_ENVIRONMENT", "local")
+    monkeypatch.setenv("MORROW_PLATFORM_OPERATORS", json.dumps([{"name": "alice", "role": "owner", "key_sha256": _sha(ALICE_KEY)}]))
+    monkeypatch.setenv("MORROW_ADMIN_OIDC_ISSUER", ISSUER)
+    monkeypatch.setenv("MORROW_ADMIN_OIDC_CLIENT_ID", CLIENT_ID)
+    monkeypatch.setenv("MORROW_ADMIN_OIDC_CLIENT_SECRET", "client-secret-for-tests")
+    monkeypatch.setenv("MORROW_ADMIN_OIDC_REDIRECT_URI", "https://testserver/vendor-admin/sso/callback")
+    monkeypatch.setenv("MORROW_ADMIN_OIDC_ALLOWED_DOMAINS", "corp.example")
+    monkeypatch.setenv("MORROW_ADMIN_OPERATOR_ROLES", f"{OWNER}=owner,{OPS}=operator")
+    for name in ("MORROW_ADMIN_REQUIRE_MFA", "MORROW_ALLOW_BREAK_GLASS_KEY", "MORROW_PLATFORM_ADMIN_KEY_ROLE",
+                 "MORROW_ADMIN_SESSION_IDLE_SECONDS", "MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS", "MORROW_ADMIN_STEP_UP_SECONDS"):
         monkeypatch.delenv(name, raising=False)
     for name, value in {
         "AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_ISSUER_ENABLED": True, "AUTH_JWT_ALGORITHMS": ["HS256"],
-        "AUTH_JWT_SECRET": SECRET, "AUTH_JWT_ISSUER": "pqc-scanner", "AUTH_JWT_AUDIENCE": "pqc-scanner",
+        "AUTH_JWT_SECRET": SECRET, "AUTH_JWT_ISSUER": "morrow", "AUTH_JWT_AUDIENCE": "morrow",
         "_PLATFORM_ADMIN_KEY": LEGACY, "API_KEY": "", "PRODUCTION_ENVIRONMENT": False, "RATE_LIMIT_MAX_REQUESTS": 100000,
     }.items():
         monkeypatch.setattr(app, name, value)
@@ -325,7 +325,7 @@ def test_idle_and_absolute_expiry(api):
     sso_login(client, idp)
     assert whoami(client).status_code == 200
     set_session(app, last_seen_at=time.time() - 31 * 60)
-    # With PQC_AUTH_REQUIRED the request middleware already answers 401 for a dead session.
+    # With MORROW_AUTH_REQUIRED the request middleware already answers 401 for a dead session.
     assert whoami(client).status_code == 401 and session_state(client) == "idle_expired"
 
     sso_login(client, idp)
@@ -390,7 +390,7 @@ def test_roster_removal_ends_access_and_events_record_email_and_method(api, monk
     created = events(app, "platform.customer_created")[0]
     assert created["actor_id"] == OPS
     assert created["details"]["operator"]["auth_method"] == "sso" and created["details"]["operator"]["email"] == OPS
-    monkeypatch.setenv("PQC_ADMIN_OPERATOR_ROLES", f"{OWNER}=owner")
+    monkeypatch.setenv("MORROW_ADMIN_OPERATOR_ROLES", f"{OWNER}=owner")
     assert whoami(client).status_code == 401
 
 
@@ -477,7 +477,7 @@ def test_recovery_codes_are_single_use_and_can_be_regenerated(api):
 
 def test_required_mfa_gates_the_session_until_verified(api, monkeypatch):
     client, _, idp = api
-    monkeypatch.setenv("PQC_ADMIN_REQUIRE_MFA", "1")
+    monkeypatch.setenv("MORROW_ADMIN_REQUIRE_MFA", "1")
     sso_login(client, idp)
     assert whoami(client).json()["mfa"]["required"] is True
     res = client.get("/platform/customers")
@@ -495,7 +495,7 @@ def test_required_mfa_gates_the_session_until_verified(api, monkeypatch):
 
 def test_named_operator_key_needs_mfa_when_required(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setenv("PQC_ADMIN_REQUIRE_MFA", "1")
+    monkeypatch.setenv("MORROW_ADMIN_REQUIRE_MFA", "1")
     key = {"x-platform-key": ALICE_KEY}
     res = client.get("/platform/customers", headers=key)
     assert res.status_code == 401 and res.json()["detail"]["code"] == "mfa_enrolment_required"
@@ -563,19 +563,19 @@ def test_owner_can_reset_another_operators_mfa_with_reason(api):
 
 def test_shared_key_is_rejected_in_production_without_break_glass(api, monkeypatch):
     client, _, _ = api
-    monkeypatch.setenv("PQC_ENVIRONMENT", "production")
+    monkeypatch.setenv("MORROW_ENVIRONMENT", "production")
     res = client.get("/platform/customers", headers=legacy("auditor"))
     assert res.status_code == 403 and res.json()["detail"]["code"] == "break_glass_disabled"
-    monkeypatch.setenv("PQC_ENVIRONMENT", "staging")
+    monkeypatch.setenv("MORROW_ENVIRONMENT", "staging")
     assert client.get("/platform/customers", headers=legacy("auditor")).status_code == 403
     assert client.get("/platform/auth-config").json()["break_glass_allowed"] is False
 
 
 def test_break_glass_flag_allows_the_shared_key_and_audits_every_use(api, monkeypatch):
     client, app, _ = api
-    monkeypatch.setenv("PQC_ENVIRONMENT", "production")
-    monkeypatch.setenv("PQC_ALLOW_BREAK_GLASS_KEY", "1")
-    monkeypatch.setenv("PQC_ADMIN_REQUIRE_MFA", "0")
+    monkeypatch.setenv("MORROW_ENVIRONMENT", "production")
+    monkeypatch.setenv("MORROW_ALLOW_BREAK_GLASS_KEY", "1")
+    monkeypatch.setenv("MORROW_ADMIN_REQUIRE_MFA", "0")
     assert client.get("/platform/customers", headers=legacy("auditor")).status_code == 200
     res = client.post("/platform/customers", headers=legacy("owner"),
                       json={"organization_id": "org-glass", "name": "Org Glass", "reason": "incident"})
@@ -599,7 +599,7 @@ def test_go_live_gate_reports_operator_sign_in_checks(api, monkeypatch):
     assert checks["admin_mfa_required"]["status"] == "fail"
     assert checks["admin_break_glass_disabled"]["status"] == "pass"
     assert "admin_mfa_required" in {c["key"] for c in gate["failed_required_checks"]}
-    monkeypatch.setenv("PQC_ALLOW_BREAK_GLASS_KEY", "1")
+    monkeypatch.setenv("MORROW_ALLOW_BREAK_GLASS_KEY", "1")
     checks = {c["key"]: c for c in client.get("/platform/go-live-gate", headers=legacy("auditor")).json()["checks"]}
     assert checks["admin_break_glass_disabled"]["status"] == "fail"
 
@@ -616,24 +616,24 @@ def test_local_shared_key_behaviour_is_unchanged(api):
 
 def test_bom_env_file_parses_the_first_variable(tmp_path):
     path = tmp_path / "bom.env"
-    path.write_bytes(b"\xef\xbb\xbfPQC_VAULT_MASTER_KEY=first-value-123\r\n# comment\r\nexport OTHER='two words'\r\nPLAIN=3 # note\r\n")
+    path.write_bytes(b"\xef\xbb\xbfMORROW_VAULT_MASTER_KEY=first-value-123\r\n# comment\r\nexport OTHER='two words'\r\nPLAIN=3 # note\r\n")
     values = env_file.parse_env_file(str(path))
-    assert values == {"PQC_VAULT_MASTER_KEY": "first-value-123", "OTHER": "two words", "PLAIN": "3"}
+    assert values == {"MORROW_VAULT_MASTER_KEY": "first-value-123", "OTHER": "two words", "PLAIN": "3"}
     target = {}
-    assert env_file.load_env_file(str(path), environ=target) == ["PQC_VAULT_MASTER_KEY", "OTHER", "PLAIN"]
-    assert target["PQC_VAULT_MASTER_KEY"] == "first-value-123"
+    assert env_file.load_env_file(str(path), environ=target) == ["MORROW_VAULT_MASTER_KEY", "OTHER", "PLAIN"]
+    assert target["MORROW_VAULT_MASTER_KEY"] == "first-value-123"
 
 
 def test_bom_mangled_environment_names_are_repaired():
-    environ = {"﻿PQC_VAULT_MASTER_KEY": "abc123456", "OTHER": "1", "﻿ALREADY": "stale", "ALREADY": "kept"}
-    assert env_file.repair_bom_environ(environ) == ["PQC_VAULT_MASTER_KEY"]
-    assert environ == {"PQC_VAULT_MASTER_KEY": "abc123456", "OTHER": "1", "ALREADY": "kept"}
+    environ = {"﻿MORROW_VAULT_MASTER_KEY": "abc123456", "OTHER": "1", "﻿ALREADY": "stale", "ALREADY": "kept"}
+    assert env_file.repair_bom_environ(environ) == ["MORROW_VAULT_MASTER_KEY"]
+    assert environ == {"MORROW_VAULT_MASTER_KEY": "abc123456", "OTHER": "1", "ALREADY": "kept"}
 
 
 def test_secrets_are_redacted_from_messages():
-    env = {"PQC_VAULT_MASTER_KEY": "vault-master-key-value-xyz", "PQC_ENVIRONMENT": "production"}
-    message = ('invalid dsn: invalid connection option "﻿PQC_VAULT_MASTER_KEY=vault-master-key-value-xyz" '
-               "postgresql://app:db-password-777@db.internal/pqc PQC_AUTH_JWT_SECRET=another-secret-abc environment production")
+    env = {"MORROW_VAULT_MASTER_KEY": "vault-master-key-value-xyz", "MORROW_ENVIRONMENT": "production"}
+    message = ('invalid dsn: invalid connection option "﻿MORROW_VAULT_MASTER_KEY=vault-master-key-value-xyz" '
+               "postgresql://app:db-password-777@db.internal/pq MORROW_AUTH_JWT_SECRET=another-secret-abc environment production")
     redacted = env_file.redact_secrets(message, environ=env)
     for secret in ("vault-master-key-value-xyz", "db-password-777", "another-secret-abc"):
         assert secret not in redacted
@@ -643,11 +643,11 @@ def test_secrets_are_redacted_from_messages():
 def test_vault_startup_warning_does_not_log_the_master_key(api, monkeypatch, caplog):
     _, app, _ = api
     key = "cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU="
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY", key)
-    monkeypatch.setenv("DATABASE_URL", "postgresql://pqc:hunter2-db-password@127.0.0.1:1/pqc")
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", key)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://morrow:hunter2-db-password@127.0.0.1:1/pq")
 
     def boom():
-        raise RuntimeError(f'invalid dsn: "﻿PQC_VAULT_MASTER_KEY={key}" and postgresql://pqc:hunter2-db-password@127.0.0.1:1/pqc')
+        raise RuntimeError(f'invalid dsn: "﻿MORROW_VAULT_MASTER_KEY={key}" and postgresql://morrow:hunter2-db-password@127.0.0.1:1/pq')
 
     for name in ("_assert_production_startup_safe", "_init_otel", "init_db"):
         monkeypatch.setattr(app, name, lambda *a, **k: [])
@@ -685,8 +685,8 @@ def test_guard_explains_why_a_session_stopped_working(api, monkeypatch):
 def test_alert_dispatcher_reads_the_gate_without_the_shared_key(api, monkeypatch):
     """The background dispatcher computes the go-live gate in-process: no shared key, no break-glass event."""
     _, app, _ = api
-    monkeypatch.setenv("PQC_ENVIRONMENT", "production")
-    monkeypatch.delenv("PQC_ALLOW_BREAK_GLASS_KEY", raising=False)
+    monkeypatch.setenv("MORROW_ENVIRONMENT", "production")
+    monkeypatch.delenv("MORROW_ALLOW_BREAK_GLASS_KEY", raising=False)
     assert oa.break_glass_allowed() is False
     gate = app._platform_go_live_gate_result()
     assert "failed_required_checks" in gate and "admin_sso" in {c["key"] for c in gate["checks"]}

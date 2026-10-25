@@ -29,13 +29,13 @@ from datetime import datetime, timedelta, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
-DEMO_DB = pathlib.Path(os.environ.get("PQC_DEMO_DB") or (ROOT / "demo" / "video" / "demo.db"))
+DEMO_DB = pathlib.Path(os.environ.get("MORROW_DEMO_DB") or (ROOT / "demo" / "video" / "demo.db"))
 
-os.environ["PQC_SCANNER_DB"] = str(DEMO_DB)      # before anything imports db
-os.environ["PQC_FEATURE_STORE_BACKEND"] = "sqlite"
-os.environ["PQC_PUBLIC_CHECK_ENABLED"] = "1"
-os.environ["PQC_PUBLIC_CHECK_IP_SALT"] = "demo-film-salt"
-os.environ.setdefault("PQC_LLM_DISABLED", "1")
+os.environ["MORROW_SCANNER_DB"] = str(DEMO_DB)      # before anything imports db
+os.environ["MORROW_FEATURE_STORE_BACKEND"] = "sqlite"
+os.environ["MORROW_PUBLIC_CHECK_ENABLED"] = "1"
+os.environ["MORROW_PUBLIC_CHECK_IP_SALT"] = "demo-film-salt"
+os.environ.setdefault("MORROW_LLM_DISABLED", "1")
 sys.path.insert(0, str(BACKEND))
 
 DOMAIN = "example.com"
@@ -81,7 +81,7 @@ def main() -> int:
         (datetime(2026, 10, 2, 6, 41, tzinfo=timezone.utc),
          dict(key_type="EC", key_bits=256, curve="secp256r1", sig="ecdsa-with-SHA256",
               tls="TLSv1.3", cipher="TLS_AES_256_GCM_SHA384", kx="X25519MLKEM768",
-              family="pqc_hybrid")),
+              family="pq_hybrid")),
     ]
 
     ct = {"status": "skipped", "provider": "none",

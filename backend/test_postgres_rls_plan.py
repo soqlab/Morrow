@@ -15,7 +15,7 @@ from services.rls_verify import evaluate_rls_state
 
 
 def test_build_rls_sql_covers_org_scoped_tables():
-    sql = build_rls_sql(app_role="pqc_app")
+    sql = build_rls_sql(app_role="morrow_app")
 
     assert "ENABLE ROW LEVEL SECURITY" in sql
     assert "FORCE ROW LEVEL SECURITY" in sql
@@ -28,7 +28,7 @@ def test_build_rls_sql_covers_org_scoped_tables():
 
 def test_policy_is_created_before_rls_is_forced():
     """A table must never end up with FORCE RLS and no policy -- that returns zero rows forever."""
-    sql = build_rls_sql(app_role="pqc_app", tables=["assets"])
+    sql = build_rls_sql(app_role="morrow_app", tables=["assets"])
 
     create_policy = sql.index("CREATE POLICY")
     enable_rls = sql.index("ENABLE ROW LEVEL SECURITY")
@@ -38,7 +38,7 @@ def test_policy_is_created_before_rls_is_forced():
 
 def test_each_table_is_guarded_on_existence_and_org_column():
     """A schema missing an optional table must not abort the script and skip the rest."""
-    sql = build_rls_sql(app_role="pqc_app", tables=["assets", "scans"])
+    sql = build_rls_sql(app_role="morrow_app", tables=["assets", "scans"])
 
     assert sql.count("to_regclass") == 2
     assert sql.count("column_name = 'organization_id'") == 2
@@ -49,7 +49,7 @@ def test_each_table_is_guarded_on_existence_and_org_column():
 def test_sql_refuses_a_role_that_would_make_policies_inert():
     """Postgres exempts superusers and BYPASSRLS roles from RLS, so applying policies over such a
     role silently protects nothing. The script must refuse rather than appear to succeed."""
-    sql = build_rls_sql(app_role="pqc_app")
+    sql = build_rls_sql(app_role="morrow_app")
 
     assert "rolsuper OR rolbypassrls" in sql
     assert "RAISE EXCEPTION" in sql
@@ -65,7 +65,7 @@ def test_sqlite_only_tables_are_not_rls_targets():
 
 
 def test_rls_plan_explains_operator_steps():
-    plan = build_rls_plan(app_role="pqc_app")
+    plan = build_rls_plan(app_role="morrow_app")
 
     assert plan["status"] == "ready"
     assert plan["org_setting"] == "app.current_organization_id"
@@ -78,17 +78,17 @@ def test_rls_plan_explains_operator_steps():
 def test_an_unset_tenant_matches_nothing_rather_than_the_empty_organization():
     """`organization_id = current_setting(...)` alone is not enough: several tables use '' as the
     anonymous/unattributed bucket, so a connection that resolved no tenant would read those rows."""
-    sql = build_rls_sql(app_role="pqc_app", tables=["assets"])
+    sql = build_rls_sql(app_role="morrow_app", tables=["assets"])
 
     assert "NULLIF(current_setting(''app.current_organization_id'', true), '''') IS NOT NULL" in sql
 
 
 def test_the_cross_tenant_escape_hatch_is_in_the_policy_not_in_the_role():
     """A session flag can be audited and is off by default; BYPASSRLS on the role cannot and is not."""
-    sql = build_rls_sql(app_role="pqc_app", tables=["assets"])
+    sql = build_rls_sql(app_role="morrow_app", tables=["assets"])
 
     assert "current_setting(''app.platform_scope'', true) = ''on''" in sql
-    plan = build_rls_plan(app_role="pqc_app")
+    plan = build_rls_plan(app_role="morrow_app")
     assert plan["platform_setting"] == "app.platform_scope"
     assert "NOBYPASSRLS" in plan["operator_access_rule"]
 
@@ -97,9 +97,9 @@ def test_the_plan_grants_the_runtime_role_its_privileges():
     """RLS restricts what a role may see; it never grants access. A role created purely for the
     runtime has no rights at all until these run, so leaving them out means the hardening step
     locks the application out of its own database."""
-    sql = build_rls_sql(app_role="pqc_app", tables=["assets"])
+    sql = build_rls_sql(app_role="morrow_app", tables=["assets"])
 
-    assert 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "pqc_app"' in sql
+    assert 'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "morrow_app"' in sql
     assert sql.index("GRANT USAGE ON SCHEMA public") < sql.index("ENABLE ROW LEVEL SECURITY")
 
 
@@ -132,7 +132,7 @@ def test_no_policy_names_a_billing_table():
 
 def test_quote_ident_rejects_unsafe_identifiers():
     with pytest.raises(ValueError):
-        quote_ident("pqc_app; drop table assets")
+        quote_ident("morrow_app; drop table assets")
 
 
 def test_scope_state_is_off_by_default_and_restores_on_exit():
@@ -179,7 +179,7 @@ def _table_row(name, rls=True, force=True):
     return {"relname": name, "relrowsecurity": rls, "relforcerowsecurity": force}
 
 
-SAFE_ROLE = {"role_name": "pqc_app", "rolsuper": False, "rolbypassrls": False}
+SAFE_ROLE = {"role_name": "morrow_app", "rolsuper": False, "rolbypassrls": False}
 
 
 def _healthy_policies():
@@ -301,7 +301,7 @@ def test_the_admin_console_tables_are_covered_under_their_own_tenant_column():
 
 
 def test_the_generated_policy_uses_each_tables_own_tenant_column():
-    sql = build_rls_sql(app_role="pqc_app")
+    sql = build_rls_sql(app_role="morrow_app")
     for table in ORG_SCOPED_TABLES:
         column = tenant_column(table)
         assert f'CREATE POLICY "{table}_org_isolation" ON "{table}"' in sql, table
@@ -338,7 +338,7 @@ def test_the_registry_tables_are_named_exceptions_with_no_policy():
     assert TENANT_REGISTRY_TABLES == ["organizations", "admin_orgs"]
     for table in TENANT_REGISTRY_TABLES:
         assert table not in ORG_SCOPED_TABLES
-        assert f'ON "{table}"' not in build_rls_sql(app_role="pqc_app")
+        assert f'ON "{table}"' not in build_rls_sql(app_role="morrow_app")
     state = evaluate_rls_state(
         [_table_row(t) for t in ORG_SCOPED_TABLES], SAFE_ROLE, ORG_SCOPED_TABLES,
         org_scoped_in_db=list(ORG_SCOPED_TABLES) + list(TENANT_REGISTRY_TABLES),
@@ -349,7 +349,7 @@ def test_the_registry_tables_are_named_exceptions_with_no_policy():
 
 
 def test_the_published_plan_reports_the_tenant_column_of_every_table():
-    plan = build_rls_plan(app_role="pqc_app")
+    plan = build_rls_plan(app_role="morrow_app")
     assert plan["tenant_columns"]["admin_users"] == "org_id"
     assert plan["tenant_columns"]["assets"] == "organization_id"
     assert plan["tenant_registry_tables"] == TENANT_REGISTRY_TABLES

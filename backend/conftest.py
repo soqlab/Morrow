@@ -8,28 +8,28 @@ import os
 import pytest
 
 # Must be set before app.py / services/auth_issuer.py are imported.
-os.environ.setdefault("PQC_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
+os.environ.setdefault("MORROW_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
 
-# Bootstrap creates no account when PQC_ADMIN_PASSWORD is unset. Tests that sign in as the
+# Bootstrap creates no account when MORROW_ADMIN_PASSWORD is unset. Tests that sign in as the
 # seeded admin explicitly supply a throwaway secret, never a deployment credential.
-os.environ.setdefault("PQC_ADMIN_PASSWORD", "changeme123!")
+os.environ.setdefault("MORROW_ADMIN_PASSWORD", "changeme123!")
 
 # Vault operations require a valid Fernet key (32 url-safe base64 bytes). Without it, anything that
-# stores an integration secret raises "PQC_VAULT_MASTER_KEY is required for Vault operations".
+# stores an integration secret raises "MORROW_VAULT_MASTER_KEY is required for Vault operations".
 # This is a fixed throwaway key so the vault-backed tests are deterministic — never a real one.
-# base64url of b"pqc-scanner-test-only-key-32byte" (exactly 32 bytes, as Fernet requires).
-os.environ.setdefault("PQC_VAULT_MASTER_KEY", "cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=")
+# base64url of b"morrow-test-only-key-32byte" (exactly 32 bytes, as Fernet requires).
+os.environ.setdefault("MORROW_VAULT_MASTER_KEY", "cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=")
 
 
 def _isolate_test_database():
-    """Run the suite against a private copy of backend/pqc_scanner.db, never the file itself.
+    """Run the suite against a private copy of backend/morrow.db, never the file itself.
 
     Without this, every suite that does not pick its own temp database wrote into the same SQLite file
     a locally running server (port 8001) serves -- the smoke test alone sends a request to every write
     endpoint -- so a test run held that file's single write lock for minutes and the console stalled.
-    A copy keeps the data tests have always seen. Set PQC_SCANNER_DB to choose a database explicitly.
+    A copy keeps the data tests have always seen. Set MORROW_SCANNER_DB to choose a database explicitly.
     """
-    if os.environ.get("PQC_SCANNER_DB"):
+    if os.environ.get("MORROW_SCANNER_DB"):
         return
     import atexit
     import shutil
@@ -37,13 +37,13 @@ def _isolate_test_database():
     import tempfile
     from contextlib import closing
 
-    workdir = tempfile.mkdtemp(prefix="pqc-pytest-db-")
-    target = os.path.join(workdir, "pqc_scanner.db")
-    source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pqc_scanner.db")
+    workdir = tempfile.mkdtemp(prefix="pq-pytest-db-")
+    target = os.path.join(workdir, "morrow.db")
+    source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "morrow.db")
     if os.path.exists(source):
         with closing(sqlite3.connect(source, timeout=30)) as src, closing(sqlite3.connect(target)) as dst:
             src.backup(dst)  # consistent snapshot even while a server is writing
-    os.environ["PQC_SCANNER_DB"] = target
+    os.environ["MORROW_SCANNER_DB"] = target
     atexit.register(shutil.rmtree, workdir, True)
 
 
@@ -80,15 +80,15 @@ def _module_fingerprint():
     return (
         tuple(repr(getattr(app_mod, key, None)) for key in _APP_STATE_KEYS),
         repr(getattr(db_mod, "DB_PATH", None)) if db_mod is not None else "",
-        os.environ.get("PQC_SCANNER_DB", ""),
+        os.environ.get("MORROW_SCANNER_DB", ""),
     )
 
 
 #: Every environment variable that decides which database the process talks to. A test module that
 #: changes one of these and does not put it back hands the next module its private database.
 _DATABASE_ENV_KEYS = (
-    "PQC_SCANNER_DB", "PQC_MAIN_DB_BACKEND", "PQC_FEATURE_STORE_BACKEND",
-    "PQC_PRODUCT_DATABASE_URL", "DATABASE_URL",
+    "MORROW_SCANNER_DB", "MORROW_MAIN_DB_BACKEND", "MORROW_FEATURE_STORE_BACKEND",
+    "MORROW_PRODUCT_DATABASE_URL", "DATABASE_URL",
 )
 
 
@@ -100,15 +100,15 @@ def _restore_database_selection_between_modules():
     last test's function-scoped fixtures, so a module fixture that does
 
         tmp_db = tempfile.NamedTemporaryFile(delete=False)
-        os.environ["PQC_SCANNER_DB"] = tmp_db.name
+        os.environ["MORROW_SCANNER_DB"] = tmp_db.name
         ...
         yield client
         os.remove(tmp_db.name)          # the file goes; the environment variable stays
 
-    leaves PQC_SCANNER_DB pointing at its private database (often one that has just been deleted)
+    leaves MORROW_SCANNER_DB pointing at its private database (often one that has just been deleted)
     for every module that runs after it. Half a dozen modules do exactly that. The next module
     then runs against a database the copy isolation above never seeded, which is why
-    test_wave17.py failed with "no such table: pqc_users" depending only on what ran before it.
+    test_wave17.py failed with "no such table: morrow_users" depending only on what ran before it.
 
     This fixture is module-scoped, so it is set up before anything in the module and torn down
     after everything in it, including those fixtures. It restores the selection and, when the
@@ -157,7 +157,7 @@ def _restore_global_module_state():
 
     Two distinct leaks are covered:
 
-    1. PQC_SCANNER_DB. db.get_connection() re-reads it on every call, so a test that points it at a
+    1. MORROW_SCANNER_DB. db.get_connection() re-reads it on every call, so a test that points it at a
        temp file and does not put it back leaves the rest of the pytest process talking to a database
        that no longer exists ("sqlite3.OperationalError: unable to open database file").
 
@@ -174,16 +174,16 @@ def _restore_global_module_state():
     only pays the cost of reloading when it detects an actual change.
     """
     sentinel = object()
-    env_before = os.environ.get("PQC_SCANNER_DB", sentinel)
+    env_before = os.environ.get("MORROW_SCANNER_DB", sentinel)
     fp_before = _module_fingerprint()
 
     yield
 
-    if os.environ.get("PQC_SCANNER_DB", sentinel) != env_before:
+    if os.environ.get("MORROW_SCANNER_DB", sentinel) != env_before:
         if env_before is sentinel:
-            os.environ.pop("PQC_SCANNER_DB", None)
+            os.environ.pop("MORROW_SCANNER_DB", None)
         else:
-            os.environ["PQC_SCANNER_DB"] = env_before
+            os.environ["MORROW_SCANNER_DB"] = env_before
 
     if fp_before is None:
         return

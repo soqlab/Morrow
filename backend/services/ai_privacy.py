@@ -127,7 +127,7 @@ def _byo_destination(org=None):
 
 
 def destinations(org=None):
-    local = os.getenv("PQC_AI_LOCAL_URL", "").strip()
+    local = os.getenv("MORROW_AI_LOCAL_URL", "").strip()
     try:
         parsed = urlsplit(local)
         if parsed.username or parsed.password or parsed.query or parsed.fragment:
@@ -139,8 +139,8 @@ def destinations(org=None):
                    "model": os.getenv("OPENAI_AGENT_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4o-mini"},
         "anthropic": {"url": "https://api.anthropic.com/v1/messages", "configured": bool(os.getenv("ANTHROPIC_API_KEY", "").strip()),
                       "model": os.getenv("ANTHROPIC_AGENT_MODEL") or "claude-opus-5"},
-        "local": {"url": local, "configured": bool(local and os.getenv("PQC_AI_LOCAL_MODEL")),
-                  "model": os.getenv("PQC_AI_LOCAL_MODEL", "")},
+        "local": {"url": local, "configured": bool(local and os.getenv("MORROW_AI_LOCAL_MODEL")),
+                  "model": os.getenv("MORROW_AI_LOCAL_MODEL", "")},
         "byo": _byo_destination(org),
     }
 
@@ -164,7 +164,7 @@ def _destination(provider, org=None):
         if _SECRET_IN_URL.search(destination["url"]):
             raise PrivacyError("A model destination must not carry a credential in its URL", 503)
     if provider == "local":
-        if os.getenv("PQC_AI_DEPLOYMENT_LOCATION") != "customer":
+        if os.getenv("MORROW_AI_DEPLOYMENT_LOCATION") != "customer":
             raise PrivacyError("Customer-hosted mode requires an operator-configured customer deployment", 409)
         if parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}):
             raise PrivacyError("Customer model requires HTTPS, except on loopback", 503)
@@ -331,7 +331,7 @@ def status(org):
     last = float(latest[0]) if latest else None
     return {"policy": conf, "destinations": destinations(org), "public_key": row["public_key"] if row else None,
             "last_enforcement_check": last, "observation": "recent_dispatch" if last and time.time() - last < 300 else "unknown_or_stale",
-            "boundary_location": os.getenv("PQC_AI_DEPLOYMENT_LOCATION", "platform"),
+            "boundary_location": os.getenv("MORROW_AI_DEPLOYMENT_LOCATION", "platform"),
             "boundary_location_basis": "operator-declared, not remotely attested",
             "provider_retention": "not_verified", "provider_training": "not_verified", "network_bypass_prevention": "deployment_firewall_required",
             "scope": "Only calls through this application gateway; not other software, CDN traffic or provider internals."}
@@ -372,7 +372,7 @@ def dispatch(org, purpose, provider, payload, invoke, expected_version=None):
             conn.commit()
             raise PrivacyError("Two AI requests are already running for this organization", 429)
         signing_secret = _private(row).private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
-        digest_key = hmac.new(signing_secret, b"PQC AI payload digest v1", hashlib.sha256).digest()
+        digest_key = hmac.new(signing_secret, b"Post-quantum AI payload digest v1", hashlib.sha256).digest()
         request_digest = hmac.new(digest_key, canonical(clean).encode(), hashlib.sha256).hexdigest()
         _event(conn, org, row, "request.authorized", job_id=job, purpose=purpose, provider=provider,
                actor=str(ACTOR.get())[:128],
@@ -453,7 +453,7 @@ def openai_completion(org, purpose, payload, timeout=60, expected_version=None):
     destination = _destination(provider)
     def call(clean):
         headers = {"Content-Type": "application/json"}
-        key = os.getenv("OPENAI_API_KEY") if provider == "openai" else os.getenv("PQC_AI_LOCAL_API_KEY")
+        key = os.getenv("OPENAI_API_KEY") if provider == "openai" else os.getenv("MORROW_AI_LOCAL_API_KEY")
         if key:
             headers["Authorization"] = "Bearer " + key
         req = urllib.request.Request(destination["url"], data=canonical(clean).encode(), headers=headers, method="POST")

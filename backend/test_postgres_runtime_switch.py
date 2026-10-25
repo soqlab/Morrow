@@ -11,7 +11,7 @@ def _with_org(org_id: str):
 
 
 def test_repository_org_and_github_installation_delegate_to_postgres(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
 
     monkeypatch.setattr(db, "pg_upsert_repository", lambda org_id, name, html_url: calls.setdefault("repo_upsert", (org_id, name, html_url)) or {"id": 1, "name": name, "html_url": html_url})
@@ -50,7 +50,7 @@ def test_repository_org_and_github_installation_delegate_to_postgres(monkeypatch
 
 
 def test_init_db_uses_postgres_bootstrap_without_sqlite(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
 
     monkeypatch.setattr(db, "ensure_postgres_core_schema", lambda: calls.setdefault("schema", True) or None)
@@ -71,7 +71,7 @@ def test_init_db_uses_postgres_bootstrap_without_sqlite(monkeypatch):
 
 
 def test_asset_runtime_switch_delegates_to_postgres(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
 
     monkeypatch.setattr(
@@ -116,7 +116,7 @@ def test_asset_runtime_switch_delegates_to_postgres(monkeypatch):
 
 
 def test_remediation_and_audit_runtime_switch_delegate_to_postgres(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
 
     monkeypatch.setattr(db, "pg_create_remediation", lambda org_id, asset_key_str, repo_id, file_path, vulnerability, suggested_fix, **kwargs: calls.setdefault("rem_create", (org_id, asset_key_str, repo_id, file_path, vulnerability, suggested_fix, kwargs)) or {"id": 3})
@@ -162,7 +162,7 @@ def test_remediation_and_audit_runtime_switch_delegate_to_postgres(monkeypatch):
 
 
 def test_validation_runtime_switch_delegates_to_postgres(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
 
     monkeypatch.setattr(db, "pg_create_validation_job", lambda org_id, remediation_id, **kwargs: calls.setdefault("val_create", (org_id, remediation_id, kwargs)) or {"id": 7})
@@ -194,7 +194,7 @@ def test_validation_runtime_switch_delegates_to_postgres(monkeypatch):
 
 
 def test_webhook_runtime_switch_delegates_to_postgres(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
 
     monkeypatch.setattr(db, "pg_list_webhooks", lambda org_id, limit=200, include_secret=False: calls.setdefault("webhooks", (org_id, limit, include_secret)) or [])
@@ -251,7 +251,7 @@ def test_webhook_runtime_switch_delegates_to_postgres(monkeypatch):
 
 
 def test_collection_schedule_and_event_rule_runtime_switch_delegate_to_postgres(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
 
     monkeypatch.setattr(db, "pg_upsert_collection", lambda org_id, name, targets_text: calls.setdefault("collection_upsert", (org_id, name, targets_text)) or {"id": 1})
@@ -333,7 +333,7 @@ def test_collection_schedule_and_event_rule_runtime_switch_delegate_to_postgres(
 
 
 def test_scan_baseline_and_history_runtime_switch_delegate_to_postgres(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     calls = {}
     baseline_sets = []
     loaded_scan = {
@@ -451,7 +451,7 @@ def test_scan_baseline_and_history_runtime_switch_delegate_to_postgres(monkeypat
         outcome = db.set_baselines_from_scan("scan-1")
         db.save_scan_asset_summaries("scan-1", "2026-04-25T12:30:00Z", [{"host": "a.example", "port": 443}])
         db.get_asset_history("a.example:443", limit=19)
-        db.list_scan_results("scan-1", owner="sec", team="pqc", environment="prod", criticality="high", limit=27)
+        db.list_scan_results("scan-1", owner="sec", team="pq", environment="prod", criticality="high", limit=27)
         db.list_scan_results_since("2026-04-25T00:00:00Z", limit=29)
     finally:
         db.reset_current_organization_id(token)
@@ -471,5 +471,5 @@ def test_scan_baseline_and_history_runtime_switch_delegate_to_postgres(monkeypat
     assert outcome["updated"] == 2
     assert calls["asset_summaries"][0:3] == ("org-scan", "scan-1", "2026-04-25T12:30:00Z")
     assert calls["asset_history"] == ("org-scan", "a.example:443", 19)
-    assert calls["scan_results_list"] == ("org-scan", "scan-1", "sec", "pqc", "prod", "high", 27)
+    assert calls["scan_results_list"] == ("org-scan", "scan-1", "sec", "pq", "prod", "high", 27)
     assert calls["scan_results_since"] == ("org-scan", "2026-04-25T00:00:00Z", 29)

@@ -304,14 +304,14 @@ _KILL_CHAIN_TEMPLATES: List[Dict[str, Any]] = [
         "tactic":      "CRQC capability acquisition",
         "description": "Adversary acquires access to a Cryptographically Relevant Quantum Computer — either through nation-state program or as-a-service from a hostile actor. Estimated probability per algorithm shown below.",
         "ioc":         "Public announcements of CRQC milestones; unusual demand for quantum computing cloud credits",
-        "mitigation":  "Begin PQC migration immediately — harvested traffic cannot be un-captured",
+        "mitigation":  "Begin post-quantum migration immediately — harvested traffic cannot be un-captured",
     },
     {
         "phase":       "4 — Decrypt",
         "tactic":      "Retroactive decryption via Shor's algorithm",
         "description": "Using harvested ciphertext and the CRQC, adversary runs Shor's algorithm to factor RSA moduli or solve discrete logarithm for ECDH, recovering plaintext session data, credentials, and keys.",
         "ioc":         "N/A — decryption happens offline; no network indicator",
-        "mitigation":  "Protect all currently-in-transit sensitive data with PQC-safe algorithms NOW",
+        "mitigation":  "Protect all currently-in-transit sensitive data with quantum-safe algorithms NOW",
     },
     {
         "phase":       "5 — Exploit",
@@ -494,7 +494,7 @@ def _build_countermeasures(
             "priority":    2,
             "label":       f"HIGH — >50% of assets exposed at the model's realistic Q-Day ({blast.get('qday_year', 0):.0f})",
             "description": f"{blast['exposed_count']} of {blast['total_count']} assets would be decrypted simultaneously in the realistic scenario ({blast.get('qday_year', 0):.0f}).",
-            "action":      "Initiate org-wide PQC migration program. Prioritize assets by sensitivity score.",
+            "action":      "Initiate org-wide post-quantum migration program. Prioritize assets by sensitivity score.",
             "playbook":    None,
         })
 
@@ -511,7 +511,7 @@ def _build_countermeasures(
             "priority":    4,
             "label":       f"MEDIUM — {len(medium)} assets in 7–10 year window",
             "description": "These assets will become vulnerable within a decade. Plan migration in next annual cycle.",
-            "action":      "Add to PQC migration roadmap. Target ML-KEM-768 + ML-DSA-65 by 2027.",
+            "action":      "Add to post-quantum migration roadmap. Target ML-KEM-768 + ML-DSA-65 by 2027.",
             "playbook":    None,
         })
 

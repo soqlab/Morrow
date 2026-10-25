@@ -6,8 +6,8 @@ Provisions X.509v3 hybrid certificates that carry both a classical public key
 as a Subject Alternative Name extension or custom OID extension.
 
 The hybrid approach ensures:
-  - Classical systems that don't understand PQC can still verify the classical sig
-  - PQC-aware clients verify the post-quantum key, immune to quantum attack
+  - Classical systems that don't understand post-quantum can still verify the classical sig
+  - post-quantum-aware clients verify the post-quantum key, immune to quantum attack
   - Zero downtime migration path — deploy hybrid cert, retire classical later
 
 Integration:
@@ -15,13 +15,13 @@ Integration:
   - Self-signed: generate hybrid cert entirely in-process for testing/internal use
   - Manual CSR: generate hybrid CSR for submission to your existing CA
 
-PQC key generation requires one of:
+Post-quantum key generation requires one of:
   - liboqs + python-oqs (OpenQuantumSafe project)
   - pqcrypto Python package
   - OQS-OpenSSL with PyOpenSSL
 
-Missing PQC libraries are reported as a blocked state. API callers must not
-present unavailable PQC cryptography as production-capable.
+Missing post-quantum libraries are reported as a blocked state. API callers must not
+present unavailable post-quantum cryptography as production-capable.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
-def _pqc_backend_available() -> bool:
+def _pq_backend_available() -> bool:
     try:
         import oqs  # noqa: F401
         return True
@@ -44,23 +44,23 @@ def _pqc_backend_available() -> bool:
         return False
 
 
-def _blocked_missing_pqc(common_name: str, pqc_algo: str) -> Dict[str, Any]:
+def _blocked_missing_pq(common_name: str, pq_algo: str) -> Dict[str, Any]:
     return {
         "status": "blocked",
         "common_name": common_name,
-        "pqc_algorithm": pqc_algo,
-        "pqc_key_real": False,
+        "pq_algorithm": pq_algo,
+        "pq_key_real": False,
         "cert_real": False,
-        "error": "real_pqc_library_unavailable",
-        "detail": "Install liboqs/python-oqs or pqcrypto before generating PQC certificate material.",
+        "error": "real_pq_library_unavailable",
+        "detail": "Install liboqs/python-oqs or pqcrypto before generating post-quantum certificate material.",
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
-# ── PQC key generation (with graceful fallback) ────────────────────────────────
+# ── post-quantum key generation (with graceful fallback) ────────────────────────────────
 
 def _generate_ml_kem_768_keypair() -> Dict[str, Any]:
-    """Generate an ML-KEM-768 keypair with a real PQC backend."""
+    """Generate an ML-KEM-768 keypair with a real post-quantum backend."""
     try:
         import oqs
         kem = oqs.KeyEncapsulation("Kyber768")
@@ -72,7 +72,7 @@ def _generate_ml_kem_768_keypair() -> Dict[str, Any]:
             "private_key_b64": base64.b64encode(private_key).decode(),
             "public_key_bytes": len(public_key),
             "private_key_bytes": len(private_key),
-            "is_real_pqc": True,
+            "is_real_pq": True,
             "library": "liboqs/python-oqs",
         }
     except ImportError:
@@ -86,16 +86,16 @@ def _generate_ml_kem_768_keypair() -> Dict[str, Any]:
             "private_key_b64": base64.b64encode(priv).decode(),
             "public_key_bytes": len(pub),
             "private_key_bytes": len(priv),
-            "is_real_pqc": True,
+            "is_real_pq": True,
             "library": "pqcrypto",
         }
     except ImportError:
         pass
-    raise RuntimeError("real_pqc_library_unavailable: install liboqs/python-oqs or pqcrypto")
+    raise RuntimeError("real_pq_library_unavailable: install liboqs/python-oqs or pqcrypto")
 
 
 def _generate_ml_dsa_65_keypair() -> Dict[str, Any]:
-    """Generate an ML-DSA-65 keypair with a real PQC backend."""
+    """Generate an ML-DSA-65 keypair with a real post-quantum backend."""
     try:
         import oqs
         sig = oqs.Signature("Dilithium3")
@@ -107,12 +107,12 @@ def _generate_ml_dsa_65_keypair() -> Dict[str, Any]:
             "private_key_b64": base64.b64encode(private_key).decode(),
             "public_key_bytes": len(public_key),
             "private_key_bytes": len(private_key),
-            "is_real_pqc": True,
+            "is_real_pq": True,
             "library": "liboqs/python-oqs",
         }
     except ImportError:
         pass
-    raise RuntimeError("real_pqc_library_unavailable: install liboqs/python-oqs")
+    raise RuntimeError("real_pq_library_unavailable: install liboqs/python-oqs")
 
 
 def _generate_rsa_keypair(bits: int = 2048) -> Dict[str, Any]:
@@ -169,7 +169,7 @@ def generate_self_signed_hybrid(
     san_domains: Optional[List[str]] = None,
     san_ips: Optional[List[str]] = None,
     classical_algo: str = "RSA-2048",
-    pqc_algo: str = "ML-KEM-768",
+    pq_algo: str = "ML-KEM-768",
     validity_days: int = 365,
     org_name: str = "Test Organization",
     country: str = "US",
@@ -177,14 +177,14 @@ def generate_self_signed_hybrid(
     """
     Generate a self-signed hybrid certificate:
       - Classical key (RSA-2048 or P-256) for backward compatibility
-      - PQC key (ML-KEM-768 or ML-DSA-65) embedded as custom extension
+      - post-quantum key (ML-KEM-768 or ML-DSA-65) embedded as custom extension
 
-    Returns: {cert_pem, private_key_pem, pqc_public_key_b64, metadata, ...}
+    Returns: {cert_pem, private_key_pem, pq_public_key_b64, metadata, ...}
     """
     san_domains = san_domains or [common_name]
     san_ips = san_ips or []
-    if not _pqc_backend_available():
-        blocked = _blocked_missing_pqc(common_name, pqc_algo)
+    if not _pq_backend_available():
+        blocked = _blocked_missing_pq(common_name, pq_algo)
         blocked["san_domains"] = san_domains
         blocked["san_ips"] = san_ips
         blocked["classical_algorithm"] = classical_algo
@@ -197,11 +197,11 @@ def generate_self_signed_hybrid(
     else:
         classical = _generate_ec_keypair(classical_algo)
 
-    # Generate PQC keypair
-    if "KEM" in pqc_algo or "Kyber" in pqc_algo.lower() or "kyber" in pqc_algo.lower():
-        pqc = _generate_ml_kem_768_keypair()
+    # Generate post-quantum keypair
+    if "KEM" in pq_algo or "Kyber" in pq_algo.lower() or "kyber" in pq_algo.lower():
+        pq = _generate_ml_kem_768_keypair()
     else:
-        pqc = _generate_ml_dsa_65_keypair()
+        pq = _generate_ml_dsa_65_keypair()
 
     now = datetime.now(timezone.utc)
     not_after = now + timedelta(days=validity_days)
@@ -246,16 +246,16 @@ def generate_self_signed_hybrid(
                 .add_extension(x509.SubjectAlternativeName(san_list), critical=False)
                 .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
             )
-            # Embed the PQC public key in a private extension only under an OID
-            # the operator owns (PQC_PRIVATE_ENTERPRISE_OID). Without one the
+            # Embed the post-quantum public key in a private extension only under an OID
+            # the operator owns (MORROW_PRIVATE_ENTERPRISE_OID). Without one the
             # extension is omitted rather than emitted under a made-up OID.
             if hybrid_oid:
-                pqc_pub_bytes = base64.b64decode(pqc["public_key_b64"])
-                pqc_ext_value = b"\x30" + _encode_der_length(len(pqc_pub_bytes) + 2) + b"\x04" + _encode_der_length(len(pqc_pub_bytes)) + pqc_pub_bytes
+                pq_pub_bytes = base64.b64decode(pq["public_key_b64"])
+                pq_ext_value = b"\x30" + _encode_der_length(len(pq_pub_bytes) + 2) + b"\x04" + _encode_der_length(len(pq_pub_bytes)) + pq_pub_bytes
                 builder = builder.add_extension(
                     x509.UnrecognizedExtension(
                         x509.ObjectIdentifier(hybrid_oid),
-                        pqc_ext_value,
+                        pq_ext_value,
                     ),
                     critical=False,
                 )
@@ -270,7 +270,7 @@ def generate_self_signed_hybrid(
         "san_domains": san_domains,
         "san_ips": san_ips,
         "classical_algorithm": classical_algo,
-        "pqc_algorithm": pqc_algo,
+        "pq_algorithm": pq_algo,
         "valid_from": now.isoformat()[:10],
         "valid_until": not_after.isoformat()[:10],
         "validity_days": validity_days,
@@ -278,19 +278,19 @@ def generate_self_signed_hybrid(
         "error": "" if cert_pem else "certificate_generation_failed",
         "cert_pem": cert_pem,
         "classical_private_key_pem": classical.get("private_key_pem", ""),
-        "pqc_public_key_b64": pqc["public_key_b64"],
-        "pqc_private_key_b64": pqc["private_key_b64"],
-        "pqc_key_real": pqc.get("is_real_pqc", False),
-        "pqc_warning": pqc.get("warning", ""),
+        "pq_public_key_b64": pq["public_key_b64"],
+        "pq_private_key_b64": pq["private_key_b64"],
+        "pq_key_real": pq.get("is_real_pq", False),
+        "pq_warning": pq.get("warning", ""),
         "cert_real": bool(cert_pem),
         "hybrid_oid": hybrid_oid or None,
-        "pqc_extension_included": bool(cert_pem and hybrid_oid),
-        "pqc_extension_note": (
+        "pq_extension_included": bool(cert_pem and hybrid_oid),
+        "pq_extension_note": (
             "" if hybrid_oid else
-            "PQC public-key extension omitted: set PQC_PRIVATE_ENTERPRISE_OID to an OID under your IANA "
+            "Post-quantum public-key extension omitted: set MORROW_PRIVATE_ENTERPRISE_OID to an OID under your IANA "
             "Private Enterprise Number to embed it."
         ),
-        "deployment_guide": _deployment_guide(classical_algo, pqc_algo),
+        "deployment_guide": _deployment_guide(classical_algo, pq_algo),
         "generated_at": now.isoformat(),
     }
 
@@ -304,7 +304,7 @@ def _encode_der_length(n: int) -> bytes:
         return bytes([0x82, (n >> 8) & 0xFF, n & 0xFF])
 
 
-def _deployment_guide(classical: str, pqc: str) -> List[Dict[str, str]]:
+def _deployment_guide(classical: str, pq: str) -> List[Dict[str, str]]:
     return [
         {
             "step": "1",
@@ -313,23 +313,23 @@ def _deployment_guide(classical: str, pqc: str) -> List[Dict[str, str]]:
         },
         {
             "step": "2",
-            "title": "Configure TLS to advertise PQC key exchange",
+            "title": "Configure TLS to advertise post-quantum key exchange",
             "detail": "Enable X25519Kyber768 (hybrid) in your TLS configuration. Nginx: ssl_ecdh_curve X25519Kyber768; | Apache: SSLOpenSSLConfCmd Curves X25519Kyber768",
         },
         {
             "step": "3",
             "title": "Verify hybrid operation",
-            "detail": "Use Chrome or curl with OQS-curl to verify PQC key exchange is negotiated. Check server logs for 'kyber' in cipher suite.",
+            "detail": "Use Chrome or curl with OQS-curl to verify post-quantum key exchange is negotiated. Check server logs for 'kyber' in cipher suite.",
         },
         {
             "step": "4",
-            "title": "Monitor PQC adoption rate",
-            "detail": "Track what percentage of clients are negotiating PQC key exchange. When ≥90%, schedule removal of classical fallback.",
+            "title": "Monitor post-quantum adoption rate",
+            "detail": "Track what percentage of clients are negotiating post-quantum key exchange. When ≥90%, schedule removal of classical fallback.",
         },
         {
             "step": "5",
             "title": "Retire classical keys",
-            "detail": f"Once Q-Day risk is elevated and PQC client support is widespread, redeploy with {pqc}-only certificate.",
+            "detail": f"Once Q-Day risk is elevated and post-quantum client support is widespread, redeploy with {pq}-only certificate.",
         },
     ]
 
@@ -339,13 +339,13 @@ def _deployment_guide(classical: str, pqc: str) -> List[Dict[str, str]]:
 def generate_hybrid_csr(
     common_name: str,
     classical_algo: str = "RSA-2048",
-    pqc_algo: str = "ML-KEM-768",
+    pq_algo: str = "ML-KEM-768",
     org_name: str = "",
     country: str = "US",
 ) -> Dict[str, Any]:
-    """Generate a Certificate Signing Request with embedded PQC public key."""
-    if not _pqc_backend_available():
-        blocked = _blocked_missing_pqc(common_name, pqc_algo)
+    """Generate a Certificate Signing Request with embedded post-quantum public key."""
+    if not _pq_backend_available():
+        blocked = _blocked_missing_pq(common_name, pq_algo)
         blocked["csr_real"] = False
         blocked["classical_algorithm"] = classical_algo
         return blocked
@@ -356,7 +356,7 @@ def generate_hybrid_csr(
     else:
         classical = _generate_ec_keypair(classical_algo)
 
-    pqc = _generate_ml_kem_768_keypair() if "KEM" in pqc_algo else _generate_ml_dsa_65_keypair()
+    pq = _generate_ml_kem_768_keypair() if "KEM" in pq_algo else _generate_ml_dsa_65_keypair()
 
     csr_pem = ""
     try:
@@ -382,26 +382,26 @@ def generate_hybrid_csr(
         "status": "active" if csr_pem else "blocked",
         "error": "" if csr_pem else "csr_generation_failed",
         "classical_algorithm": classical_algo,
-        "pqc_algorithm": pqc_algo,
+        "pq_algorithm": pq_algo,
         "csr_pem": csr_pem,
         "csr_real": bool(csr_pem and "BEGIN CERTIFICATE REQUEST" in csr_pem),
         "classical_private_key_pem": classical.get("private_key_pem", ""),
-        "pqc_public_key_b64": pqc["public_key_b64"],
-        "pqc_private_key_b64": pqc["private_key_b64"],
-        "pqc_key_real": pqc.get("is_real_pqc", False),
-        "pqc_warning": pqc.get("warning", ""),
+        "pq_public_key_b64": pq["public_key_b64"],
+        "pq_private_key_b64": pq["private_key_b64"],
+        "pq_key_real": pq.get("is_real_pq", False),
+        "pq_warning": pq.get("warning", ""),
         "instructions": [
             "Submit the CSR PEM to your CA to obtain a classical certificate",
-            "Embed the PQC public key via the CA's PQC hybrid extension if supported",
-            "Store both private keys securely — the classical key and the PQC key",
+            "Embed the post-quantum public key via the CA's post-quantum hybrid extension if supported",
+            "Store both private keys securely — the classical key and the post-quantum key",
             "When deploying, configure TLS to use the classical cert for backward compat",
         ],
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
-def check_pqc_library_availability() -> Dict[str, Any]:
-    """Check which PQC libraries are available in the current environment."""
+def check_pq_library_availability() -> Dict[str, Any]:
+    """Check which post-quantum libraries are available in the current environment."""
     availability = {}
     try:
         import oqs
@@ -422,15 +422,15 @@ def check_pqc_library_availability() -> Dict[str, Any]:
     except ImportError:
         availability["cryptography"] = {"available": False, "install": "pip install cryptography"}
 
-    any_pqc = availability.get("liboqs", {}).get("available") or availability.get("pqcrypto", {}).get("available")
+    any_pq = availability.get("liboqs", {}).get("available") or availability.get("pqcrypto", {}).get("available")
 
     return {
         "libraries": availability,
-        "real_pqc_available": any_pqc,
+        "real_pq_available": any_pq,
         "classical_crypto_available": availability.get("cryptography", {}).get("available", False),
         "recommendation": (
-            "Install liboqs-python for production PQC key generation: pip install liboqs-python"
-            if not any_pqc else
-            "PQC libraries available — hybrid certificate generation will use real PQC keys"
+            "Install liboqs-python for production post-quantum key generation: pip install liboqs-python"
+            if not any_pq else
+            "Post-quantum libraries available — hybrid certificate generation will use real post-quantum keys"
         ),
     }

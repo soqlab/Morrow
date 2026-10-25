@@ -67,7 +67,7 @@ def classify(status: int, provider: str, detail: str = "") -> LLMError:
                         provider=provider, status=status, remedy="Retry shortly, or raise the account's limit.")
     if status in (408, 504):
         return LLMError(TIMEOUT, f"{provider or 'The provider'} timed out (HTTP {status}).",
-                        provider=provider, status=status, remedy="Raise PQC_LLM_TIMEOUT or shorten the question.")
+                        provider=provider, status=status, remedy="Raise MORROW_LLM_TIMEOUT or shorten the question.")
     if 400 <= status < 500:
         return LLMError(BAD_REQUEST, f"{provider or 'The provider'} refused the request (HTTP {status}).",
                         provider=provider, status=status,
@@ -99,12 +99,12 @@ def _attempt(url: str, body: bytes, headers: Dict[str, str], timeout: float,
         raise
     except socket.timeout:
         raise LLMError(TIMEOUT, f"{provider or 'The provider'} did not answer within {int(timeout)}s.",
-                       provider=provider, remedy="Raise PQC_LLM_TIMEOUT, or use a smaller model.") from None
+                       provider=provider, remedy="Raise MORROW_LLM_TIMEOUT, or use a smaller model.") from None
     except urllib.error.URLError as exc:
         reason = exc.reason
         if isinstance(reason, socket.timeout) or "timed out" in str(reason).lower():
             raise LLMError(TIMEOUT, f"{provider or 'The provider'} did not answer within {int(timeout)}s.",
-                           provider=provider, remedy="Raise PQC_LLM_TIMEOUT, or use a smaller model.") from None
+                           provider=provider, remedy="Raise MORROW_LLM_TIMEOUT, or use a smaller model.") from None
         raise LLMError(CONNECTION, f"Could not reach {provider or 'the provider'}.", provider=provider,
                        remedy="Check the base URL, DNS and outbound network from this host.") from None
     except Exception:

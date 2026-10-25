@@ -56,7 +56,7 @@ def postgres_enabled() -> bool:
     can be on Postgres while auxiliary state is still being migrated module by
     module, and an operator needs to be able to move one without the other.
     """
-    flag = (os.getenv("PQC_FEATURE_STORE_BACKEND") or "").strip().lower()
+    flag = (os.getenv("MORROW_FEATURE_STORE_BACKEND") or "").strip().lower()
     if flag in ("postgres", "postgresql", "pg"):
         return True
     if flag in ("sqlite", "file"):
@@ -79,7 +79,7 @@ def _feature_dsn() -> str:
 
 def _sqlite_path() -> str:
     from db import DB_PATH
-    return os.environ.get("PQC_SCANNER_DB", DB_PATH)
+    return os.environ.get("MORROW_SCANNER_DB", DB_PATH)
 
 
 # --------------------------------------------------------------------------- #

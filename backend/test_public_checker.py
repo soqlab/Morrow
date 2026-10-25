@@ -26,8 +26,8 @@ import sqlite3
 import ssl
 import time
 
-os.environ.setdefault("PQC_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
-os.environ.setdefault("PQC_LLM_DISABLED", "1")
+os.environ.setdefault("MORROW_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
+os.environ.setdefault("MORROW_LLM_DISABLED", "1")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -44,12 +44,12 @@ from services import public_check as _check
 def isolated_store(tmp_path, monkeypatch):
     """Every test gets its own feature-store file, and no leftover counters or caches."""
     db = tmp_path / "public-check.db"
-    monkeypatch.setenv("PQC_SCANNER_DB", str(db))
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_SALT", "test-salt")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_OPTOUT_DOMAINS", "")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS", "0")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_ENABLED", "1")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(db))
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_SALT", "test-salt")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS", "0")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_ENABLED", "1")
     _check._TABLES_READY.clear()
     _limits.reset()
     _check._ct_last_call[0] = 0.0
@@ -135,8 +135,8 @@ def mocked_check(monkeypatch):
 
 @pytest.fixture
 def client(isolated_store, monkeypatch):
-    monkeypatch.setenv("PQC_AUTH_MODE", "header")
-    monkeypatch.setenv("PQC_DEFAULT_ROLE", "admin")
+    monkeypatch.setenv("MORROW_AUTH_MODE", "header")
+    monkeypatch.setenv("MORROW_DEFAULT_ROLE", "admin")
     import app as application
 
     application.limiter.enabled = False
@@ -254,7 +254,7 @@ def test_the_port_is_not_configurable():
     source = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                "services", "public_check.py"), encoding="utf-8").read()
     assert "PORT = 443" in source
-    assert "PQC_PUBLIC_CHECK_PORT" not in source
+    assert "MORROW_PUBLIC_CHECK_PORT" not in source
 
 
 # ── opt-out ──────────────────────────────────────────────────────────────────
@@ -279,7 +279,7 @@ def test_an_opt_out_covers_everything_under_the_domain(no_network):
 
 
 def test_an_opt_out_from_configuration_is_honoured_without_a_table_row(monkeypatch, no_network):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_OPTOUT_DOMAINS", "quiet.example, other.test")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "quiet.example, other.test")
     assert _check.opted_out("www.quiet.example") == "quiet.example"
     assert _check.opted_out("other.test") == "other.test"
 
@@ -303,9 +303,9 @@ def test_an_opt_out_can_be_removed(no_network):
 
 
 def test_checks_are_limited_per_client_ip(monkeypatch, mocked_check):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_LIMIT", "2")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_BURST", "99")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", "99")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_LIMIT", "2")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_BURST", "99")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", "99")
     resolves_to(monkeypatch, "93.184.216.34")
 
     _check.run_check("one.example.com", client_ip="9.9.9.9")
@@ -319,9 +319,9 @@ def test_checks_are_limited_per_client_ip(monkeypatch, mocked_check):
 
 
 def test_a_burst_from_one_address_is_limited_per_minute(monkeypatch, mocked_check):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_BURST", "1")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_LIMIT", "99")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", "99")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_BURST", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_LIMIT", "99")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", "99")
     resolves_to(monkeypatch, "93.184.216.34")
 
     _check.run_check("one.example.com", client_ip="9.9.9.9")
@@ -332,9 +332,9 @@ def test_a_burst_from_one_address_is_limited_per_minute(monkeypatch, mocked_chec
 
 def test_checks_are_limited_per_target_domain_whoever_asks(monkeypatch, mocked_check):
     """The guardrail that stops the service being used to hammer one host."""
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", "2")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_LIMIT", "99")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_BURST", "99")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", "2")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_LIMIT", "99")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_BURST", "99")
     resolves_to(monkeypatch, "93.184.216.34")
 
     _check.run_check("victim.example.com", client_ip="1.1.1.1", force=True)
@@ -347,7 +347,7 @@ def test_checks_are_limited_per_target_domain_whoever_asks(monkeypatch, mocked_c
 
 
 def test_the_whole_service_has_an_hourly_budget(monkeypatch, mocked_check):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_GLOBAL_LIMIT", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_GLOBAL_LIMIT", "1")
     resolves_to(monkeypatch, "93.184.216.34")
     _check.run_check("one.example.com", client_ip="1.1.1.1")
     with pytest.raises(_check.PublicCheckError) as caught:
@@ -356,7 +356,7 @@ def test_the_whole_service_has_an_hourly_budget(monkeypatch, mocked_check):
 
 
 def test_a_rate_limited_refusal_carries_a_retry_hint(monkeypatch, mocked_check):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", "1")
     resolves_to(monkeypatch, "93.184.216.34")
     _check.run_check("example.com", client_ip="1.1.1.1", force=True)
     with pytest.raises(_check.PublicCheckError) as caught:
@@ -379,9 +379,9 @@ def test_a_second_visitor_gets_the_cache_and_the_target_is_not_contacted_again(
 
 def test_a_cache_hit_spends_no_check_budget(monkeypatch, mocked_check):
     """A popular domain must be checked once, not once per visitor -- including its own budget."""
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", "1")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_LIMIT", "1")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_BURST", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_LIMIT", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_BURST", "1")
     resolves_to(monkeypatch, "93.184.216.34")
     _check.run_check("example.com", client_ip="1.1.1.1")
     for ip in ("2.2.2.2", "3.3.3.3", "4.4.4.4", "1.1.1.1"):
@@ -407,7 +407,7 @@ def test_an_expired_cache_entry_is_not_served(monkeypatch, mocked_check):
 
 
 def test_refresh_bypasses_the_cache_but_not_the_budget(monkeypatch, mocked_check):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", "2")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", "2")
     resolves_to(monkeypatch, "93.184.216.34")
     _check.run_check("example.com", client_ip="1.1.1.1")
     assert _check.run_check("example.com", client_ip="1.1.1.1", force=True)["cache"]["hit"] is False
@@ -419,7 +419,7 @@ def test_refresh_bypasses_the_cache_but_not_the_budget(monkeypatch, mocked_check
 
 
 def test_a_full_queue_is_refused_rather_than_queued_forever(monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_MAX_QUEUE", "2")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_MAX_QUEUE", "2")
     _check._waiting[0] = 2
     try:
         with pytest.raises(_check.PublicCheckError) as caught:
@@ -432,9 +432,9 @@ def test_a_full_queue_is_refused_rather_than_queued_forever(monkeypatch):
 
 
 def test_a_check_that_cannot_get_a_slot_in_time_is_refused(monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CONCURRENCY", "1")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_QUEUE_WAIT_SECONDS", "0.1")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_MAX_QUEUE", "8")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CONCURRENCY", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_QUEUE_WAIT_SECONDS", "0.1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_MAX_QUEUE", "8")
     _check._resize_slots()
     with _check._Admission():                       # the only slot is taken
         started = time.monotonic()
@@ -448,7 +448,7 @@ def test_a_check_that_cannot_get_a_slot_in_time_is_refused(monkeypatch):
 
 
 def test_a_slot_is_released_even_when_the_check_raises(monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CONCURRENCY", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CONCURRENCY", "1")
     _check._resize_slots()
     with pytest.raises(RuntimeError):
         with _check._Admission():
@@ -458,8 +458,8 @@ def test_a_slot_is_released_even_when_the_check_raises(monkeypatch):
 
 
 def test_the_queue_bound_and_the_deadline_are_published(monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_MAX_QUEUE", "17")
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DEADLINE_SECONDS", "9")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_MAX_QUEUE", "17")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DEADLINE_SECONDS", "9")
     settings = _check.settings_public()
     assert settings["max_queued_checks"] == 17
     assert settings["deadline_seconds"] == 9.0
@@ -496,14 +496,14 @@ def test_certificate_transparency_unavailable_never_becomes_no_certificates(monk
 
 
 def test_a_check_still_produces_a_verdict_when_ct_is_switched_off(monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CT_ENABLED", "0")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CT_ENABLED", "0")
     result = _check.certificate_transparency("example.com")
     assert result["status"] == "skipped"
     assert "switched off" in result["reason"]
 
 
 def test_the_ct_politeness_throttle_skips_rather_than_blocking(monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS", "30")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS", "30")
     monkeypatch.setitem(_check.CT_PROVIDERS, "crtsh",
                         lambda domain, timeout: dict(CT_OK, total=1, entries=[]))
     _check._ct_last_call[0] = time.monotonic()      # a call just happened
@@ -524,7 +524,7 @@ def test_the_crtsh_adapter_parses_the_json_index_and_tolerates_junk(monkeypatch)
         {},
     ]
     monkeypatch.setattr(_check, "_http_get_json", lambda url, timeout, headers=None: rows)
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CT_CERT_FETCH", "0")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CT_CERT_FETCH", "0")
     data = _check._ct_crtsh("example.com", 5.0)
     assert data["total"] == 3                       # the junk string is dropped, {} is kept as an entry
     assert data["entries"][0]["not_before"] == "2026-08-01"   # newest first
@@ -541,7 +541,7 @@ def test_a_ct_provider_that_returns_a_non_array_is_an_error_not_an_empty_result(
 
 def test_a_data_source_is_added_by_registering_one_callable(monkeypatch):
     """The documented extension point: one entry in CT_PROVIDERS."""
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CT_PROVIDER", "fake")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CT_PROVIDER", "fake")
     monkeypatch.setitem(_check.CT_PROVIDERS, "fake", lambda domain, timeout: {
         "entries": [{"issuer": "CN=Test CA", "not_before": "2026-01-01", "not_after": "2027-01-01"}],
         "total": 1, "keys": [], "provider": "fake", "provider_url": "https://example.invalid/",
@@ -594,7 +594,7 @@ def test_a_hybrid_endpoint_is_credited_for_its_key_exchange_and_not_for_its_cert
     resolves_to(monkeypatch, "93.184.216.34")
     mocked_check["observation"] = observation(
         key_exchange="X25519MLKEM768", key_exchange_group_id=0x11EC,
-        key_exchange_family="pqc_hybrid", key_exchange_observed=True)
+        key_exchange_family="pq_hybrid", key_exchange_observed=True)
     result = _check.run_check("hybrid.example.com", client_ip="1.1.1.1")
     verdict = result["verdict"]
     assert verdict["status"] == "hybrid_key_exchange"
@@ -606,7 +606,7 @@ def test_a_hybrid_endpoint_is_credited_for_its_key_exchange_and_not_for_its_cert
     # post-quantum part is compliant and the classical part is still breakable.
     kx = {a["resolved_as"]: a["status"] for a in result["algorithms"] if a["role"] == "key exchange"}
     assert kx == {"X25519": "quantum_vulnerable", "ML-KEM-768": "compliant"}
-    assert result["harvest_now_decrypt_later"]["algorithm_class"] == "pqc_hybrid"
+    assert result["harvest_now_decrypt_later"]["algorithm_class"] == "pq_hybrid"
 
 
 def test_a_key_exchange_group_that_was_not_observed_is_not_reported_as_absent(
@@ -721,13 +721,13 @@ def test_the_deadlines_come_from_the_platforms_own_regulatory_data(monkeypatch, 
 
 
 def test_the_free_answer_and_the_paid_product_share_one_classification(monkeypatch, mocked_check):
-    """Same fips_pqc verdict for the same algorithm, so the two cannot disagree."""
-    from services import fips_pqc
+    """Same fips_pq verdict for the same algorithm, so the two cannot disagree."""
+    from services import fips_pq
 
     resolves_to(monkeypatch, "93.184.216.34")
     result = _check.run_check("example.com", client_ip="1.1.1.1")
     for item in result["algorithms"]:
-        assert item["status"] == fips_pqc.classify_algorithm(item["resolved_as"])["status"]
+        assert item["status"] == fips_pq.classify_algorithm(item["resolved_as"])["status"]
 
 
 def test_a_standard_endpoint_produces_no_unknown_algorithm_card(monkeypatch, mocked_check):
@@ -741,7 +741,7 @@ def test_a_standard_endpoint_produces_no_unknown_algorithm_card(monkeypatch, moc
         {},
         {"key_type": "EC", "key_bits": 256, "key_curve": "secp256r1",
          "sig_algorithm": "ecdsa-with-SHA256"},
-        {"key_exchange": "X25519MLKEM768", "key_exchange_family": "pqc_hybrid"},
+        {"key_exchange": "X25519MLKEM768", "key_exchange_family": "pq_hybrid"},
     ):
         mocked_check["observation"] = observation(**observation_kwargs)
         result = _check.run_check(f"d{len(observation_kwargs)}x.example.com", client_ip="1.1.1.1",
@@ -766,7 +766,7 @@ def test_an_algorithm_card_carries_the_reason_and_the_action(monkeypatch, mocked
 def test_migration_advice_fits_what_the_algorithm_is_doing(monkeypatch, mocked_check):
     """ML-KEM cannot sign anything, so it is not the answer for a certificate.
 
-    services/fips_pqc.py keys its advice by algorithm, not by role, and answers RSA-2048 with
+    services/fips_pq.py keys its advice by algorithm, not by role, and answers RSA-2048 with
     "Migrate to ML-KEM-768" wherever it appears. Printed under a card headed CERTIFICATE KEY that
     is advice that does not work.
     """
@@ -794,7 +794,7 @@ def test_migration_advice_fits_what_the_algorithm_is_doing(monkeypatch, mocked_c
 def test_a_compliant_algorithm_is_given_no_migration_action(monkeypatch, mocked_check):
     resolves_to(monkeypatch, "93.184.216.34")
     mocked_check["observation"] = observation(
-        key_exchange="X25519MLKEM768", key_exchange_family="pqc_hybrid")
+        key_exchange="X25519MLKEM768", key_exchange_family="pq_hybrid")
     result = _check.run_check("hybrid.example.com", client_ip="1.1.1.1")
     for item in result["algorithms"]:
         if item["status"] == "compliant":
@@ -840,7 +840,7 @@ def test_an_unsalted_hash_is_never_used(monkeypatch):
     """A bare sha256 of an IPv4 address is reversible by brute force in seconds."""
     import hashlib
 
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_IP_SALT", "")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_SALT", "")
     _check._TABLES_READY.clear()
     bare = hashlib.sha256(b"203.0.113.9").hexdigest()[:32]
     assert _check.hash_ip("203.0.113.9") != bare
@@ -1140,7 +1140,7 @@ def test_the_api_refuses_a_bad_target_without_contacting_anything(client, domain
 
 
 def test_the_api_answers_429_with_a_retry_after_header(client, monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", "1")
     resolves_to(monkeypatch, "93.184.216.34")
     monkeypatch.setattr(_check, "observe_endpoint",
                         lambda host, address="", timeout=None, deadline=None: observation(
@@ -1202,7 +1202,7 @@ def test_a_configured_opt_out_refuses_the_exports_even_with_a_result_still_cache
     """
     _check.store_result("cached.example", _check.build_result("cached.example", observation(), dict(CT_OK)))
     assert client.get("/api/public-check/cached.example/export.json").status_code == 200
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_OPTOUT_DOMAINS", "cached.example")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "cached.example")
     for path in ("/api/public-check/cached.example",
                  "/api/public-check/cached.example/export.json",
                  "/api/public-check/cached.example/cbom.json"):
@@ -1287,7 +1287,7 @@ def test_an_operator_can_add_and_remove_an_opt_out(client, monkeypatch):
 
 def test_the_disabled_switch_turns_the_checker_off_without_breaking_the_page(
         client, monkeypatch):
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_ENABLED", "0")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_ENABLED", "0")
     assert client.get("/check").status_code == 200
     config = client.get("/api/public-check/config").json()
     assert config["guardrails"]["enabled"] is False
@@ -1303,8 +1303,8 @@ def _cli():
     import importlib.util
 
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "scripts", "pqc-check.py")
-    spec = importlib.util.spec_from_file_location("pqc_check_cli", path)
+                        "scripts", "pq-check.py")
+    spec = importlib.util.spec_from_file_location("pq_check_cli", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -1372,11 +1372,11 @@ def test_the_cli_prints_the_guardrails(capsys):
 
 
 def test_the_shipped_defaults_are_the_documented_ones(monkeypatch):
-    for name in ("PQC_PUBLIC_CHECK_CACHE_SECONDS", "PQC_PUBLIC_CHECK_IP_LIMIT",
-                 "PQC_PUBLIC_CHECK_IP_BURST", "PQC_PUBLIC_CHECK_DOMAIN_LIMIT",
-                 "PQC_PUBLIC_CHECK_GLOBAL_LIMIT", "PQC_PUBLIC_CHECK_CONCURRENCY",
-                 "PQC_PUBLIC_CHECK_MAX_QUEUE", "PQC_PUBLIC_CHECK_QUEUE_WAIT_SECONDS",
-                 "PQC_PUBLIC_CHECK_DEADLINE_SECONDS", "PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS"):
+    for name in ("MORROW_PUBLIC_CHECK_CACHE_SECONDS", "MORROW_PUBLIC_CHECK_IP_LIMIT",
+                 "MORROW_PUBLIC_CHECK_IP_BURST", "MORROW_PUBLIC_CHECK_DOMAIN_LIMIT",
+                 "MORROW_PUBLIC_CHECK_GLOBAL_LIMIT", "MORROW_PUBLIC_CHECK_CONCURRENCY",
+                 "MORROW_PUBLIC_CHECK_MAX_QUEUE", "MORROW_PUBLIC_CHECK_QUEUE_WAIT_SECONDS",
+                 "MORROW_PUBLIC_CHECK_DEADLINE_SECONDS", "MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS"):
         monkeypatch.delenv(name, raising=False)
     assert _check.cache_seconds() == 3600
     assert _check.ip_limit() == 10
@@ -1392,5 +1392,5 @@ def test_the_shipped_defaults_are_the_documented_ones(monkeypatch):
 
 def test_the_cache_window_cannot_be_set_below_ten_minutes(monkeypatch):
     """Serving the cache is what stops one visitor per check reaching the target."""
-    monkeypatch.setenv("PQC_PUBLIC_CHECK_CACHE_SECONDS", "1")
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_CACHE_SECONDS", "1")
     assert _check.cache_seconds() == 600

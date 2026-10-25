@@ -4,7 +4,7 @@ import os
 import zipfile
 
 # Must be set before app is imported so auth_issuer._SECRET is populated
-os.environ.setdefault("PQC_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
+os.environ.setdefault("MORROW_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
 
 from fastapi.testclient import TestClient
 
@@ -237,7 +237,7 @@ def test_auth_login_default_admin():
     with TestClient(fastapi_app.app) as client:
         res = client.post(
             "/auth/login",
-            json={"email": "admin@pqcscanner.io", "password": "changeme123!"},
+            json={"email": "admin@morrow.soqlab.com", "password": "changeme123!"},
         )
     assert res.status_code == 200
     body = res.json()
@@ -251,14 +251,14 @@ def test_auth_login_wrong_password():
     with TestClient(fastapi_app.app) as client:
         res = client.post(
             "/auth/login",
-            json={"email": "admin@pqcscanner.io", "password": "wrongpassword999"},
+            json={"email": "admin@morrow.soqlab.com", "password": "wrongpassword999"},
         )
     assert res.status_code == 401
 
 
 def test_auth_login_missing_fields():
     with TestClient(fastapi_app.app) as client:
-        res = client.post("/auth/login", json={"email": "admin@pqcscanner.io"})
+        res = client.post("/auth/login", json={"email": "admin@morrow.soqlab.com"})
     assert res.status_code == 400
 
 
@@ -289,12 +289,12 @@ def test_auth_register_duplicate_email():
     with TestClient(fastapi_app.app) as client:
         client.post(
             "/auth/login",
-            json={"email": "admin@pqcscanner.io", "password": "changeme123!"},
+            json={"email": "admin@morrow.soqlab.com", "password": "changeme123!"},
         )
         res = client.post(
             "/auth/register",
             headers=HEADERS,
-            json={"email": "admin@pqcscanner.io", "password": "changeme123!", "full_name": "Dup"},
+            json={"email": "admin@morrow.soqlab.com", "password": "changeme123!", "full_name": "Dup"},
         )
     assert res.status_code == 409
 
@@ -303,7 +303,7 @@ def test_auth_refresh_and_logout():
     with TestClient(fastapi_app.app) as client:
         login = client.post(
             "/auth/login",
-            json={"email": "admin@pqcscanner.io", "password": "changeme123!"},
+            json={"email": "admin@morrow.soqlab.com", "password": "changeme123!"},
         )
         assert login.status_code == 200
         refresh_token = login.json()["refresh_token"]
@@ -331,7 +331,7 @@ def test_auth_list_users_admin_only():
     with TestClient(fastapi_app.app) as client:
         login = client.post(
             "/auth/login",
-            json={"email": "admin@pqcscanner.io", "password": "changeme123!"},
+            json={"email": "admin@morrow.soqlab.com", "password": "changeme123!"},
         )
         token = login.json()["access_token"]
 
@@ -343,7 +343,7 @@ def test_auth_list_users_admin_only():
         })
         assert res.status_code == 200
         users = res.json()["users"]
-        assert any(u["email"] == "admin@pqcscanner.io" for u in users)
+        assert any(u["email"] == "admin@morrow.soqlab.com" for u in users)
 
 
 def test_auth_change_password():

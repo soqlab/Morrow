@@ -52,8 +52,8 @@ _PORTFOLIO_BETA = 0.60
 
 def actuarial_model_basis(portfolio: bool = False) -> Dict[str, Any]:
     assumptions = [
-        "Frequency: annual break probability from the Q-Intel model (see /q-intel/model), reduced by 90% of the PQC-migrated share.",
-        f"Severity: log-normal centred on the modelled exposure, sigma {_SEVERITY_SIGMA} (reduced up to 0.5 by PQC share).",
+        "Frequency: annual break probability from the Q-Intel model (see /q-intel/model), reduced by 90% of the post-quantum-migrated share.",
+        f"Severity: log-normal centred on the modelled exposure, sigma {_SEVERITY_SIGMA} (reduced up to 0.5 by post-quantum share).",
         f"Assets without an exposure figure are counted at ${_DEFAULT_ASSET_EXPOSURE_USD:,} each.",
         f"Premium = (pure premium + {_CAPITAL_CHARGE_RATE:.0%} capital charge on the 99th-percentile loss) / (1 - {_EXPENSE_RATIO:.0%} expense ratio).",
         "Losses are taken net of the retention and capped at the coverage limit.",
@@ -97,7 +97,7 @@ def _algo_class_from_scan(scan_assets: List[Dict]) -> str:
     kt_counts: Dict[str, int] = {}
     for a in scan_assets:
         kt = str(a.get("key_type") or "").lower()
-        if "ml-kem" in kt or "kyber" in kt: kt_counts["pqc_pure"] = kt_counts.get("pqc_pure", 0) + 1
+        if "ml-kem" in kt or "kyber" in kt: kt_counts["pq_pure"] = kt_counts.get("pq_pure", 0) + 1
         elif "rsa" in kt:                   kt_counts["rsa2048"]   = kt_counts.get("rsa2048", 0) + 1
         elif "ec" in kt:                    kt_counts["ecc256"]    = kt_counts.get("ecc256", 0) + 1
         else:                               kt_counts["rsa2048"]   = kt_counts.get("rsa2048", 0) + 1
@@ -142,7 +142,7 @@ def compute_individual_risk(
             "risk_tier": None,
             "total_assets_assessed": 0,
             "critical_risk_assets": 0,
-            "pqc_migrated_pct": None,
+            "pq_migrated_pct": None,
             "primary_algo_class": None,
             "estimated_total_exposure_usd": None,
             "estimated_total_exposure_fmt": None,
@@ -167,11 +167,11 @@ def compute_individual_risk(
     total_assets = len(scan_assets)
     critical = sum(1 for a in scan_assets if str(a.get("risk_level","")).lower() == "critical")
     high     = sum(1 for a in scan_assets if str(a.get("risk_level","")).lower() == "high")
-    pqc_count = sum(1 for a in scan_assets
+    pq_count = sum(1 for a in scan_assets
                     if any(x in str(a.get("key_type","")).lower()
                            for x in ("ml-kem","kyber","dilithium","slh")))
 
-    pqc_pct = pqc_count / total_assets
+    pq_pct = pq_count / total_assets
     algo_class = _algo_class_from_scan(scan_assets)
 
     # Estimated total HNDL exposure from existing scan data
@@ -183,7 +183,7 @@ def compute_individual_risk(
 
     # Severity calibration: scale log-normal to actual exposure
     exposure_mu    = math.log(max(total_exposure, 1))
-    exposure_sigma = max(_SEVERITY_SIGMA - pqc_pct * 0.5, 0.5)  # PQC reduces tail risk
+    exposure_sigma = max(_SEVERITY_SIGMA - pq_pct * 0.5, 0.5)  # Post-quantum reduces tail risk
 
     # Year-by-year breach probability (Poisson arrival with λ = p_break(year))
     start_year = datetime.now(timezone.utc).year
@@ -191,8 +191,8 @@ def compute_individual_risk(
     annual_probs: Dict[int, float] = {}
     for yr in years:
         p_break = _q_day_prob(algo_class, yr)
-        # Adjust for PQC migration: partially mitigates break probability
-        p_effective = p_break * (1 - pqc_pct * 0.90)
+        # Adjust for post-quantum migration: partially mitigates break probability
+        p_effective = p_break * (1 - pq_pct * 0.90)
         annual_probs[yr] = round(p_effective, 4)
 
     # Expected loss (severity × frequency, per year)
@@ -217,7 +217,7 @@ def compute_individual_risk(
 
     # Risk tier
     risk_tier = (
-        "catastrophic" if critical >= 5 or (avg_annual_prob >= 0.30 and not pqc_count)
+        "catastrophic" if critical >= 5 or (avg_annual_prob >= 0.30 and not pq_count)
         else "high"    if critical > 0 or avg_annual_prob >= 0.15
         else "medium"  if high > 0 or avg_annual_prob >= 0.05
         else "low"
@@ -240,7 +240,7 @@ def compute_individual_risk(
         "risk_tier": risk_tier,
         "total_assets_assessed": total_assets,
         "critical_risk_assets": critical,
-        "pqc_migrated_pct": round(pqc_pct * 100, 1),
+        "pq_migrated_pct": round(pq_pct * 100, 1),
         "primary_algo_class": algo_class,
         "estimated_total_exposure_usd": round(total_exposure),
         "estimated_total_exposure_fmt": _fmt(total_exposure),

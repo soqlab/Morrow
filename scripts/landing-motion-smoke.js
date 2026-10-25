@@ -1,6 +1,6 @@
 const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
-const base = (process.env.PQC_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
+const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 
 // A panel that has just been re-shown restarts its animation, and Chromium does
 // not tick it until the element paints. Sampling before that first tick makes

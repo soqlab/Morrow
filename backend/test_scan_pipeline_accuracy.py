@@ -10,7 +10,7 @@ not know -- silently became a *safe* answer:
 
   * "EC" was missing from the migration-velocity vulnerable list, so every elliptic-curve asset was
     counted as already migrated.
-  * x25519 and ed25519 were on the compliance export's "PQC-safe" list, so Ed25519 endpoints were
+  * x25519 and ed25519 were on the compliance export's "quantum-safe" list, so Ed25519 endpoints were
     exported to auditors as compliant.
   * generate_cbom read cert_* keys the scanner does not emit, so exported CBOMs held no certificate,
     no public key and no signature algorithm at all.
@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-os.environ.setdefault("PQC_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
+os.environ.setdefault("MORROW_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
 
 from services.cbom import generate_cbom
 from services.migration_velocity import build_velocity_report
@@ -71,7 +71,7 @@ def test_unobserved_algorithm_is_unknown_not_migrated():
     assert snapshot["quantum_safe_assets"] == 0, snapshot
 
 
-def test_pqc_algorithms_are_the_only_thing_that_counts_as_migrated():
+def test_pq_algorithms_are_the_only_thing_that_counts_as_migrated():
     snapshot = _velocity(["ML-KEM-768", "ML-DSA-65", "RSA"])
 
     assert snapshot["quantum_safe_assets"] == 2, snapshot
@@ -160,17 +160,17 @@ HEADERS = {"x-user-role": "admin", "x-user-id": "pipeline-admin", "x-org-id": OR
 # report downstream had to invent them, which is what made the org-wide CBOM describe a 4096-bit
 # estate as RSA-2048 and the HNDL model price a P-521 endpoint as P-256.
 _SEED = [
-    {"host": "rsa.example", "risk": "high", "pqc_relevance": "HIGH", "key_type": "RSA",
+    {"host": "rsa.example", "risk": "high", "pq_relevance": "HIGH", "key_type": "RSA",
      "key_bits": 4096, "key_curve": "", "cipher_name": "TLS_AES_256_GCM_SHA384",
      "scan_status": "ok", "key_exchange": "x25519"},
-    {"host": "ec.example", "risk": "medium", "pqc_relevance": "MEDIUM", "key_type": "EC",
+    {"host": "ec.example", "risk": "medium", "pq_relevance": "MEDIUM", "key_type": "EC",
      "key_bits": 521, "key_curve": "secp521r1", "cipher_name": "TLS_AES_128_GCM_SHA256",
      "scan_status": "ok", "key_exchange": "X25519MLKEM768"},
-    {"host": "ed.example", "risk": "high", "pqc_relevance": "HIGH", "key_type": "Ed25519",
+    {"host": "ed.example", "risk": "high", "pq_relevance": "HIGH", "key_type": "Ed25519",
      "key_bits": 256, "key_curve": "Curve25519", "cipher_name": "TLS_AES_256_GCM_SHA384",
      "scan_status": "ok", "key_exchange": "x25519"},
     # Never reached: no key, no size, no group. Every one of these must stay unknown downstream.
-    {"host": "unreachable.example", "risk": "medium", "pqc_relevance": "UNKNOWN", "key_type": "",
+    {"host": "unreachable.example", "risk": "medium", "pq_relevance": "UNKNOWN", "key_type": "",
      "key_bits": 0, "key_curve": "", "cipher_name": "", "scan_status": "unreachable",
      "key_exchange": ""},
 ]
@@ -184,7 +184,7 @@ def _seed_result(row):
         "risk": row["risk"], "risk_level": row["risk"],
         "quantum_risk_score": 50.0,
         "findings": [{"rule_id": "SEED"}] * 3,
-        "pqc_relevance": row["pqc_relevance"],
+        "pq_relevance": row["pq_relevance"],
         "tls_version": "TLSv1.3" if key_type else "",
         "key_type": key_type,
         "key_bits": row["key_bits"],
@@ -207,8 +207,8 @@ def seeded_client():
 
     tmp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     tmp_db.close()
-    previous = os.environ.get("PQC_SCANNER_DB")
-    os.environ["PQC_SCANNER_DB"] = tmp_db.name
+    previous = os.environ.get("MORROW_SCANNER_DB")
+    os.environ["MORROW_SCANNER_DB"] = tmp_db.name
     fastapi_app.app.router.on_startup.clear()
     fastapi_app.app.router.on_shutdown.clear()
     init_db()
@@ -229,9 +229,9 @@ def seeded_client():
         yield client
 
     if previous is None:
-        os.environ.pop("PQC_SCANNER_DB", None)
+        os.environ.pop("MORROW_SCANNER_DB", None)
     else:
-        os.environ["PQC_SCANNER_DB"] = previous
+        os.environ["MORROW_SCANNER_DB"] = previous
 
 
 def _csv_rows(text):
@@ -240,11 +240,11 @@ def _csv_rows(text):
     return list(csv.DictReader(io.StringIO(text)))
 
 
-def test_ed25519_is_not_exported_to_auditors_as_pqc_safe(seeded_client):
-    """Regression: "x25519" and "ed25519" were on the compliance export's PQC-safe list.
+def test_ed25519_is_not_exported_to_auditors_as_pq_safe(seeded_client):
+    """Regression: "x25519" and "ed25519" were on the compliance export's quantum-safe list.
 
     Both are classical elliptic-curve algorithms broken by Shor's algorithm. An Ed25519 endpoint
-    was exported with compliant=YES and the finding "PQC-safe".
+    was exported with compliant=YES and the finding "quantum-safe".
     """
     r = seeded_client.get("/compliance/export.csv", headers=HEADERS)
     assert r.status_code == 200
@@ -374,15 +374,15 @@ def test_compliance_export_states_the_observed_key_size(seeded_client):
 def test_fips_report_grades_rsa_4096_below_rsa_2048(seeded_client):
     """Regression: with no key size every RSA asset got the RSA-2048 verdict, `critical`.
 
-    fips_pqc's table holds a separate row for RSA-4096 (`high`), but prefix matching over an
+    fips_pq's table holds a separate row for RSA-4096 (`high`), but prefix matching over an
     ordered dict meant "RSA-4096" hit the bare "RSA" row first and never reached it.
     """
-    body = seeded_client.get("/fips-pqc/report", headers=HEADERS).json()
+    body = seeded_client.get("/fips-pq/report", headers=HEADERS).json()
     report = body["report"]
     blob = str(report)
     assert "RSA-4096" in blob, "the FIPS report never saw the observed key size"
 
-    from services.fips_pqc import classify_algorithm
+    from services.fips_pq import classify_algorithm
     assert classify_algorithm("RSA-4096")["risk"] == "high"
     assert classify_algorithm("RSA-2048")["risk"] == "critical"
     assert classify_algorithm("P-521")["risk"] == "high"
@@ -480,15 +480,15 @@ def test_hndl_buckets_use_the_observed_key_size(key_type, key_bits, expected):
 def test_hndl_reaches_the_hybrid_bucket_from_an_observed_group():
     """Regression: _classify_algorithm looked for "kyber"/"mlkem" in the cipher suite name.
 
-    TLS 1.3 suite names (TLS_AES_256_GCM_SHA384) never name the key exchange, so the pqc_hybrid
-    and pqc_pure buckets were unreachable from any TLS 1.3 scan.
+    TLS 1.3 suite names (TLS_AES_256_GCM_SHA384) never name the key exchange, so the pq_hybrid
+    and pq_pure buckets were unreachable from any TLS 1.3 scan.
     """
     from services.hndl import _classify_algorithm
 
     assert _classify_algorithm("TLSv1.3", "TLS_AES_256_GCM_SHA384", "RSA", 2048,
-                               "X25519MLKEM768") == "pqc_hybrid"
+                               "X25519MLKEM768") == "pq_hybrid"
     assert _classify_algorithm("TLSv1.3", "TLS_AES_256_GCM_SHA384", "RSA", 2048,
-                               "MLKEM768") == "pqc_pure"
+                               "MLKEM768") == "pq_pure"
     assert _classify_algorithm("TLSv1.3", "TLS_AES_256_GCM_SHA384", "RSA", 2048,
                                "x25519") == "rsa2048"
 
@@ -519,7 +519,7 @@ def test_hndl_dashboard_counts_scanned_assets_and_excludes_unmeasured_ones(seede
 
     by_host = {x["host"]: x for x in dash["priority_queue"]}
     assert by_host["rsa.example"]["algo_class"] == "rsa4096", by_host["rsa.example"]
-    assert by_host["ec.example"]["algo_class"] == "pqc_hybrid", by_host["ec.example"]
+    assert by_host["ec.example"]["algo_class"] == "pq_hybrid", by_host["ec.example"]
     assert by_host["unreachable.example"]["exposure_usd"] is None, by_host["unreachable.example"]
 
 
@@ -555,7 +555,7 @@ CREATE TABLE scan_results (
     risk_level TEXT NOT NULL,
     quantum_score REAL NOT NULL,
     findings_count INTEGER NOT NULL,
-    pqc_relevance TEXT NOT NULL,
+    pq_relevance TEXT NOT NULL,
     tls_version TEXT NOT NULL,
     key_type TEXT NOT NULL,
     sig_algorithm TEXT NOT NULL,
@@ -585,7 +585,7 @@ def _populated_pre_change_sqlite(path):
     for org, ak, key_type in _LEGACY_ROWS:
         conn.execute(
             "INSERT INTO scan_results (organization_id, asset_key, scan_id, scanned_at,"
-            " risk_level, quantum_score, findings_count, pqc_relevance, tls_version, key_type,"
+            " risk_level, quantum_score, findings_count, pq_relevance, tls_version, key_type,"
             " sig_algorithm, owner, team, environment, criticality)"
             " VALUES (?,?,'legacy-scan','2026-01-01T00:00:00Z','high',20,2,'HIGH','TLSv1.3',?,"
             "'sha256WithRSAEncryption','','','','')",
@@ -646,7 +646,7 @@ def test_populated_sqlite_database_upgrades_through_alembic(tmp_path):
     conn.close()
 
     backend_dir = os.path.dirname(os.path.abspath(__file__))
-    env = dict(os.environ, PQC_PRODUCT_DATABASE_URL=f"sqlite:///{path}",
+    env = dict(os.environ, MORROW_PRODUCT_DATABASE_URL=f"sqlite:///{path}",
                DATABASE_URL=f"sqlite:///{path}")
     for args in (["stamp", "0006_external_findings_security_truth"], ["upgrade", "head"]):
         done = subprocess.run([sys.executable, "-m", "alembic", *args],
@@ -661,10 +661,10 @@ def test_populated_sqlite_database_upgrades_through_alembic(tmp_path):
     _assert_upgraded(rows, columns)
 
 
-_PG_DSN = os.environ.get("PQC_TEST_PG_DSN", "").strip()
+_PG_DSN = os.environ.get("MORROW_TEST_PG_DSN", "").strip()
 
 
-@pytest.mark.skipif(not _PG_DSN, reason="set PQC_TEST_PG_DSN to a throwaway Postgres database")
+@pytest.mark.skipif(not _PG_DSN, reason="set MORROW_TEST_PG_DSN to a throwaway Postgres database")
 def test_populated_postgres_database_upgrades_cleanly():
     """Postgres is the production backend, and the column change has to reach it.
 
@@ -691,7 +691,7 @@ def test_populated_postgres_database_upgrades_cleanly():
                     risk_level TEXT NOT NULL,
                     quantum_score DOUBLE PRECISION NOT NULL DEFAULT 0,
                     findings_count INTEGER NOT NULL DEFAULT 0,
-                    pqc_relevance TEXT NOT NULL DEFAULT '',
+                    pq_relevance TEXT NOT NULL DEFAULT '',
                     tls_version TEXT NOT NULL DEFAULT '',
                     key_type TEXT NOT NULL DEFAULT '',
                     sig_algorithm TEXT NOT NULL DEFAULT '',

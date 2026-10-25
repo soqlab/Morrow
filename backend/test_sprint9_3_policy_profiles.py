@@ -42,7 +42,7 @@ class TestSprint93PolicyProfiles(unittest.TestCase):
 
     def test_policy_key_not_allowed(self):
         pol = {
-            "name": "pqc",
+            "name": "pq",
             "min_tls": "1.2",
             "banned_ciphers": [],
             "allowed_keys": ["ECC"],

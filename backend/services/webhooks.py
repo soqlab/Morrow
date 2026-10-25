@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 _DDL = [
-    """CREATE TABLE IF NOT EXISTS pqc_webhooks (
+    """CREATE TABLE IF NOT EXISTS morrow_webhooks (
         id TEXT PRIMARY KEY,
         organization_id TEXT NOT NULL,
         name TEXT NOT NULL,
@@ -25,7 +25,7 @@ _DDL = [
         total_deliveries INTEGER NOT NULL DEFAULT 0,
         failed_deliveries INTEGER NOT NULL DEFAULT 0
     )""",
-    """CREATE TABLE IF NOT EXISTS pqc_webhook_deliveries (
+    """CREATE TABLE IF NOT EXISTS morrow_webhook_deliveries (
         id TEXT PRIMARY KEY,
         webhook_id TEXT NOT NULL,
         organization_id TEXT NOT NULL,
@@ -54,7 +54,7 @@ def init_tables(conn: sqlite3.Connection) -> None:
     for ddl in _DDL:
         conn.execute(ddl)
     # Migrate: add columns that may not exist in pre-Wave-15 webhooks table
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(pqc_webhooks)").fetchall()}
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(morrow_webhooks)").fetchall()}
     migrations = [
         ("events", "TEXT NOT NULL DEFAULT '[\"*\"]'"),
         ("secret", "TEXT NOT NULL DEFAULT ''"),
@@ -64,7 +64,7 @@ def init_tables(conn: sqlite3.Connection) -> None:
     ]
     for col, typedef in migrations:
         if col not in existing:
-            conn.execute(f"ALTER TABLE pqc_webhooks ADD COLUMN {col} {typedef}")
+            conn.execute(f"ALTER TABLE morrow_webhooks ADD COLUMN {col} {typedef}")
     conn.commit()
 
 
@@ -75,7 +75,7 @@ def create_webhook(conn: sqlite3.Connection, org_id: str, name: str, url: str,
     wh_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
-        """INSERT INTO pqc_webhooks (id, organization_id, name, url, events, secret, enabled, created_at)
+        """INSERT INTO morrow_webhooks (id, organization_id, name, url, events, secret, enabled, created_at)
            VALUES (?, ?, ?, ?, ?, ?, 1, ?)""",
         (wh_id, org_id, name, url, json.dumps(events or ["*"]), secret, now),
     )
@@ -87,7 +87,7 @@ def get_webhook(conn: sqlite3.Connection, wh_id: str) -> Optional[Dict]:
     row = conn.execute(
         """SELECT id, organization_id, name, url, events, secret, enabled,
                   created_at, last_triggered_at, total_deliveries, failed_deliveries
-           FROM pqc_webhooks WHERE id=?""",
+           FROM morrow_webhooks WHERE id=?""",
         (wh_id,),
     ).fetchone()
     if not row:
@@ -105,7 +105,7 @@ def list_webhooks(conn: sqlite3.Connection, org_id: str) -> List[Dict]:
     rows = conn.execute(
         """SELECT id, organization_id, name, url, events, secret, enabled,
                   created_at, last_triggered_at, total_deliveries, failed_deliveries
-           FROM pqc_webhooks WHERE organization_id=? ORDER BY created_at DESC""",
+           FROM morrow_webhooks WHERE organization_id=? ORDER BY created_at DESC""",
         (org_id,),
     ).fetchall()
     cols = ["id", "organization_id", "name", "url", "events", "secret", "enabled",
@@ -138,14 +138,14 @@ def update_webhook(conn: sqlite3.Connection, wh_id: str, org_id: str,
     if not sets:
         return get_webhook(conn, wh_id)
     vals.extend([wh_id, org_id])
-    conn.execute(f"UPDATE pqc_webhooks SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)
+    conn.execute(f"UPDATE morrow_webhooks SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)
     conn.commit()
     return get_webhook(conn, wh_id)
 
 
 def delete_webhook(conn: sqlite3.Connection, wh_id: str, org_id: str) -> bool:
     cur = conn.execute(
-        "DELETE FROM pqc_webhooks WHERE id=? AND organization_id=?", (wh_id, org_id)
+        "DELETE FROM morrow_webhooks WHERE id=? AND organization_id=?", (wh_id, org_id)
     )
     conn.commit()
     return cur.rowcount > 0
@@ -165,7 +165,7 @@ def deliver_event(conn: sqlite3.Connection, org_id: str, event_type: str, payloa
     import requests as _req
 
     webhooks = conn.execute(
-        "SELECT id, url, events, secret FROM pqc_webhooks WHERE organization_id=? AND enabled=1",
+        "SELECT id, url, events, secret FROM morrow_webhooks WHERE organization_id=? AND enabled=1",
         (org_id,),
     ).fetchall()
 
@@ -182,10 +182,10 @@ def deliver_event(conn: sqlite3.Connection, org_id: str, event_type: str, payloa
         body_bytes = json.dumps(body_dict).encode()
         sig = _sign(secret, body_bytes)
 
-        headers = {"Content-Type": "application/json", "X-PQC-Event": event_type,
-                   "X-PQC-Delivery": delivery_id}
+        headers = {"Content-Type": "application/json", "X-Morrow-Event": event_type,
+                   "X-Morrow-Delivery": delivery_id}
         if sig:
-            headers["X-PQC-Signature-256"] = sig
+            headers["X-Morrow-Signature-256"] = sig
 
         status_code, response_body, status = None, "", "failed"
         try:
@@ -199,7 +199,7 @@ def deliver_event(conn: sqlite3.Connection, org_id: str, event_type: str, payloa
         delivered_at = datetime.now(timezone.utc).isoformat() if status == "delivered" else None
         try:
             conn.execute(
-                """INSERT INTO pqc_webhook_deliveries
+                """INSERT INTO morrow_webhook_deliveries
                    (id, webhook_id, organization_id, event_type, payload, status, status_code,
                     response_body, attempt_count, created_at, delivered_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)""",
@@ -207,7 +207,7 @@ def deliver_event(conn: sqlite3.Connection, org_id: str, event_type: str, payloa
                  status, status_code, response_body, now, delivered_at),
             )
             conn.execute(
-                """UPDATE pqc_webhooks SET total_deliveries=total_deliveries+1,
+                """UPDATE morrow_webhooks SET total_deliveries=total_deliveries+1,
                    failed_deliveries=failed_deliveries+?,
                    last_triggered_at=? WHERE id=?""",
                 (0 if status == "delivered" else 1, now, wh_id),
@@ -225,7 +225,7 @@ def list_deliveries(conn: sqlite3.Connection, wh_id: str, org_id: str, limit: in
     rows = conn.execute(
         """SELECT id, event_type, status, status_code, response_body, attempt_count,
                   created_at, delivered_at
-           FROM pqc_webhook_deliveries WHERE webhook_id=? AND organization_id=?
+           FROM morrow_webhook_deliveries WHERE webhook_id=? AND organization_id=?
            ORDER BY created_at DESC LIMIT ?""",
         (wh_id, org_id, limit),
     ).fetchall()

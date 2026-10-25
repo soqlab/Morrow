@@ -34,9 +34,9 @@ def rotation(tmp_path, monkeypatch):
         conn.execute("INSERT INTO platform_alert_channels VALUES ('a1', 'pagerduty', 'PD', ?)",
                      ("fernet:" + vault_old.encrypt(b"R0UTINGKEY0123456789abcdefABCDEF").decode(),))
         conn.execute("INSERT INTO platform_alert_channels VALUES ('a2', 'email', 'Mail', ?)", ('plain:["oncall@example.com"]',))
-    for name in ("PQC_FEATURE_STORE_BACKEND", "PQC_MAIN_DB_BACKEND", "DATABASE_URL", "PQC_PRODUCT_DATABASE_URL", "PQC_VAULT_MASTER_KEY_NEW"):
+    for name in ("MORROW_FEATURE_STORE_BACKEND", "MORROW_MAIN_DB_BACKEND", "DATABASE_URL", "MORROW_PRODUCT_DATABASE_URL", "MORROW_VAULT_MASTER_KEY_NEW"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY", old_key)
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", old_key)
     return module, db, old_key
 
 
@@ -67,7 +67,7 @@ def test_dry_run_verifies_everything_and_changes_nothing(rotation, capsys):
 def test_apply_reencrypts_under_the_new_key(rotation, monkeypatch, capsys):
     module, db, old_key = rotation
     new_key = Fernet.generate_key().decode()
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY_NEW", new_key)
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY_NEW", new_key)
     assert module.main(["--sqlite", str(db), "--apply"]) == 0
     captured = capsys.readouterr()
     assert new_key not in captured.out + captured.err and old_key not in captured.out + captured.err
@@ -79,7 +79,7 @@ def test_apply_reencrypts_under_the_new_key(rotation, monkeypatch, capsys):
     assert module.vault_fernet(new_key).decrypt(values["alert"][len("fernet:"):].encode()) == b"R0UTINGKEY0123456789abcdefABCDEF"
     assert values["alert_plain"] == 'plain:["oncall@example.com"]'
     # The running app's own helpers read the new key.
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY", new_key)
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", new_key)
     import vault_crypto
     from services import alert_routing
 
@@ -95,7 +95,7 @@ def test_ai_receipt_signing_key_survives_vault_rotation(rotation, monkeypatch, c
     with sqlite3.connect(db) as conn:
         conn.execute("CREATE TABLE ai_privacy_policy (organization_id TEXT PRIMARY KEY,key_sealed TEXT NOT NULL)")
         conn.execute("INSERT INTO ai_privacy_policy VALUES ('org-a',?)", (module.vault_fernet(old_key).encrypt(private.encode()).decode(),))
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY_NEW", new_key)
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY_NEW", new_key)
     assert module.main(["--sqlite", str(db), "--apply"]) == 0
     report = json.loads(capsys.readouterr().out)
     assert report["targets"]["ai_receipt_signing_keys"]["rotated"] == 1
@@ -110,7 +110,7 @@ def test_undecryptable_alert_target_aborts_without_changes(rotation, monkeypatch
         conn.execute("INSERT INTO platform_alert_channels VALUES ('a3', 'slack_webhook', 'Stale', ?)",
                      ("fernet:" + Fernet(Fernet.generate_key()).encrypt(b"https://hooks.example/x").decode(),))
     before = _values(db)
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY_NEW", Fernet.generate_key().decode())
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY_NEW", Fernet.generate_key().decode())
     assert module.main(["--sqlite", str(db), "--apply"]) == 2
     report = json.loads(capsys.readouterr().out)
     assert report["undecryptable"] == {"alert_channel_targets": ["a3"]}
@@ -121,7 +121,7 @@ def test_failed_commit_restores_alert_targets(rotation, monkeypatch, capsys):
     """A later store's commit failure restores the committed store's alert targets to their original ciphertexts."""
     module, db, _ = rotation
     before = _values(db)
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY_NEW", Fernet.generate_key().decode())
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY_NEW", Fernet.generate_key().decode())
     real_discover = module.discover_stores
 
     def two_stores(args):
@@ -153,7 +153,7 @@ def test_undecryptable_value_aborts_without_changes(rotation, monkeypatch, capsy
         conn.execute("INSERT INTO platform_operator_mfa VALUES ('key:bob', ?, 'active')",
                      (Fernet(Fernet.generate_key()).encrypt(b"other").decode(),))
     before = _values(db)
-    monkeypatch.setenv("PQC_VAULT_MASTER_KEY_NEW", Fernet.generate_key().decode())
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY_NEW", Fernet.generate_key().decode())
     assert module.main(["--sqlite", str(db), "--apply"]) == 2
     report = json.loads(capsys.readouterr().out)
     assert report["undecryptable"] == {"operator_mfa_secrets": ["key:bob"]}
@@ -176,7 +176,7 @@ def test_generated_key_goes_only_to_the_file(rotation, tmp_path, capsys):
 def test_apply_requires_a_new_key(rotation, capsys):
     module, db, _ = rotation
     assert module.main(["--sqlite", str(db), "--apply"]) == 1
-    assert "PQC_VAULT_MASTER_KEY_NEW" in json.loads(capsys.readouterr().out)["error"]
+    assert "MORROW_VAULT_MASTER_KEY_NEW" in json.loads(capsys.readouterr().out)["error"]
 
 
 def test_github_key_derivation_matches_the_service(rotation, monkeypatch):

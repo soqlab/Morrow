@@ -8,7 +8,7 @@
 #       --env-file .env.prod up -d
 #
 # Set DATABASE_URL in .env.prod to the in-compose Postgres:
-#   DATABASE_URL=postgresql://pqc:<password>@db:5432/pqc
+#   DATABASE_URL=postgresql://morrow:<password>@db:5432/morrow
 #
 # See deploy/single-host/README.md for the whole sequence, including the go-live gate.
 
@@ -17,8 +17,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: "${POSTGRES_DB:-pqc}"
-      POSTGRES_USER: "${POSTGRES_USER:-pqc}"
+      POSTGRES_DB: "${POSTGRES_DB:-pq}"
+      POSTGRES_USER: "${POSTGRES_USER:-pq}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}"
       # C.UTF-8 rather than the C locale the image defaults to: changing collation later means a
       # dump and restore, and it decides how non-ASCII organization and domain names sort.
@@ -26,7 +26,7 @@ services:
     volumes:
       - pg-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pqc} -d ${POSTGRES_DB:-pqc}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pq} -d ${POSTGRES_DB:-pq}"]
       interval: 10s
       timeout: 5s
       retries: 10

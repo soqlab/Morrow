@@ -8,7 +8,7 @@ Instead of listing every token, a revocation records a cut-off per subject:
 "user:<id>" or "org:<id>". A token for that subject whose iat is at or before the
 cut-off is rejected by the request auth middleware. The table stays tiny (one row
 per revoked subject), and each replica refreshes its in-memory copy every
-PQC_TOKEN_REVOCATION_CACHE_SECONDS (default 10), so a revocation takes effect on
+MORROW_TOKEN_REVOCATION_CACHE_SECONDS (default 10), so a revocation takes effect on
 every replica within that window.
 
 A storage error keeps the last known list rather than failing every request; the
@@ -38,13 +38,13 @@ def _now_iso() -> str:
 
 def _cache_seconds() -> float:
     try:
-        return max(1.0, float(os.getenv("PQC_TOKEN_REVOCATION_CACHE_SECONDS", "10") or 10))
+        return max(1.0, float(os.getenv("MORROW_TOKEN_REVOCATION_CACHE_SECONDS", "10") or 10))
     except ValueError:
         return 10.0
 
 
 def _db_identity() -> str:
-    return f"{os.getenv('PQC_FEATURE_STORE_BACKEND', '')}|{os.getenv('PQC_SCANNER_DB', '')}"
+    return f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}"
 
 
 _TABLES_READY: set = set()

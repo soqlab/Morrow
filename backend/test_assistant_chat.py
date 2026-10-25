@@ -4,13 +4,13 @@ from fastapi.testclient import TestClient
 
 
 def _load_app(tmp_path, monkeypatch, *, assistant_limit="60/minute"):
-    monkeypatch.setenv("PQC_SCANNER_DB", str(tmp_path / "assistant.db"))
-    monkeypatch.setenv("PQC_AUTH_MODE", "headers")
-    monkeypatch.setenv("PQC_AUTH_REQUIRED", "0")
-    monkeypatch.setenv("PQC_DEFAULT_ROLE", "viewer")
-    monkeypatch.setenv("PQC_RATE_LIMIT_ASSISTANT", assistant_limit)
-    monkeypatch.setenv("PQC_RATE_LIMIT_DEFAULT", "1000/minute")
-    monkeypatch.setenv("PQC_RATE_LIMIT_MAX_REQUESTS", "1000")
+    monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "assistant.db"))
+    monkeypatch.setenv("MORROW_AUTH_MODE", "headers")
+    monkeypatch.setenv("MORROW_AUTH_REQUIRED", "0")
+    monkeypatch.setenv("MORROW_DEFAULT_ROLE", "viewer")
+    monkeypatch.setenv("MORROW_RATE_LIMIT_ASSISTANT", assistant_limit)
+    monkeypatch.setenv("MORROW_RATE_LIMIT_DEFAULT", "1000/minute")
+    monkeypatch.setenv("MORROW_RATE_LIMIT_MAX_REQUESTS", "1000")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     import app as fastapi_app

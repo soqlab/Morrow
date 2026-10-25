@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/your-org/pqc-scanner
+  repository: ghcr.io/your-org/morrow
   pullPolicy: IfNotPresent
   tag: ""  # defaults to Chart.appVersion
 
@@ -42,14 +42,14 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
   hosts:
-    - host: pqc-scanner.example.com
+    - host: morrow.example.com
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: pqc-scanner-tls
+    - secretName: morrow-tls
       hosts:
-        - pqc-scanner.example.com
+        - morrow.example.com
 
 resources:
   requests:
@@ -75,9 +75,9 @@ persistence:
 postgresql:
   enabled: true
   auth:
-    username: pqc
+    username: pq
     password: changeme
-    database: pqc
+    database: pq
   primary:
     persistence:
       enabled: true
@@ -94,10 +94,10 @@ redis:
       size: 5Gi
 
 env:
-  PQC_AUTH_MODE: headers
-  PQC_AUTH_REQUIRED: "1"
-  PQC_DEFAULT_ROLE: viewer
-  PQC_CORS_ALLOW_ALL: "0"
+  MORROW_AUTH_MODE: headers
+  MORROW_AUTH_REQUIRED: "1"
+  MORROW_DEFAULT_ROLE: viewer
+  MORROW_CORS_ALLOW_ALL: "0"
   ENABLE_INPROCESS_SCHEDULER: "0"
   WORKER_ROLE: api
   PER_TARGET_TIMEOUT: "20"
@@ -105,8 +105,8 @@ env:
 # Set these via --set or a values override file
 secrets:
   openaiApiKey: ""
-  pqcVaultMasterKey: ""
-  pqcPlatformAdminKey: ""
+  pqVaultMasterKey: ""
+  pqPlatformAdminKey: ""
   jwtIssuer: ""
   jwtAudience: ""
   jwksUrl: ""
@@ -139,5 +139,5 @@ affinity:
               - key: app.kubernetes.io/name
                 operator: In
                 values:
-                  - pqc-scanner
+                  - morrow
           topologyKey: kubernetes.io/hostname

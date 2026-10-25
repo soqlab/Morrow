@@ -1,11 +1,11 @@
 project_id  = "replace-me"
 region      = "europe-west1"
-name_prefix = "pqc"
+name_prefix = "pq"
 
 image = "europe-west1-docker.pkg.dev/replace-me/pqc-containers/backend:latest"
 
 # First apply: keep false so Terraform only provisions infra + secret containers.
-# After you manually add secret versions for OPENAI_API_KEY and PQC_VAULT_MASTER_KEY,
+# After you manually add secret versions for OPENAI_API_KEY and MORROW_VAULT_MASTER_KEY,
 # flip this to true and apply again.
 deploy_runtime = false
 
@@ -21,8 +21,8 @@ auth_jwt_audience = "YOUR_API_AUDIENCE"
 auth_jwt_jwks_url = "https://YOUR_AUTH_DOMAIN/.well-known/jwks.json"
 auth_jwt_algorithms = "RS256"
 auth_user_id_claim = "sub"
-auth_role_claim = "https://pqc-scanner.io/role"
-auth_org_id_claim = "https://pqc-scanner.io/org_id"
+auth_role_claim = "https://morrow.soqlab.com/role"
+auth_org_id_claim = "https://morrow.soqlab.com/org_id"
 cors_origins = "https://YOUR_APP_DOMAIN"
 csp_value = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://YOUR_APP_DOMAIN"
 sentry_dsn = "https://CHANGE_ME@o0.ingest.sentry.io/0"

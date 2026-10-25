@@ -22,7 +22,7 @@ Use this before moving from controlled pilot to production enterprise deployment
 
 ## Secrets
 
-- [ ] `PQC_VAULT_MASTER_KEY` stored in cloud secret manager.
+- [ ] `MORROW_VAULT_MASTER_KEY` stored in cloud secret manager.
 - [ ] GitHub App private key stored in Vault/secret manager.
 - [ ] Webhook secrets stored in Vault.
 - [ ] Secret reveal restricted to admin.
@@ -35,7 +35,7 @@ Use this before moving from controlled pilot to production enterprise deployment
 - [ ] Repository sync works.
 - [ ] Token minting works.
 - [ ] Branch/commit/PR creation works.
-- [ ] Required check context is documented: `pqc-scanner/security-policy`.
+- [ ] Required check context is documented: `morrow/security-policy`.
 - [ ] Branch protection behavior verified.
 
 ## Runtime Services

@@ -1,7 +1,7 @@
 param(
   [Parameter(Mandatory=$true)][string]$BaseUrl,
-  [Parameter(Mandatory=$false)][string]$PlatformKey = $env:PQC_PLATFORM_ADMIN_KEY,
-  [string]$OperatorSession = $env:PQC_OPERATOR_SESSION,
+  [Parameter(Mandatory=$false)][string]$PlatformKey = $env:MORROW_PLATFORM_ADMIN_KEY,
+  [string]$OperatorSession = $env:MORROW_OPERATOR_SESSION,
   [switch]$ExpectHsts,
   [switch]$ExpectLocalNoGo
 )

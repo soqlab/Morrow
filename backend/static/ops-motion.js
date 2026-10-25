@@ -454,8 +454,8 @@
       const end = Math.max(start + 10, qday + 3);
       const step = end - start > 14 ? 4 : 2;
       const cells = [];
-      for (let i = 0; i < 72; i++) cells.push({ c: i % 12, r: i / 12 | 0, at: .3 + i * .068, y0: .14 + random() * .46, pqc: random() < .32 });
-      const pqc = cells.filter(c => c.pqc).length, readable = 72 - pqc;
+      for (let i = 0; i < 72; i++) cells.push({ c: i % 12, r: i / 12 | 0, at: .3 + i * .068, y0: .14 + random() * .46, pq: random() < .32 });
+      const pq = cells.filter(c => c.pq).length, readable = 72 - pq;
       const horizon = qday - start;
       const log = [
         { at: 0, kind: "cmd", text: "morrow hndl --secrecy-life <years your data must stay secret>" },
@@ -467,7 +467,7 @@
         { at: 10.1, kind: "ok", text: "ML-KEM key exchange  [[stays sealed]]" },
         { at: 10.7, kind: "info", text: "fix  enable hybrid key exchange before the horizon" },
       ];
-      return { cells, pqc, readable, log, start, end, step, qday, qdayLabel: data.qdayLabel ? "q-day · " + data.qdayLabel : "2035 · RSA/ECC disallowed" };
+      return { cells, pq, readable, log, start, end, step, qday, qdayLabel: data.qdayLabel ? "q-day · " + data.qdayLabel : "2035 · RSA/ECC disallowed" };
     },
     draw(ctx, w, h, t, S, P) {
       grid(ctx, w, h, 24, P);
@@ -483,17 +483,17 @@
         const land = cell.at + .9;
         if (t >= cell.at && t < land) {
           const k = easeOut(seg(t, cell.at, land));
-          ctx.fillStyle = cell.pqc ? P.flight : alpha(P.text, .7);
+          ctx.fillStyle = cell.pq ? P.flight : alpha(P.text, .7);
           ctx.fillRect(lerp(.03 * w, x + cw / 2, k) - 2, lerp(cell.y0 * h, y + ch / 2, k) - 2, 4, 4);
         }
         if (t < land) { ctx.lineWidth = 1; ctx.strokeStyle = alpha(P.edge, .7); ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5); continue; }
         captured++;
         const swept = sweep > 0 && x + cw / 2 < sx;
-        const open = !cell.pqc && swept;
+        const open = !cell.pq && swept;
         if (open) readable++;
-        ctx.fillStyle = open ? alpha(P.bad, .55) : cell.pqc && swept ? alpha(P.ok, .22) : alpha(P.idle, .8);
+        ctx.fillStyle = open ? alpha(P.bad, .55) : cell.pq && swept ? alpha(P.ok, .22) : alpha(P.idle, .8);
         ctx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
-        if (cell.pqc) { ctx.lineWidth = 1; ctx.strokeStyle = swept ? P.ok : alpha(P.flight, .8); ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5); }
+        if (cell.pq) { ctx.lineWidth = 1; ctx.strokeStyle = swept ? P.ok : alpha(P.flight, .8); ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5); }
         if (!open) { ctx.fillStyle = alpha(P.text, .35); ctx.fillRect(x + cw / 2 - 2, y + ch / 2 - 1, 4, 3); }
       }
       if (sweep > 0 && sweep < 1) {
@@ -531,7 +531,7 @@
   }
 
   /* ---------- the latest scan ---------- */
-  const SCAN_GROUPS = [["classical", "classical"], ["error", "probe errors"], ["unknown", "unclassified"], ["hybrid", "hybrid / pqc"], ["unscanned", "not scanned"]];
+  const SCAN_GROUPS = [["classical", "classical"], ["error", "probe errors"], ["unknown", "unclassified"], ["hybrid", "hybrid / pq"], ["unscanned", "not scanned"]];
   SCENES.scanLive = {
     title: "estate · latest scan", term: "morrow — scans",
     label: "Animated view of this workspace's latest TLS scan: each endpoint and how its key exchange was classified",
@@ -703,13 +703,13 @@
       const start = new Date().getFullYear();
       const parsed = parseInt(String(data.qday ?? ""), 10);
       const qday = Number.isFinite(parsed) ? clamp(parsed, start + 1, start + 25) : null;
-      const readable = assets.filter(a => !a.pqc);
+      const readable = assets.filter(a => !a.pq);
       const readableUsd = readable.reduce((s, a) => s + Number(a.usd), 0);
       const captureEnd = cells[cells.length - 1].at + .9;
       const forwardAt = captureEnd + .3, sweepAt = forwardAt + 1.9, sweepEnd = sweepAt + 2;
       const log = [
         { at: .1, kind: "info", text: `[[${assets.length}]] assets modelled · [[${usd(total)}]] exposure` },
-        ...[...assets].sort((a, b) => b.usd - a.usd).slice(0, 4).map((a, i) => ({ at: .6 + i * .9, kind: a.pqc ? "ok" : "warn", text: `[[${a.name}]]  ${usd(a.usd)} · ${a.cls} · P(broken) ${Math.round((a.p || 0) * 100)}%` })),
+        ...[...assets].sort((a, b) => b.usd - a.usd).slice(0, 4).map((a, i) => ({ at: .6 + i * .9, kind: a.pq ? "ok" : "warn", text: `[[${a.name}]]  ${usd(a.usd)} · ${a.cls} · P(broken) ${Math.round((a.p || 0) * 100)}%` })),
         { at: forwardAt, kind: "info", text: qday ? `model Q-Day [[${qday}]]` : "no Q-Day year in the model" },
         { at: sweepEnd, kind: readable.length ? "bad" : "ok", text: `readable at Q-Day · [[${usd(readableUsd)}]] · ${readable.length} of ${assets.length} assets` },
         ...(assets.length > readable.length ? [{ at: sweepEnd + .5, kind: "ok", text: `[[${assets.length - readable.length}]] post-quantum assets stay sealed` }] : []),
@@ -731,15 +731,15 @@
         const a = S.assets[cell.a], x = bx + cell.c * cw, y = by + cell.r * ch, land = cell.at + .9;
         if (t >= cell.at && t < land) {
           const k = easeOut(seg(t, cell.at, land));
-          ctx.fillStyle = a.pqc ? P.flight : alpha(P.text, .7);
+          ctx.fillStyle = a.pq ? P.flight : alpha(P.text, .7);
           ctx.fillRect(lerp(.03 * w, x + cw / 2, k) - 2, lerp(cell.y0 * h, y + ch / 2, k) - 2, 4, 4);
         }
         if (t < land) { ctx.strokeStyle = alpha(P.edge, .7); ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5); continue; }
         captured += cell.share;
         const swept = sweep > 0 && x + cw / 2 < sx;
-        ctx.fillStyle = swept && !a.pqc ? alpha(P.bad, .25 + (a.p || 0) * .55) : swept && a.pqc ? alpha(P.ok, .22) : alpha(P.idle, .8);
+        ctx.fillStyle = swept && !a.pq ? alpha(P.bad, .25 + (a.p || 0) * .55) : swept && a.pq ? alpha(P.ok, .22) : alpha(P.idle, .8);
         ctx.fillRect(x + 2, y + 2, cw - 4, ch - 4);
-        if (a.pqc) { ctx.strokeStyle = swept ? P.ok : alpha(P.flight, .8); ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5); }
+        if (a.pq) { ctx.strokeStyle = swept ? P.ok : alpha(P.flight, .8); ctx.strokeRect(x + 2.5, y + 2.5, cw - 5, ch - 5); }
       }
       if (sweep > 0 && sweep < 1) {
         const g = ctx.createLinearGradient(sx - 40, 0, sx, 0);

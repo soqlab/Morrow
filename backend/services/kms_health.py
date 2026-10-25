@@ -1,6 +1,6 @@
 """
 Wave 15 — KMS Vault Health
-Check AWS KMS, HashiCorp Vault, Azure Key Vault for PQC-readiness:
+Check AWS KMS, HashiCorp Vault, Azure Key Vault for post-quantum-readiness:
 key algorithm types, rotation policies, compliance posture.
 Uses boto3, azure-keyvault-secrets + azure-identity, requests (all in requirements.txt).
 """
@@ -10,8 +10,8 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Dict, List
 
-# Algorithms considered PQC-safe or hybrid-ready
-PQC_SAFE_ALGOS = {"KYBER", "DILITHIUM", "FALCON", "SPHINCS", "RSA_4096", "ECC_NIST_P521"}
+# Algorithms considered quantum-safe or hybrid-ready
+MORROW_SAFE_ALGOS = {"KYBER", "DILITHIUM", "FALCON", "SPHINCS", "RSA_4096", "ECC_NIST_P521"}
 LEGACY_WEAK = {"RSA_2048", "RSA_1024", "ECC_NIST_P256", "ECC_NIST_P384",
                "HMAC_SHA1", "AES_128", "SYMMETRIC_DEFAULT"}
 
@@ -77,7 +77,7 @@ def check_aws_kms(conn: sqlite3.Connection, org_id: str,
                         "key_usage": meta.get("KeyUsage", ""),
                         "enabled": meta.get("Enabled", False),
                         "rotation_enabled": rotation,
-                        "pqc_safe": algo in PQC_SAFE_ALGOS,
+                        "pq_safe": algo in MORROW_SAFE_ALGOS,
                         "legacy_weak": algo in LEGACY_WEAK,
                         "created_at": str(meta.get("CreationDate", "")),
                     })
@@ -93,7 +93,7 @@ def check_aws_kms(conn: sqlite3.Connection, org_id: str,
         "total_keys": len(keys),
         "weak_algo_keys": len(weak),
         "no_rotation_keys": len(no_rotation),
-        "pqc_safe_keys": len([k for k in keys if k["pqc_safe"]]),
+        "pq_safe_keys": len([k for k in keys if k["pq_safe"]]),
         "region": region,
     }
     _save_result(conn, org_id, "aws_kms", summary, keys, risk)
@@ -126,7 +126,7 @@ def check_hashicorp_vault(conn: sqlite3.Connection, org_id: str,
                     continue
                 kd = kr.json().get("data", {})
                 key_type = kd.get("type", "unknown")
-                pqc_safe = "ml-kem" in key_type or "kyber" in key_type or "dilithium" in key_type
+                pq_safe = "ml-kem" in key_type or "kyber" in key_type or "dilithium" in key_type
                 legacy_weak = key_type in ("rsa-2048", "rsa-1024", "ecdsa-p256", "aes128-gcm96")
                 keys.append({
                     "name": name,
@@ -134,7 +134,7 @@ def check_hashicorp_vault(conn: sqlite3.Connection, org_id: str,
                     "rotation_enabled": kd.get("deletion_allowed", False),
                     "min_decryption_version": kd.get("min_decryption_version", 1),
                     "latest_version": kd.get("latest_version", 1),
-                    "pqc_safe": pqc_safe,
+                    "pq_safe": pq_safe,
                     "legacy_weak": legacy_weak,
                     "exportable": kd.get("exportable", False),
                 })
@@ -146,7 +146,7 @@ def check_hashicorp_vault(conn: sqlite3.Connection, org_id: str,
     weak = [k for k in keys if k["legacy_weak"]]
     risk = "critical" if len(weak) > len(keys) * 0.5 else "high" if weak else "low"
     summary = {"total_keys": len(keys), "weak_algo_keys": len(weak),
-               "pqc_safe_keys": len([k for k in keys if k["pqc_safe"]]),
+               "pq_safe_keys": len([k for k in keys if k["pq_safe"]]),
                "vault_addr": vault_addr}
     _save_result(conn, org_id, "hashicorp_vault", summary, keys, risk)
     return {"provider": "hashicorp_vault", "risk_level": risk, "summary": summary, "keys": keys}
@@ -169,7 +169,7 @@ def check_azure_keyvault(conn: sqlite3.Connection, org_id: str,
             try:
                 key = client.get_key(key_props.name)
                 ktype = str(key.key_type) if key.key_type else "unknown"
-                pqc_safe = False  # Azure doesn't support PQC keys yet
+                pq_safe = False  # Azure doesn't support post-quantum keys yet
                 legacy_weak = ktype in ("RSA", "EC") and (
                     getattr(key.key, "n", None) is not None and
                     len(getattr(key.key, "n", b"")) < 384
@@ -180,7 +180,7 @@ def check_azure_keyvault(conn: sqlite3.Connection, org_id: str,
                     "enabled": key_props.enabled,
                     "rotation_enabled": bool(key_props.rotation_policy) if hasattr(key_props, "rotation_policy") else False,
                     "expires_on": str(key_props.expires_on) if key_props.expires_on else None,
-                    "pqc_safe": pqc_safe,
+                    "pq_safe": pq_safe,
                     "legacy_weak": legacy_weak or ktype in ("RSA", "EC"),
                     "key_size": getattr(key.key, "key_size", None),
                 })
@@ -192,8 +192,8 @@ def check_azure_keyvault(conn: sqlite3.Connection, org_id: str,
     weak = [k for k in keys if k["legacy_weak"]]
     risk = "critical" if weak else "medium"
     summary = {"total_keys": len(keys), "weak_algo_keys": len(weak),
-               "pqc_safe_keys": 0, "vault_url": vault_url,
-               "note": "Azure Key Vault does not yet support PQC key types"}
+               "pq_safe_keys": 0, "vault_url": vault_url,
+               "note": "Azure Key Vault does not yet support post-quantum key types"}
     _save_result(conn, org_id, "azure_keyvault", summary, keys, risk)
     return {"provider": "azure_keyvault", "risk_level": risk, "summary": summary, "keys": keys}
 

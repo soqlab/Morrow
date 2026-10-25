@@ -1,4 +1,4 @@
-"""PQC Knowledge Base — searchable library of migration guides, algorithm docs, CVE mappings."""
+"""Post-Quantum Knowledge Base — searchable library of migration guides, algorithm docs, CVE mappings."""
 from typing import Optional
 
 ARTICLES = [
@@ -24,7 +24,7 @@ ML-KEM (Module Lattice-based Key Encapsulation Mechanism) was standardized as FI
 3. OpenSSL 3.5+ supports ML-KEM natively; enable with `groups = X25519MLKEM768`
 
 ## CVE Notes
-No CVEs against the NIST-standardized algorithm. Side-channel risks in naive implementations — use vetted libraries (liboqs, BouncyCastle PQC, ML-KEM reference).
+No CVEs against the NIST-standardized algorithm. Side-channel risks in naive implementations — use vetted libraries (liboqs, BouncyCastle post-quantum, ML-KEM reference).
 """,
         "severity_relevance": "CRITICAL",
         "updated_at": "2025-08-01",
@@ -48,7 +48,7 @@ ML-DSA (Module Lattice-based Digital Signature Algorithm) was standardized as FI
 ## Migration Path
 1. Replace ECDSA/RSA signatures with ML-DSA-65 (recommended baseline)
 2. Use hybrid certificates: classical + ML-DSA during transition (IETF draft-composite-sigs)
-3. GitHub Actions: sign artifacts with ML-DSA-65 using sigstore-python PQC branch
+3. GitHub Actions: sign artifacts with ML-DSA-65 using sigstore-python post-quantum branch
 
 ## Key Note
 ML-DSA is deterministic — no per-signature randomness required, eliminating a class of nonce-reuse vulnerabilities present in ECDSA.
@@ -74,7 +74,7 @@ SLH-DSA (Stateless Hash-based Digital Signature Algorithm) standardized as FIPS 
 - `slh-dsa-sha2-256s` / `slh-dsa-sha2-256f` — small vs fast, NIST Level 5
 
 ## Implementation
-Available in BouncyCastle ≥1.78, liboqs ≥0.10, Rustls PQC branch.
+Available in BouncyCastle ≥1.78, liboqs ≥0.10, Rustls post-quantum branch.
 """,
         "severity_relevance": "HIGH",
         "updated_at": "2025-08-01",
@@ -84,9 +84,9 @@ Available in BouncyCastle ≥1.78, liboqs ≥0.10, Rustls PQC branch.
         "title": "Hybrid TLS Migration Guide",
         "category": "Migration",
         "tags": ["tls", "hybrid", "x25519", "ml-kem", "nginx", "openssl"],
-        "summary": "Step-by-step guide to enabling hybrid PQC TLS (X25519+ML-KEM-768) in nginx, Apache, and Go services. Backward-compatible — works with classical clients.",
+        "summary": "Step-by-step guide to enabling hybrid post-quantum TLS (X25519+ML-KEM-768) in nginx, Apache, and Go services. Backward-compatible — works with classical clients.",
         "body": """## What is Hybrid TLS?
-Hybrid TLS combines a classical key exchange (X25519) with a PQC key exchange (ML-KEM) in the same TLS handshake. The session key is derived from both — secure if either is unbroken.
+Hybrid TLS combines a classical key exchange (X25519) with a post-quantum key exchange (ML-KEM) in the same TLS handshake. The session key is derived from both — secure if either is unbroken.
 
 ## nginx (OpenSSL 3.5+)
 ```nginx
@@ -155,11 +155,11 @@ Harvest Now, Decrypt Later (HNDL) is a threat where adversaries collect encrypte
         "updated_at": "2025-07-01",
     },
     {
-        "slug": "openssl-pqc-migration",
-        "title": "OpenSSL 3.x PQC Migration",
+        "slug": "openssl-pq-migration",
+        "title": "OpenSSL 3.x post-quantum Migration",
         "category": "Libraries",
         "tags": ["openssl", "oqs", "liboqs", "python", "c", "library"],
-        "summary": "How to enable PQC in OpenSSL 3.x via the OQS provider. Covers installation, configuration, and testing for Linux, macOS, and Docker.",
+        "summary": "How to enable post-quantum in OpenSSL 3.x via the OQS provider. Covers installation, configuration, and testing for Linux, macOS, and Docker.",
         "body": """## OpenSSL + OQS Provider
 The OQS (Open Quantum Safe) provider for OpenSSL adds ML-KEM, ML-DSA, SLH-DSA, and hybrid algorithms to OpenSSL 3.x.
 
@@ -204,11 +204,11 @@ FROM openquantumsafe/curl:latest
         "updated_at": "2025-09-01",
     },
     {
-        "slug": "java-bouncycastle-pqc",
-        "title": "Java / BouncyCastle PQC Migration",
+        "slug": "java-bouncycastle-pq",
+        "title": "Java / BouncyCastle post-quantum Migration",
         "category": "Libraries",
-        "tags": ["java", "bouncycastle", "bc-pqc", "spring", "jvm"],
-        "summary": "Migrating Java applications from classical JCE (RSA/ECDSA) to PQC using BouncyCastle BCPQC jar. Includes Spring Boot examples.",
+        "tags": ["java", "bouncycastle", "bc-pq", "spring", "jvm"],
+        "summary": "Migrating Java applications from classical JCE (RSA/ECDSA) to post-quantum using BouncyCastle BCPQC jar. Includes Spring Boot examples.",
         "body": """## Dependencies
 ```xml
 <dependency>
@@ -243,7 +243,7 @@ byte[] signature = sig.sign();
 ```
 
 ## Known Issue: CVE-2024-29857
-BouncyCastle <1.78 has an infinite loop in LDAP DN parsing. Unrelated to PQC but update before deploying.
+BouncyCastle <1.78 has an infinite loop in LDAP DN parsing. Unrelated to post-quantum but update before deploying.
 """,
         "severity_relevance": "MEDIUM",
         "updated_at": "2025-08-01",
@@ -253,14 +253,14 @@ BouncyCastle <1.78 has an infinite loop in LDAP DN parsing. Unrelated to PQC but
         "title": "CNSA 2.0 Compliance Timeline",
         "category": "Compliance",
         "tags": ["cnsa", "nsa", "timeline", "dod", "federal", "deadline"],
-        "summary": "NSA's Commercial National Security Algorithm Suite 2.0 mandates PQC adoption for national security systems by 2030. Federal contractors must comply earlier.",
+        "summary": "NSA's Commercial National Security Algorithm Suite 2.0 mandates post-quantum adoption for national security systems by 2030. Federal contractors must comply earlier.",
         "body": """## CNSA 2.0 Deadlines
 | Date | Requirement |
 |------|-------------|
 | 2025 | Software and firmware signing: ML-DSA or SLH-DSA required |
 | 2026 | Network equipment and browsers: ML-KEM required |
-| 2027 | Operating systems: full PQC support mandatory |
-| 2030 | All NSS systems: complete PQC migration, classical algorithms deprecated |
+| 2027 | Operating systems: full post-quantum support mandatory |
+| 2030 | All NSS systems: complete post-quantum migration, classical algorithms deprecated |
 
 ## Scope
 CNSA 2.0 applies to all National Security Systems (NSS) and their supply chain. Contractors providing software, services, or infrastructure to DoD, IC, or NSS owners are directly affected.
@@ -281,11 +281,11 @@ VPNs, PKI, code signing, TLS, SSH, encrypted storage, firmware update mechanisms
         "updated_at": "2025-07-01",
     },
     {
-        "slug": "pqc-ssh-migration",
-        "title": "PQC SSH Migration (OpenSSH 9.x)",
+        "slug": "pq-ssh-migration",
+        "title": "Post-quantum SSH Migration (OpenSSH 9.x)",
         "category": "Migration",
         "tags": ["ssh", "openssh", "sftp", "server", "kex"],
-        "summary": "OpenSSH 9.0+ ships with ML-KEM-768 hybrid key exchange by default. How to enable, verify, and configure for PQC-only environments.",
+        "summary": "OpenSSH 9.0+ ships with ML-KEM-768 hybrid key exchange by default. How to enable, verify, and configure for post-quantum-only environments.",
         "body": """## OpenSSH 9.0+
 OpenSSH 9.0 (2022) enabled `sntrup761x25519-sha512@openssh.com` by default — a hybrid post-quantum key exchange combining Streamlined NTRU Prime with X25519.
 
@@ -310,7 +310,7 @@ HostKeyAlgorithms ssh-ed25519,ecdsa-sha2-nistp256
 KexAlgorithms mlkem768x25519-sha256,sntrup761x25519-sha512@openssh.com
 ```
 
-## Verify PQC KEX in Use
+## Verify post-quantum KEX in Use
 ```bash
 ssh -vvv user@host 2>&1 | grep "kex:"
 # Expected: kex: algorithm: mlkem768x25519-sha256
@@ -323,18 +323,18 @@ Host keys (RSA/ECDSA) are for authentication, not encryption — less urgent for
         "updated_at": "2025-09-01",
     },
     {
-        "slug": "pqc-certificates-hybrid",
-        "title": "Hybrid PQC Certificates (X.509)",
+        "slug": "pq-certificates-hybrid",
+        "title": "Hybrid post-quantum Certificates (X.509)",
         "category": "Migration",
         "tags": ["certificate", "x509", "pki", "hybrid", "tls", "ca"],
-        "summary": "Hybrid X.509 certificates carry both a classical (RSA/ECDSA) and PQC (ML-DSA) signature. Backward-compatible with classical clients, quantum-resistant for PQC clients.",
+        "summary": "Hybrid X.509 certificates carry both a classical (RSA/ECDSA) and post-quantum (ML-DSA) signature. Backward-compatible with classical clients, quantum-resistant for post-quantum clients.",
         "body": """## Why Hybrid Certificates?
-During the transition period, clients need to verify certificates using either classical or PQC algorithms depending on their capabilities. Hybrid certs embed both, signed by the CA with both algorithms.
+During the transition period, clients need to verify certificates using either classical or post-quantum algorithms depending on their capabilities. Hybrid certs embed both, signed by the CA with both algorithms.
 
 ## Approaches
 1. **Composite signatures** (IETF draft-ounsworth-pq-composite-sigs): Single certificate with composite key and signature field
 2. **Dual-key certificates** (draft-lamps-pq-composite-kem): Two certificates bound together
-3. **SubjectAltPublicKeyInfo** (draft-lamps-cert-binding-for-multi-auth): Classical cert with PQC key in extension
+3. **SubjectAltPublicKeyInfo** (draft-lamps-cert-binding-for-multi-auth): Classical cert with post-quantum key in extension
 
 ## Recommended: Composite (draft-ounsworth)
 ```bash

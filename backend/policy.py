@@ -16,7 +16,7 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "require_stapling": False,
 }
 
-PQC_PROVIDER_CAPABILITY_MATRIX: Dict[str, Dict[str, str]] = {
+MORROW_PROVIDER_CAPABILITY_MATRIX: Dict[str, Dict[str, str]] = {
     "cloudflare": {
         "category": "cdn_edge",
         "hybrid_tls": "provider_feature_check_required",
@@ -26,43 +26,43 @@ PQC_PROVIDER_CAPABILITY_MATRIX: Dict[str, Dict[str, str]] = {
     "aws": {
         "category": "cloud_edge_or_load_balancer",
         "hybrid_tls": "service_dependent",
-        "direct_customer_action": "Check CloudFront, ALB, NLB, and ACM support for hybrid/PQC TLS before claiming readiness.",
+        "direct_customer_action": "Check CloudFront, ALB, NLB, and ACM support for hybrid/post-quantum TLS before claiming readiness.",
         "fallback_action": "Move TLS policy into IaC, enforce TLS 1.3 where supported, and track unsupported services as blockers.",
     },
     "google": {
         "category": "cloud_edge_or_load_balancer",
         "hybrid_tls": "service_dependent",
-        "direct_customer_action": "Check Cloud Load Balancing, Cloud CDN, and certificate manager support for hybrid/PQC TLS controls.",
+        "direct_customer_action": "Check Cloud Load Balancing, Cloud CDN, and certificate manager support for hybrid/post-quantum TLS controls.",
         "fallback_action": "Move TLS policy into IaC, enforce modern TLS, and record provider support as an explicit blocker.",
     },
     "azure": {
         "category": "cloud_edge_or_load_balancer",
         "hybrid_tls": "service_dependent",
-        "direct_customer_action": "Check Front Door, Application Gateway, and certificate service support for hybrid/PQC TLS controls.",
+        "direct_customer_action": "Check Front Door, Application Gateway, and certificate service support for hybrid/post-quantum TLS controls.",
         "fallback_action": "Move TLS policy into IaC, enforce modern TLS, and track unsupported services as blockers.",
     },
     "fastly": {
         "category": "cdn_edge",
         "hybrid_tls": "service_dependent",
-        "direct_customer_action": "Check Fastly TLS/edge support for hybrid/PQC controls and enable supported settings when available.",
+        "direct_customer_action": "Check Fastly TLS/edge support for hybrid/post-quantum controls and enable supported settings when available.",
         "fallback_action": "Keep TLS 1.3 enabled, remove weak crypto, manage TLS policy as code, and track Fastly rollout status as a blocker.",
     },
     "akamai": {
         "category": "cdn_edge",
         "hybrid_tls": "service_dependent",
-        "direct_customer_action": "Check Akamai edge/TLS product support for hybrid/PQC controls and enable supported settings when available.",
+        "direct_customer_action": "Check Akamai edge/TLS product support for hybrid/post-quantum controls and enable supported settings when available.",
         "fallback_action": "Keep TLS 1.3 enabled, remove weak crypto, manage TLS policy as code, and track Akamai rollout status as a blocker.",
     },
     "customer_tls_terminator": {
         "category": "self_managed_tls",
         "hybrid_tls": "software_stack_dependent",
         "direct_customer_action": "Check Nginx, Envoy, Apache, HAProxy, OpenSSL, BoringSSL, and certificate tooling support.",
-        "fallback_action": "Upgrade TLS libraries, standardize config, automate cert rotation, and stage hybrid/PQC in controlled environments.",
+        "fallback_action": "Upgrade TLS libraries, standardize config, automate cert rotation, and stage hybrid/post-quantum in controlled environments.",
     },
     "unknown": {
         "category": "unknown",
         "hybrid_tls": "unknown",
-        "direct_customer_action": "Identify where TLS terminates before selecting a PQC migration action.",
+        "direct_customer_action": "Identify where TLS terminates before selecting a post-quantum migration action.",
         "fallback_action": "Assign an owner and repo, document the unknown provider as a blocker, and investigate DNS/CDN/load-balancer path.",
     },
 }
@@ -86,7 +86,7 @@ def make_finding(
     title: str,
     severity: str,
     remediation: str,
-    pqc_mapping: str = "",
+    pq_mapping: str = "",
     evidence: Optional[Dict[str, Any]] = None,
     confidence: str = "medium",
     confidence_reason: str = "",
@@ -99,7 +99,7 @@ def make_finding(
         "confidence": confidence,
         "confidence_reason": confidence_reason or "",
         "evidence": evidence or {},
-        "pqc_note": pqc_mapping or "",
+        "pq_note": pq_mapping or "",
     }
 
 
@@ -350,7 +350,7 @@ def policy_violations_to_findings(facts: Dict[str, Any]) -> List[Dict[str, Any]]
                 title=str(violation.get("title") or rule_id),
                 severity=str(violation.get("severity") or "medium"),
                 remediation="Update the endpoint configuration to satisfy the active TLS policy.",
-                pqc_mapping="Policy conformance reduces migration risk during crypto-agility work.",
+                pq_mapping="Policy conformance reduces migration risk during crypto-agility work.",
                 evidence=violation.get("evidence") if isinstance(violation.get("evidence"), dict) else {},
                 confidence="high",
                 confidence_reason="Derived from configured policy constraints.",
@@ -372,7 +372,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: ("TLSv1.3" not in _tls_versions(f)) and ("TLSv1.2" in _tls_versions(f)),
         "evidence": lambda f: {"tls_supported_versions": _tls_versions(f)},
         "remediation": "Enable TLS 1.3 on the termination layer (Nginx/Envoy/ALB/IIS) and upgrade crypto libraries.",
-        "pqc_mapping": "TLS 1.3 is typically the baseline for hybrid/PQC TLS rollouts.",
+        "pq_mapping": "TLS 1.3 is typically the baseline for hybrid/post-quantum TLS rollouts.",
         "confidence": "high",
         "confidence_reason": "Derived from active protocol probes.",
     },
@@ -385,7 +385,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: len(_weak_tls12(f)) > 0,
         "evidence": lambda f: {"tls12_weak_accepted_ciphers": _weak_tls12(f)[:50]},
         "remediation": "Remove weak suites (RC4/3DES/NULL/EXPORT/MD5). Keep only ECDHE + AES-GCM/CHACHA20.",
-        "pqc_mapping": "Baseline hardening should be done before any PQC/hybrid rollout.",
+        "pq_mapping": "Baseline hardening should be done before any post-quantum/hybrid rollout.",
         "confidence": "medium",
         "confidence_reason": "Best-effort probe; depends on client OpenSSL cipher support.",
     },
@@ -398,7 +398,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: isinstance(f.get("days_until_expiry"), int) and int(f["days_until_expiry"]) < 0,
         "evidence": lambda f: {"days_until_expiry": f.get("days_until_expiry"), "not_after": f.get("not_after")},
         "remediation": "Renew/rotate certificates immediately. Ensure automated renewal (ACME) if possible.",
-        "pqc_mapping": "Rotation discipline matters for PQC rollouts.",
+        "pq_mapping": "Rotation discipline matters for post-quantum rollouts.",
         "confidence": "high",
         "confidence_reason": "Expiry is computed from the presented X.509 certificate.",
     },
@@ -409,7 +409,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: isinstance(f.get("days_until_expiry"), int) and 0 <= int(f["days_until_expiry"]) <= 30,
         "evidence": lambda f: {"days_until_expiry": f.get("days_until_expiry"), "not_after": f.get("not_after")},
         "remediation": "Schedule certificate renewal/rotation soon; ensure renewal automation.",
-        "pqc_mapping": "Rotation discipline matters for PQC rollouts.",
+        "pq_mapping": "Rotation discipline matters for post-quantum rollouts.",
         "confidence": "high",
         "confidence_reason": "Expiry is computed from the presented X.509 certificate.",
     },
@@ -422,7 +422,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: bool(f.get("host")) and (len(_san_dns(f)) > 0) and (not _host_in_san(str(f.get("host") or ""), _san_dns(f))),
         "evidence": lambda f: {"host": str(f.get("host") or ""), "san_dns": _san_dns(f)[:50]},
         "remediation": "Ensure the certificate SAN includes the exact hostname (or correct wildcard) used by clients.",
-        "pqc_mapping": "Correct identity binding reduces migration incidents during crypto changes.",
+        "pq_mapping": "Correct identity binding reduces migration incidents during crypto changes.",
         "confidence": "high",
         "confidence_reason": "Derived from SAN entries present in the X.509 certificate.",
     },
@@ -442,7 +442,7 @@ RULES: List[Dict[str, Any]] = [
             "san_dns": _san_dns(f)[:20],
         },
         "remediation": "Issue a certificate that includes the correct DNS name in SAN and ensure the client connects using the expected hostname.",
-        "pqc_mapping": "Correct identity binding prevents migration incidents during crypto transitions.",
+        "pq_mapping": "Correct identity binding prevents migration incidents during crypto transitions.",
         "confidence": "high",
         "confidence_reason": "verify_reason is derived from the TLS verification stack's hostname mismatch error.",
     },
@@ -459,7 +459,7 @@ RULES: List[Dict[str, Any]] = [
             "days_until_expiry": int(f.get("days_until_expiry") or 0),
         },
         "remediation": "Renew and deploy a valid certificate. Ensure automated renewal and monitoring are in place.",
-        "pqc_mapping": "Operational certificate health is foundational for safe PQC/hybrid rollout waves.",
+        "pq_mapping": "Operational certificate health is foundational for safe post-quantum/hybrid rollout waves.",
         "confidence": "high",
         "confidence_reason": "verify_reason is derived from the TLS verification stack's expiry error.",
     },
@@ -474,7 +474,7 @@ RULES: List[Dict[str, Any]] = [
             "verify_message": str(f.get("verify_message") or ""),
         },
         "remediation": "Replace the certificate immediately. Investigate the revocation cause and validate key handling/incident response.",
-        "pqc_mapping": "Revocation hygiene becomes more important during high-volume cert rotations and transitions.",
+        "pq_mapping": "Revocation hygiene becomes more important during high-volume cert rotations and transitions.",
         "confidence": "high",
         "confidence_reason": "verify_reason is derived from the TLS verification stack's revoked indication.",
     },
@@ -491,7 +491,7 @@ RULES: List[Dict[str, Any]] = [
             "chain_source": _get_str(f.get("chain_source")),
         },
         "remediation": "Use a certificate issued by a trusted CA for the target environment, or install the proper trust anchor for internal PKI. Ensure intermediates are served.",
-        "pqc_mapping": "Trust consistency reduces surprises when updating crypto primitives and PKI components.",
+        "pq_mapping": "Trust consistency reduces surprises when updating crypto primitives and PKI components.",
         "confidence": "high",
         "confidence_reason": "verify_reason is derived from common CA trust failure messages.",
     },
@@ -508,7 +508,7 @@ RULES: List[Dict[str, Any]] = [
             "chain_issues": _get_list(f.get("chain_issues"))[:10],
         },
         "remediation": "Configure the TLS terminator to serve the complete certificate chain (include the correct intermediate certificates).",
-        "pqc_mapping": "Chain correctness is critical for frictionless certificate strategy changes during migrations.",
+        "pq_mapping": "Chain correctness is critical for frictionless certificate strategy changes during migrations.",
         "confidence": "high",
         "confidence_reason": "verify_reason is derived from verification errors that commonly indicate missing intermediates.",
     },
@@ -523,7 +523,7 @@ RULES: List[Dict[str, Any]] = [
             "verify_message": str(f.get("verify_message") or ""),
         },
         "remediation": "Fix chain/hostname/trust issues. Ensure intermediates are served and SAN matches host.",
-        "pqc_mapping": "Clean PKI reduces migration surprises.",
+        "pq_mapping": "Clean PKI reduces migration surprises.",
         "confidence": "high",
         "confidence_reason": "Reported directly by the TLS verification stack.",
     },
@@ -535,7 +535,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: _scan_observed_crypto(f) and int(f.get("chain_length") or 0) <= 1,
         "evidence": lambda f: {"chain_length": int(f.get("chain_length") or 0), "chain_source": str(f.get("chain_source") or "")},
         "remediation": "Ensure the server sends the full chain (include correct intermediates).",
-        "pqc_mapping": "Chain issues complicate PQC rollouts.",
+        "pq_mapping": "Chain issues complicate post-quantum rollouts.",
         "confidence": "medium",
         "confidence_reason": "Chain analysis is best-effort.",
     },
@@ -550,7 +550,7 @@ RULES: List[Dict[str, Any]] = [
             "verify_error": str(f.get("verify_error") or ""),
         },
         "remediation": "Serve the full certificate chain (leaf + intermediate). Use your CA’s 'fullchain' bundle and configure the TLS terminator to send intermediates.",
-        "pqc_mapping": "Incomplete chains break clients and complicate crypto migrations.",
+        "pq_mapping": "Incomplete chains break clients and complicate crypto migrations.",
         "confidence": "medium",
         "confidence_reason": "Verification failed for default trust store; chain collected via unverified handshake. Validate with openssl s_client for critical endpoints.",
     },
@@ -563,7 +563,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: _scan_observed_crypto(f) and len(_crl_urls(f)) == 0,
         "evidence": lambda f: {"crl_urls": _crl_urls(f)[:10]},
         "remediation": "Consider adding CRL distribution points to issued certificates if your PKI relies on CRLs.",
-        "pqc_mapping": "Revocation hygiene is important during crypto transitions.",
+        "pq_mapping": "Revocation hygiene is important during crypto transitions.",
         "confidence": "high",
         "confidence_reason": "CRL Distribution Points are read directly from the X.509 certificate extensions.",
     },
@@ -574,7 +574,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: _scan_observed_crypto(f) and len(_ocsp_urls(f)) == 0,
         "evidence": lambda f: {"ocsp_urls": _ocsp_urls(f)[:10]},
         "remediation": "Consider including OCSP AIA in issued certificates, and enable OCSP stapling where appropriate.",
-        "pqc_mapping": "Revocation posture matters more as certificate strategies evolve for PQC.",
+        "pq_mapping": "Revocation posture matters more as certificate strategies evolve for post-quantum.",
         "confidence": "high",
         "confidence_reason": "AIA OCSP URLs are read directly from the X.509 certificate extensions.",
     },
@@ -590,7 +590,7 @@ RULES: List[Dict[str, Any]] = [
             "ocsp_reachability": _ocsp_reachability(f)[:5],
         },
         "remediation": "Ensure OCSP responder endpoints in AIA are reachable from clients/TLS terminators (DNS, routing, firewalls). If URLs are incorrect, re-issue certificates with correct AIA OCSP URLs.",
-        "pqc_mapping": "Revocation reliability matters during cert churn and transition waves (including PQC/hybrid rollouts).",
+        "pq_mapping": "Revocation reliability matters during cert churn and transition waves (including post-quantum/hybrid rollouts).",
         "confidence": "medium",
         "confidence_reason": "Reachability is a best-effort HTTP probe; some responders require POST and may not answer HEAD/GET the same way.",
     },
@@ -604,7 +604,7 @@ RULES: List[Dict[str, Any]] = [
             "crl_reachability": _crl_reachability(f)[:5],
         },
         "remediation": "Ensure CRL distribution point endpoints are reachable from clients/TLS terminators. If URLs are incorrect, update issuing CA configuration and re-issue certificates.",
-        "pqc_mapping": "Revocation hygiene is important during crypto transitions.",
+        "pq_mapping": "Revocation hygiene is important during crypto transitions.",
         "confidence": "medium",
         "confidence_reason": "Reachability is a best-effort HTTP probe and may vary by network path.",
     },
@@ -621,7 +621,7 @@ RULES: List[Dict[str, Any]] = [
             "ocsp_stapled": bool(f.get("ocsp_stapled", False)),
         },
         "remediation": "Enable OCSP stapling on the TLS terminator (e.g., nginx: ssl_stapling on; ssl_stapling_verify on;).",
-        "pqc_mapping": "Stapling reduces revocation latency; helpful during cert rotations and PQC transition waves.",
+        "pq_mapping": "Stapling reduces revocation latency; helpful during cert rotations and post-quantum transition waves.",
         "confidence": "low",
         "confidence_reason": "Stapling visibility depends on client/TLS stack support; treat as advisory.",
     },
@@ -640,7 +640,7 @@ RULES: List[Dict[str, Any]] = [
             "ocsp_stapled_next_update": f.get("ocsp_stapled_next_update"),
         },
         "remediation": "Replace the certificate immediately. Investigate CA revocation cause and ensure correct key handling and incident response.",
-        "pqc_mapping": "Operational certificate health is foundational for safe crypto transitions.",
+        "pq_mapping": "Operational certificate health is foundational for safe crypto transitions.",
         "confidence": "high",
         "confidence_reason": "Status is parsed from the stapled OCSP response (when present).",
     },
@@ -656,31 +656,31 @@ RULES: List[Dict[str, Any]] = [
             "ocsp_stapled_next_update": f.get("ocsp_stapled_next_update"),
         },
         "remediation": "Fix OCSP stapling refresh on the TLS terminator and ensure it can reach the OCSP responder. Verify system clock and stapling cache settings.",
-        "pqc_mapping": "Stapling reliability helps reduce revocation latency during certificate rotation waves.",
+        "pq_mapping": "Stapling reliability helps reduce revocation latency during certificate rotation waves.",
         "confidence": "medium",
         "confidence_reason": "Staleness is derived from the OCSP nextUpdate timestamp, when present.",
     },
 
-    # PQC crypto posture
+    # Post-quantum crypto posture
     {
-        "id": "PQC_RSA_ENDPOINT",
+        "id": "MORROW_RSA_ENDPOINT",
         "title": "RSA certificate key detected (quantum-vulnerable class)",
         "severity": "high",
         "when": lambda f: _key_type(f) == "RSA",
         "evidence": lambda f: {"key_type": "RSA", "key_size": _key_detail(f)},
-        "remediation": "Inventory RSA usage and plan migration to PQC/hybrid approaches.",
-        "pqc_mapping": "RSA -> Kyber (KEM) + Dilithium/Falcon (signatures) in a crypto-agile design.",
+        "remediation": "Inventory RSA usage and plan migration to post-quantum/hybrid approaches.",
+        "pq_mapping": "RSA -> Kyber (KEM) + Dilithium/Falcon (signatures) in a crypto-agile design.",
         "confidence": "high",
         "confidence_reason": "Public key algorithm extracted from the presented X.509 certificate.",
     },
     {
-        "id": "PQC_EC_ENDPOINT",
+        "id": "MORROW_EC_ENDPOINT",
         "title": "Elliptic-curve public key detected (quantum-vulnerable class)",
         "severity": "medium",
         "when": lambda f: _key_type(f) in EC_KEY_TYPES,
         "evidence": lambda f: {"key_type": _key_type(f), "curve": _key_detail(f), "key_bits": f.get("key_bits")},
-        "remediation": "Inventory ECC usage and plan migration to PQC/hybrid approaches.",
-        "pqc_mapping": "ECDH/ECDSA -> Kyber (KEM) + Dilithium/Falcon (signatures) in a crypto-agile design.",
+        "remediation": "Inventory ECC usage and plan migration to post-quantum/hybrid approaches.",
+        "pq_mapping": "ECDH/ECDSA -> Kyber (KEM) + Dilithium/Falcon (signatures) in a crypto-agile design.",
         "confidence": "high",
         "confidence_reason": "Public key algorithm extracted from the presented X.509 certificate.",
     },
@@ -688,13 +688,13 @@ RULES: List[Dict[str, Any]] = [
         # Ed25519 certificates used to fall through every rule here and be reported as an unknown
         # key type -- which downstream reads as "not quantum-vulnerable". EdDSA, X25519/X448, DSA
         # and finite-field DH are all broken by Shor.
-        "id": "PQC_CLASSICAL_ENDPOINT",
+        "id": "MORROW_CLASSICAL_ENDPOINT",
         "title": "Quantum-vulnerable public key detected (EdDSA/DSA/DH class)",
         "severity": "high",
         "when": lambda f: _key_type(f) in (EDDSA_KEY_TYPES | OTHER_CLASSICAL_KEY_TYPES),
         "evidence": lambda f: {"key_type": _key_type(f), "key_detail": _key_detail(f), "key_bits": f.get("key_bits")},
-        "remediation": "Inventory this key's usage and plan migration to PQC/hybrid signatures and key exchange.",
-        "pqc_mapping": "EdDSA/DSA -> ML-DSA (FIPS 204); X25519/DH -> ML-KEM (FIPS 203), hybrid X25519MLKEM768 in transition.",
+        "remediation": "Inventory this key's usage and plan migration to post-quantum/hybrid signatures and key exchange.",
+        "pq_mapping": "EdDSA/DSA -> ML-DSA (FIPS 204); X25519/DH -> ML-KEM (FIPS 203), hybrid X25519MLKEM768 in transition.",
         "confidence": "high",
         "confidence_reason": "Public key algorithm extracted from the presented X.509 certificate.",
     },
@@ -705,7 +705,7 @@ RULES: List[Dict[str, Any]] = [
         "when": lambda f: _scan_observed_crypto(f) and _key_type(f) in ("", "UNKNOWN"),
         "evidence": lambda f: {"key_type": f.get("key_type"), "key_detail": _key_detail(f)},
         "remediation": "Inspect the certificate manually; an unclassified key cannot be assumed quantum-safe.",
-        "pqc_mapping": "An unclassified public key is an inventory gap, not evidence of PQC readiness.",
+        "pq_mapping": "An unclassified public key is an inventory gap, not evidence of post-quantum readiness.",
         "confidence": "high",
         "confidence_reason": "The certificate parsed but its public key algorithm matched no known class.",
     },
@@ -722,7 +722,7 @@ RULES: List[Dict[str, Any]] = [
             "port": f.get("port"),
         },
         "remediation": "Confirm the host, port and network path, then rescan. No cryptographic posture is known for this endpoint.",
-        "pqc_mapping": "An endpoint that was never reached has an unknown quantum posture, not a safe one.",
+        "pq_mapping": "An endpoint that was never reached has an unknown quantum posture, not a safe one.",
         "confidence": "high",
         "confidence_reason": "No certificate was retrieved from the endpoint.",
     },
@@ -744,7 +744,7 @@ def evaluate_tls_findings(facts: Dict[str, Any]) -> List[Dict[str, Any]]:
                         title=rule["title"],
                         severity=rule["severity"],
                         remediation=rule["remediation"],
-                        pqc_mapping=rule.get("pqc_mapping", ""),
+                        pq_mapping=rule.get("pq_mapping", ""),
                         evidence=(rule.get("evidence") or (lambda f: {}))(facts),
                         confidence=rule.get("confidence", "medium"),
                         confidence_reason=rule.get("confidence_reason", ""),
@@ -792,9 +792,9 @@ def derive_risk_and_score(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
     rule_ids = {str(f.get("rule_id") or "") for f in findings}
     if "SCAN_FAILED" in rule_ids or "CRYPTO_NOT_IDENTIFIED" in rule_ids:
         q_level = "unknown"
-    elif "PQC_RSA_ENDPOINT" in rule_ids or "PQC_CLASSICAL_ENDPOINT" in rule_ids:
+    elif "MORROW_RSA_ENDPOINT" in rule_ids or "MORROW_CLASSICAL_ENDPOINT" in rule_ids:
         q_level = "high"
-    elif "PQC_EC_ENDPOINT" in rule_ids:
+    elif "MORROW_EC_ENDPOINT" in rule_ids:
         q_level = "medium"
     else:
         q_level = "low"
@@ -807,40 +807,40 @@ def derive_risk_and_score(findings: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def derive_pqc_relevance(findings: List[Dict[str, Any]]) -> Dict[str, str]:
+def derive_pq_relevance(findings: List[Dict[str, Any]]) -> Dict[str, str]:
     rule_ids = {str(f.get("rule_id") or "") for f in findings}
 
     # An endpoint that was never reached, or whose key could not be classified, previously came out
-    # at pqc_relevance "LOW" with the recommendation text "Unknown key type" -- a contradiction that
+    # at pq_relevance "LOW" with the recommendation text "Unknown key type" -- a contradiction that
     # every count of "low relevance assets" then read as good news. Unknown is its own answer.
     if "SCAN_FAILED" in rule_ids:
         return {
-            "pqc_relevance": "UNKNOWN",
-            "pqc_recommendation": "Endpoint could not be scanned, so its quantum exposure is unknown. Confirm host/port/network path and rescan.",
+            "pq_relevance": "UNKNOWN",
+            "pq_recommendation": "Endpoint could not be scanned, so its quantum exposure is unknown. Confirm host/port/network path and rescan.",
         }
     if "CRYPTO_NOT_IDENTIFIED" in rule_ids:
         return {
-            "pqc_relevance": "UNKNOWN",
-            "pqc_recommendation": "Public key algorithm was not recognised. Inspect the certificate before assuming any quantum posture.",
+            "pq_relevance": "UNKNOWN",
+            "pq_recommendation": "Public key algorithm was not recognised. Inspect the certificate before assuming any quantum posture.",
         }
-    if "PQC_RSA_ENDPOINT" in rule_ids:
+    if "MORROW_RSA_ENDPOINT" in rule_ids:
         return {
-            "pqc_relevance": "HIGH",
-            "pqc_recommendation": "RSA endpoint detected. Track hybrid TLS readiness and plan a staged migration (crypto-agile).",
+            "pq_relevance": "HIGH",
+            "pq_recommendation": "RSA endpoint detected. Track hybrid TLS readiness and plan a staged migration (crypto-agile).",
         }
-    if "PQC_CLASSICAL_ENDPOINT" in rule_ids:
+    if "MORROW_CLASSICAL_ENDPOINT" in rule_ids:
         return {
-            "pqc_relevance": "HIGH",
-            "pqc_recommendation": "EdDSA/DSA/DH endpoint detected. These are Shor-breakable; plan migration to ML-DSA/ML-KEM.",
+            "pq_relevance": "HIGH",
+            "pq_recommendation": "EdDSA/DSA/DH endpoint detected. These are Shor-breakable; plan migration to ML-DSA/ML-KEM.",
         }
-    if "PQC_EC_ENDPOINT" in rule_ids:
+    if "MORROW_EC_ENDPOINT" in rule_ids:
         return {
-            "pqc_relevance": "MEDIUM",
-            "pqc_recommendation": "ECC endpoint detected. Maintain crypto-agility and monitor PQC/hybrid TLS deployments.",
+            "pq_relevance": "MEDIUM",
+            "pq_recommendation": "ECC endpoint detected. Maintain crypto-agility and monitor post-quantum/hybrid TLS deployments.",
         }
     return {
-        "pqc_relevance": "LOW",
-        "pqc_recommendation": "No classical public-key dependency was identified on this endpoint. Maintain crypto-agility and track PQC readiness.",
+        "pq_relevance": "LOW",
+        "pq_recommendation": "No classical public-key dependency was identified on this endpoint. Maintain crypto-agility and track post-quantum readiness.",
     }
 
 
@@ -860,7 +860,7 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
 
     # Ed25519/Ed448/X25519/X448/DSA/DH are classical public-key dependencies too. Omitting them
     # here reported an Ed25519 endpoint as having no classical dependency at all, which scored it
-    # crypto_agility 90 and "ready_to_track_pqc_rollout".
+    # crypto_agility 90 and "ready_to_track_pq_rollout".
     classical_dependency = is_quantum_vulnerable_key_type(key_type)
     scanned = _scan_observed_crypto(facts)
     tls13_enabled = "TLSv1.3" in supported
@@ -884,31 +884,31 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
     if "cloudflare" in issuer or host.endswith(".pages.dev") or host.endswith(".workers.dev"):
         provider = "cloudflare"
         support_status = "monitor_supported_rollouts"
-        support_note = "Likely Cloudflare-fronted. Track Cloudflare PQC/hybrid TLS controls and enable them where available for the zone."
+        support_note = "Likely Cloudflare-fronted. Track Cloudflare post-quantum/hybrid TLS controls and enable them where available for the zone."
     elif "amazon" in issuer or "aws" in issuer or "cloudfront" in host:
         provider = "aws"
         support_status = "provider_dependent"
-        support_note = "Likely AWS-managed TLS. Check ALB/CloudFront/ACM support before claiming PQC-ready TLS."
+        support_note = "Likely AWS-managed TLS. Check ALB/CloudFront/ACM support before claiming post-quantum-ready TLS."
     elif "google" in issuer or "gts" in issuer or "google" in host:
         provider = "google"
         support_status = "provider_dependent"
-        support_note = "Likely Google-managed TLS. Check Cloud Load Balancing/CDN certificate support for PQC/hybrid rollout options."
+        support_note = "Likely Google-managed TLS. Check Cloud Load Balancing/CDN certificate support for post-quantum/hybrid rollout options."
     elif "fastly" in issuer or "fastly" in host:
         provider = "fastly"
         support_status = "provider_dependent"
-        support_note = "Likely Fastly-fronted. Check Fastly edge/TLS support before claiming hybrid/PQC readiness."
+        support_note = "Likely Fastly-fronted. Check Fastly edge/TLS support before claiming hybrid/post-quantum readiness."
     elif "akamai" in issuer or "akamai" in host or "edgesuite" in host or "edgekey" in host:
         provider = "akamai"
         support_status = "provider_dependent"
-        support_note = "Likely Akamai-fronted. Check Akamai edge/TLS support before claiming hybrid/PQC readiness."
+        support_note = "Likely Akamai-fronted. Check Akamai edge/TLS support before claiming hybrid/post-quantum readiness."
     elif "microsoft" in issuer or "azure" in host:
         provider = "azure"
         support_status = "provider_dependent"
-        support_note = "Likely Azure-managed TLS. Check Front Door/App Gateway/certificate support for PQC/hybrid rollout options."
+        support_note = "Likely Azure-managed TLS. Check Front Door/App Gateway/certificate support for post-quantum/hybrid rollout options."
     elif "let's encrypt" in issuer or "lets encrypt" in issuer:
         provider = "customer_tls_terminator"
         support_status = "software_dependent"
-        support_note = "Likely customer-controlled TLS termination. Check Nginx/Envoy/Apache/OpenSSL/BoringSSL support for hybrid/PQC."
+        support_note = "Likely customer-controlled TLS termination. Check Nginx/Envoy/Apache/OpenSSL/BoringSSL support for hybrid/post-quantum."
 
     immediate_actions: List[str] = []
     migration_actions: List[str] = []
@@ -917,14 +917,14 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
 
     if not tls13_enabled:
         immediate_actions.append("Enable TLS 1.3 on the public TLS termination layer.")
-        controls.append({"control": "TLS 1.3 baseline", "status": "missing", "why": "Hybrid/PQC TLS rollouts generally assume a modern TLS baseline."})
+        controls.append({"control": "TLS 1.3 baseline", "status": "missing", "why": "Hybrid/post-quantum TLS rollouts generally assume a modern TLS baseline."})
     else:
         controls.append({"control": "TLS 1.3 baseline", "status": "present", "why": "Modern TLS baseline is present."})
 
     # "acceptable" on an endpoint that was never reached is an unearned pass: no probe ran, so the
     # absence of a finding is absence of evidence.
     if weak_tls:
-        immediate_actions.append("Remove legacy TLS/cipher support before PQC migration.")
+        immediate_actions.append("Remove legacy TLS/cipher support before post-quantum migration.")
         controls.append({"control": "Legacy crypto cleanup", "status": "needed", "why": "Weak classical crypto must be removed before a credible quantum migration."})
     elif not scanned:
         controls.append({"control": "Legacy crypto cleanup", "status": "unknown", "why": "The endpoint could not be scanned, so no cipher evidence was collected."})
@@ -933,14 +933,14 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
 
     if cert_hygiene_issue:
         immediate_actions.append("Fix certificate validity, hostname, and chain hygiene.")
-        controls.append({"control": "Certificate hygiene", "status": "needs_work", "why": "PQC migration fails operationally if basic PKI hygiene is unstable."})
+        controls.append({"control": "Certificate hygiene", "status": "needs_work", "why": "Post-quantum migration fails operationally if basic PKI hygiene is unstable."})
     elif not scanned:
         controls.append({"control": "Certificate hygiene", "status": "unknown", "why": "No certificate was retrieved from this endpoint."})
     else:
         controls.append({"control": "Certificate hygiene", "status": "acceptable", "why": "No major certificate hygiene finding was produced."})
 
     if classical_dependency:
-        migration_actions.append(f"Inventory and migrate {key_type} public-key dependency through a hybrid/PQC-ready certificate/TLS plan.")
+        migration_actions.append(f"Inventory and migrate {key_type} public-key dependency through a hybrid/post-quantum-ready certificate/TLS plan.")
         controls.append({"control": "Classical public-key dependency", "status": "present", "why": f"Endpoint presents {key_type} {key_detail or ''}; RSA/ECC/EdDSA/DSA/DH are vulnerable to future cryptographically relevant quantum computers."})
     elif not scanned:
         blockers.append("Endpoint could not be scanned; its public-key algorithm and quantum exposure are unknown.")
@@ -950,9 +950,9 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
         controls.append({"control": "Classical public-key dependency", "status": "unknown", "why": "The scan could not classify the endpoint public key."})
 
     if provider == "unknown":
-        blockers.append("TLS provider is unknown, so direct PQC/hybrid enablement cannot be selected automatically.")
+        blockers.append("TLS provider is unknown, so direct post-quantum/hybrid enablement cannot be selected automatically.")
     else:
-        migration_actions.append(f"Check {provider} support status and enable hybrid/PQC TLS where the provider supports it.")
+        migration_actions.append(f"Check {provider} support status and enable hybrid/post-quantum TLS where the provider supports it.")
 
     migration_actions.extend(
         [
@@ -964,7 +964,7 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
 
     # A key that was read off the wire but matched no known algorithm. The scanner recognises every
     # classical algorithm a TLS certificate can carry, so today this can only be an unrecognised --
-    # possibly post-quantum -- key. "Possibly" is not evidence. When the scanner learns to name PQC
+    # possibly post-quantum -- key. "Possibly" is not evidence. When the scanner learns to name post-quantum
     # key types, add a positive quantum-safe check here so they stop taking this deduction.
     key_unclassified = scanned and not classical_dependency
 
@@ -985,7 +985,7 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
     score = max(0, min(100, score))
 
     if score >= 80:
-        readiness = "ready_to_track_pqc_rollout"
+        readiness = "ready_to_track_pq_rollout"
     elif score >= 55:
         readiness = "needs_crypto_agility_work"
     else:
@@ -1004,7 +1004,7 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
         readiness = "not_assessed"
         hndl = "unknown"
 
-    provider_capabilities = dict(PQC_PROVIDER_CAPABILITY_MATRIX.get(provider) or PQC_PROVIDER_CAPABILITY_MATRIX["unknown"])
+    provider_capabilities = dict(MORROW_PROVIDER_CAPABILITY_MATRIX.get(provider) or MORROW_PROVIDER_CAPABILITY_MATRIX["unknown"])
     migration_plan = [
         {
             "stage": "1_inventory",
@@ -1025,9 +1025,9 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
             "description": "Remove legacy crypto, enable TLS 1.3, fix certificate hygiene, and make TLS/certificate policy manageable as code.",
         },
         {
-            "stage": "4_hybrid_pqc_enablement",
+            "stage": "4_hybrid_pq_enablement",
             "status": "provider_check_required" if provider != "unknown" else "blocked_provider_unknown",
-            "title": "Enable hybrid/PQC where supported",
+            "title": "Enable hybrid/post-quantum where supported",
             "description": provider_capabilities["direct_customer_action"],
         },
         {
@@ -1052,16 +1052,16 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
         "signature_algorithm": sig_algorithm,
         "crypto_agility_score": score,
         "quantum_readiness_level": readiness,
-        "pqc_migration_status": "blocked_by_provider_or_config" if blockers else "actionable_migration_path",
+        "pq_migration_status": "blocked_by_provider_or_config" if blockers else "actionable_migration_path",
         "provider_guess": provider,
-        "provider_pqc_support_status": support_status,
-        "provider_pqc_support_note": support_note,
-        "pqc_provider_capabilities": provider_capabilities,
-        "pqc_migration_plan": migration_plan,
+        "provider_pq_support_status": support_status,
+        "provider_pq_support_note": support_note,
+        "pq_provider_capabilities": provider_capabilities,
+        "pq_migration_plan": migration_plan,
         "recommended_quantum_safe_controls": controls,
         "immediate_hardening_actions": immediate_actions,
-        "pqc_migration_actions": migration_actions,
-        "pqc_blockers": blockers,
+        "pq_migration_actions": migration_actions,
+        "pq_blockers": blockers,
         "quantum_safe_claim": "not_quantum_proof",
         "quantum_safe_claim_explanation": (
             "This endpoint currently depends on classical public-key cryptography or unverified provider support. "
@@ -1093,7 +1093,7 @@ def summarize_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
             sev = (f.get("severity") or "").lower()
             if sev in counts:
                 counts[sev] += 1
-            if f.get("rule_id") == "PQC_RSA_ENDPOINT":
+            if f.get("rule_id") == "MORROW_RSA_ENDPOINT":
                 rsa_count += 1
 
     # quantum_risk_level: based on max_score (simple)
@@ -1126,8 +1126,8 @@ def evaluate_policies(facts: Dict[str, Any]) -> List[Dict[str, Any]]:
     return evaluate_tls_findings(facts)
 
 
-def pqc_relevance_and_reco(findings: List[Dict[str, Any]]) -> Dict[str, str]:
-    return derive_pqc_relevance(findings)
+def pq_relevance_and_reco(findings: List[Dict[str, Any]]) -> Dict[str, str]:
+    return derive_pq_relevance(findings)
 
 
 def risk_level_from_findings_wrapper(findings: List[Dict[str, Any]]) -> str:

@@ -14,7 +14,7 @@ Covers the launch-readiness rules for user-facing figures:
 import os
 import re
 
-os.environ.setdefault("PQC_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
+os.environ.setdefault("MORROW_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -193,10 +193,10 @@ def test_qtisn_is_labelled_local(client):
 
 @pytest.mark.parametrize("environment,production", [("staging", False), ("production", True)])
 def test_demo_seed_blocked_outside_local_even_with_allow_flag(monkeypatch, environment, production):
-    monkeypatch.setattr(fastapi_app, "PQC_ENVIRONMENT", environment)
+    monkeypatch.setattr(fastapi_app, "MORROW_ENVIRONMENT", environment)
     monkeypatch.setattr(fastapi_app, "PRODUCTION_ENVIRONMENT", production)
     monkeypatch.setattr(fastapi_app, "_ALLOW_DEMO_IN_PRODUCTION", True)
-    monkeypatch.setenv("PQC_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
+    monkeypatch.setenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", "1")
     with TestClient(fastapi_app.app) as c:
         res = c.post("/demo/lab/seed", headers={"x-user-role": "admin", "x-user-id": "a"}, json={})
         cfg = c.get("/auth/config").json()
@@ -207,7 +207,7 @@ def test_demo_seed_blocked_outside_local_even_with_allow_flag(monkeypatch, envir
 
 
 def test_auth_config_reports_local_demo_lab(monkeypatch):
-    monkeypatch.setattr(fastapi_app, "PQC_ENVIRONMENT", "local")
+    monkeypatch.setattr(fastapi_app, "MORROW_ENVIRONMENT", "local")
     monkeypatch.setattr(fastapi_app, "PRODUCTION_ENVIRONMENT", False)
     with TestClient(fastapi_app.app) as c:
         cfg = c.get("/auth/config").json()
@@ -226,11 +226,11 @@ def test_demo_lab_records_are_marked_and_fictional():
 
 def test_hybrid_cert_omits_private_extension_without_configured_oid(monkeypatch):
     from services.public_config import private_enterprise_oid
-    monkeypatch.delenv("PQC_PRIVATE_ENTERPRISE_OID", raising=False)
+    monkeypatch.delenv("MORROW_PRIVATE_ENTERPRISE_OID", raising=False)
     assert private_enterprise_oid() == ""
-    monkeypatch.setenv("PQC_PRIVATE_ENTERPRISE_OID", "1.3.6.1.4.1.99999.1")
+    monkeypatch.setenv("MORROW_PRIVATE_ENTERPRISE_OID", "1.3.6.1.4.1.99999.1")
     assert private_enterprise_oid() == "", "the old demo arc must be rejected"
-    monkeypatch.setenv("PQC_PRIVATE_ENTERPRISE_OID", "1.3.6.1.4.1.61234.7")
+    monkeypatch.setenv("MORROW_PRIVATE_ENTERPRISE_OID", "1.3.6.1.4.1.61234.7")
     assert private_enterprise_oid() == "1.3.6.1.4.1.61234.7"
 
     import inspect
@@ -239,44 +239,44 @@ def test_hybrid_cert_omits_private_extension_without_configured_oid(monkeypatch)
 
 
 def test_credentials_and_links_come_from_configuration(monkeypatch):
-    monkeypatch.delenv("PQC_DID_WEB_DOMAIN", raising=False)
-    monkeypatch.delenv("PQC_PUBLIC_BASE_URL", raising=False)
-    monkeypatch.delenv("PQC_STATUS_PAGE_URL", raising=False)
+    monkeypatch.delenv("MORROW_DID_WEB_DOMAIN", raising=False)
+    monkeypatch.delenv("MORROW_PUBLIC_BASE_URL", raising=False)
+    monkeypatch.delenv("MORROW_STATUS_PAGE_URL", raising=False)
     monkeypatch.setattr(fastapi_app, "_airlock_sign", lambda payload: {"value": "sig"})
 
-    bare = fastapi_app._w3c_credential("org-1", "PQCReadinessCredential", {"id": "x"})
+    bare = fastapi_app._w3c_credential("org-1", "PostQuantumReadinessCredential", {"id": "x"})
     assert "issuer" not in bare
-    assert "pqc-scanner.local" not in repr(bare)
+    assert "morrow.local" not in repr(bare)
     assert bare["proof"]["cryptosuite"] == "hmac-sha256-airlock"
 
-    monkeypatch.setenv("PQC_PUBLIC_BASE_URL", "https://app.acme.test")
-    configured = fastapi_app._w3c_credential("org-1", "PQCReadinessCredential", {"id": "x"})
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://app.acme.test")
+    configured = fastapi_app._w3c_credential("org-1", "PostQuantumReadinessCredential", {"id": "x"})
     assert configured["issuer"] == "did:web:app.acme.test:org:org-1"
-    monkeypatch.setenv("PQC_DID_WEB_DOMAIN", "trust.acme.test")
+    monkeypatch.setenv("MORROW_DID_WEB_DOMAIN", "trust.acme.test")
     assert fastapi_app._w3c_credential("org-1", "T", {})["issuer"] == "did:web:trust.acme.test:org:org-1"
 
     from services.cicd_gate import generate_gate_yaml
     from services.sast_scanner import _to_sarif
     assert "https://app.acme.test" in generate_gate_yaml()
     assert _to_sarif([])["runs"][0]["tool"]["driver"]["informationUri"] == "https://app.acme.test"
-    monkeypatch.delenv("PQC_PUBLIC_BASE_URL")
+    monkeypatch.delenv("MORROW_PUBLIC_BASE_URL")
     assert "example.com" not in generate_gate_yaml()
     assert "informationUri" not in _to_sarif([])["runs"][0]["tool"]["driver"]
 
 
 def test_incident_template_does_not_assert_customer_data_was_safe(monkeypatch):
     from services.emergency_response import _build_comms
-    monkeypatch.delenv("PQC_STATUS_PAGE_URL", raising=False)
+    monkeypatch.delenv("MORROW_STATUS_PAGE_URL", raising=False)
     message = _build_comms("qday", 3, {"name": "Q-Day"})[-1]["message"]
     assert "No customer data has been compromised" not in message
     assert "[Confirm before sending:" in message
     assert "example.com" not in message
-    monkeypatch.setenv("PQC_STATUS_PAGE_URL", "https://status.acme.test")
+    monkeypatch.setenv("MORROW_STATUS_PAGE_URL", "https://status.acme.test")
     assert "https://status.acme.test" in _build_comms("qday", 3, {"name": "Q-Day"})[-1]["message"]
 
 
 def test_codegen_uses_marked_placeholder_when_host_missing(client):
-    res = client.post("/pqc-codegen/generate", headers=HEADERS, json={"target": "nginx"})
+    res = client.post("/pq-codegen/generate", headers=HEADERS, json={"target": "nginx"})
     assert res.status_code == 200
     body = res.json()
     assert body["host"] == "<your-host>"
@@ -300,12 +300,12 @@ EMPTY_STATE_CASES = [
     ("/board-risk/regulatory", (), []),
     ("/board-risk/leaderboard", (), []),
     ("/migration-velocity", (), ["recommendation"]),
-    ("/compliance-mapping", (), ["overall_compliance_score", "pqc_grade"]),
+    ("/compliance-mapping", (), ["overall_compliance_score", "pq_grade"]),
     ("/actuarial/individual", (), ["risk_tier", "estimated_total_exposure_usd",
                                    "avg_annual_breach_probability", "loaded_premium_annual_usd"]),
     ("/executive-dashboard", ("executive_signal",), ["status"]),
     ("/trust-passport", ("payload", "passport"), ["score"]),
-    ("/fips-pqc/report", ("migration_timeline",), ["estimated_sprint_weeks", "target_score",
+    ("/fips-pq/report", ("migration_timeline",), ["estimated_sprint_weeks", "target_score",
                                                    "current_score", "on_track"]),
 ]
 
@@ -384,7 +384,7 @@ _FABRICATED_COMPARISON_KEYS = (
 _COMPARISON_ENDPOINTS = [
     "/crypto-agility", "/board-risk", "/board-risk/regulatory", "/board-risk/leaderboard",
     "/migration-velocity", "/compliance-mapping", "/peer-benchmark", "/executive-dashboard",
-    "/actuarial/individual", "/fips-pqc/report", "/org/compliance-report?format=json",
+    "/actuarial/individual", "/fips-pq/report", "/org/compliance-report?format=json",
 ]
 
 
@@ -533,7 +533,7 @@ def test_cleaned_services_publish_no_percentile_or_quartile_fields():
 def test_elliptic_curve_key_types_are_classified_as_quantum_vulnerable():
     """scan_results stores the bare key type ("EC"), not a curve name. Without an entry for it the
     FIPS report filed those assets as "unknown" and understated the risk."""
-    from services.fips_pqc import classify_algorithm
+    from services.fips_pq import classify_algorithm
 
     for key_type in ("EC", "ec", "ECC", "EC-256", "ECDSA", "P-256", "RSA"):
         result = classify_algorithm(key_type)

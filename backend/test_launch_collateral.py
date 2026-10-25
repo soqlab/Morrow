@@ -156,7 +156,7 @@ def test_every_checker_document_links_the_others_and_says_it_is_a_draft():
 
 def test_nothing_invents_an_abuse_address_when_none_is_configured(monkeypatch):
     """An unset abuse contact has to read as unset, not as a plausible-looking address."""
-    for name in ("PQC_PUBLIC_CHECK_ABUSE_CONTACT", "PQC_SUPPORT_EMAIL", "PQC_SECURITY_CONTACT_EMAIL"):
+    for name in ("MORROW_PUBLIC_CHECK_ABUSE_CONTACT", "MORROW_SUPPORT_EMAIL", "MORROW_SECURITY_CONTACT_EMAIL"):
         monkeypatch.delenv(name, raising=False)
     client = TestClient(app)
     assert client.get("/api/public-check/config").json()["acceptable_use"]["abuse_contact"] == ""
@@ -229,7 +229,7 @@ def test_the_sitemap_lists_only_pages_that_answer(monkeypatch):
 
     import app as application
 
-    monkeypatch.setenv("PQC_PUBLIC_BASE_URL", "https://airlock.test")
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://airlock.test")
     with TestClient(application.app) as client:
         sitemap = client.get("/sitemap.xml")
         assert sitemap.status_code == 200
@@ -253,7 +253,7 @@ def test_robots_names_the_sitemap_with_an_absolute_url(monkeypatch):
     """A relative Sitemap: line is silently ignored by crawlers, so the route expands it."""
     import app as application
 
-    monkeypatch.setenv("PQC_PUBLIC_BASE_URL", "https://airlock.test")
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://airlock.test")
     with TestClient(application.app) as client:
         body = client.get("/robots.txt").text
     lines = [line for line in body.splitlines() if line.startswith("Sitemap:")]

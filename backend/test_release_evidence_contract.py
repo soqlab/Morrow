@@ -18,7 +18,7 @@ pytestmark = pytest.mark.skipif(not SHELL, reason="PowerShell is required for re
 
 def run_script(script, *args):
     env = {key: value for key, value in os.environ.items()
-           if key not in {"PQC_PLATFORM_ADMIN_KEY", "PQC_OPERATOR_SESSION"}}
+           if key not in {"MORROW_PLATFORM_ADMIN_KEY", "MORROW_OPERATOR_SESSION"}}
     return subprocess.run([SHELL, "-NoProfile", "-File", str(ROOT / "scripts" / script), *args],
                           cwd=ROOT, env=env, capture_output=True, timeout=60)
 
@@ -92,8 +92,8 @@ def check_report(script, scenario, tmp_path):
         result = run_script(script, "-BaseUrl", f"http://127.0.0.1:{server.server_port}",
                             "-OperatorSession", "test-only-session", "-OutDir", str(tmp_path))
         assert (result.returncode == 0) == (scenario == "pass"), result.stderr.decode(errors="replace")
-        assert ("/platform/readiness", "pqc_admin_session=test-only-session") in requests
-        assert all(cookie == "pqc_admin_session=test-only-session" for path, cookie in requests
+        assert ("/platform/readiness", "morrow_admin_session=test-only-session") in requests
+        assert all(cookie == "morrow_admin_session=test-only-session" for path, cookie in requests
                    if path.startswith("/platform/"))
         assert not any(cookie for path, cookie in requests if path in {"/status", "/health"})
         assert not any(path == "/untrusted" for path, _ in requests)

@@ -170,7 +170,7 @@ def _nested(sql: str) -> str:
     return _lit(sql)
 
 
-def build_rls_sql(*, app_role: str = "pqc_app", tables: List[str] | None = None) -> str:
+def build_rls_sql(*, app_role: str = "morrow_app", tables: List[str] | None = None) -> str:
     """Generate Postgres row-level-security SQL for org-scoped SaaS tables.
 
     Three properties matter more than brevity here:
@@ -270,7 +270,7 @@ def build_rls_sql(*, app_role: str = "pqc_app", tables: List[str] | None = None)
     return "\n".join(statements) + "\n"
 
 
-def build_rls_plan(*, app_role: str = "pqc_app") -> Dict[str, Any]:
+def build_rls_plan(*, app_role: str = "morrow_app") -> Dict[str, Any]:
     sql = build_rls_sql(app_role=app_role)
     return {
         # "ready" means the generated SQL is safe to run and the application cooperates with it:
@@ -310,7 +310,7 @@ def build_rls_plan(*, app_role: str = "pqc_app") -> Dict[str, Any]:
             "both from row-level security, so policies applied over such a role are silently inert. "
             "Grant it only CONNECT, USAGE on schema public, and DML on the org-scoped tables. "
             "Managed-Postgres default users are frequently superusers -- check before assuming.",
-            "Point PQC_PRODUCT_DATABASE_URL / DATABASE_URL at that role, not the owner/migration role.",
+            "Point MORROW_PRODUCT_DATABASE_URL / DATABASE_URL at that role, not the owner/migration role.",
             "Run this SQL with a Postgres owner/migration role -- `python scripts/apply-postgres-rls.py "
             "--apply` does it and re-verifies afterwards; without --apply it only prints. It aborts "
             "up front if the application role is missing or can bypass RLS, and skips tables that "

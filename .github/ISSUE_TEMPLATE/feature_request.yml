@@ -20,7 +20,7 @@ body:
       label: The problem
       description: What are you trying to accomplish, and what stops you today?
       placeholder: >
-        I need to report PQC readiness to an auditor who wants evidence per business unit,
+        I need to report post-quantum readiness to an auditor who wants evidence per business unit,
         but assets only carry a team, so I cannot group the estate the way they ask for.
     validations:
       required: true

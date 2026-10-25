@@ -1,7 +1,7 @@
 param(
   [string]$BaseUrl = "http://127.0.0.1:8000",
-  [string]$PlatformKey = $env:PQC_PLATFORM_ADMIN_KEY,
-  [string]$OperatorSession = $env:PQC_OPERATOR_SESSION,
+  [string]$PlatformKey = $env:MORROW_PLATFORM_ADMIN_KEY,
+  [string]$OperatorSession = $env:MORROW_OPERATOR_SESSION,
   [switch]$RunBrowserSmoke,
   [switch]$RunBackupDrill,
   [string]$OutDir = "reports\go-live"
@@ -57,7 +57,7 @@ if ($RunBrowserSmoke) {
 
 if ($RunBackupDrill) {
   try {
-    if (-not ($env:PQC_BACKUP_DRILL_DSN -or $env:PQC_PRODUCT_DATABASE_URL -or $env:DATABASE_URL)) {
+    if (-not ($env:MORROW_BACKUP_DRILL_DSN -or $env:MORROW_PRODUCT_DATABASE_URL -or $env:DATABASE_URL)) {
       throw "The release backup drill requires a PostgreSQL owner DSN in the environment."
     }
     Invoke-LaunchScript -ScriptPath (Join-Path $PSScriptRoot "backup-restore-drill.ps1") -PlatformKey $PlatformKey -OperatorSession $OperatorSession

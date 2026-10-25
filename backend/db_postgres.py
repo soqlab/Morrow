@@ -20,7 +20,7 @@ from scan_observation import scan_result_observation
 
 
 DEFAULT_ORG_ID = (
-    os.environ.get("PQC_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001").strip()
+    os.environ.get("MORROW_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001").strip()
     or "00000000-0000-0000-0000-000000000001"
 )
 _SCHEMA_READY_LOCK = threading.Lock()
@@ -186,7 +186,7 @@ CORE_TABLE_SPECS: List[TableSpec] = [
             "risk_level",
             "quantum_score",
             "findings_count",
-            "pqc_relevance",
+            "pq_relevance",
             "tls_version",
             "key_type",
             "sig_algorithm",
@@ -209,7 +209,7 @@ CORE_TABLE_SPECS: List[TableSpec] = [
             "risk_level",
             "quantum_score",
             "findings_count",
-            "pqc_relevance",
+            "pq_relevance",
             "tls_version",
             "key_type",
             "sig_algorithm",
@@ -604,7 +604,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
         risk_level TEXT NOT NULL,
         quantum_score DOUBLE PRECISION NOT NULL DEFAULT 0,
         findings_count INTEGER NOT NULL DEFAULT 0,
-        pqc_relevance TEXT NOT NULL DEFAULT '',
+        pq_relevance TEXT NOT NULL DEFAULT '',
         tls_version TEXT NOT NULL DEFAULT '',
         key_type TEXT NOT NULL DEFAULT '',
         sig_algorithm TEXT NOT NULL DEFAULT '',
@@ -978,21 +978,21 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
 
 
 def product_database_url() -> str:
-    return str(os.getenv("PQC_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
+    return str(os.getenv("MORROW_PRODUCT_DATABASE_URL") or os.getenv("DATABASE_URL") or "").strip()
 
 
 def postgres_main_db_requested() -> bool:
-    return str(os.getenv("PQC_MAIN_DB_BACKEND") or "").strip().lower() == "postgres"
+    return str(os.getenv("MORROW_MAIN_DB_BACKEND") or "").strip().lower() == "postgres"
 
 
 _pool_lock = threading.Lock()
 _pools: dict = {}  # dsn_key → ThreadedConnectionPool
 
-_POOL_MIN = int(os.environ.get("PQC_PG_POOL_MIN", "2"))
-_POOL_MAX = int(os.environ.get("PQC_PG_POOL_MAX", "20"))
+_POOL_MIN = int(os.environ.get("MORROW_PG_POOL_MIN", "2"))
+_POOL_MAX = int(os.environ.get("MORROW_PG_POOL_MAX", "20"))
 #: How long a caller waits for a pooled connection before giving up. psycopg2's pool never queues
 #: (see _getconn_waiting), so without this every request that arrives while the pool is full fails.
-_POOL_ACQUIRE_TIMEOUT = max(0.0, float(os.environ.get("PQC_PG_POOL_ACQUIRE_TIMEOUT", "15") or 15))
+_POOL_ACQUIRE_TIMEOUT = max(0.0, float(os.environ.get("MORROW_PG_POOL_ACQUIRE_TIMEOUT", "15") or 15))
 
 
 def _get_pool(url: str):
@@ -1036,7 +1036,7 @@ def _getconn_waiting(pool, timeout: float = None):
     "no rows" and reported an empty, zero-risk posture with a 200.
 
     A pool that is momentarily full is a wait, not a failure. Callers that wait longer than
-    PQC_PG_POOL_ACQUIRE_TIMEOUT still get the PoolError, which app.py answers with 503 and a
+    MORROW_PG_POOL_ACQUIRE_TIMEOUT still get the PoolError, which app.py answers with 503 and a
     Retry-After so a client backs off instead of hammering.
     """
     from psycopg2.pool import PoolError
@@ -1117,7 +1117,7 @@ class _PooledConn:
 def pg_product_conn(dsn: Optional[str] = None):
     url = str(dsn or product_database_url()).strip()
     if not url:
-        raise RuntimeError("PQC_PRODUCT_DATABASE_URL or DATABASE_URL is required for Postgres cutover")
+        raise RuntimeError("MORROW_PRODUCT_DATABASE_URL or DATABASE_URL is required for Postgres cutover")
     return _PooledConn(url)
 
 
@@ -1166,7 +1166,7 @@ def ensure_postgres_core_schema(dsn: Optional[str] = None) -> None:
     """
     key = _dsn_key(dsn)
     if not key:
-        raise RuntimeError("PQC_PRODUCT_DATABASE_URL or DATABASE_URL is required for Postgres cutover")
+        raise RuntimeError("MORROW_PRODUCT_DATABASE_URL or DATABASE_URL is required for Postgres cutover")
     if key in _SCHEMA_READY:
         return
     with _SCHEMA_READY_LOCK:
@@ -1900,7 +1900,7 @@ def pg_latest_scan_result_for_asset(org_id: str, asset_key_str: str, dsn: Option
             cur.execute(
                 """
                 SELECT asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                       pqc_relevance, tls_version, key_type, sig_algorithm,
+                       pq_relevance, tls_version, key_type, sig_algorithm,
                        key_bits, key_curve, cipher_name, scan_status, key_exchange
                 FROM scan_results
                 WHERE organization_id = %s AND asset_key = %s
@@ -1942,7 +1942,7 @@ def pg_latest_scan_results_for_assets(
                 """
                 SELECT DISTINCT ON (asset_key)
                        asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                       pqc_relevance, tls_version, key_type, sig_algorithm,
+                       pq_relevance, tls_version, key_type, sig_algorithm,
                        key_bits, key_curve, cipher_name, scan_status, key_exchange
                 FROM scan_results
                 WHERE organization_id = %s AND asset_key = ANY(%s)
@@ -1997,7 +1997,7 @@ def pg_recent_scan_result_times(org_id: str, limit: int = 2000, dsn: Optional[st
 #: The columns the per-asset reporting facts are built from (see db._SCAN_FACT_COLUMNS).
 _SCAN_FACT_COLUMNS = (
     "asset_key", "scan_id", "scanned_at", "risk_level", "quantum_score", "findings_count",
-    "pqc_relevance", "tls_version", "key_type", "sig_algorithm",
+    "pq_relevance", "tls_version", "key_type", "sig_algorithm",
     "owner", "team", "environment", "criticality",
     "key_bits", "key_curve", "cipher_name", "scan_status", "key_exchange",
 )
@@ -2401,7 +2401,7 @@ def _row_to_scan_result_dict(row: Optional[Dict[str, Any]]) -> Optional[Dict[str
     except Exception:
         out["findings_count"] = 0
     for key in (
-        "pqc_relevance",
+        "pq_relevance",
         "tls_version",
         "key_type",
         "sig_algorithm",
@@ -2496,7 +2496,7 @@ def pg_save_scan_asset_summaries(
                         str(item.get("risk") or item.get("risk_level") or "unknown"),
                         float(item.get("quantum_risk_score") or item.get("quantum_score") or item.get("score") or 0.0),
                         len(findings) if isinstance(findings, list) else 0,
-                        str(item.get("pqc_relevance") or ""),
+                        str(item.get("pq_relevance") or ""),
                         str(item.get("tls_version") or ""),
                         str(item.get("key_type") or ""),
                         str(item.get("sig_algorithm") or ""),
@@ -2517,7 +2517,7 @@ def pg_save_scan_asset_summaries(
                     """
                     INSERT INTO scan_results (
                         organization_id, asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                        pqc_relevance, tls_version, key_type, sig_algorithm,
+                        pq_relevance, tls_version, key_type, sig_algorithm,
                         owner, team, environment, criticality,
                         key_bits, key_curve, cipher_name, scan_status, key_exchange
                     ) VALUES %s
@@ -2534,7 +2534,7 @@ def pg_get_asset_history(org_id: str, asset_key_str: str, limit: int = 50, dsn: 
             cur.execute(
                 """
                 SELECT scanned_at, scan_id, risk_level, quantum_score, findings_count,
-                       pqc_relevance, tls_version, key_type, sig_algorithm,
+                       pq_relevance, tls_version, key_type, sig_algorithm,
                        owner, team, environment, criticality,
                        key_bits, key_curve, cipher_name, scan_status, key_exchange
                 FROM scan_results
@@ -2587,7 +2587,7 @@ def pg_list_scan_results(
             cur.execute(
                 f"""
                 SELECT sr.asset_key, sr.scan_id, sr.scanned_at, sr.risk_level, sr.quantum_score, sr.findings_count,
-                       sr.pqc_relevance, sr.tls_version, sr.key_type, sr.sig_algorithm,
+                       sr.pq_relevance, sr.tls_version, sr.key_type, sr.sig_algorithm,
                        sr.owner, sr.team, sr.environment, sr.criticality,
                        sr.key_bits, sr.key_curve, sr.cipher_name, sr.scan_status, sr.key_exchange,
                        COALESCE(a.repository_id, 0) AS repository_id,
@@ -2619,7 +2619,7 @@ def pg_list_scan_results_since(
             cur.execute(
                 """
                 SELECT asset_key, scan_id, scanned_at, risk_level, quantum_score, findings_count,
-                       pqc_relevance, tls_version, key_type, sig_algorithm,
+                       pq_relevance, tls_version, key_type, sig_algorithm,
                        owner, team, environment, criticality,
                        key_bits, key_curve, cipher_name, scan_status, key_exchange
                 FROM scan_results
@@ -3600,7 +3600,7 @@ def pg_append_audit_log(
             # advisory lock serializes appends per tenant across every replica, and is released
             # when this transaction commits.
             cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))",
-                        ("pqc_audit_chain:" + (str(org_id or "").strip() or DEFAULT_ORG_ID),))
+                        ("pq_audit_chain:" + (str(org_id or "").strip() or DEFAULT_ORG_ID),))
             cur.execute(
                 """
                 SELECT entry_hash

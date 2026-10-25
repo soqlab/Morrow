@@ -43,7 +43,7 @@ Guardrails, enforced here rather than promised in documentation
 * **Opt-out, checked before any contact at all** -- before DNS resolution, let
   alone a handshake. A domain owner writes to the published address and their
   domain (and everything under it) is refused. Sources: the
-  ``public_check_optouts`` table and ``PQC_PUBLIC_CHECK_OPTOUT_DOMAINS``.
+  ``public_check_optouts`` table and ``MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS``.
 * **SSRF guard** -- reused from services/alert_routing.py, the same code that
   guards outbound webhooks: every address the name resolves to must be globally
   routable, and IPv4-mapped and 6to4 forms are unwrapped first so
@@ -72,28 +72,28 @@ module imports nothing that reads or writes an organization's workspace, and
 
 Settings
 --------
-``PQC_PUBLIC_CHECK_ENABLED``                 1       master switch
-``PQC_PUBLIC_CHECK_CACHE_SECONDS``           3600    cache TTL (minimum 600)
-``PQC_PUBLIC_CHECK_IP_LIMIT``                10      checks per IP per hour
-``PQC_PUBLIC_CHECK_IP_BURST``                3       checks per IP per minute
-``PQC_PUBLIC_CHECK_DOMAIN_LIMIT``            4       checks per domain per hour
-``PQC_PUBLIC_CHECK_GLOBAL_LIMIT``            240     checks per hour, whole service
-``PQC_PUBLIC_CHECK_CONCURRENCY``             4       checks running at once
-``PQC_PUBLIC_CHECK_MAX_QUEUE``               32      checks admitted but waiting
-``PQC_PUBLIC_CHECK_QUEUE_WAIT_SECONDS``      5       how long a check may wait for a slot
-``PQC_PUBLIC_CHECK_DEADLINE_SECONDS``        15      whole-check deadline
-``PQC_PUBLIC_CHECK_HANDSHAKE_TIMEOUT``       6       TLS socket timeout
-``PQC_PUBLIC_CHECK_CT_ENABLED``              1       read Certificate Transparency
-``PQC_PUBLIC_CHECK_CT_PROVIDER``             crtsh   crtsh | certspotter | none
-``PQC_PUBLIC_CHECK_CT_TIMEOUT``              6       CT HTTP timeout
-``PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS`` 5       politeness throttle between CT calls
-``PQC_PUBLIC_CHECK_CT_MAX_CERTS``            25      CT entries summarised
-``PQC_PUBLIC_CHECK_CT_CERT_FETCH``           3       CT certificates fetched for key type/size
-``PQC_PUBLIC_CHECK_CT_TOKEN``                ""      bearer token for certspotter
-``PQC_PUBLIC_CHECK_OPTOUT_DOMAINS``          ""      comma-separated, in addition to the table
-``PQC_PUBLIC_CHECK_ABUSE_CONTACT``           ""      shown on the page; falls back to the support address
-``PQC_PUBLIC_CHECK_LOG_RETENTION_DAYS``      30      log rows older than this are pruned
-``PQC_PUBLIC_CHECK_IP_SALT``                 ""      salt for the IP hash; generated and stored if unset
+``MORROW_PUBLIC_CHECK_ENABLED``                 1       master switch
+``MORROW_PUBLIC_CHECK_CACHE_SECONDS``           3600    cache TTL (minimum 600)
+``MORROW_PUBLIC_CHECK_IP_LIMIT``                10      checks per IP per hour
+``MORROW_PUBLIC_CHECK_IP_BURST``                3       checks per IP per minute
+``MORROW_PUBLIC_CHECK_DOMAIN_LIMIT``            4       checks per domain per hour
+``MORROW_PUBLIC_CHECK_GLOBAL_LIMIT``            240     checks per hour, whole service
+``MORROW_PUBLIC_CHECK_CONCURRENCY``             4       checks running at once
+``MORROW_PUBLIC_CHECK_MAX_QUEUE``               32      checks admitted but waiting
+``MORROW_PUBLIC_CHECK_QUEUE_WAIT_SECONDS``      5       how long a check may wait for a slot
+``MORROW_PUBLIC_CHECK_DEADLINE_SECONDS``        15      whole-check deadline
+``MORROW_PUBLIC_CHECK_HANDSHAKE_TIMEOUT``       6       TLS socket timeout
+``MORROW_PUBLIC_CHECK_CT_ENABLED``              1       read Certificate Transparency
+``MORROW_PUBLIC_CHECK_CT_PROVIDER``             crtsh   crtsh | certspotter | none
+``MORROW_PUBLIC_CHECK_CT_TIMEOUT``              6       CT HTTP timeout
+``MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS`` 5       politeness throttle between CT calls
+``MORROW_PUBLIC_CHECK_CT_MAX_CERTS``            25      CT entries summarised
+``MORROW_PUBLIC_CHECK_CT_CERT_FETCH``           3       CT certificates fetched for key type/size
+``MORROW_PUBLIC_CHECK_CT_TOKEN``                ""      bearer token for certspotter
+``MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS``          ""      comma-separated, in addition to the table
+``MORROW_PUBLIC_CHECK_ABUSE_CONTACT``           ""      shown on the page; falls back to the support address
+``MORROW_PUBLIC_CHECK_LOG_RETENTION_DAYS``      30      log rows older than this are pruned
+``MORROW_PUBLIC_CHECK_IP_SALT``                 ""      salt for the IP hash; generated and stored if unset
 """
 
 from __future__ import annotations
@@ -169,69 +169,69 @@ def _num(name: str, default: float, low: float, high: float) -> float:
 
 
 def enabled() -> bool:
-    return _flag("PQC_PUBLIC_CHECK_ENABLED", "1")
+    return _flag("MORROW_PUBLIC_CHECK_ENABLED", "1")
 
 
 def cache_seconds() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_CACHE_SECONDS", 3600, 600, 30 * 24 * 3600))
+    return int(_num("MORROW_PUBLIC_CHECK_CACHE_SECONDS", 3600, 600, 30 * 24 * 3600))
 
 
 def ip_limit() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_IP_LIMIT", 10, 1, 10_000))
+    return int(_num("MORROW_PUBLIC_CHECK_IP_LIMIT", 10, 1, 10_000))
 
 
 def ip_burst() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_IP_BURST", 3, 1, 1_000))
+    return int(_num("MORROW_PUBLIC_CHECK_IP_BURST", 3, 1, 1_000))
 
 
 def domain_limit() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_DOMAIN_LIMIT", 4, 1, 1_000))
+    return int(_num("MORROW_PUBLIC_CHECK_DOMAIN_LIMIT", 4, 1, 1_000))
 
 
 def global_limit() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_GLOBAL_LIMIT", 240, 1, 1_000_000))
+    return int(_num("MORROW_PUBLIC_CHECK_GLOBAL_LIMIT", 240, 1, 1_000_000))
 
 
 def concurrency() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_CONCURRENCY", 4, 1, 64))
+    return int(_num("MORROW_PUBLIC_CHECK_CONCURRENCY", 4, 1, 64))
 
 
 def max_queue() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_MAX_QUEUE", 32, 1, 4096))
+    return int(_num("MORROW_PUBLIC_CHECK_MAX_QUEUE", 32, 1, 4096))
 
 
 def queue_wait_seconds() -> float:
-    return _num("PQC_PUBLIC_CHECK_QUEUE_WAIT_SECONDS", 5.0, 0.1, 120.0)
+    return _num("MORROW_PUBLIC_CHECK_QUEUE_WAIT_SECONDS", 5.0, 0.1, 120.0)
 
 
 def deadline_seconds() -> float:
-    return _num("PQC_PUBLIC_CHECK_DEADLINE_SECONDS", 15.0, 2.0, 120.0)
+    return _num("MORROW_PUBLIC_CHECK_DEADLINE_SECONDS", 15.0, 2.0, 120.0)
 
 
 def handshake_timeout() -> float:
-    return _num("PQC_PUBLIC_CHECK_HANDSHAKE_TIMEOUT", 6.0, 1.0, 60.0)
+    return _num("MORROW_PUBLIC_CHECK_HANDSHAKE_TIMEOUT", 6.0, 1.0, 60.0)
 
 
 def ct_enabled() -> bool:
-    return _flag("PQC_PUBLIC_CHECK_CT_ENABLED", "1") and ct_provider() != "none"
+    return _flag("MORROW_PUBLIC_CHECK_CT_ENABLED", "1") and ct_provider() != "none"
 
 
 def ct_provider() -> str:
-    raw = str(os.getenv("PQC_PUBLIC_CHECK_CT_PROVIDER", "crtsh") or "crtsh").strip().lower()
+    raw = str(os.getenv("MORROW_PUBLIC_CHECK_CT_PROVIDER", "crtsh") or "crtsh").strip().lower()
     return raw if raw in CT_PROVIDERS or raw == "none" else "crtsh"
 
 
 def ct_timeout() -> float:
-    return _num("PQC_PUBLIC_CHECK_CT_TIMEOUT", 6.0, 1.0, 60.0)
+    return _num("MORROW_PUBLIC_CHECK_CT_TIMEOUT", 6.0, 1.0, 60.0)
 
 
 def ct_min_interval_seconds() -> float:
     """crt.sh publishes no rate limit and asks informally for roughly one request every 5 s."""
-    return _num("PQC_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS", 5.0, 0.0, 300.0)
+    return _num("MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS", 5.0, 0.0, 300.0)
 
 
 def ct_max_certs() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_CT_MAX_CERTS", 25, 1, 500))
+    return int(_num("MORROW_PUBLIC_CHECK_CT_MAX_CERTS", 25, 1, 500))
 
 
 def ct_cert_fetch() -> int:
@@ -240,20 +240,20 @@ def ct_cert_fetch() -> int:
     crt.sh's JSON index does not carry the public key, so key history costs one extra request per
     certificate. Bounded, newest-first, and 0 turns it off.
     """
-    return int(_num("PQC_PUBLIC_CHECK_CT_CERT_FETCH", 3, 0, 10))
+    return int(_num("MORROW_PUBLIC_CHECK_CT_CERT_FETCH", 3, 0, 10))
 
 
 def ct_token() -> str:
-    return str(os.getenv("PQC_PUBLIC_CHECK_CT_TOKEN", "") or "").strip()
+    return str(os.getenv("MORROW_PUBLIC_CHECK_CT_TOKEN", "") or "").strip()
 
 
 def log_retention_days() -> int:
-    return int(_num("PQC_PUBLIC_CHECK_LOG_RETENTION_DAYS", 30, 1, 3650))
+    return int(_num("MORROW_PUBLIC_CHECK_LOG_RETENTION_DAYS", 30, 1, 3650))
 
 
 def abuse_contact() -> str:
     """Where to send an abuse report or an opt-out request. Empty when nothing is configured."""
-    for name in ("PQC_PUBLIC_CHECK_ABUSE_CONTACT", "PQC_SUPPORT_EMAIL", "PQC_SECURITY_CONTACT_EMAIL"):
+    for name in ("MORROW_PUBLIC_CHECK_ABUSE_CONTACT", "MORROW_SUPPORT_EMAIL", "MORROW_SECURITY_CONTACT_EMAIL"):
         value = str(os.getenv(name, "") or "").strip()
         if value and "@" in value and " " not in value:
             return value[:200]
@@ -315,7 +315,7 @@ def _parse_iso(value: Any) -> Optional[datetime]:
 
 
 def _db_identity() -> str:
-    return f"{os.getenv('PQC_FEATURE_STORE_BACKEND', '')}|{os.getenv('PQC_SCANNER_DB', '')}|{os.getenv('DATABASE_URL', '')[:12]}"
+    return f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}|{os.getenv('DATABASE_URL', '')[:12]}"
 
 
 def init_tables() -> None:
@@ -432,7 +432,7 @@ def _ip_salt() -> str:
     generated once and stored, so hashes stay comparable across restarts (which is the whole point
     of logging them) without the operator having to set anything.
     """
-    configured = str(os.getenv("PQC_PUBLIC_CHECK_IP_SALT", "") or "").strip()
+    configured = str(os.getenv("MORROW_PUBLIC_CHECK_IP_SALT", "") or "").strip()
     if configured:
         return configured
     stored = _meta_get("ip_salt")
@@ -534,7 +534,7 @@ def normalize_domain(value: Any) -> str:
 def _optout_set() -> set:
     """Domains that must never be contacted: the table plus the environment list."""
     out = set()
-    for item in re.split(r"[,;\s]+", str(os.getenv("PQC_PUBLIC_CHECK_OPTOUT_DOMAINS", "") or "")):
+    for item in re.split(r"[,;\s]+", str(os.getenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "") or "")):
         cleaned = item.strip().lower().rstrip(".")
         if cleaned:
             out.add(cleaned)
@@ -870,7 +870,7 @@ def _ct_crtsh(domain: str, timeout: float) -> Dict[str, Any]:
     ``https://crt.sh/?q=<domain>&output=json&deduplicate=Y`` returns one object per logged
     certificate with issuer_name, common_name, name_value, not_before, not_after, entry_timestamp
     and the crt.sh id. The index carries no public key, so key type and size cost one extra
-    ``?d=<id>`` request per certificate; ``PQC_PUBLIC_CHECK_CT_CERT_FETCH`` bounds how many.
+    ``?d=<id>`` request per certificate; ``MORROW_PUBLIC_CHECK_CT_CERT_FETCH`` bounds how many.
 
     crt.sh publishes no rate limit and its availability is unreliable; every failure here is
     reported as "unavailable", never as "no certificates".
@@ -1060,7 +1060,7 @@ def certificate_transparency(domain: str, deadline: Optional[float] = None) -> D
     if not base["key_history"]:
         base["reason"] = ("Key types and sizes are not in the Certificate Transparency index; "
                           "downloading logged certificates to read them is bounded by "
-                          "PQC_PUBLIC_CHECK_CT_CERT_FETCH and produced none here.")
+                          "MORROW_PUBLIC_CHECK_CT_CERT_FETCH and produced none here.")
     return base
 
 
@@ -1117,7 +1117,7 @@ def _headline(observed: Dict[str, Any], readiness: Dict[str, Any]) -> Tuple[str,
     key_label = f"{key_type}{'-' + str(key_bits) if key_bits else ''}"
     classical_cert = bool(readiness.get("classical_crypto_dependency"))
 
-    if family in ("pqc_hybrid", "pqc_pure"):
+    if family in ("pq_hybrid", "pq_pure"):
         if classical_cert:
             return ("hybrid_key_exchange",
                     "Partly protected — hybrid key exchange, classical certificate",
@@ -1147,10 +1147,10 @@ def _headline(observed: Dict[str, Any], readiness: Dict[str, Any]) -> Tuple[str,
 
 
 def _classify(name: str) -> Dict[str, Any]:
-    from services import fips_pqc
+    from services import fips_pq
 
     try:
-        return fips_pqc.classify_algorithm(name)
+        return fips_pq.classify_algorithm(name)
     except Exception:
         return {"algorithm": name, "status": "unknown"}
 
@@ -1170,7 +1170,7 @@ _KEM_SUGGESTION = "Migrate to ML-KEM-768 (FIPS 203), hybrid with X25519 while cl
 def _narrow_action_to_role(verdict: Dict[str, Any]) -> None:
     """Keep the catalogue's suggestion only where it fits what the algorithm is actually doing.
 
-    services/fips_pqc.py keys its migration advice by algorithm, not by role, so RSA-2048 is always
+    services/fips_pq.py keys its migration advice by algorithm, not by role, so RSA-2048 is always
     answered with "Migrate to ML-KEM-768". That is right for a key exchange and wrong for a
     certificate: ML-KEM is key encapsulation and cannot sign anything. Printed under a card headed
     CERTIFICATE KEY it is advice that does not work.
@@ -1209,7 +1209,7 @@ def _algorithm_verdicts(observed: Dict[str, Any]) -> List[Dict[str, Any]]:
     So the same resolvers the CBOM uses do the decomposition first --
     ``cbom.canonical_algorithm`` for the public key, ``cbom.signature_algorithm_parts`` to split a
     signature into its signing algorithm and digest, ``cbom.key_exchange_algorithms`` to split a
-    hybrid group into its classical and post-quantum halves -- and ``fips_pqc`` classifies the
+    hybrid group into its classical and post-quantum halves -- and ``fips_pq`` classifies the
     resolved names. A hybrid group therefore produces two honest cards (X25519 vulnerable, ML-KEM-768
     compliant) instead of one, which is also the truthful picture of what hybrid means.
     """
@@ -1336,7 +1336,7 @@ def build_result(domain: str, observed: Dict[str, Any], ct: Dict[str, Any],
                  checked_at: Optional[datetime] = None) -> Dict[str, Any]:
     """Turn the observation and the CT data into the answer the page shows.
 
-    Classification comes from services/fips_pqc.py, the findings and the readiness assessment from
+    Classification comes from services/fips_pq.py, the findings and the readiness assessment from
     policy.py, and the harvest-now-decrypt-later framing from services/hndl.py -- the same code the
     paid product uses, so the free answer and the paid one agree.
     """
@@ -1383,7 +1383,7 @@ def build_result(domain: str, observed: Dict[str, Any], ct: Dict[str, Any],
             "quantum_readiness_level": readiness.get("quantum_readiness_level"),
             "harvest_now_decrypt_later_risk": readiness.get("harvest_now_decrypt_later_risk"),
             "next_steps": (readiness.get("immediate_hardening_actions") or [])[:3]
-                          + (readiness.get("pqc_migration_actions") or [])[:2],
+                          + (readiness.get("pq_migration_actions") or [])[:2],
         },
         "observed": {
             "reachable": reachable,
@@ -1477,7 +1477,7 @@ def build_result(domain: str, observed: Dict[str, Any], ct: Dict[str, Any],
             sources=[
                 "TLS handshake with this endpoint on port 443 (measured).",
                 f"Certificate Transparency via {ct.get('provider') or 'no provider'} (public log data).",
-                "FIPS 203/204/205 algorithm classification (services/fips_pqc.py).",
+                "FIPS 203/204/205 algorithm classification (services/fips_pq.py).",
                 "Q-Day model (services/q_intel.py) via services/hndl.py.",
                 "Deadlines from NIST and NSA CNSA 2.0 (services/regulatory.py).",
             ],
@@ -1543,7 +1543,7 @@ def store_result(domain: str, result: Dict[str, Any]) -> None:
 
 #: The posture ladder. One vocabulary for the page, the badge, the API and the catalogue, so a
 #: colour, a word and a database row can never disagree about what was found.
-POSTURE_PQC_READY = "pqc_ready"
+POSTURE_MORROW_READY = "pq_ready"
 POSTURE_HYBRID = "hybrid"
 POSTURE_CLASSICAL = "classical_only"
 POSTURE_UNREACHABLE = "unreachable"
@@ -1552,7 +1552,7 @@ POSTURE_UNKNOWN = "unknown"
 #: verdict.status (from _headline) -> posture. Mapping rather than re-deriving, so the record and
 #: the page the visitor saw cannot drift apart.
 _POSTURE_BY_STATUS = {
-    "post_quantum": POSTURE_PQC_READY,
+    "post_quantum": POSTURE_MORROW_READY,
     "hybrid_key_exchange": POSTURE_HYBRID,
     "quantum_vulnerable": POSTURE_CLASSICAL,
     "not_assessed": POSTURE_UNREACHABLE,
@@ -1564,7 +1564,7 @@ _POSTURE_BY_STATUS = {
 #: accuracy audit found that reading a failed check as a clean one is the worst bug this product
 #: can have, and a registry would publish that mistake at scale.
 POSTURE_MEANING = {
-    POSTURE_PQC_READY: "A post-quantum algorithm was negotiated. Traffic recorded today cannot be "
+    POSTURE_MORROW_READY: "A post-quantum algorithm was negotiated. Traffic recorded today cannot be "
                        "decrypted later by a quantum computer.",
     POSTURE_HYBRID: "A hybrid key exchange was negotiated, so recorded traffic is protected, while "
                     "the certificate's identity key is still classical.",
@@ -1576,7 +1576,7 @@ POSTURE_MEANING = {
 }
 
 POSTURE_LABEL = {
-    POSTURE_PQC_READY: "ready",
+    POSTURE_MORROW_READY: "ready",
     POSTURE_HYBRID: "hybrid",
     POSTURE_CLASSICAL: "classical",
     POSTURE_UNREACHABLE: "unreachable",

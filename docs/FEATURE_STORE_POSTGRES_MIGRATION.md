@@ -10,7 +10,7 @@ modules** holding roughly **965 raw SQL statements**.
 
 That is not merely untidy. SQLite is not a network database, so while those
 tables carry state the platform is limited to **one API replica** — the readiness
-check pins `PQC_API_REPLICA_COUNT=1` and `/platform/go-live-gate` surfaces it.
+check pins `MORROW_API_REPLICA_COUNT=1` and `/platform/go-live-gate` surfaces it.
 One replica means no horizontal scale, no HA, and no zero-downtime deploy.
 
 For `admin_orgs`, `admin_users` and `admin_invitations` it is worse than a scale
@@ -35,7 +35,7 @@ is what keeps each module's diff reviewable.
 
 ## Switching backends
 
-`PQC_FEATURE_STORE_BACKEND` — `postgres` | `sqlite`. Unset, it follows the core
+`MORROW_FEATURE_STORE_BACKEND` — `postgres` | `sqlite`. Unset, it follows the core
 database (`postgres_main_db_requested()`). It is a separate switch on purpose:
 the core tables can be on Postgres while auxiliary state is migrated module by
 module, and an operator needs to move one without the other.
@@ -108,15 +108,15 @@ than as silently wrong data.
 ## Verifying
 
 ```bash
-docker run -d --name pqc-pg -e POSTGRES_PASSWORD=pqcdev -e POSTGRES_DB=pqc \
+docker run -d --name morrow-pg -e POSTGRES_PASSWORD=morrowdev -e POSTGRES_DB=morrow \
     -p 5433:5432 postgres:16-alpine
 
 cd backend
-PQC_TEST_PG_DSN=postgresql://postgres:pqcdev@127.0.0.1:5433/pqc \
+MORROW_TEST_PG_DSN=postgresql://postgres:morrowdev@127.0.0.1:5433/morrow \
     python -m pytest test_db_feature_store.py test_admin_console_dual_backend.py -q
 ```
 
-Without `PQC_TEST_PG_DSN` the Postgres halves skip and only the SQLite paths and
+Without `MORROW_TEST_PG_DSN` the Postgres halves skip and only the SQLite paths and
 the pure translation tests run. CI sets it (`.github/workflows/ci.yml`, pointed at
 the workflow's existing `postgres:16` service), so those tests run there. **Keep
 it set** — unset, CI goes green on precisely the bugs these tests exist to catch,
@@ -133,5 +133,5 @@ Order the rest by blast radius, not by size: anything that gates access or holds
 evidence first (`dev_portal`, `github_oauth`, `canary`, `qtisn`), reporting and
 cache-like tables last.
 
-`PQC_API_REPLICA_COUNT` must stay at 1 until `/platform/state/coverage` reports
+`MORROW_API_REPLICA_COUNT` must stay at 1 until `/platform/state/coverage` reports
 no auxiliary tables holding rows.

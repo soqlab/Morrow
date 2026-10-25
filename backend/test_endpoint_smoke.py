@@ -60,8 +60,8 @@ def _fill(path: str) -> str:
 
 @pytest.fixture(scope="module")
 def probe():
-    os.environ.setdefault("PQC_AUTH_MODE", "header")
-    os.environ.setdefault("PQC_DEFAULT_ROLE", "admin")
+    os.environ.setdefault("MORROW_AUTH_MODE", "header")
+    os.environ.setdefault("MORROW_DEFAULT_ROLE", "admin")
     import app as application
     from fastapi.testclient import TestClient
 

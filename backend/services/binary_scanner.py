@@ -27,11 +27,11 @@ from typing import Any, Dict, List, Optional
 # (pattern_lower, library_name, risk_level, note)
 
 SIGNATURES: List[tuple[str, str, str, str]] = [
-    ("libssl",                  "OpenSSL",              "high",     "OpenSSL detected - check version for PQC support"),
+    ("libssl",                  "OpenSSL",              "high",     "OpenSSL detected - check version for post-quantum support"),
     ("openssl",                 "OpenSSL",              "high",     "OpenSSL string reference"),
     ("bouncycastle",            "BouncyCastle",         "high",     "BouncyCastle detected"),
     ("bouncy castle",           "BouncyCastle",         "high",     "BouncyCastle space variant"),
-    ("wolfssl",                 "wolfSSL",              "medium",   "wolfSSL detected - has PQC support in newer versions"),
+    ("wolfssl",                 "wolfSSL",              "medium",   "wolfSSL detected - has post-quantum support in newer versions"),
     ("mbedtls",                 "mbedTLS",              "high",     "mbedTLS detected"),
     ("polarssl",                "PolarSSL (mbedTLS)",   "high",     "Legacy PolarSSL/mbedTLS"),
     ("libtomcrypt",             "LibTomCrypt",          "high",     "LibTomCrypt detected"),
@@ -47,23 +47,23 @@ SIGNATURES: List[tuple[str, str, str, str]] = [
     ("sha-1",                   "SHA-1",                "critical", "SHA-1 — broken hash function"),
     ("rc4",                     "RC4",                  "critical", "RC4 — broken stream cipher"),
     ("des_ecb",                 "DES-ECB",              "critical", "DES in ECB mode — broken"),
-    ("kyber",                   "CRYSTALS-Kyber",       "low",      "PQC safe: CRYSTALS-Kyber/ML-KEM detected"),
-    ("dilithium",               "CRYSTALS-Dilithium",   "low",      "PQC safe: CRYSTALS-Dilithium/ML-DSA detected"),
-    ("falcon",                  "FALCON",               "low",      "PQC safe: FALCON signature scheme detected"),
-    ("sphincs",                 "SPHINCS+",             "low",      "PQC safe: SPHINCS+/SLH-DSA detected"),
-    ("ml-kem",                  "ML-KEM",               "low",      "PQC safe: ML-KEM (FIPS 203) detected"),
-    ("ml-dsa",                  "ML-DSA",               "low",      "PQC safe: ML-DSA (FIPS 204) detected"),
-    ("slh-dsa",                 "SLH-DSA",              "low",      "PQC safe: SLH-DSA (FIPS 205) detected"),
+    ("kyber",                   "CRYSTALS-Kyber",       "low",      "Post-quantum safe: CRYSTALS-Kyber/ML-KEM detected"),
+    ("dilithium",               "CRYSTALS-Dilithium",   "low",      "Post-quantum safe: CRYSTALS-Dilithium/ML-DSA detected"),
+    ("falcon",                  "FALCON",               "low",      "Post-quantum safe: FALCON signature scheme detected"),
+    ("sphincs",                 "SPHINCS+",             "low",      "Post-quantum safe: SPHINCS+/SLH-DSA detected"),
+    ("ml-kem",                  "ML-KEM",               "low",      "Post-quantum safe: ML-KEM (FIPS 203) detected"),
+    ("ml-dsa",                  "ML-DSA",               "low",      "Post-quantum safe: ML-DSA (FIPS 204) detected"),
+    ("slh-dsa",                 "SLH-DSA",              "low",      "Post-quantum safe: SLH-DSA (FIPS 205) detected"),
     ("liboqs",                  "liboqs",               "low",      "Open Quantum Safe liboqs detected"),
     ("openquantumsafe",         "Open Quantum Safe",    "low",      "OQS library detected"),
     ("nss_",                    "NSS (Mozilla)",        "high",     "Mozilla NSS cryptography library"),
     ("gcrypt",                  "libgcrypt",            "high",     "GNU libgcrypt detected"),
     ("gnutls",                  "GnuTLS",               "high",     "GnuTLS detected"),
-    ("secp256k1",               "secp256k1",            "high",     "secp256k1 curve — not PQC safe"),
-    ("secp384r1",               "secp384r1",            "medium",   "P-384 curve — not PQC safe but larger"),
-    ("prime256v1",              "P-256",                "high",     "P-256 (prime256v1) — not PQC safe"),
-    ("curve25519",              "Curve25519",           "high",     "Curve25519 — not PQC safe (quantum-vulnerable)"),
-    ("chacha20",                "ChaCha20",             "medium",   "ChaCha20 — symmetric, reduce key size concern but not PQC"),
+    ("secp256k1",               "secp256k1",            "high",     "secp256k1 curve — not post-quantum safe"),
+    ("secp384r1",               "secp384r1",            "medium",   "P-384 curve — not post-quantum safe but larger"),
+    ("prime256v1",              "P-256",                "high",     "P-256 (prime256v1) — not post-quantum safe"),
+    ("curve25519",              "Curve25519",           "high",     "Curve25519 — not post-quantum safe (quantum-vulnerable)"),
+    ("chacha20",                "ChaCha20",             "medium",   "ChaCha20 — symmetric, reduce key size concern but not post-quantum"),
     ("javax.crypto",            "Java Crypto",          "high",     "Java JCE crypto usage"),
     ("java.security",           "Java Security",        "high",     "Java security APIs"),
     ("system.security.cryptography", ".NET Cryptography", "high",  ".NET crypto namespace"),
@@ -246,7 +246,7 @@ def _build_summary(findings: List[Dict[str, Any]], file_type: str, file_size: in
         rl = f.get("risk_level", "unknown")
         risk_counts[rl] = risk_counts.get(rl, 0) + 1
 
-    pqc_safe_count = sum(1 for f in findings if f.get("risk_level") == "low")
+    pq_safe_count = sum(1 for f in findings if f.get("risk_level") == "low")
     vulnerable_count = sum(
         1 for f in findings if f.get("risk_level") in ("critical", "high")
     )
@@ -255,7 +255,7 @@ def _build_summary(findings: List[Dict[str, Any]], file_type: str, file_size: in
         "file_type": file_type,
         "file_size_bytes": file_size,
         "total_findings": len(findings),
-        "pqc_safe_libraries": pqc_safe_count,
+        "pq_safe_libraries": pq_safe_count,
         "vulnerable_libraries": vulnerable_count,
         "risk_breakdown": risk_counts,
     }

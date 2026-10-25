@@ -27,10 +27,10 @@ def _auth_configured() -> bool:
         "AUTH0_DOMAIN",
         "AUTH0_CLIENT_ID",
         "AUTH0_AUDIENCE",
-        "PQC_AUTH_DOMAIN",
-        "PQC_AUTH_CLIENT_ID",
-        "PQC_JWT_ISSUER",
-        "PQC_JWT_AUDIENCE",
+        "MORROW_AUTH_DOMAIN",
+        "MORROW_AUTH_CLIENT_ID",
+        "MORROW_JWT_ISSUER",
+        "MORROW_JWT_AUDIENCE",
     )
     return any(str(os.getenv(k) or "").strip() for k in keys)
 
@@ -87,7 +87,7 @@ def create_readiness_router(require_role: RequireRole) -> APIRouter:
         return Response(
             content=readiness_handoff_markdown(readiness),
             media_type="text/markdown; charset=utf-8",
-            headers={"Content-Disposition": 'inline; filename="pqc-e2e-readiness-handoff.md"'},
+            headers={"Content-Disposition": 'inline; filename="pq-e2e-readiness-handoff.md"'},
         )
 
     return router

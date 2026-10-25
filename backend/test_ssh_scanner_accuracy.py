@@ -106,16 +106,16 @@ def test_legacy_server_is_scored_critical_with_every_rule_firing():
 
     assert result["error"] is None
     assert result["banner"] == "SSH-2.0-OpenSSH_5.3"
-    assert result["pqc_ready"] is False
-    assert result["pqc_hybrid_kex"] == []
+    assert result["pq_ready"] is False
+    assert result["pq_hybrid_kex"] == []
 
     assert _rules(result) == {
         "SSH_CRITICAL_KEX",
-        "SSH_NO_PQC_KEX",
+        "SSH_NO_MORROW_KEX",
         "SSH_QUANTUM_VULNERABLE_HOST_KEY",
         "SSH_WEAK_CIPHER",
     }
-    # 40 (critical kex) + 30 (no PQC kex) + 20 (host keys) + 10 (weak ciphers)
+    # 40 (critical kex) + 30 (no post-quantum kex) + 20 (host keys) + 10 (weak ciphers)
     assert result["quantum_risk_score"] == 100
     assert result["quantum_risk_level"] == "critical"
 
@@ -129,7 +129,7 @@ def test_legacy_server_is_scored_critical_with_every_rule_firing():
     assert "aes256-ctr" not in weak["evidence"]["weak_ciphers"]
 
 
-def test_pqc_hybrid_server_suppresses_the_no_pqc_finding():
+def test_pq_hybrid_server_suppresses_the_no_pq_finding():
     with _FakeSSHServer(
         banner="SSH-2.0-OpenSSH_9.6",
         kex=["mlkem768x25519-sha256", "curve25519-sha256", "ecdh-sha2-nistp256"],
@@ -140,18 +140,18 @@ def test_pqc_hybrid_server_suppresses_the_no_pqc_finding():
         result = scan_ssh("127.0.0.1", server.port)
 
     assert result["error"] is None
-    assert result["pqc_ready"] is True
-    assert result["pqc_hybrid_kex"] == ["mlkem768x25519-sha256"]
+    assert result["pq_ready"] is True
+    assert result["pq_hybrid_kex"] == ["mlkem768x25519-sha256"]
 
     rules = _rules(result)
-    assert "SSH_PQC_HYBRID_AVAILABLE" in rules
-    # Classical KEX is still advertised, but a PQC hybrid is offered alongside it,
+    assert "SSH_MORROW_HYBRID_AVAILABLE" in rules
+    # Classical KEX is still advertised, but a post-quantum hybrid is offered alongside it,
     # so the "no post-quantum key exchange" finding must not fire.
-    assert "SSH_NO_PQC_KEX" not in rules
+    assert "SSH_NO_MORROW_KEX" not in rules
     assert "SSH_CRITICAL_KEX" not in rules
     assert "SSH_WEAK_CIPHER" not in rules
 
-    # Host keys remain classical even on a PQC-hybrid server -- that is the whole
+    # Host keys remain classical even on a post-quantum-hybrid server -- that is the whole
     # point of the separate rule, and it must survive the good-news case.
     assert "SSH_QUANTUM_VULNERABLE_HOST_KEY" in rules
     assert result["quantum_risk_score"] == 20
@@ -170,7 +170,7 @@ def test_name_list_parsing_survives_a_server_offering_nothing():
     assert result["kex_algorithms"] == []
     assert result["findings"] == []
     assert result["quantum_risk_level"] == "low"
-    assert result["pqc_ready"] is False
+    assert result["pq_ready"] is False
 
 
 def test_unreachable_host_reports_an_error_rather_than_raising():
@@ -218,4 +218,4 @@ def test_non_ssh_service_is_rejected_without_inventing_findings():
 
     assert result["error"], "a non-KEXINIT reply must be reported, not parsed"
     assert result["findings"] == []
-    assert result["pqc_ready"] is False
+    assert result["pq_ready"] is False

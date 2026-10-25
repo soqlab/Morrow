@@ -11,21 +11,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Copy the core SQLite product tables into Postgres.")
     parser.add_argument(
         "--sqlite-path",
-        default=str(os.getenv("PQC_SCANNER_DB") or "").strip(),
-        help="Path to the source SQLite database. Defaults to PQC_SCANNER_DB.",
+        default=str(os.getenv("MORROW_SCANNER_DB") or "").strip(),
+        help="Path to the source SQLite database. Defaults to MORROW_SCANNER_DB.",
     )
     parser.add_argument(
         "--dsn",
         default=product_database_url(),
-        help="Target Postgres DSN. Defaults to PQC_PRODUCT_DATABASE_URL or DATABASE_URL.",
+        help="Target Postgres DSN. Defaults to MORROW_PRODUCT_DATABASE_URL or DATABASE_URL.",
     )
     parser.add_argument("--batch-size", type=int, default=500, help="Rows per batch insert.")
     args = parser.parse_args()
 
     if not args.sqlite_path:
-        raise SystemExit("--sqlite-path is required (or set PQC_SCANNER_DB)")
+        raise SystemExit("--sqlite-path is required (or set MORROW_SCANNER_DB)")
     if not args.dsn:
-        raise SystemExit("--dsn is required (or set PQC_PRODUCT_DATABASE_URL / DATABASE_URL)")
+        raise SystemExit("--dsn is required (or set MORROW_PRODUCT_DATABASE_URL / DATABASE_URL)")
 
     stats = migrate_sqlite_core_to_postgres(
         sqlite_path=args.sqlite_path,

@@ -12,7 +12,7 @@ variable "region" {
 variable "name_prefix" {
   description = "Short resource prefix."
   type        = string
-  default     = "pqc-ent"
+  default     = "pq-ent"
 }
 
 variable "image_tag" {

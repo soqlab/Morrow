@@ -1,6 +1,6 @@
 """Vendor admin portal analytics: overview, customer 360, usage, search, notifications and jobs.
 
-Runs the real ASGI stack against a throwaway SQLite database (never backend/pqc_scanner.db), with the
+Runs the real ASGI stack against a throwaway SQLite database (never backend/morrow.db), with the
 same operator credentials as test_platform_admin_portal.py. Every number asserted here is seeded by the
 test itself, so the checks prove the endpoints count real rows: nothing more, nothing less, and never
 another tenant's.
@@ -35,19 +35,19 @@ def api(tmp_path, monkeypatch):
     import app
 
     db_path = str(tmp_path / "analytics.db")
-    monkeypatch.setenv("PQC_SCANNER_DB", db_path)
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_FEATURE_STORE_BACKEND", "sqlite")
-    monkeypatch.setenv("PQC_AUTH_JWT_SECRET", SECRET)
-    monkeypatch.setenv("PQC_ADMIN_PASSWORD", PASSWORD)
-    monkeypatch.setenv("PQC_PLATFORM_OPERATORS", json.dumps([{"name": "sam", "role": "support", "key_sha256": _sha(SAM)}]))
-    monkeypatch.delenv("PQC_PLATFORM_ADMIN_KEY_ROLE", raising=False)
-    monkeypatch.delenv("PQC_TRAFFIC_RETENTION_DAYS", raising=False)
-    monkeypatch.delenv("PQC_AUTH_LOG_RETENTION_DAYS", raising=False)
+    monkeypatch.setenv("MORROW_SCANNER_DB", db_path)
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_AUTH_JWT_SECRET", SECRET)
+    monkeypatch.setenv("MORROW_ADMIN_PASSWORD", PASSWORD)
+    monkeypatch.setenv("MORROW_PLATFORM_OPERATORS", json.dumps([{"name": "sam", "role": "support", "key_sha256": _sha(SAM)}]))
+    monkeypatch.delenv("MORROW_PLATFORM_ADMIN_KEY_ROLE", raising=False)
+    monkeypatch.delenv("MORROW_TRAFFIC_RETENTION_DAYS", raising=False)
+    monkeypatch.delenv("MORROW_AUTH_LOG_RETENTION_DAYS", raising=False)
     for name, value in {
         "AUTH_MODE": "jwt", "AUTH_REQUIRED": True, "AUTH_ISSUER_ENABLED": True,
         "AUTH_JWT_ALGORITHMS": ["HS256"], "AUTH_JWT_SECRET": SECRET,
-        "AUTH_JWT_ISSUER": "pqc-scanner", "AUTH_JWT_AUDIENCE": "pqc-scanner",
+        "AUTH_JWT_ISSUER": "morrow", "AUTH_JWT_AUDIENCE": "morrow",
         "_PLATFORM_ADMIN_KEY": LEGACY, "API_KEY": "", "PRODUCTION_ENVIRONMENT": False,
         "RATE_LIMIT_MAX_REQUESTS": 100000,
         # The traffic middleware journals every test request; keep the seeded request counts exact.

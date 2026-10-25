@@ -34,10 +34,10 @@ NO_SUCH_TABLE = re.compile(r"no such table: ([A-Za-z_0-9]+)")
 def schema(tmp_path_factory, monkeypatch_module=None):
     """A database carrying the core schema plus every service's own tables."""
     path = str(tmp_path_factory.mktemp("schema") / "conformance.db")
-    old_db = os.environ.get("PQC_SCANNER_DB")
-    old_backend = os.environ.get("PQC_FEATURE_STORE_BACKEND")
-    os.environ["PQC_SCANNER_DB"] = path
-    os.environ["PQC_FEATURE_STORE_BACKEND"] = "sqlite"
+    old_db = os.environ.get("MORROW_SCANNER_DB")
+    old_backend = os.environ.get("MORROW_FEATURE_STORE_BACKEND")
+    os.environ["MORROW_SCANNER_DB"] = path
+    os.environ["MORROW_FEATURE_STORE_BACKEND"] = "sqlite"
     try:
         import db
         importlib.reload(db)
@@ -65,7 +65,7 @@ def schema(tmp_path_factory, monkeypatch_module=None):
         yield conn, tables
         conn.close()
     finally:
-        for key, value in (("PQC_SCANNER_DB", old_db), ("PQC_FEATURE_STORE_BACKEND", old_backend)):
+        for key, value in (("MORROW_SCANNER_DB", old_db), ("MORROW_FEATURE_STORE_BACKEND", old_backend)):
             if value is None:
                 os.environ.pop(key, None)
             else:
@@ -157,11 +157,11 @@ def test_core_and_service_org_column_conventions_both_exist(schema):
 # -- and that is the dialect production actually runs. This covers them against a
 # real server, because the schema is what decides and only a server knows it.
 #
-#   docker run -d --name pqc-pg -e POSTGRES_PASSWORD=pqcdev -e POSTGRES_DB=pqc \
+#   docker run -d --name morrow-pg -e POSTGRES_PASSWORD=morrowdev -e POSTGRES_DB=morrow \
 #       -p 5433:5432 postgres:16-alpine
-#   PQC_TEST_PG_DSN=postgresql://postgres:pqcdev@127.0.0.1:5433/pqc
+#   MORROW_TEST_PG_DSN=postgresql://postgres:morrowdev@127.0.0.1:5433/morrow
 
-PG_DSN = os.environ.get("PQC_TEST_PG_DSN", "").strip()
+PG_DSN = os.environ.get("MORROW_TEST_PG_DSN", "").strip()
 
 
 def _pg_sql_literals():
@@ -186,15 +186,15 @@ def _pg_sql_literals():
             yield os.path.relpath(path, BACKEND), node.lineno, sql
 
 
-@pytest.mark.skipif(not PG_DSN, reason="set PQC_TEST_PG_DSN to audit the Postgres dialect")
+@pytest.mark.skipif(not PG_DSN, reason="set MORROW_TEST_PG_DSN to audit the Postgres dialect")
 def test_no_postgres_statement_references_a_missing_column(monkeypatch):
     psycopg2 = pytest.importorskip("psycopg2")
     # monkeypatch, not os.environ: these were left set for the rest of the pytest process, so every
     # later module wrote to Postgres while reading its own SQLite file (the webhook contract tests
-    # then saw "no such table"). Skipped runs hid it until PQC_TEST_PG_DSN was set.
-    for key, value in (("PQC_MAIN_DB_BACKEND", "postgres"),
+    # then saw "no such table"). Skipped runs hid it until MORROW_TEST_PG_DSN was set.
+    for key, value in (("MORROW_MAIN_DB_BACKEND", "postgres"),
                        ("DATABASE_URL", PG_DSN),
-                       ("PQC_PRODUCT_DATABASE_URL", PG_DSN)):
+                       ("MORROW_PRODUCT_DATABASE_URL", PG_DSN)):
         monkeypatch.setenv(key, value)
 
     import db_postgres

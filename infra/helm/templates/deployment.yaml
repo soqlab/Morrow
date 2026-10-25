@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "pqc-scanner.fullname" . }}
+  name: {{ include "morrow.fullname" . }}
   labels:
-    {{- include "pqc-scanner.labels" . | nindent 4 }}
+    {{- include "morrow.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "pqc-scanner.selectorLabels" . | nindent 6 }}
+      {{- include "morrow.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -20,13 +20,13 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "pqc-scanner.selectorLabels" . | nindent 8 }}
+        {{- include "morrow.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "pqc-scanner.serviceAccountName" . }}
+      serviceAccountName: {{ include "morrow.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -42,9 +42,9 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "pqc-scanner.fullname" . }}
+                name: {{ include "morrow.fullname" . }}
             - secretRef:
-                name: {{ include "pqc-scanner.fullname" . }}
+                name: {{ include "morrow.fullname" . }}
           {{- if .Values.persistence.enabled }}
           volumeMounts:
             - name: data
@@ -60,7 +60,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "pqc-scanner.fullname" . }}-data
+            claimName: {{ include "morrow.fullname" . }}-data
       {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

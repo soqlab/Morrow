@@ -6,7 +6,7 @@ platform's own rules and database -- the same rule engine behind
 whether a model is configured or not.
 
 It is also the deliberate choice for a deployment that forbids any external
-model call: PQC_LLM_DISABLED=1 resolves here and nothing can override it, not
+model call: MORROW_LLM_DISABLED=1 resolves here and nothing can override it, not
 even a per-organization setting.
 
 Nothing in this adapter touches the network, so there is no data boundary to
@@ -40,7 +40,7 @@ def answerer() -> Optional[Callable[[str], Dict[str, Any]]]:
 
 _UNREGISTERED = (
     "The built-in answerer is not available in this process, and no model provider is "
-    "configured. Set PQC_LLM_PROVIDER (see docs/AI_PROVIDERS.md) to point the assistant "
+    "configured. Set MORROW_LLM_PROVIDER (see docs/AI_PROVIDERS.md) to point the assistant "
     "at a model, or use the console's non-AI workflows."
 )
 

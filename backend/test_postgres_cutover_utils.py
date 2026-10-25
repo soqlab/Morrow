@@ -13,14 +13,14 @@ from db_postgres import (
 
 def test_product_database_url_prefers_product_specific_env(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "postgresql://fallback/db")
-    monkeypatch.setenv("PQC_PRODUCT_DATABASE_URL", "postgresql://product/db")
+    monkeypatch.setenv("MORROW_PRODUCT_DATABASE_URL", "postgresql://product/db")
     assert product_database_url() == "postgresql://product/db"
 
 
 def test_postgres_main_db_requested(monkeypatch):
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "postgres")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "postgres")
     assert postgres_main_db_requested() is True
-    monkeypatch.setenv("PQC_MAIN_DB_BACKEND", "sqlite")
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
     assert postgres_main_db_requested() is False
 
 
