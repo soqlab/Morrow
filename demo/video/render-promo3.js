@@ -54,7 +54,7 @@ const FPS = K.FPS;
 const BEAT = 30;
 const argv = process.argv.slice(2);
 const argOf = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
-const WORK = path.resolve(argOf("--work", path.join(os.tmpdir(), "airlock-promo3")));
+const WORK = path.resolve(argOf("--work", path.join(os.tmpdir(), "morrow-promo3")));
 const ONLY = argOf("--only", null);
 const SETUP_FROM = Number(argOf("--setup-from", 0));
 const SEG = path.join(WORK, "seg");

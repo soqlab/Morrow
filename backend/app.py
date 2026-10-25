@@ -1434,9 +1434,9 @@ def _startup():
         # Vault tables are Postgres-only. Silently skip when running SQLite-only (no DATABASE_URL).
         # The error text can echo connection strings or env values (a BOM-mangled .env line, an
         # invalid DSN); log it only after secrets are removed.
-        logging.warning("[Post-quantum VAULT] Vault table init skipped: %s", _redact_secrets(_vault_err))
+        logging.warning("[Morrow VAULT] Vault table init skipped: %s", _redact_secrets(_vault_err))
     for w in _security_warnings():
-        logging.warning("[Post-quantum SECURITY] %s", w)
+        logging.warning("[Morrow SECURITY] %s", w)
 
 
 # ── DB helpers ───────────────────────────────────────────────────────────────
@@ -3626,7 +3626,7 @@ def _assert_production_startup_safe() -> list[str]:
     if not blockers:
         return []
     if str(os.getenv("MORROW_ALLOW_UNSAFE_PRODUCTION_STARTUP", "0") or "0").strip().lower() in {"1", "true", "yes", "on"}:
-        logging.critical("[Post-quantum SECURITY] Unsafe production startup override is active: %s", "; ".join(blockers))
+        logging.critical("[Morrow SECURITY] Unsafe production startup override is active: %s", "; ".join(blockers))
         return blockers
     raise RuntimeError("Unsafe production startup blocked:\n- " + "\n- ".join(blockers))
 
@@ -13578,7 +13578,7 @@ def api_jira_webhook_template():
         "payload_template": {
             "fields": {
                 "project": {"key": "YOUR_PROJECT_KEY"},
-                "summary": "[post-quantum] {{event_type}} - {{data.asset_key}}",
+                "summary": "[Morrow] {{event_type}} - {{data.asset_key}}",
                 "description": "Asset: {{data.asset_key}}\nEvent: {{event_type}}\nScan ID: {{data.scan_id}}\nFindings: {{data.finding_ids}}",
                 "issuetype": {"name": "Bug"},
                 "priority": {"name": "High"},
@@ -13610,7 +13610,7 @@ async def api_jira_create_issue(request: Request):
     api_token = str(body.get("api_token") or "").strip()
     asset_key_val = str(body.get("asset_key") or "").strip()
     finding_ids = body.get("finding_ids") or []
-    summary = str(body.get("summary") or f"[post-quantum] Quantum-vulnerable crypto detected: {asset_key_val}").strip()
+    summary = str(body.get("summary") or f"[Morrow] Quantum-vulnerable crypto detected: {asset_key_val}").strip()
     description_val = str(body.get("description") or (
         f"Morrow detected quantum-vulnerable cryptography on asset: {asset_key_val}\n"
         f"Findings: {', '.join(str(x) for x in finding_ids)}\n\n"

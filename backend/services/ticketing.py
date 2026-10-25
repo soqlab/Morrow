@@ -124,7 +124,7 @@ def create_jira_issue(
     payload = {
         "fields": {
             "project":     {"key": proj},
-            "summary":     f"[post-quantum] {title} — {asset_key}",
+            "summary":     f"[Morrow] {title} — {asset_key}",
             "description": description,
             "issuetype":   {"name": itype},
             "priority":    {"name": _severity_to_priority_jira(severity)},

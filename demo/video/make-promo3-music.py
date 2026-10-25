@@ -28,5 +28,5 @@ spec.loader.exec_module(film)
  film.THIN_IN, film.BUILD_IN, film.RESOLVE) = 7, 7, 14, 33, 56, 72, 80
 
 if "--out" not in sys.argv:
-    sys.argv += ["--out", str(HERE / "airlock-promo3-music.wav")]
+    sys.argv += ["--out", str(HERE / "morrow-promo3-music.wav")]
 film.main()

@@ -12,6 +12,7 @@ make a third-party network call.
 import os
 import sys
 import pathlib
+import secrets
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "backend"
@@ -43,6 +44,8 @@ os.environ["MORROW_ADMIN_EMAIL"] = "avery.chen@example.com"
 # Throwaway credential for the throwaway demo database on 127.0.0.1 only.
 os.environ["MORROW_ADMIN_PASSWORD"] = "Airlock-Demo-Recording-8049"
 os.environ.setdefault("MORROW_DISABLE_SCHEDULER", "1")
+# A clone has no backend/.env; tokens only need to outlive this process.
+os.environ.setdefault("MORROW_AUTH_JWT_SECRET", secrets.token_hex(32))
 
 DEMO_DB.parent.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(BACKEND))

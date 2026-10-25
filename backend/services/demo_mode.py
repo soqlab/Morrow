@@ -112,7 +112,7 @@ def install_network_guard() -> None:
     socket.socket.sendto = sendto
     socket.getaddrinfo = getaddrinfo
     socket._pq_demo_guard = True
-    log.warning("[Post-quantum DEMO] demo mode: outbound network restricted to this machine")
+    log.warning("[Morrow DEMO] demo mode: outbound network restricted to this machine")
 
 
 # ---------------------------------------------------------------- request policy
@@ -259,9 +259,9 @@ def purge_expired() -> None:
         if exp is not None and exp <= now:
             try:
                 n = purge_workspace(org_id)
-                log.info("[Post-quantum DEMO] deleted expired workspace %s (%d rows)", org_id, n)
+                log.info("[Morrow DEMO] deleted expired workspace %s (%d rows)", org_id, n)
             except Exception:
-                log.exception("[Post-quantum DEMO] could not delete workspace %s", org_id)
+                log.exception("[Morrow DEMO] could not delete workspace %s", org_id)
 
 
 PROCESS_STARTED = int(time.time())
@@ -283,7 +283,7 @@ def _cleanup_loop() -> None:
                 first = False
             purge_expired()
         except Exception:
-            log.exception("[Post-quantum DEMO] cleanup pass failed")
+            log.exception("[Morrow DEMO] cleanup pass failed")
         time.sleep(120)
 
 
@@ -321,7 +321,7 @@ def _seed(org_id: str, token: str) -> None:
     def call(method, path, body=None):
         r = s.request(method, base + path, json=body, timeout=120)
         if r.status_code >= 300:
-            log.warning("[Post-quantum DEMO] seed %s %s -> %s %s", method, path, r.status_code, r.text[:200])
+            log.warning("[Morrow DEMO] seed %s %s -> %s %s", method, path, r.status_code, r.text[:200])
         return r
 
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -450,7 +450,7 @@ def attach(app) -> None:
             try:
                 out = await run_in_threadpool(create_workspace)
             except Exception:
-                log.exception("[Post-quantum DEMO] could not create a workspace")
+                log.exception("[Morrow DEMO] could not create a workspace")
                 return JSONResponse({"detail": "Could not create a demo workspace. Try again shortly."},
                                     status_code=500)
             return JSONResponse(out, headers={"Cache-Control": "no-store"})
@@ -470,4 +470,4 @@ def attach(app) -> None:
         return await call_next(request)
 
     threading.Thread(target=_cleanup_loop, name="pq-demo-cleanup", daemon=True).start()
-    log.warning("[Post-quantum DEMO] demo mode on: workspaces live %ds, at most %d at once", TTL_SECONDS, MAX_WORKSPACES)
+    log.warning("[Morrow DEMO] demo mode on: workspaces live %ds, at most %d at once", TTL_SECONDS, MAX_WORKSPACES)

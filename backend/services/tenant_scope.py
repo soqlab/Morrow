@@ -118,7 +118,7 @@ def _record(reason: str, actor: str) -> Dict[str, Any]:
             del _ESCAPE_LOG[: len(_ESCAPE_LOG) - _ESCAPE_LOG_MAX]
     # Logged at INFO, not DEBUG: crossing the tenant boundary is a security-relevant event and an
     # operator reading the logs should be able to see every one of them without raising the level.
-    logger.info("[Post-quantum RLS] cross-tenant scope entered: reason=%s actor=%s", entry["reason"], entry["actor"] or "-")
+    logger.info("[Morrow RLS] cross-tenant scope entered: reason=%s actor=%s", entry["reason"], entry["actor"] or "-")
     sink = _audit_sink
     if sink is not None:
         try:
@@ -126,7 +126,7 @@ def _record(reason: str, actor: str) -> Dict[str, Any]:
         except Exception:
             # An audit sink that fails must not break the operator request it is describing; the
             # in-process ledger and the log line above still record the event.
-            logger.warning("[Post-quantum RLS] platform-scope audit sink failed", exc_info=False)
+            logger.warning("[Morrow RLS] platform-scope audit sink failed", exc_info=False)
     return entry
 
 

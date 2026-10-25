@@ -75,7 +75,7 @@ def test_slack_webhook_can_be_enabled_without_vault_secret(client):
     rows = list_webhook_events(limit=10)
     matching = [row for row in rows if str(row.get("event_type") or "") == "validation.failed"]
     assert matching
-    assert str((matching[0].get("payload") or {}).get("text") or "").startswith("[post-quantum] validation failed")
+    assert str((matching[0].get("payload") or {}).get("text") or "").startswith("[Morrow] validation failed")
 
 
 def test_validation_failure_emits_notification_and_audit(client, monkeypatch):

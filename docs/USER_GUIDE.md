@@ -1190,7 +1190,7 @@ Call `POST /integrations/jira/create-issue` with:
   "api_token": "your-jira-api-token",
   "asset_key": "example.com:443",
   "finding_ids": ["MORROW_RSA_ENDPOINT"],
-  "summary": "[post-quantum] RSA endpoint detected",
+  "summary": "[Morrow] RSA endpoint detected",
   "issue_type": "Bug"
 }
 ```

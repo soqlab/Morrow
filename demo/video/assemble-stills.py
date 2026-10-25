@@ -14,10 +14,10 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 FFMPEG = HERE.parents[1] / ".tools" / "ffmpeg" / "ffmpeg.exe"
 TMP = pathlib.Path.home() / "AppData/Local/Temp"
-STILLS = TMP / "airlock-stills" / "stills"
-FILM = TMP / "airlock-stills" / "film.json"
-MUSIC = HERE / "airlock-promo3-music.wav"
-VOICE = TMP / "airlock-promo3" / "vo" / "voiceover.wav"
+STILLS = TMP / "morrow-stills" / "stills"
+FILM = TMP / "morrow-stills" / "film.json"
+MUSIC = HERE / "morrow-promo3-music.wav"
+VOICE = TMP / "morrow-promo3" / "vo" / "voiceover.wav"
 OUT = HERE / "morrow-promo-stills.mp4"
 FPS = 30
 XF = 0.5          # crossfade length, seconds

@@ -174,7 +174,7 @@ turn it on:**
 3. API-key verification, which has to find the key row before any tenant is known — the key's
    organization is the answer it returns. Every other operation on API keys is tenant-scoped.
 
-Every entry is recorded: an INFO log line (`[Post-quantum RLS] cross-tenant scope entered: reason=… actor=…`)
+Every entry is recorded: an INFO log line (`[Morrow RLS] cross-tenant scope entered: reason=… actor=…`)
 plus a bounded in-process ledger, on top of the existing operator audit trail in
 `platform_admin_events` for case 1.
 

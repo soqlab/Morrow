@@ -990,7 +990,7 @@ def generate_multi_variant_pr(scan_result: Dict[str, Any]) -> Dict[str, Any]:
         "server_type": server,
         "variants": variants,
         "recommended_default": "B" if str(scan_result.get("legacy") or "").lower() in {"1", "true", "yes"} else "A",
-        "github_pr_title": f"[post-quantum] Multi-variant remediation options for {host}",
+        "github_pr_title": f"[Morrow] Multi-variant remediation options for {host}",
         "github_pr_body": pr_body,
         "benchmark_plan": [
             "Measure handshake success rate by client family.",

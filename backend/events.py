@@ -88,35 +88,35 @@ def _notification_text(event_type: str, payload: Dict[str, Any]) -> str:
 
     if event_type == "validation.failed":
         return (
-            f"[post-quantum] validation failed for remediation #{rid or '?'} "
+            f"[Morrow] validation failed for remediation #{rid or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'} "
             f"exit={exit_code if exit_code is not None else '?'}"
         )
     if event_type == "remediation.merged":
         return (
-            f"[post-quantum] remediation merged #{rid or '?'} "
+            f"[Morrow] remediation merged #{rid or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'} "
             f"{pr_url or ''}"
         ).strip()
     if event_type == "remediation.drifted":
         return (
-            f"[post-quantum] drift detected for remediation #{rid or '?'} "
+            f"[Morrow] drift detected for remediation #{rid or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'} "
             f"{pr_url or ''}"
         ).strip()
     if event_type == "remediation.drift_followup_created":
         followup_id = str(payload.get("followup_remediation_id") or "").strip()
         return (
-            f"[post-quantum] drift follow-up created parent=#{rid or '?'} followup=#{followup_id or '?'} "
+            f"[Morrow] drift follow-up created parent=#{rid or '?'} followup=#{followup_id or '?'} "
             f"asset={asset_key or '-'} repo={repository or '-'} file={file_path or '-'}"
         ).strip()
     if event_type == "remediation.drift_acknowledged":
         actor_id = str(payload.get("actor_id") or "").strip()
         return (
-            f"[post-quantum] drift acknowledged for remediation #{rid or '?'} "
+            f"[Morrow] drift acknowledged for remediation #{rid or '?'} "
             f"asset={asset_key or '-'} by={actor_id or '-'}"
         ).strip()
-    return f"[post-quantum] {event_type}: {json.dumps(payload, sort_keys=True)[:400]}"
+    return f"[Morrow] {event_type}: {json.dumps(payload, sort_keys=True)[:400]}"
 
 
 def _delivery_payload(webhook: Dict[str, Any], event_type: str, dedupe_key: str, payload: Dict[str, Any]) -> Dict[str, Any]:

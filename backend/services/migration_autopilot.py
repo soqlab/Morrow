@@ -301,7 +301,7 @@ def create_jira_issue(
     payload = {
         "fields": {
             "project": {"key": project_key},
-            "summary": f"[post-quantum] Quantum-harden TLS: {asset_key}",
+            "summary": f"[Morrow] Quantum-harden TLS: {asset_key}",
             "description": {
                 "type": "doc", "version": 1,
                 "content": [{

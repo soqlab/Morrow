@@ -16,7 +16,7 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 FFMPEG = HERE.parents[1] / ".tools" / "ffmpeg" / "ffmpeg.exe"
-WORK = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path.home() / "AppData/Local/Temp/airlock-promo3/vo"
+WORK = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else pathlib.Path.home() / "AppData/Local/Temp/morrow-promo3/vo"
 VOICE = "en-US-AndrewNeural"
 TOTAL = 180.0
 
