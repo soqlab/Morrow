@@ -129,9 +129,9 @@ def _slack_payload(title: str, body: str, severity: str) -> dict:
     return {
         "attachments": [{
             "color": color,
-            "title": f"[PQC Scanner] {title}",
+            "title": f"[Morrow] {title}",
             "text": body,
-            "footer": "PQC Scanner",
+            "footer": "Morrow",
             "ts": int(time.time()),
         }]
     }
@@ -143,7 +143,7 @@ def _teams_payload(title: str, body: str, severity: str) -> dict:
         "@context": "http://schema.org/extensions",
         "themeColor": {"CRITICAL": "e53e3e", "HIGH": "ed8936"}.get(severity, "0078D4"),
         "summary": title,
-        "sections": [{"activityTitle": f"[PQC Scanner] {title}", "activityText": body}],
+        "sections": [{"activityTitle": f"[Morrow] {title}", "activityText": body}],
     }
 
 
@@ -179,7 +179,7 @@ def test_webhook(db, webhook_id: int, org_id: str) -> dict:
     if not row:
         return {"error": "webhook not found"}
     channel, url = row
-    return send_alert(db, org_id, "Test notification", "PQC Scanner webhook test — working correctly.", "LOW")
+    return send_alert(db, org_id, "Test notification", "Morrow webhook test — working correctly.", "LOW")
 
 
 def notification_log(db, org_id: str, limit: int = 50) -> list[dict]:

@@ -1,4 +1,4 @@
-# PQC Scanner Technical Reference
+# Morrow Technical Reference
 
 This document is the codebase-level technical reference for the current repository state.
 
@@ -30,7 +30,7 @@ Primary source files:
 
 ## 1. System summary
 
-PQC Scanner is an end-to-end remediation loop, not only a TLS scanner.
+Morrow is an end-to-end remediation loop, not only a TLS scanner.
 
 It does all of the following:
 

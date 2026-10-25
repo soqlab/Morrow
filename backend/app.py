@@ -1585,7 +1585,7 @@ limiter = Limiter(
 )
 
 app = FastAPI(
-    title="PQC Scanner API",
+    title="Morrow API",
     description="TLS endpoint scanner with PQC-oriented findings, scoring, and migration plans.",
     version="0.6.0",
     lifespan=_lifespan,
@@ -7239,7 +7239,7 @@ def _quantum_report_html(org_id: str) -> str:
       {snapshot(compliance.get("summary"))}
     </section>
 
-    <footer class="foot">PQC Scanner &middot; organization {_html_escape(org_id)} &middot; figures reflect the data held at generation time.</footer>
+    <footer class="foot">Morrow &middot; organization {_html_escape(org_id)} &middot; figures reflect the data held at generation time.</footer>
   </div>
 </body>
 </html>"""
@@ -11635,7 +11635,7 @@ def _assistant_guardrail_response(reason: str = "prompt_injection") -> Dict[str,
         "intent": "out_of_scope",
         "reply": (
             "I cannot help bypass platform policy, reveal prompts or secrets, run shell/SQL, or override RBAC. "
-            "I can help with scoped PQC Scanner workflows such as scans, reports, remediation queues, evidence, and quantum-safety explanations."
+            "I can help with scoped Morrow workflows such as scans, reports, remediation queues, evidence, and quantum-safety explanations."
         ),
         "confidence": 0.98,
         "requires_confirmation": False,
@@ -11663,7 +11663,7 @@ def _assistant_rule_response(message: str, ctx: Optional[Dict[str, Any]] = None)
     if not any(w in lower for w in platform_words):
         return {
             "intent": "out_of_scope",
-            "reply": "I can only help with PQC Scanner workflows: scans, assets, repositories, remediation, validation, PRs, drift, audit, compliance reports, RBAC, and evidence.",
+            "reply": "I can only help with Morrow workflows: scans, assets, repositories, remediation, validation, PRs, drift, audit, compliance reports, RBAC, and evidence.",
             "confidence": 0.9,
             "requires_confirmation": False,
             "missing_fields": [],
@@ -11792,7 +11792,7 @@ def _normalize_assistant_response(data: Dict[str, Any], fallback: Dict[str, Any]
         intent = str(fallback.get("intent") or "answer")
     reply = str(data.get("reply") or fallback.get("reply") or "").strip()[:2400]
     if not reply:
-        reply = "I can help with scoped PQC Scanner workflows."
+        reply = "I can help with scoped Morrow workflows."
     actions_raw = data.get("actions") if isinstance(data.get("actions"), list) else fallback.get("actions", [])
     actions = [str(a or "").strip() for a in actions_raw if str(a or "").strip() in ASSISTANT_ALLOWED_INTENTS or str(a or "").strip() == "scan_target"]
     missing_raw = data.get("missing_fields") if isinstance(data.get("missing_fields"), list) else fallback.get("missing_fields", [])
@@ -13589,9 +13589,9 @@ def api_jira_webhook_template():
             "1. In Jira, go to Project Settings > Automation > New rule.",
             "2. Choose trigger: 'Incoming webhook'.",
             "3. Copy the Jira automation webhook URL.",
-            "4. In PQC Scanner, create a new webhook with that URL.",
+            "4. In Morrow, create a new webhook with that URL.",
             "5. Set event_types to: pqc.not_ready, scan.regression, cert.expired.",
-            "6. PQC Scanner will POST events; use Jira automation to map fields to issues.",
+            "6. Morrow will POST events; use Jira automation to map fields to issues.",
         ],
         "alternative": "Use the generic webhook + Zapier/Make to translate PQC events into Jira issues.",
     }
@@ -13612,9 +13612,9 @@ async def api_jira_create_issue(request: Request):
     finding_ids = body.get("finding_ids") or []
     summary = str(body.get("summary") or f"[PQC] Quantum-vulnerable crypto detected: {asset_key_val}").strip()
     description_val = str(body.get("description") or (
-        f"PQC Scanner detected quantum-vulnerable cryptography on asset: {asset_key_val}\n"
+        f"Morrow detected quantum-vulnerable cryptography on asset: {asset_key_val}\n"
         f"Findings: {', '.join(str(x) for x in finding_ids)}\n\n"
-        "Please review the remediation queue in PQC Scanner for suggested fixes."
+        "Please review the remediation queue in Morrow for suggested fixes."
     )).strip()
     issue_type = str(body.get("issue_type") or "Bug").strip()
 
@@ -13968,7 +13968,7 @@ def _cf_api(method: str, path: str, token: str, body_obj: Optional[Dict[str, Any
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-        "User-Agent": "pqc-scanner/1.0",
+        "User-Agent": "morrow/1.0",
     }
     data = None
     if body_obj is not None:
@@ -14443,7 +14443,7 @@ def api_active_policy(request: Request):
         "source": "organization_policy_as_code",
         "policy_as_code": org_policy,
         "policy": {
-            "name": "PQC Scanner Default Policy",
+            "name": "Morrow Default Policy",
             "description": "Default organization policy used by the UI to explain scan, remediation, validation, and CI gate behavior.",
             "scan_policy": {
                 "checks": [
@@ -15621,7 +15621,7 @@ def api_mcp(req: McpRequest, request: Request):
                 "tools": [
                     {
                         "name": "check_iac_compliance",
-                        "description": "Check Terraform/IaC text against the organization's PQC Scanner policy.",
+                        "description": "Check Terraform/IaC text against the organization's Morrow policy.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -16244,7 +16244,7 @@ def _vendor_attestation_portal_html(token: str) -> str:
         <p class="sub">The score is an attested vendor signal, not a replacement for independent scanning. Your customer can combine this with technical evidence.</p>
       </aside>
     </section>
-    <footer class="foot">PQC Scanner &middot; this invite-scoped portal collects only what is shown above. No credentials, source code, or private keys are requested.</footer>
+    <footer class="foot">Morrow &middot; this invite-scoped portal collects only what is shown above. No credentials, source code, or private keys are requested.</footer>
   </main>
   <script>
     const token = {token_js};
@@ -19305,7 +19305,7 @@ def _crypto_middleware_artifacts(body: CryptoMiddlewarePlanRequest, org_id: str)
   }}"""
         for svc in services
     )
-    nginx_conf = f"""# Generated by PQC Scanner crypto-agility middleware.
+    nginx_conf = f"""# Generated by Morrow crypto-agility middleware.
 # Mode: {body.deployment_mode}
 # This reroutes internal callers through an OQS-capable TLS proxy instead of changing app code.
 
@@ -19495,7 +19495,7 @@ echo "Also verify service DNS/callers now point at: {' '.join(svc['name'] for sv
     }
     readme = f"""# {name}
 
-This is a deployable crypto-agility middleware plan generated by PQC Scanner.
+This is a deployable crypto-agility middleware plan generated by Morrow.
 
 What it does:
 - routes internal service calls through a TLS 1.3 proxy
@@ -23307,7 +23307,7 @@ def api_webhook_test(wh_id: str, request: Request):
         wh = _wh_get(db, wh_id)
         if not wh or wh.get("organization_id") != org_id:
             raise HTTPException(404, "Webhook not found")
-        results = _wh_deliver(db, org_id, "test.ping", {"message": "PQC Scanner webhook test ping"})
+        results = _wh_deliver(db, org_id, "test.ping", {"message": "Morrow webhook test ping"})
     return {"results": results}
 
 
@@ -23810,15 +23810,15 @@ def api_notify_test(body: NotificationTestRequest, request: Request):
     with _db() as db:
         _w15_ensure(db)
         if body.channel == "email":
-            result = _smtp_send_email(db, org_id, "PQC Scanner Test", "<p>Test notification from PQC Scanner.</p>", "test")
+            result = _smtp_send_email(db, org_id, "Morrow Test", "<p>Test notification from Morrow.</p>", "test")
             return {"email": result}
         elif body.channel == "slack":
-            result = _smtp_send_slack(db, org_id, "Test notification from PQC Scanner.", "test", "info")
+            result = _smtp_send_slack(db, org_id, "Test notification from Morrow.", "test", "info")
             return {"slack": result}
         else:
-            result = _smtp_notify_all(db, org_id, "PQC Scanner Test",
-                                      "Test notification from PQC Scanner.",
-                                      "<p>Test notification from PQC Scanner.</p>", "test", "info")
+            result = _smtp_notify_all(db, org_id, "Morrow Test",
+                                      "Test notification from Morrow.",
+                                      "<p>Test notification from Morrow.</p>", "test", "info")
             return result
 
 

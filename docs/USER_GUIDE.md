@@ -1,6 +1,6 @@
-# PQC Scanner User Guide
+# Morrow User Guide
 
-This guide explains how to use PQC Scanner as an operator, security lead, or administrator.
+This guide explains how to use Morrow as an operator, security lead, or administrator.
 
 It covers:
 
@@ -23,7 +23,7 @@ It covers:
 
 ## 1. What the product does
 
-PQC Scanner is a workflow platform for external crypto and TLS risk.
+Morrow is a workflow platform for external crypto and TLS risk.
 
 At a high level it does this:
 
@@ -1138,7 +1138,7 @@ file: <your CSV file>
 
 ## 29. Secret backend configuration
 
-PQC Scanner supports three secret backends for storing webhook secrets and credentials:
+Morrow supports three secret backends for storing webhook secrets and credentials:
 
 | Backend | Env var value | Description |
 |---|---|---|
@@ -1176,7 +1176,7 @@ Install: `pip install azure-keyvault-secrets azure-identity`
 
 ## 30. Jira integration
 
-PQC Scanner integrates with Jira in two ways:
+Morrow integrates with Jira in two ways:
 
 ### Option 1: Direct Jira REST API
 
@@ -1199,7 +1199,7 @@ Call `POST /integrations/jira/create-issue` with:
 
 Get the webhook template: `GET /integrations/jira/template`
 
-This returns step-by-step instructions for connecting PQC Scanner events to Jira Automation triggers.
+This returns step-by-step instructions for connecting Morrow events to Jira Automation triggers.
 
 ## 31. CAM/API transparent proxy
 

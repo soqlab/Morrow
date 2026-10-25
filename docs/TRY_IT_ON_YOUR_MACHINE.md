@@ -1,4 +1,4 @@
-# PQC Scanner: Try It On Your Machine
+# Morrow: Try It On Your Machine
 
 This guide is for someone who just wants to run the product locally and click through it.
 
@@ -10,7 +10,7 @@ Before you start, make sure you have:
 
 - a Windows, Mac, or Linux machine
 - Docker Desktop installed and running
-- the PQC Scanner project folder on your machine
+- the Morrow project folder on your machine
 
 If you do not have Docker Desktop yet, install that first.
 

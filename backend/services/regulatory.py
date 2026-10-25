@@ -414,7 +414,7 @@ def generate_filing(
         "days_to_deadline": gap_result.get("days_to_hard_deadline", 0),
         "migration_roadmap": _generate_roadmap(pqc_pct, total_assets, f["hard_deadline"]),
         "attestation": (
-            f"This report was generated automatically by PQC Scanner on {now.isoformat()[:10]}. "
+            f"This report was generated automatically by Morrow on {now.isoformat()[:10]}. "
             f"The cryptographic inventory was collected via authenticated TLS certificate scanning. "
             f"Contact {contact_email or 'security@' + org_name.lower().replace(' ', '') + '.com'} for questions."
         ),

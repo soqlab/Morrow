@@ -28,7 +28,7 @@ def send_teams_alert(
     severity: str = "warning",
     facts: Optional[list] = None,
     action_url: str = "",
-    action_label: str = "View in PQC Scanner",
+    action_label: str = "View in Morrow",
 ) -> Dict[str, Any]:
     """
     Post an Adaptive Card to a Microsoft Teams channel via Incoming Webhook.
@@ -66,7 +66,7 @@ def send_teams_alert(
 
     card_body.append({
         "type": "TextBlock",
-        "text": f"Sent by PQC Scanner · {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        "text": f"Sent by Morrow · {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
         "size": "Small",
         "color": "Accent",
         "spacing": "Medium",
@@ -118,7 +118,7 @@ def send_teams_alert(
 def test_teams_webhook(webhook_url: str) -> Dict[str, Any]:
     return send_teams_alert(
         webhook_url,
-        title="PQC Scanner — Test Alert",
+        title="Morrow — Test Alert",
         summary="Your Microsoft Teams integration is working correctly.",
         severity="info",
         facts=[{"name": "Status", "value": "Connected"}, {"name": "Time", "value": datetime.now(timezone.utc).isoformat()}],
@@ -134,7 +134,7 @@ def send_pagerduty_alert(
     routing_key: str,
     summary: str,
     severity: str = "warning",
-    source: str = "PQC Scanner",
+    source: str = "Morrow",
     dedup_key: str = "",
     details: Optional[Dict[str, Any]] = None,
     component: str = "pqc-scanner",
@@ -224,10 +224,10 @@ def resolve_pagerduty_incident(routing_key: str, dedup_key: str) -> Dict[str, An
 def test_pagerduty(routing_key: str) -> Dict[str, Any]:
     return send_pagerduty_alert(
         routing_key=routing_key,
-        summary="PQC Scanner — Integration Test Alert",
+        summary="Morrow — Integration Test Alert",
         severity="info",
-        dedup_key="pqc-scanner-test",
-        details={"test": True, "source": "PQC Scanner integration test"},
+        dedup_key="morrow-test",
+        details={"test": True, "source": "Morrow integration test"},
     )
 
 

@@ -1,6 +1,6 @@
-# PQC Scanner Private Cloud Demo
+# Morrow Private Cloud Demo
 
-This is the investor/customer demo root module for proving that PQC Scanner can run inside a customer-owned GCP perimeter.
+This is the investor/customer demo root module for proving that Morrow can run inside a customer-owned GCP perimeter.
 
 It wraps `../modules/private-cloud` and keeps all state/configuration outside application code.
 

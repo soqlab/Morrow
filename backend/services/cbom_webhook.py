@@ -106,7 +106,7 @@ def list_ingests(db, org_id: str, limit: int = 20) -> list[dict]:
 
 def github_actions_step(org_id: str, base_url: str, secret: str) -> str:
     """Return a ready-to-paste GitHub Actions step for CBOM push."""
-    return f"""- name: Push CBOM to PQC Scanner
+    return f"""- name: Push CBOM to Morrow
   run: |
     CBOM_FILE="${{{{ steps.sbom.outputs.cbom_path }}}}"
     BODY=$(cat "$CBOM_FILE")

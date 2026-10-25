@@ -4,7 +4,7 @@ This document defines the product's enterprise data boundary. Attach it to pilot
 
 ## Default Principle
 
-PQC Scanner should ask for the least customer access that still produces defensible cryptographic evidence.
+Morrow should ask for the least customer access that still produces defensible cryptographic evidence.
 
 The preferred flow is:
 

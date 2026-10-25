@@ -199,7 +199,7 @@ def build_rls_sql(*, app_role: str = "pqc_app", tables: List[str] | None = None)
     setting = _lit(ORG_SETTING)
     platform_setting = _lit(PLATFORM_SETTING)
     statements: List[str] = [
-        "-- PQC Scanner multi-tenant RLS plan",
+        "-- Morrow multi-tenant RLS plan",
         f"-- The application sets this per connection: SELECT set_config({setting}, '<org-id>', false);",
         f"-- and opens the audited cross-tenant path with set_config({platform_setting}, 'on', false).",
         "-- Policies are created before RLS is enabled so no table is ever forced without a policy.",

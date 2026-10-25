@@ -1,4 +1,4 @@
-# PQC Scanner Private Cloud Module
+# Morrow Private Cloud Module
 
 This module packages the customer-owned GCP deployment for enterprise/private-cloud installs.
 

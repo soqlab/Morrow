@@ -200,7 +200,7 @@ def discover_aws(
     Discover TLS-bearing endpoints from AWS.
 
     Returns a list of targets {host, port, source, asset_type}
-    ready to feed into the PQC scanner.
+    ready to feed into Morrow's scanner.
     """
     regions = regions or ["us-east-1", "us-west-2", "eu-west-1"]
     targets: List[Dict] = []

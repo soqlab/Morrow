@@ -5,7 +5,7 @@ Posts inline review comments and a Check Run to a GitHub PR
 when the CI/CD Crypto Gate finds quantum-vulnerable patterns.
 
 Unlike the gate YAML (which generates a workflow file), this module
-calls the GitHub API *directly* from the PQC Scanner backend
+calls the GitHub API *directly* from the Morrow backend
 to annotate a PR immediately — no GitHub Actions runner needed.
 
 Flow:
@@ -289,7 +289,7 @@ def _build_summary(findings: List[Dict], gate_passed: bool) -> str:
     if not findings:
         return ("## ✅ PQC Crypto Gate — Passed\n\n"
                 "No quantum-vulnerable cryptographic patterns were detected in this PR.\n\n"
-                "_Checked by [PQC Scanner](https://github.com/your-org/pqc-scanner)_")
+                "_Checked by Morrow_")
 
     critical = [f for f in findings if f.get("severity") in ("critical","high")]
     medium   = [f for f in findings if f.get("severity") in ("medium",)]
@@ -316,7 +316,7 @@ def _build_summary(findings: List[Dict], gate_passed: bool) -> str:
         "- **Key Encapsulation:** ML-KEM-768 (formerly Kyber-768)\n"
         "- **Digital Signatures:** ML-DSA-65 (formerly Dilithium3) or SLH-DSA\n"
         "- **TLS:** Enable `X25519Kyber768` or `P256Kyber768` hybrid key exchange\n\n"
-        "_Checked by [PQC Scanner](https://github.com/your-org/pqc-scanner)_"
+        "_Checked by Morrow_"
     )
     return header + body
 

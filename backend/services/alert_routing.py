@@ -891,7 +891,7 @@ def post_json(url: str, payload: Dict[str, Any], timeout: float = 10.0) -> Dict[
     conn = None
     try:
         conn = open_connection(parts.hostname or "", port, address, timeout)
-        conn.request("POST", path, body=body, headers={"Content-Type": "application/json", "User-Agent": "pqc-scanner-alerts/1",
+        conn.request("POST", path, body=body, headers={"Content-Type": "application/json", "User-Agent": "morrow-alerts/1",
                                                         "Content-Length": str(len(body))})
         resp = conn.getresponse()
         text = resp.read(2048).decode("utf-8", errors="replace")
@@ -919,8 +919,8 @@ def _link(base_url: str, route: str) -> str:
 def compose(event: str, items: List[Dict[str, Any]], base_url: str = "", test: bool = False) -> Dict[str, Any]:
     """Subject/text/severity for one message. event: trigger|renotify|digest|test."""
     if test:
-        subject = "[TEST] PQC Scanner alert routing test"
-        text = ("This is a test message from PQC Scanner alert routing. No action is needed; it confirms this channel "
+        subject = "[TEST] Morrow alert routing test"
+        text = ("This is a test message from Morrow alert routing. No action is needed; it confirms this channel "
                 "can receive operator alerts.")
         return {"subject": subject, "text": text, "severity": "info", "link": _link(base_url, "#/alert-routing")}
     if event == "digest":
@@ -929,7 +929,7 @@ def compose(event: str, items: List[Dict[str, Any]], base_url: str = "", test: b
         lines = [f"- [{str(i.get('severity') or '').upper()}] {i.get('title')}" for i in items[:25]]
         if len(items) > 25:
             lines.append(f"- …and {len(items) - 25} more")
-        return {"subject": f"PQC Scanner: {len(items)} more alerts (rate limit reached, digest)",
+        return {"subject": f"Morrow: {len(items)} more alerts (rate limit reached, digest)",
                 "text": "This channel reached its message limit, so these alerts are grouped:\n" + "\n".join(lines),
                 "severity": severity, "link": _link(base_url, "#/notifications")}
     item = items[0]
@@ -965,8 +965,8 @@ def send(channel: Dict[str, Any], plain: str, event: str, items: List[Dict[str, 
             from services import platform_mail
 
             body = message["text"] + (f"\n\nOpen in the admin portal: {message['link']}" if message["link"] else "") + \
-                "\n\n-- \nSent by PQC Scanner alert routing. Change or mute this channel under Operations > Alert routing."
-            sent = platform_mail.send_text(json.loads(plain), "[PQC Scanner] " + message["subject"], body)
+                "\n\n-- \nSent by Morrow alert routing. Change or mute this channel under Operations > Alert routing."
+            sent = platform_mail.send_text(json.loads(plain), "[Morrow] " + message["subject"], body)
             result = {"ok": bool(sent.get("ok")), "http_status": None, "error": sent.get("error") or ""}
         elif kind == "pagerduty":
             from services import alerting

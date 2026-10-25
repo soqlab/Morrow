@@ -229,7 +229,7 @@ function Wrap-Text {
 $slides = @(
   @{
     TextCard = $true
-    Label    = "PQC Scanner"
+    Label    = "Morrow"
     Title    = "The Quantum Migration Crisis"
     Subtitle = "Every major enterprise is carrying risk they cannot see or quantify."
     Bullets  = @(
@@ -238,15 +238,15 @@ $slides = @(
       "Enterprise migration spans cloud, repos, CDNs, cert authorities, and distributed teams",
       "Most companies have no inventory, no owner map, and no governance process"
     )
-    Footer   = "PQC Scanner   -  Cryptographic Governance for the Post-Quantum Era"
-    Narration = "Every major enterprise is carrying quantum cryptographic risk they cannot see. RSA and elliptic-curve encryption  - the cryptography protecting banking systems, healthcare records, government networks, and financial infrastructure  - will be broken by quantum computers. NIST published post-quantum standards in 2024. Regulatory deadlines are real. The migration spans cloud providers, repositories, CDNs, certificate authorities, and distributed teams, and it takes years. Most companies have no clean inventory, no owner map, and no governance process for this. PQC Scanner was built to solve exactly that."
+    Footer   = "Morrow   -  Cryptographic Governance for the Post-Quantum Era"
+    Narration = "Every major enterprise is carrying quantum cryptographic risk they cannot see. RSA and elliptic-curve encryption  - the cryptography protecting banking systems, healthcare records, government networks, and financial infrastructure  - will be broken by quantum computers. NIST published post-quantum standards in 2024. Regulatory deadlines are real. The migration spans cloud providers, repositories, CDNs, certificate authorities, and distributed teams, and it takes years. Most companies have no clean inventory, no owner map, and no governance process for this. Morrow was built to solve exactly that."
     Seconds  = 36
   },
   @{
     Image     = "01-dashboard-hero.png"
     Title     = "1. Cryptographic Command Center"
     Caption   = "One platform: crypto risk, ownership, remediation, validation, drift, and evidence."
-    Narration = "Security teams today are managing post-quantum migration across spreadsheets, manually tracking assets, owners, and remediation state across hundreds of services and teams. PQC Scanner replaces that with a single command center. Every cryptographic risk, owner, remediation stage, validation result, and evidence artifact flows through one interface. This is not just another scanner. It is a cryptographic governance operating system for the migration."
+    Narration = "Security teams today are managing post-quantum migration across spreadsheets, manually tracking assets, owners, and remediation state across hundreds of services and teams. Morrow replaces that with a single command center. Every cryptographic risk, owner, remediation stage, validation result, and evidence artifact flows through one interface. This is not just another scanner. It is a cryptographic governance operating system for the migration."
     Seconds   = 28
   },
   @{
@@ -295,7 +295,7 @@ $slides = @(
     Image     = "08-runtime-topology.png"
     Title     = "8. Runtime Crypto Visibility"
     Caption   = "East-west traffic exposes weak crypto that static code scanning misses entirely."
-    Narration = "Every other product in this market stops at static code scanning. PQC Scanner goes further. Runtime Traffic captures live crypto behavior between services: east-west internal traffic, weak TLS edges, shadow IT exposure, and runtime dependencies that never appear in public endpoint scans. This is a genuine technical differentiator  - the riskiest crypto exposure in most enterprises lives in internal microservices, not public websites."
+    Narration = "Every other product in this market stops at static code scanning. Morrow goes further. Runtime Traffic captures live crypto behavior between services: east-west internal traffic, weak TLS edges, shadow IT exposure, and runtime dependencies that never appear in public endpoint scans. This is a genuine technical differentiator  - the riskiest crypto exposure in most enterprises lives in internal microservices, not public websites."
     Seconds   = 26
   },
   @{
@@ -309,7 +309,7 @@ $slides = @(
     Image     = "10-github-ownership.png"
     Title     = "10. Risk to Engineering Routing"
     Caption   = "Findings route to the repository and team that can actually fix them."
-    Narration = "The only way a security finding becomes an engineering fix is if the right team receives it in their normal workflow. PQC Scanner connects assets to repositories and teams so a cryptographic finding travels directly to the engineering surface that can remediate it  - as a pull request, not an email or a spreadsheet row. This is what separates a governance platform from shelfware."
+    Narration = "The only way a security finding becomes an engineering fix is if the right team receives it in their normal workflow. Morrow connects assets to repositories and teams so a cryptographic finding travels directly to the engineering surface that can remediate it  - as a pull request, not an email or a spreadsheet row. This is what separates a governance platform from shelfware."
     Seconds   = 25
   },
   @{
@@ -330,12 +330,12 @@ $slides = @(
     Image     = "13-closing-dashboard.png"
     Title     = "13. The Platform, Returned to Dashboard"
     Caption   = "The full migration loop: discover, own, remediate, validate, verify, drift, report."
-    Narration = "Every view in this platform serves the same loop: discover cryptographic exposure, assign accountable owners, create remediation candidates, validate the suggested fix, open a pull request, verify the fix externally after deployment, monitor for drift, and produce audit evidence. That loop, repeated across hundreds of assets and teams, is the post-quantum migration program. PQC Scanner is the operating system for it."
+    Narration = "Every view in this platform serves the same loop: discover cryptographic exposure, assign accountable owners, create remediation candidates, validate the suggested fix, open a pull request, verify the fix externally after deployment, monitor for drift, and produce audit evidence. That loop, repeated across hundreds of assets and teams, is the post-quantum migration program. Morrow is the operating system for it."
     Seconds   = 27
   },
   @{
     TextCard = $true
-    Label    = "PQC Scanner"
+    Label    = "Morrow"
     Title    = "Start with a Controlled Pilot"
     Subtitle = "Concrete deliverables in six to eight weeks."
     Bullets  = @(
@@ -344,8 +344,8 @@ $slides = @(
       "One compliance gate failure  - proving the enforcement layer works",
       "One evidence report ready for an auditor, a customer, or a board committee"
     )
-    Footer   = "PQC Scanner   -  Cryptographic Governance for the Post-Quantum Era"
-    Narration = "The go-to-market story is a controlled pilot with a concrete deliverable. One organization. One to three repositories. Real production assets. One complete remediation workflow: scan, correlate, fail the compliance gate, generate a suggestion, validate it, open a pull request, verify the fix externally, run a drift check, and produce a final evidence report. That is a six to eight week pilot story and the foundation for closing the first enterprise deal. PQC Scanner is the only platform built to turn post-quantum migration from a spreadsheet problem into a governed, auditable, engineering-led program."
+    Footer   = "Morrow   -  Cryptographic Governance for the Post-Quantum Era"
+    Narration = "The go-to-market story is a controlled pilot with a concrete deliverable. One organization. One to three repositories. Real production assets. One complete remediation workflow: scan, correlate, fail the compliance gate, generate a suggestion, validate it, open a pull request, verify the fix externally, run a drift check, and produce a final evidence report. That is a six to eight week pilot story and the foundation for closing the first enterprise deal. Morrow is the only platform built to turn post-quantum migration from a spreadsheet problem into a governed, auditable, engineering-led program."
     Seconds  = 40
   }
 )

@@ -370,7 +370,7 @@ _LEVEL_LABELS = {
 def generate_badge_svg(
     maturity_level: Optional[int],
     migration_pct: float,
-    org_name: str = "PQC Scanner",
+    org_name: str = "Morrow",
 ) -> str:
     """
     Generate an SVG badge similar to shields.io style.

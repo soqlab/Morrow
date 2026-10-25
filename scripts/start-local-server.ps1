@@ -129,7 +129,7 @@ if ($Restart) {
 $BaseUrl = "http://127.0.0.1:$Port"
 
 if ($Foreground) {
-  Write-Host "Starting PQC Scanner in foreground: $BaseUrl"
+  Write-Host "Starting Morrow in foreground: $BaseUrl"
   Push-Location $BackendDir
   try {
     & $Python -m uvicorn app:app --host 127.0.0.1 --port $Port --log-level info
@@ -157,7 +157,7 @@ $proc = Start-Process -FilePath $Python `
   -WindowStyle Hidden
 
 Set-Content -LiteralPath $PidFile -Value ([string]$proc.Id)
-Write-Host "Started PQC Scanner process $($proc.Id). Waiting for $BaseUrl/health ..."
+Write-Host "Started Morrow process $($proc.Id). Waiting for $BaseUrl/health ..."
 
 if (Wait-ForHealth -BaseUrl $BaseUrl) {
   Write-Host "Ready: $BaseUrl"

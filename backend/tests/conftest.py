@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for PQC Scanner test suite.
+Shared pytest fixtures for Morrow test suite.
 Uses a temp-file SQLite DB so all connections share the same tables.
 """
 import os

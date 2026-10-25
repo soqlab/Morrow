@@ -472,11 +472,11 @@ def test_ollama_tool_arguments_arrive_as_objects_not_json_strings(wire, no_gate)
 
 def test_a_gateway_gets_its_extra_headers(wire, no_gate):
     provider = make("openai-compatible", headers={"HTTP-Referer": "https://app.example",
-                                                  "X-Title": "PQC Scanner"})
+                                                  "X-Title": "Morrow"})
     wire.enqueue(_OPENAI_ANSWER)
     provider.complete(provider.start(SYSTEM, [], QUESTION), None)
     assert wire.last["headers"]["HTTP-Referer"] == "https://app.example"
-    assert wire.last["headers"]["X-Title"] == "PQC Scanner"
+    assert wire.last["headers"]["X-Title"] == "Morrow"
 
 
 # --------------------------------------------------------------------------- #

@@ -10,7 +10,7 @@
 -- runs it in one transaction, and verifies the result through the runtime role afterwards.
 -- See "4a. Row-level security" in docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md.
 
--- PQC Scanner multi-tenant RLS plan
+-- Morrow multi-tenant RLS plan
 -- The application sets this per connection: SELECT set_config('app.current_organization_id', '<org-id>', false);
 -- and opens the audited cross-tenant path with set_config('app.platform_scope', 'on', false).
 -- Policies are created before RLS is enabled so no table is ever forced without a policy.

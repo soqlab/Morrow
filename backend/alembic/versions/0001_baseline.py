@@ -1,4 +1,4 @@
-"""Baseline existing PQC Scanner schema.
+"""Baseline existing Morrow schema.
 
 Revision ID: 0001_baseline
 Revises:

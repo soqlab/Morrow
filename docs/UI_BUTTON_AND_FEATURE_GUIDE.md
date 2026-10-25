@@ -1,6 +1,6 @@
-﻿# PQC Scanner UI Button and Feature Guide
+﻿# Morrow UI Button and Feature Guide
 
-This guide explains the visible UI controls in PQC Scanner: what each button means, when to use it, what it sends to the backend, and what result to expect.
+This guide explains the visible UI controls in Morrow: what each button means, when to use it, what it sends to the backend, and what result to expect.
 
 Use this document when demoing the product, onboarding an operator, or explaining the workflow to a customer.
 
@@ -939,7 +939,7 @@ What it does:
 
 Use it to explain:
 
-- how PQC Scanner moves from advisor mode to blocking mode
+- how Morrow moves from advisor mode to blocking mode
 - whether a repository is currently safe to merge
 
 ### Load trend

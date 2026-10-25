@@ -272,7 +272,7 @@ def send_email(
     # Build MIME message
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = smtp_from or smtp_user or "noreply@pqc-scanner"
+    msg["From"] = smtp_from or smtp_user or "noreply@morrow"
     msg["To"] = ", ".join(recipients)
     msg.attach(MIMEText(body_html, "html", "utf-8"))
 
@@ -331,7 +331,7 @@ def _build_slack_payload(
                         "type": "header",
                         "text": {
                             "type": "plain_text",
-                            "text": "PQC Scanner Alert",
+                            "text": "Morrow Alert",
                         },
                     },
                     {
@@ -362,7 +362,7 @@ def send_slack(
     message: str,
     event_type: str = "generic",
     severity: str = "info",
-    subject: str = "PQC Scanner Notification",
+    subject: str = "Morrow Notification",
 ) -> Dict[str, Any]:
     """
     Post a Block Kit message to Slack via the organisation's stored webhook URL.

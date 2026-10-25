@@ -249,7 +249,7 @@ Every kind can be chosen in **Only these kinds**, and PagerDuty resolves each of
 Press **Add channel**, choose a **Type**, a **Name**, the target, **Minimum severity** (**Critical only**, **Warn and critical**, **Everything (info, warn, critical)**), optionally **Only these kinds**, **Enabled**, and optional quiet hours (**From**, **Until**, **Time zone (IANA)**, **Still send critical**). Give a reason and press **Save channel**. Then press **Send test** on the row; the message is marked **[TEST]** and the result appears above the list and in the delivery log.
 
 - **Slack incoming webhook**: in Slack, enable Incoming Webhooks for an app, add a webhook for the channel, paste the `https://hooks.slack.com/services/...` URL.
-- **Email**: needs platform email (`PQC_SMTP_HOST` and `PQC_SMTP_FROM`, or `PQC_PLATFORM_SMTP_ORG_ID`). Up to 20 comma-separated addresses. Plain-text messages with subjects like `[PQC Scanner] [CRITICAL] …`.
+- **Email**: needs platform email (`PQC_SMTP_HOST` and `PQC_SMTP_FROM`, or `PQC_PLATFORM_SMTP_ORG_ID`). Up to 20 comma-separated addresses. Plain-text messages with subjects like `[Morrow] [CRITICAL] …`.
 - **PagerDuty Events API v2**: in PagerDuty add the Events API v2 integration to a service and paste its integration (routing) key. The dedup key is the notification id; when the item clears, the incident is resolved. The test opens and immediately resolves a test incident.
 - **Generic webhook (JSON)**: an `https://` URL; each alert is a JSON POST with `source`, `event`, `severity`, `subject`, `text`, `link`, `sent_at` and a `notifications` list.
 

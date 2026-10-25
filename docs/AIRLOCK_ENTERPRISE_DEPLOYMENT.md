@@ -1,6 +1,6 @@
 # Quantum Airlock Enterprise Deployment
 
-Quantum Airlock is the customer-boundary layer for PQC Scanner. It is designed to prove crypto posture without requiring deep access to customer systems.
+Quantum Airlock is the customer-boundary layer for Morrow. It is designed to prove crypto posture without requiring deep access to customer systems.
 
 ## Boundary Contract
 

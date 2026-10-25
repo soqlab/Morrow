@@ -1,6 +1,6 @@
-# PQC Scanner Explained in Plain English
+# Morrow Explained in Plain English
 
-This document explains PQC Scanner for a non-technical reader.
+This document explains Morrow for a non-technical reader.
 
 It avoids assuming you know software engineering, cloud infrastructure, cybersecurity, GitHub, Terraform, Docker, databases, or AI terminology.
 
@@ -13,7 +13,7 @@ The goal is simple:
 
 ## Page 1: The simple idea
 
-PQC Scanner is a security workflow platform.
+Morrow is a security workflow platform.
 
 In simple terms, it helps a company answer this question:
 
@@ -31,13 +31,13 @@ Most companies have public systems such as:
 
 These systems normally use HTTPS. HTTPS depends on cryptography. Cryptography is the math and technology that keeps traffic private and trusted.
 
-PQC Scanner checks those public systems and looks for crypto and TLS posture issues.
+Morrow checks those public systems and looks for crypto and TLS posture issues.
 
 TLS is the technology behind HTTPS. When you see a padlock in the browser, TLS is part of what makes that work.
 
 PQC means post-quantum cryptography.
 
-Post-quantum cryptography is about preparing for a future where quantum computers may break some older cryptographic systems. Most companies are not fully ready for that yet. PQC Scanner helps them understand where they are and move toward safer, more flexible crypto setups.
+Post-quantum cryptography is about preparing for a future where quantum computers may break some older cryptographic systems. Most companies are not fully ready for that yet. Morrow helps them understand where they are and move toward safer, more flexible crypto setups.
 
 The product does not stop at saying:
 
@@ -77,7 +77,7 @@ A normal security workflow looks like this:
 
 That workflow is slow and fragile.
 
-PQC Scanner is designed to make this workflow more direct.
+Morrow is designed to make this workflow more direct.
 
 Instead of only producing alerts, it tries to connect:
 
@@ -97,7 +97,7 @@ For example, if a healthcare company has:
 
 - `portal.carehealth.com:443`
 
-PQC Scanner can treat that as an asset.
+Morrow can treat that as an asset.
 
 An asset is simply something the company wants to monitor. In this product, an asset is usually a public internet endpoint, like a website or API.
 
@@ -386,7 +386,7 @@ Engineers use GitHub to:
 - approve changes
 - merge changes into the main codebase
 
-PQC Scanner connects to GitHub so it can turn security findings into real code changes.
+Morrow connects to GitHub so it can turn security findings into real code changes.
 
 Without GitHub integration, the scanner can still find problems.
 
@@ -425,9 +425,9 @@ A webhook is a message sent from one system to another when something happens.
 For example:
 
 - GitHub pull request is merged
-- GitHub sends a webhook to PQC Scanner
-- PQC Scanner receives the message
-- PQC Scanner marks the remediation as merged
+- GitHub sends a webhook to Morrow
+- Morrow receives the message
+- Morrow marks the remediation as merged
 
 Think of a webhook as:
 
@@ -435,7 +435,7 @@ Think of a webhook as:
 
 The product also has outbound webhooks.
 
-Outbound webhooks mean PQC Scanner can notify other systems, such as:
+Outbound webhooks mean Morrow can notify other systems, such as:
 
 - Slack
 - Discord
@@ -491,7 +491,7 @@ The app should run the same way on:
 
 ### Why Docker matters for this product
 
-PQC Scanner uses Docker because the product is not just one script.
+Morrow uses Docker because the product is not just one script.
 
 It needs:
 
@@ -527,7 +527,7 @@ Think of Terraform as:
 
 ### Why Terraform matters here
 
-PQC Scanner needs cloud infrastructure such as:
+Morrow needs cloud infrastructure such as:
 
 - Cloud Run service
 - Cloud SQL database
@@ -554,11 +554,11 @@ Some customer infrastructure is written in Terraform.
 
 For example, a company may define its load balancer or TLS settings in Terraform.
 
-If PQC Scanner suggests a change to a Terraform file, the platform can run Terraform validation to check whether the new file is valid.
+If Morrow suggests a change to a Terraform file, the platform can run Terraform validation to check whether the new file is valid.
 
 So Terraform is used in two ways:
 
-- to deploy PQC Scanner infrastructure
+- to deploy Morrow infrastructure
 - to validate customer infrastructure code changes
 
 ## Page 8: What the database does
@@ -567,7 +567,7 @@ The database stores the product state.
 
 Without a database, the system would forget everything after a restart.
 
-PQC Scanner uses PostgreSQL, often called Postgres.
+Morrow uses PostgreSQL, often called Postgres.
 
 Postgres stores structured information such as:
 
@@ -721,7 +721,7 @@ Instead of managing servers directly, you give Cloud Run a Docker image and say:
 - run this as a worker
 - scale it within these limits
 
-PQC Scanner uses Cloud Run for:
+Morrow uses Cloud Run for:
 
 - the API service
 - worker processes
@@ -770,7 +770,7 @@ Humans log in with user accounts.
 
 Software services use service accounts.
 
-The PQC Scanner runtime service account is allowed to:
+The Morrow runtime service account is allowed to:
 
 - read needed secrets
 - connect to cloud services
@@ -808,7 +808,7 @@ Auth0 is an identity provider.
 
 It handles login.
 
-Instead of PQC Scanner building its own password system, Auth0 can handle:
+Instead of Morrow building its own password system, Auth0 can handle:
 
 - user accounts
 - login page
@@ -833,7 +833,7 @@ Examples:
 - role
 - organization ID
 
-PQC Scanner reads the JWT and uses it to decide:
+Morrow reads the JWT and uses it to decide:
 
 - who the actor is
 - what role they have
@@ -1169,7 +1169,7 @@ In plain terms:
 
 ## Page 18: Why the product matters
 
-The strongest value of PQC Scanner is that it connects security and engineering.
+The strongest value of Morrow is that it connects security and engineering.
 
 Many tools stop at:
 
@@ -1200,7 +1200,7 @@ The product is especially relevant for:
 
 In one sentence:
 
-PQC Scanner turns external crypto and TLS risk into validated code remediation and verified evidence.
+Morrow turns external crypto and TLS risk into validated code remediation and verified evidence.
 
 ## Page 19: Glossary in simple words
 

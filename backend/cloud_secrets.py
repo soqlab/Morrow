@@ -1,4 +1,4 @@
-"""Cloud-native secret store backends for PQC Scanner credentials.
+"""Cloud-native secret store backends for Morrow credentials.
 
 Activated via the PQC_SECRET_BACKEND environment variable:
 
@@ -75,7 +75,7 @@ def _aws_store(name: str, value: str, description: str = "") -> str:
         client.create_secret(
             Name=secret_name,
             SecretString=value,
-            Description=description or f"PQC Scanner credential: {name}",
+            Description=description or f"Morrow credential: {name}",
         )
     except Exception:
         try:

@@ -594,12 +594,12 @@ def fire_canary_slack_alert(canary: Dict[str, Any]) -> None:
                 {"title": "Location",     "value": location,                               "short": True},
                 {"title": "Asset",        "value": canary.get("asset_key") or "org-wide",  "short": True},
             ],
-            "footer": "PQC Scanner — Quantum Canary Network",
+            "footer": "Morrow — Quantum Canary Network",
         }, {
             "color": "#1e293b",
             "title": "Immediate Action Plan",
             "text": playbook_text,
-            "footer": "Full playbook in PQC Scanner → Quantum Canary Network",
+            "footer": "Full playbook in Morrow → Quantum Canary Network",
         }],
     }
 

@@ -1,10 +1,10 @@
-# PQC Scanner Threat Model
+# Morrow Threat Model
 
 Status: living document for controlled enterprise pilots. Review before every production deployment and after any write-path feature change.
 
 ## 1. System Boundaries
 
-PQC Scanner is a multi-tenant governance platform for quantum-readiness discovery, evidence, remediation workflow, and guarded write-path actions.
+Morrow is a multi-tenant governance platform for quantum-readiness discovery, evidence, remediation workflow, and guarded write-path actions.
 
 Primary trust boundaries:
 

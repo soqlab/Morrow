@@ -108,7 +108,7 @@ def create_jira_issue(
                 {"type": "text", "text": f"Severity: {severity.upper()}  |  Rule: {rule_id}"}]},
             {"type": "heading", "attrs": {"level": 4},
              "content": [{"type": "text", "text": "Remediation"}]},
-            {"type": "paragraph", "content": [{"type": "text", "text": fix or "See PQC Scanner for details."}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": fix or "See Morrow for details."}]},
             *([{"type": "heading", "attrs": {"level": 4},
                 "content": [{"type": "text", "text": "Post-Quantum Note"}]},
                {"type": "paragraph", "content": [{"type": "text", "text": pqc_note}]}]
@@ -214,7 +214,7 @@ def create_servicenow_incident(
     )
 
     payload: Dict[str, Any] = {
-        "short_description": f"[PQC Scanner] {title} — {asset_key}",
+        "short_description": f"[Morrow] {title} — {asset_key}",
         "description": description,
         "urgency": _severity_to_priority_snow(severity),
         "impact":  _severity_to_priority_snow(severity),

@@ -498,7 +498,7 @@ def build_siem_xdr_feed_package(findings: List[Dict[str, Any]], destination: str
         "name": "PQC Crypto-Anomaly HNDL Harvesting Signal",
         "type": "log alert",
         "query": "logs(\"source:pqc-crypto-anomaly @hndl_harvesting_signal:true @score:>55\").index(\"*\").rollup(\"count\").last(\"5m\") > 0",
-        "message": "Potential ciphertext harvesting or crypto anomaly detected. Review PQC Scanner finding payload.",
+        "message": "Potential ciphertext harvesting or crypto anomaly detected. Review Morrow finding payload.",
         "tags": ["pqc", "crypto-anomaly", "hndl"],
     }
     sentinel_kql = """PQC_CryptoAnomaly_CL

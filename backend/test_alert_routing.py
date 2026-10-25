@@ -599,7 +599,7 @@ def test_email_channel_sends_a_plain_message(api, net, monkeypatch):
     ar.run_once(snapshot([item("sla_breach:1")]), now=NOW)
     assert len(net.emails) == 1
     assert net.emails[0]["to"] == ["oncall@example.com", "sec@example.com"]
-    assert net.emails[0]["subject"].startswith("[PQC Scanner] [CRITICAL]")
+    assert net.emails[0]["subject"].startswith("[Morrow] [CRITICAL]")
 
 
 def test_no_channels_means_no_snapshot_work(api, net):

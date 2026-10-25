@@ -140,7 +140,7 @@ def build_emergency_response_plan(
 
     # Immediate actions (T+0h) — always first
     immediate_actions = [
-        "Activate War Room — open PQC Scanner War Room and monitor live events",
+        "Activate War Room — open Morrow War Room and monitor live events",
         f"Declare emergency to: {declared_by}, Legal, Communications, CISO, Board (if Q-Day or regulatory)",
         "Freeze all new deployments that introduce RSA/ECDH cryptography",
         "Increase monitoring frequency on all external TLS endpoints to 15-minute intervals",
@@ -241,7 +241,7 @@ def _build_phases(
                 "Deploy ML-DSA-65 certificates on externally-facing services",
                 "Verify PQC negotiation with: openssl s_client -groups X25519MLKEM768",
                 "Update canary tokens on migrated endpoints",
-                "Scan and confirm migration success via PQC Scanner",
+                "Scan and confirm migration success via Morrow",
             ],
             "success": f"0 critical-risk assets remain; all {len(critical)} migrated and verified",
         },
@@ -304,7 +304,7 @@ def _build_comms(etype: str, vuln_count: int, event: Dict) -> List[Dict[str, Any
             "timing": "T+0h",
             "channel": "Slack / Teams war room channel",
             "message": "Crypto emergency declared. Freeze all RSA/ECDH deployments. "
-                       "Report to #pqc-emergency channel. Migration configs in PQC Scanner.",
+                       "Report to #pqc-emergency channel. Migration configs in Morrow.",
             "format": "Instant message + pinned instructions",
         },
         {

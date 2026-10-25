@@ -1,6 +1,6 @@
 # Open-Source Readiness Review
 
-**Repository:** Morrow / PQC Scanner
+**Repository:** Morrow
 **Owner:** Yasseen Nandally
 **Target licence:** MIT
 **Review date:** 3 October 2026

@@ -329,7 +329,7 @@ def _b64url(data: bytes) -> str:
 
 def http_get_json(url: str) -> Dict[str, Any]:
     """Fetch JSON. Tests replace this function; production uses urllib with a short timeout."""
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "pqc-scanner-admin-sso"})
+    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "morrow-admin-sso"})
     with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 - https issuer configured by the operator
         return json.loads(resp.read().decode("utf-8") or "{}")
 
@@ -338,7 +338,7 @@ def http_post_form(url: str, form: Dict[str, str], headers: Optional[Dict[str, s
     body = urllib.parse.urlencode(form).encode("ascii")
     req = urllib.request.Request(url, data=body, method="POST", headers={
         "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "pqc-scanner-admin-sso", **(headers or {}),
+        "User-Agent": "morrow-admin-sso", **(headers or {}),
     })
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310

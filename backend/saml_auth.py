@@ -1,4 +1,4 @@
-"""SAML 2.0 SSO support for PQC Scanner.
+"""SAML 2.0 SSO support for Morrow.
 
 Activated when all three env vars are set:
   PQC_SAML_SP_ENTITY_ID      e.g., https://pqc.yourco.com

@@ -1,7 +1,7 @@
 """
 CycloneDX 1.6 Cryptography Bill of Materials (CBOM) generator.
 
-Produces a CBOM from PQC Scanner scan results that validates against the official CycloneDX 1.6
+Produces a CBOM from Morrow scan results that validates against the official CycloneDX 1.6
 JSON schema (vendored under schemas/cyclonedx/ and enforced by test_cbom_conformance.py).
 
 Spec: https://cyclonedx.org/specification/overview/
@@ -572,13 +572,13 @@ def generate_cbom(scan_results: List[Dict[str, Any]],
             "tools": {"components": [{
                 "type": "application",
                 "name": "pqc-scanner",
-                "publisher": "PQC Scanner",
+                "publisher": "Morrow",
                 "version": TOOL_VERSION,
             }]},
             "component": {
                 "type": "platform",
                 "bom-ref": root_ref,
-                "name": org_name or "PQC Scanner Export",
+                "name": org_name or "Morrow Export",
                 **({"description": f"Scan ID: {scan_id}"} if scan_id else {}),
             },
         },
@@ -646,7 +646,7 @@ def _vulnerabilities_from_results(results: List[Dict[str, Any]]) -> List[Dict[st
             entry: Dict[str, Any] = {
                 "bom-ref": vuln_ref,
                 "id": f"PQC-{rule}",
-                "source": {"name": "PQC Scanner"},
+                "source": {"name": "Morrow"},
                 "ratings": [{"severity": severity, "method": "other"}],
                 "affects": [{"ref": target_ref}],
             }

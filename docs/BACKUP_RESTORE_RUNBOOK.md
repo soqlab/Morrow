@@ -5,7 +5,7 @@
 Covers product Postgres data, the cluster-level roles the application connects as, the SQLite file
 that still holds a number of features, Redis transient queues, and secret recovery expectations.
 
-A PQC Scanner deployment is **four** things, and restoring one of them is not a restore:
+A Morrow deployment is **four** things, and restoring one of them is not a restore:
 
 | Artefact | What it holds | Taken with |
 | --- | --- | --- |

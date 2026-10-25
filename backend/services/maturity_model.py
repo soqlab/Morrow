@@ -350,7 +350,7 @@ def compute_maturity(
             "composite_score": round(composite, 2),
             "issued_at": now.isoformat()[:10],
             "valid_until": f"{now.year + 1}-{now.month:02d}-{now.day:02d}",
-            "issuer": "PQC Scanner Maturity Assessment Framework",
+            "issuer": "Morrow Maturity Assessment Framework",
             "sha256_fingerprint": hashlib.sha256(f"{cert_id}:{composite:.4f}:{now.isoformat()[:10]}".encode()).hexdigest(),
         },
     }

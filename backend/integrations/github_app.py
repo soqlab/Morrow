@@ -36,7 +36,7 @@ def _github_api(
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "pqc-scanner-github-app",
+        "User-Agent": "morrow-github-app",
     }
     data = None
     if body is not None:

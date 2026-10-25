@@ -1,5 +1,5 @@
 """
-Slack alert notifications for PQC Scanner.
+Slack alert notifications for Morrow.
 
 Sends a formatted message to a Slack incoming webhook URL when a scan
 finishes with findings above the configured severity threshold.
@@ -114,7 +114,7 @@ def notify_scan_complete(
 
     # Header text
     hosts_scanned = len([r for r in results if not r.get("error")])
-    header = f"{emoji} *PQC Scanner — {worst_sev.upper()} findings detected*"
+    header = f"{emoji} *Morrow — {worst_sev.upper()} findings detected*"
     summary = (
         f"Scan of *{hosts_scanned}* host{'s' if hosts_scanned != 1 else ''}  "
         f"| *{total_findings}* finding{'s' if total_findings != 1 else ''} ≥ {threshold_name}  "
@@ -157,7 +157,7 @@ def notify_scan_complete(
                 "color": color,
                 "text": summary,
                 "fields": fields,
-                "footer": "PQC Scanner",
+                "footer": "Morrow",
                 "ts": None,
                 **({"actions": actions} if actions else {}),
             }
@@ -170,10 +170,10 @@ def notify_scan_complete(
 def test_slack_webhook(webhook_url: str) -> bool:
     """Send a test message to verify a webhook URL works."""
     return _post(webhook_url, {
-        "text": "✅ *PQC Scanner* — Slack notifications are configured correctly.",
+        "text": "✅ *Morrow* — Slack notifications are configured correctly.",
         "attachments": [{
             "color": "#22C55E",
             "text": "This is a test message. Real alerts will appear here when scans detect critical or high findings.",
-            "footer": "PQC Scanner",
+            "footer": "Morrow",
         }],
     })

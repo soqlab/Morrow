@@ -112,7 +112,7 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
     """
     Scan an SSH endpoint for quantum-vulnerability assessment.
 
-    Returns a dict compatible with the PQC Scanner result format,
+    Returns a dict compatible with the Morrow result format,
     including a `findings` list using the same severity/rule_id schema.
     """
     result: Dict[str, Any] = {

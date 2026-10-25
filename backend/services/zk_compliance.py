@@ -52,7 +52,7 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
     "NIST_SP_800_208": {
         "name": "NIST SP 800-208 — PQC Transition",
         "description": "NIST recommendation for migration to quantum-resistant algorithms.",
-        "thresholds_authored_by": "pqc-scanner",
+        "thresholds_authored_by": "morrow",
         "thresholds_note": (
             "NIST SP 800-208 sets no migration percentage. The numeric thresholds below are this "
             "platform's own policy profile, not text quoted from the publication."
@@ -68,7 +68,7 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
     "CNSA_2": {
         "name": "CNSA 2.0 — NSA Commercial Algorithm Suite",
         "description": "NSA mandatory algorithm suite for National Security Systems.",
-        "thresholds_authored_by": "pqc-scanner",
+        "thresholds_authored_by": "morrow",
         "thresholds_note": (
             "CNSA 2.0 does require full migration of National Security Systems; the remaining "
             "numeric thresholds below are this platform's own policy profile."
@@ -85,7 +85,7 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
     "NIS2": {
         "name": "NIS2 Directive — EU Network Security",
         "description": "EU NIS2 cybersecurity requirements for essential entities.",
-        "thresholds_authored_by": "pqc-scanner",
+        "thresholds_authored_by": "morrow",
         "thresholds_note": (
             "NIS2 sets no PQC migration percentage or endpoint count. The numeric thresholds below "
             "are this platform's own policy profile, not text quoted from the Directive."
@@ -101,7 +101,7 @@ COMPLIANCE_STANDARDS: Dict[str, Dict[str, Any]] = {
     "DORA": {
         "name": "DORA — EU Digital Operational Resilience Act",
         "description": "EU DORA requirements for financial sector cryptographic resilience.",
-        "thresholds_authored_by": "pqc-scanner",
+        "thresholds_authored_by": "morrow",
         "thresholds_note": (
             "DORA sets no PQC migration percentage. The numeric thresholds below are this "
             "platform's own policy profile, not text quoted from the Regulation."

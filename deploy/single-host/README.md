@@ -26,8 +26,8 @@ invoice directly, take cards through Polar, or leave both dormant.
 
 ```bash
 sudo mkdir -p /srv && sudo chown "$USER" /srv
-git clone <your forge URL> /srv/pqc-scanner
-cd /srv/pqc-scanner
+git clone <your forge URL> /srv/morrow
+cd /srv/morrow
 ```
 
 ## 2. Secrets
@@ -157,7 +157,7 @@ can read every tenant.
 echo "BACKUP_GPG_RECIPIENT=you@your-domain.com" >> .env.prod
 echo "BACKUP_REMOTE=b2:your-backup-bucket" >> .env.prod   # any rclone remote
 
-( crontab -l 2>/dev/null; echo "15 3 * * * cd /srv/pqc-scanner && ./deploy/single-host/backup.sh >> backups/backup.log 2>&1" ) | crontab -
+( crontab -l 2>/dev/null; echo "15 3 * * * cd /srv/morrow && ./deploy/single-host/backup.sh >> backups/backup.log 2>&1" ) | crontab -
 ./deploy/single-host/backup.sh      # run it once now and read the output
 ```
 
@@ -211,7 +211,7 @@ anyone else does.
 ## Updating later
 
 ```bash
-cd /srv/pqc-scanner && git pull
+cd /srv/morrow && git pull
 $C build
 $C run --rm -e AUTO_MIGRATE=1 api true
 $C up -d

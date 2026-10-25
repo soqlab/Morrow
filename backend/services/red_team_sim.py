@@ -527,7 +527,7 @@ def _build_countermeasures(
         "priority":    6,
         "label":       "LOW — Enable HNDL canary monitoring",
         "description": "Deploy canary endpoints that alert when encrypted traffic to them is captured and later replayed.",
-        "action":      "Configure PQC Scanner canary module with token-based endpoints on critical services.",
+        "action":      "Configure Morrow canary module with token-based endpoints on critical services.",
         "playbook":    None,
     })
 

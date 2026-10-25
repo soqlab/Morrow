@@ -1,6 +1,6 @@
-# PQC Scanner: Try It In The Cloud
+# Morrow: Try It In The Cloud
 
-This guide is for someone using PQC Scanner through a hosted web URL in a browser.
+This guide is for someone using Morrow through a hosted web URL in a browser.
 
 It is intentionally non-technical. It explains:
 
@@ -72,7 +72,7 @@ If you want to use repository and remediation features, the environment should a
 - a GitHub App credential configured
 - the GitHub App installed in at least one repository or organization
 - GitHub installations synced
-- repositories synced into PQC Scanner
+- repositories synced into Morrow
 
 If you want to use AI remediation suggestions, the environment should also have:
 
@@ -136,7 +136,7 @@ Examples of real targets:
 - `checkout.shopco.com:443`
 - `api.shopco.com:443`
 
-An asset in PQC Scanner is usually a public endpoint like:
+An asset in Morrow is usually a public endpoint like:
 
 - `hostname:port`
 

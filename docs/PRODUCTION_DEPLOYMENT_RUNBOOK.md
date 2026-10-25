@@ -1,6 +1,6 @@
 # Production Deployment Runbook
 
-This runbook is for a production-like Cloud Run deployment of PQC Scanner.
+This runbook is for a production-like Cloud Run deployment of Morrow.
 
 ## 1. Preflight
 

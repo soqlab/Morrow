@@ -7,7 +7,7 @@
 #   env-<stamp>.gpg          .env.prod, encrypted, only when BACKUP_GPG_RECIPIENT is set
 #
 # Schedule it:
-#   ( crontab -l 2>/dev/null; echo "15 3 * * * cd /srv/pqc-scanner && ./deploy/single-host/backup.sh >> backups/backup.log 2>&1" ) | crontab -
+#   ( crontab -l 2>/dev/null; echo "15 3 * * * cd /srv/morrow && ./deploy/single-host/backup.sh >> backups/backup.log 2>&1" ) | crontab -
 #
 # Then restore it once, onto a scratch host, before anything depends on it.
 set -euo pipefail

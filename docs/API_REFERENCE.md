@@ -1,4 +1,4 @@
-﻿# PQC Scanner API Reference
+﻿# Morrow API Reference
 
 This file is the grouped route inventory for `backend/app.py`. Selected write endpoints accept `Idempotency-Key` or `X-Idempotency-Key` headers to prevent duplicate side effects during retries. Current protected flows include remediation suggestion, validation, PR creation, CI status/check publishing, GitHub crypto discovery when creating records, autonomous remediation candidates, and cloud HNDL inventory.
 
