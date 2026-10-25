@@ -27,6 +27,13 @@ const EMAIL = "avery.chen@example.com";
 const PASSWORD = "Airlock-Demo-Recording-8049";
 const FPS = 60;
 const W = 1920, H = 1080;
+/* Supersampling factor for capture. Frames are rasterised at SS x 1080p and
+   lanczos-downscaled to 1080p by the encoder. 2 was the original; 1.5 is 44 %
+   fewer pixels per frame, which on an 8 GB machine already paging is the
+   difference between a render that crawls and one that runs. After the
+   downscale the two are not distinguishable -- type and canvas charts are
+   still drawn above the size they are seen at. */
+const SS = Number(process.env.PQC_RENDER_SS || 1.5);
 const FRAME_MS = 1000 / FPS;
 
 /* ------------------------------------------------------------------ browser */
@@ -56,7 +63,7 @@ async function open(opts) {
   });
   const ctx = await browser.newContext({
     viewport: { width: W, height: H },
-    deviceScaleFactor: 2,
+    deviceScaleFactor: SS,
     colorScheme: "dark",
     // No reducedMotion and no paused preference: the product animates.
   });
@@ -139,6 +146,18 @@ function makeClock(cdp) {
     async free(ms) {
       await cdp.send("Emulation.setVirtualTimePolicy", { policy: "advance", budget: ms || 4000 });
     },
+    /** Hand the page back to real time, with no budget and no pausing.
+     *
+     *  The warning on `free` above is about pages that animate: an unbounded
+     *  advance lets their requestAnimationFrame loops run as fast as the CPU
+     *  allows and the renderer stops answering. That does not apply to a page
+     *  that schedules no frames at all -- /r/{domain} ships no JavaScript -- and
+     *  for those the opposite is true: pausing on a frame that never arrives is
+     *  exactly what wedges the capture. Only use this where nothing on the page
+     *  is moving. */
+    async release() {
+      await cdp.send("Emulation.setVirtualTimePolicy", { policy: "advance" });
+    },
     get elapsed() { return vt; },
   };
 }
@@ -168,7 +187,7 @@ async function shoot(cdp, zoom, sx, sy, dx, dy) {
     clip: {
       x: (sx || 0) + (W - w) / 2 + (dx || 0),
       y: (sy || 0) + (H - h) / 2 + (dy || 0),
-      width: w, height: h, scale: 2 * z,
+      width: w, height: h, scale: SS * z,
     },
   }), 20000);
   return Buffer.from(res.data, "base64");
