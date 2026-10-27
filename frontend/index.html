@@ -2779,7 +2779,9 @@ ACTIONS.demoStart = async (b) => {
   const r = await safe("/demo/start", { method: "POST" });
   if (!r.ok || !r.data?.access_token) {
     b.disabled = false; b.innerHTML = label;
-    return showLoginError("Demo unavailable", r.data?.detail || "Could not create a workspace. Try again in a moment.");
+    // The server explains a refusal (for example the per-network hourly limit); show its reason.
+    const reason = (r.err || "").replace(/^\d{3} · /, "").trim();
+    return showLoginError("Demo unavailable", reason || "Could not create a workspace. Try again in a moment.");
   }
   S.token = r.data.access_token; S.refresh = ""; S.key = ""; S.org = r.data.org_id;
   saveAuth();

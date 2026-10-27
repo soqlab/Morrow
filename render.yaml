@@ -22,8 +22,9 @@ services:
         value: "3600"
       - key: MORROW_DEMO_MAX_WORKSPACES
         value: "25"
+      # Offices and universities share one public address, so this is per network, not per person.
       - key: MORROW_DEMO_STARTS_PER_IP_HOUR
-        value: "5"
+        value: "20"
       - key: MORROW_ENVIRONMENT
         value: local
       - key: MORROW_MAIN_DB_BACKEND
