@@ -2780,7 +2780,9 @@ ACTIONS.demoStart = async (b) => {
   if (!r.ok || !r.data?.access_token) {
     b.disabled = false; b.innerHTML = label;
     // The server explains a refusal (for example the per-network hourly limit); show its reason.
-    const reason = (r.err || "").replace(/^\d{3} · /, "").trim();
+    let reason = (r.err || "").replace(/^\d{3} · /, "").trim();
+    // A proxy error page (the demo restarting or waking up) is HTML, not a reason to show.
+    if (/^</.test(reason) || reason.length > 200) reason = "The demo is starting up. Try again in a minute.";
     return showLoginError("Demo unavailable", reason || "Could not create a workspace. Try again in a moment.");
   }
   S.token = r.data.access_token; S.refresh = ""; S.key = ""; S.org = r.data.org_id;
