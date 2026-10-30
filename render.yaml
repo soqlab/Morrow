@@ -83,8 +83,6 @@ services:
         value: /data/morrow.db
       - key: MORROW_DATA_DIR
         value: /data
-      - key: REDIS_PASSWORD
-        generateValue: true
       - key: MORROW_PUBLIC_BASE_URL
         value: https://app.morrow.soqlab.com
       - key: MORROW_ALLOWED_HOSTS

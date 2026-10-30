@@ -7,13 +7,12 @@ set -eu
 chown -R appuser:appuser /data
 AS_APP="setpriv --reuid=appuser --regid=appuser --init-groups"
 
-if [ -z "${REDIS_PASSWORD:-}" ]; then
-  echo "FATAL: REDIS_PASSWORD is not set." >&2
-  exit 1
-fi
-
 # Redis is the Celery queue only and listens on localhost. Nothing durable lives in it: scan
 # results are written to the database, so a restart loses at most the jobs still queued.
+# Its password is generated here on every start, as hex: it goes into redis:// URLs, where a
+# "/" or "+" (as in Render's generated values) breaks parsing, and nothing outside needs it.
+REDIS_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+export REDIS_PASSWORD
 $AS_APP redis-server --bind 127.0.0.1 --port 6379 --requirepass "$REDIS_PASSWORD" \
   --dir /tmp --save "" --appendonly no --maxmemory 64mb --maxmemory-policy noeviction \
   --daemonize yes --logfile /tmp/redis.log
