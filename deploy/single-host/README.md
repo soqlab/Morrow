@@ -39,10 +39,11 @@ cp .env.prod.example .env.prod
 chmod 600 .env.prod
 
 python3 - <<'PY'
-import secrets
+import base64, secrets
 print("POSTGRES_PASSWORD=" + secrets.token_urlsafe(32))
 print("MORROW_PLATFORM_ADMIN_KEY=" + secrets.token_urlsafe(48))
-print("MORROW_VAULT_MASTER_KEY=" + secrets.token_urlsafe(48))
+# A Fernet key: 32 random bytes, URL-safe base64. Any other shape fails at the first encryption.
+print("MORROW_VAULT_MASTER_KEY=" + base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())
 print("MORROW_AIRLOCK_SIGNING_KEY=" + secrets.token_urlsafe(48))
 PY
 ```

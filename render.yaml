@@ -47,3 +47,110 @@ services:
         value: "0"
       - key: MORROW_ALERT_DISPATCH_ENABLED
         value: "0"
+
+  # Hosted Morrow (app.morrow.soqlab.com): real accounts and saved scans, invitation only.
+  #
+  # One Starter service runs the API, the Celery worker with beat embedded, and Redis on
+  # localhost (deploy/render-hosted). Postgres is the managed database morrow-db below. The disk
+  # holds the SQLite feature store, which includes the built-in password accounts.
+  #
+  # MORROW_ENVIRONMENT is staging, not production, until customers sign in through an external
+  # identity provider: the production startup check requires an RS256 issuer with a JWKS URL, and
+  # the built-in password sign-in only issues HS256 tokens. Staging keeps the operator rules
+  # strict (MFA required, shared platform key refused). docs/LAUNCH_CHECKLIST.md lists the rest.
+  - type: web
+    name: morrow-app
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./deploy/render-hosted/Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    disk:
+      name: morrow-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: MORROW_ENVIRONMENT
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: morrow-db
+          property: connectionString
+      - key: MORROW_MAIN_DB_BACKEND
+        value: postgres
+      - key: MORROW_SCANNER_DB
+        value: /data/morrow.db
+      - key: MORROW_DATA_DIR
+        value: /data
+      - key: REDIS_PASSWORD
+        generateValue: true
+      - key: MORROW_PUBLIC_BASE_URL
+        value: https://app.morrow.soqlab.com
+      - key: MORROW_ALLOWED_HOSTS
+        value: app.morrow.soqlab.com,morrow-app.onrender.com
+      - key: MORROW_CORS_ORIGINS
+        value: https://app.morrow.soqlab.com
+      # Render's proxy sets X-Forwarded-For; without this every visitor is Render's address.
+      - key: MORROW_TRUST_PROXY_HEADERS
+        value: "1"
+      - key: MORROW_AUTH_MODE
+        value: jwt
+      - key: MORROW_AUTH_REQUIRED
+        value: "1"
+      - key: MORROW_DEFAULT_ROLE
+        value: viewer
+      - key: MORROW_AUTH_ISSUER_ENABLED
+        value: "1"
+      - key: MORROW_AUTH_JWT_ALGORITHMS
+        value: HS256
+      - key: MORROW_AUTH_JWT_SECRET
+        generateValue: true
+      # First customer-side account (org owner). Set in the dashboard; never committed.
+      - key: MORROW_ADMIN_EMAIL
+        sync: false
+      - key: MORROW_ADMIN_PASSWORD
+        sync: false
+      # Operator portal (/vendor-admin): a named key plus an authenticator app. Only the key's
+      # SHA-256 is here; the key itself is in the owner's password manager.
+      - key: MORROW_PLATFORM_OPERATORS
+        value: '[{"name": "owner", "role": "owner", "key_sha256": "16f76356012827b0a047256036d1327a0d377ef2ba2785b45149c3db3a326f4f"}]'
+      - key: MORROW_ADMIN_REQUIRE_MFA
+        value: "1"
+      - key: MORROW_ALLOW_BREAK_GLASS_KEY
+        value: "0"
+      - key: MORROW_PLATFORM_ADMIN_KEY
+        generateValue: true
+      # Decrypts stored customer credentials and MFA secrets. It must be a Fernet key
+      # (Fernet.generate_key()), which generateValue does not produce, so it is set in the
+      # dashboard. Keep a copy in a password manager: without it a restored backup cannot be read.
+      - key: MORROW_VAULT_MASTER_KEY
+        sync: false
+      - key: MORROW_AIRLOCK_SIGNING_KEY
+        generateValue: true
+      - key: MORROW_AIRLOCK_REQUIRE_AGENT_SIGNATURE
+        value: "1"
+      - key: MORROW_ALLOW_PLATFORM_KEY_QUERY
+        value: "0"
+      - key: MORROW_CSP_ENABLED
+        value: "1"
+      - key: MORROW_TRAFFIC_MONITOR_ENABLED
+        value: "1"
+      - key: MORROW_TRAFFIC_PERSIST_TO_DB
+        value: "1"
+      - key: MORROW_TRIAL_API_CALLS_PER_MIN
+        value: "60"
+      - key: MORROW_TRIAL_SCANS_PER_HOUR
+        value: "10"
+      # The free checker scans hosts the requester may not own: off until the abuse mailbox and
+      # legal review in docs/LAUNCH_CHECKLIST.md part 3 exist.
+      - key: MORROW_PUBLIC_CHECK_ENABLED
+        value: "0"
+
+databases:
+  - name: morrow-db
+    plan: basic-256mb
+    region: oregon
+    databaseName: morrow
+    user: morrow
+    ipAllowList: []
