@@ -115,6 +115,9 @@ services:
         value: '[{"name": "owner", "role": "owner", "key_sha256": "16f76356012827b0a047256036d1327a0d377ef2ba2785b45149c3db3a326f4f"}]'
       - key: MORROW_ADMIN_REQUIRE_MFA
         value: "1"
+      # A named key stays verified this long after its last authenticator code (default 8 hours).
+      - key: MORROW_ADMIN_SESSION_ABSOLUTE_SECONDS
+        value: "3600"
       - key: MORROW_ALLOW_BREAK_GLASS_KEY
         value: "0"
       - key: MORROW_PLATFORM_ADMIN_KEY

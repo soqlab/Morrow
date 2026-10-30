@@ -1253,6 +1253,14 @@
       if (who.ok && who.data.csrf_token) sessionAuth.csrf = who.data.csrf_token;
       applyIdentity(who.ok ? who.data : null);
       document.dispatchEvent(new CustomEvent("admin:identity", { detail: who.ok ? who.data : null }));
+      // A named operator key that still needs its authenticator: every other route answers 401 until
+      // it is enrolled and verified, so hand over to the authenticator step instead of failing the load.
+      const mfa = who.ok ? who.data.mfa : null;
+      if (!sessionAuth.active && mfa && mfa.can_enrol && !mfa.elevated && (mfa.enrolled || mfa.required) && window.AdminAuth?.keyChallenge) {
+        window.AdminAuth.keyChallenge(who.data);
+        setStatus("Confirm with your authenticator app to continue.", "warn");
+        return;
+      }
       const autopatchQuery = new URLSearchParams({ limit: "100" });
       if ($("autopatchStatus")?.value) autopatchQuery.set("status", $("autopatchStatus").value);
       const paths = ["/platform/metrics", "/platform/customers", authEventsPath(), "/platform/health", "/platform/readiness", `/platform/admin-events/search?${eventsQuery(0)}`, `/platform/autopatches?${autopatchQuery}`, "/platform/security-truth?limit=80", "/platform/incidents", "/platform/abuse", "/platform/admin-mode"];

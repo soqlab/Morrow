@@ -37,7 +37,17 @@
     if (d && typeof d === "object") return d.message || d.code || `${res.status}`;
     return d || `${res.status} ${res.statusText}`;
   };
+  // A named operator key has no session cookie, so while one is signing in the calls below go
+  // through the console's api(), which sends the key header.
+  let viaKey = false;
   async function call(path, { method = "GET", json, csrf = "" } = {}) {
+    if (viaKey && A()) {
+      try {
+        return { res: { ok: true, status: 200, statusText: "OK" }, data: (await A().api(path, { method, json, noRole: true })) || {} };
+      } catch (err) {
+        return { res: { ok: false, status: err.status || 0, statusText: "" }, data: { detail: { code: err.code || "", message: err.message || String(err) } } };
+      }
+    }
     const headers = {};
     if (csrf) headers["x-csrf-token"] = csrf;
     if (json !== undefined) headers["Content-Type"] = "application/json";
@@ -92,8 +102,20 @@
 
   function connect(data) {
     $("mfaStep").hidden = true;
-    A().useSession(data.csrf_token);
+    if (viaKey) {
+      $("keyDisclosure").hidden = false;
+    } else {
+      A().useSession(data.csrf_token);
+    }
     A().loadPortal().catch(A().reportLoadError);
+  }
+
+  // Called by the console when a named operator key needs its authenticator first.
+  function keyChallenge(data) {
+    viaKey = true;
+    who = data;
+    showError("");
+    proceed(data);
   }
 
   async function startFlow(mode) {
@@ -307,7 +329,7 @@
       (flow.recovery ? $("mfaRecovery") : $("mfaCode")).focus();
     });
     $("mfaCancel")?.addEventListener("click", async () => {
-      await call("/platform/session/logout", { method: "POST", csrf: who?.csrf_token }).catch(() => {});
+      if (!viaKey) await call("/platform/session/logout", { method: "POST", csrf: who?.csrf_token }).catch(() => {});
       location.replace("/vendor-admin/");
     });
     document.addEventListener("admin:identity", event => { if (event.detail) { who = event.detail; renderMenu(event.detail); } });
@@ -351,7 +373,7 @@
     });
   }
 
-  window.AdminAuth = { stepUp, config: () => config, identity: () => who, loadOperatorSessions, loadMfaOperators };
+  window.AdminAuth = { stepUp, keyChallenge, config: () => config, identity: () => who, loadOperatorSessions, loadMfaOperators };
   wire();
   boot().catch(err => showError(err.message || String(err)));
 })();
