@@ -2232,6 +2232,8 @@ def _auth_public_path(path: str) -> bool:
         # Invitation landing page and its token preview (rate limited; returns only a masked summary).
         "/invite",
         "/auth/invite/preview",
+        # Creating the account an invitation names (rate limited; the token is the authorization).
+        "/auth/invite/register",
         # Console banner source. Anonymous callers only see notices addressed to everyone.
         "/announcements/active",
     }:
@@ -24583,6 +24585,63 @@ async def auth_register(request: Request):
         return {"user": user}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+class InviteRegisterRequest(BaseModel):
+    token: str = Field(..., min_length=16, max_length=256)
+    password: str = Field(..., min_length=1, max_length=200)
+    full_name: str = Field("", max_length=200)
+
+
+@app.post("/auth/invite/register")
+@limiter.limit(_RATE_AUTH)
+async def auth_invite_register(body: InviteRegisterRequest, request: Request):
+    """Create the built-in account an invitation names, accept the invitation, and sign in.
+
+    /auth/register is admin-only, so on its own a new customer had no way in: the invitation page
+    could only say "ask the person who invited you to create an account", and for the first person
+    in a new organization there is nobody to ask. Holding the invitation token is the proof here,
+    as it already is for accepting: the address comes from the invitation, never from the request,
+    and an address that already has an account is sent to sign in instead.
+    """
+    _require_auth_issuer_enabled()
+
+    def register():
+        invitation = _invite_links.usable_invitation(body.token)
+        if not invitation:
+            _auth_journal(request, "invite_register.refused", subject="", status_code=404, required=False)
+            raise HTTPException(404, "This invitation can't be used to create an account: it may have expired or already been used.")
+        email = invitation["email"]
+        with _db() as db:
+            try:
+                user = _issuer_create_user(db, email, body.password, body.full_name.strip(), "viewer", invitation["org_id"])
+            except ValueError as exc:
+                if "already registered" in str(exc):
+                    raise HTTPException(409, "An account already exists for this address. Sign in to accept the invitation.") from None
+                raise HTTPException(400, str(exc)) from None
+        try:
+            _platform_access.accept_invitation_for_user(body.token, user_id=user["id"], email=email)
+        except _platform_access.InvitationError as exc:
+            # Lost a race for the invitation: remove the account it would have justified.
+            with _db() as db:
+                db.execute("DELETE FROM morrow_users WHERE id=?", (user["id"],))
+                db.commit()
+            raise HTTPException(exc.status_code, exc.detail) from None
+        with _db() as db:
+            result = _issuer_login(db, email, body.password)
+            if not result:
+                raise HTTPException(503, "The account was created but sign-in failed; sign in from the console.")
+            try:
+                # Recorded as the sign-in it is, so logins and active users in the operator
+                # analytics count it like any other password sign-in.
+                _auth_journal(request, "login.success", user=result["user"], subject=email)
+            except HTTPException:
+                _issuer_revoke(db, result["refresh_token"])
+                raise
+            return result
+
+    result = await run_in_threadpool(register)
+    return JSONResponse(result, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
 
 
 @app.get("/auth/me")

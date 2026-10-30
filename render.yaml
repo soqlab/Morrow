@@ -51,8 +51,10 @@ services:
   # Hosted Morrow (app.morrow.soqlab.com): real accounts and saved scans, invitation only.
   #
   # One Starter service runs the API, the Celery worker with beat embedded, and Redis on
-  # localhost (deploy/render-hosted). Postgres is the managed database morrow-db below. The disk
-  # holds the SQLite feature store, which includes the built-in password accounts.
+  # localhost (deploy/render-hosted). All data is SQLite on the service's disk (WAL mode), so the
+  # API and the worker share one file. Render snapshots the disk daily. Customer separation is
+  # enforced by the application's organization scoping; Postgres row-level security, the second
+  # layer, applies only on Postgres. See deploy/render-hosted/README.md.
   #
   # MORROW_ENVIRONMENT is staging, not production, until customers sign in through an external
   # identity provider: the production startup check requires an RS256 issuer with a JWKS URL, and
@@ -73,12 +75,10 @@ services:
     envVars:
       - key: MORROW_ENVIRONMENT
         value: staging
-      - key: DATABASE_URL
-        fromDatabase:
-          name: morrow-db
-          property: connectionString
       - key: MORROW_MAIN_DB_BACKEND
-        value: postgres
+        value: sqlite
+      - key: MORROW_FEATURE_STORE_BACKEND
+        value: sqlite
       - key: MORROW_SCANNER_DB
         value: /data/morrow.db
       - key: MORROW_DATA_DIR
@@ -146,11 +146,6 @@ services:
       # legal review in docs/LAUNCH_CHECKLIST.md part 3 exist.
       - key: MORROW_PUBLIC_CHECK_ENABLED
         value: "0"
-
-databases:
-  - name: morrow-db
-    plan: basic-256mb
-    region: oregon
-    databaseName: morrow
-    user: morrow
-    ipAllowList: []
+      # Admin dashboard figures are precomputed snapshots; at this size a minute is cheap.
+      - key: MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS
+        value: "60"

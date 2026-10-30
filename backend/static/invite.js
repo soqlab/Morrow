@@ -6,7 +6,9 @@
      It is moved into sessionStorage for this tab and removed from the address bar. The page:
        1. previews the invitation (POST /auth/invite/preview, masked summary only);
        2. reads the console session from localStorage (morrow_token / morrow_refresh, the console's keys);
-       3. offers sign-in through the console (returning here via sessionStorage), sign-out when the
+       3. offers account creation for the invited address (POST /auth/invite/register, which also
+          accepts the invitation and returns a session), sign-in through the console (returning here
+          via sessionStorage), sign-out when the
           signed-in email does not match, and acceptance (POST /admin/accept-invite), which the
           server binds to the signed-in email and claims atomically.
      No third-party requests. */
@@ -174,9 +176,25 @@
     }
     const who = await identity();
     if (!who) {
-      return state({ title: `Join ${p.organization_name}.`, lead: `You're invited as ${p.role || "a member"}. Sign in with ${p.invited_email_masked || "the invited address"} to accept.`,
-        body: para("Signing in opens the console and brings you back here. This server doesn't offer self sign-up: if you don't have an account for the invited address yet, ask the person who invited you to create one."),
-        actions: [{ label: "Sign in to accept", primary: true, run: signIn }] });
+      state({ title: `Join ${p.organization_name}.`, lead: `You're invited as ${p.role || "a member"}. Choose a password for ${p.invited_email_masked || "the invited address"} to create your account and join.`,
+        body: `<form class="invite-form" id="inviteRegister" novalidate>
+            <label>Your name (optional)<input id="regName" type="text" autocomplete="name" maxlength="200"></label>
+            <label>Password<input id="regPassword" type="password" autocomplete="new-password" required minlength="10"></label>
+            <label>Repeat password<input id="regPassword2" type="password" autocomplete="new-password" required minlength="10"></label>
+            <p class="invite-error" id="regError" role="alert"></p>
+          </form>${para("At least 10 characters, including a digit. Already have an account for this address? Sign in instead.")}`,
+        actions: [{ label: "Create account and join", primary: true, run: register }, { label: "Sign in instead", run: signIn }] });
+      // The buttons sit outside the form, so a browser will not submit it on Enter by itself:
+      // treat Enter in any field as "Create account and join", and never let the form navigate.
+      const form = $("inviteRegister");
+      form.addEventListener("submit", event => event.preventDefault());
+      form.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        const button = $("inviteState").querySelector('[data-action="0"]');
+        if (button && !button.disabled) button.click();
+      });
+      return;
     }
     if (!who.email || (p.invited_email_masked && maskEmail(who.email) !== p.invited_email_masked)) {
       return state({ title: "You're signed in with a different email.", lead: `This invitation is for ${p.invited_email_masked}.`, tone: "bad",
@@ -185,6 +203,33 @@
     }
     return state({ title: `Join ${p.organization_name}.`, lead: `You're signed in as ${who.email}. Accept to join as ${p.role || "a member"}.`,
       actions: [{ label: "Accept invitation", primary: true, run: accept }, { label: "Sign out", run: signOut }] });
+  }
+
+  async function register() {
+    const error = $("regError");
+    const password = $("regPassword").value;
+    if (password.length < 10 || !/[0-9]/.test(password)) { error.textContent = "Use at least 10 characters, including a digit."; return; }
+    if (password !== $("regPassword2").value) { error.textContent = "The two passwords don't match."; return; }
+    error.textContent = "";
+    const r = await request("/auth/invite/register", { method: "POST", body: { token, password, full_name: $("regName").value.trim() } });
+    if (r.ok && r.data && r.data.access_token) {
+      store.set("localStorage", "morrow_token", r.data.access_token);
+      if (r.data.refresh_token) store.set("localStorage", "morrow_refresh", r.data.refresh_token);
+      store.del("sessionStorage", TOKEN_KEY);
+      store.del("sessionStorage", RETURN_KEY);
+      store.set("sessionStorage", FLASH_KEY, JSON.stringify({ title: "Welcome to Morrow", message: `You joined ${preview.organization_name}.`, kind: "ok" }));
+      state({ title: "Account created.", lead: "Opening the console.", tone: "ok" });
+      location.assign("/ui/");
+      return;
+    }
+    if (r.status === 409) {
+      return state({ title: "You already have an account.", lead: `Sign in with ${preview.invited_email_masked || "the invited address"} to accept.`,
+        actions: [{ label: "Sign in to accept", primary: true, run: signIn }] });
+    }
+    if (r.status === 404 || r.status === 410) { preview.status = "used"; return load(); }
+    if (r.status === 429) { error.textContent = "Too many attempts. Wait a minute, then try again."; return; }
+    if (r.status === 0) { error.textContent = "We couldn't reach the server. Try again."; return; }
+    error.textContent = detail(r) || `The server answered ${r.status}.`;
   }
 
   function signIn() {

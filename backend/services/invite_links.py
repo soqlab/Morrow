@@ -162,6 +162,31 @@ def preview(token: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def usable_invitation(token: str) -> Optional[Dict[str, str]]:
+    """The invited address and organization for a token that can still be accepted, else None.
+
+    Server-side only: unlike preview(), the address is not masked. Used to create the built-in
+    account an invitation names, so the invitee never gets to choose which address that is.
+    """
+    raw = str(token or "").strip()
+    if not _TOKEN_RE.match(raw):
+        return None
+    from services import platform_access
+    from services import tenant_scope as _scope
+
+    platform_access._init()
+    with _scope.platform_scope("invitation sign-up: the tenant is inside the invitation"), feature_conn() as conn:
+        row = conn.execute(
+            "SELECT token, org_id, email, accepted, expires_at FROM admin_invitations WHERE token = ?", (raw,)
+        ).fetchone()
+    if not row or not hmac.compare_digest(_digest(row["token"]), _digest(raw)):
+        return None
+    if int(row["accepted"] or 0) or _expired(row["expires_at"]):
+        return None
+    email = str(row["email"] or "").strip().lower()
+    return {"email": email, "org_id": str(row["org_id"])} if email else None
+
+
 def pending_token(organization_id: str, invite_id: str) -> Optional[Dict[str, Any]]:
     """The pending invitation (with its token) for a non-secret invite id, for server-side emailing."""
     wanted = str(invite_id or "").strip().lower()

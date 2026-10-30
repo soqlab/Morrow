@@ -22,6 +22,7 @@ AUTH_EVENTS = {
     "login.success", "login.failure", "login.unavailable", "login.invalid_request",
     "saml.success", "saml.failure", "refresh.success", "refresh.failure",
     "logout.revoked", "logout.no_session", "logout.failure", "token.rejected", "auth.rate_limited",
+    "invite_register.refused",
 }
 
 

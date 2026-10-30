@@ -3,7 +3,8 @@
 # docker-compose.prod.yml runs the API, the Celery worker, Celery beat and Redis as four
 # containers. Render bills per service and a disk cannot be shared between services, so this
 # image runs all four in one container instead: start.sh starts Redis on localhost, the worker
-# with beat embedded, and the API. Postgres is a managed Render database.
+# with beat embedded, and the API. Data is SQLite on the Render disk at /data; setting
+# MORROW_MAIN_DB_BACKEND=postgres and DATABASE_URL moves it to Postgres instead.
 #
 # Build context is the repository root.
 FROM python:3.11-slim
@@ -16,7 +17,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
     APP_COMPONENT=api \
-    MORROW_MAIN_DB_BACKEND=postgres \
+    MORROW_MAIN_DB_BACKEND=sqlite \
     ENABLE_INPROCESS_SCHEDULER=0 \
     PER_TARGET_TIMEOUT=20
 

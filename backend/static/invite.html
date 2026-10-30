@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/ui/public.css?v=7">
   <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
 <link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script>
-<script src="/ui/invite.js?v=20260916-invite1" defer></script>
+<script src="/ui/invite.js?v=20261030-signup" defer></script>
 <style>
   .invite-summary { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; margin: 16px 0 0; }
   .invite-summary dt { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); padding-top: 3px; }
@@ -25,6 +25,11 @@
   .invite-pill[data-status="expired"], .invite-pill[data-status="used"], .invite-pill[data-status="revoked"] { color: var(--rose, #ff6f6f); border-color: currentColor; }
   .invite-skeleton { color: var(--fog-dim, #7f7f7f); }
   .btn[disabled] { opacity: .55; cursor: progress; }
+  .invite-form { display: grid; gap: 14px; max-width: 420px; margin-top: 18px; }
+  .invite-form label { display: grid; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); }
+  .invite-form input { font: inherit; font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--chalk, #eee); background: transparent; border: 1px solid var(--line, #27303a); padding: 10px 12px; }
+  .invite-form input:focus-visible { outline: 2px solid var(--jade, #6fd3a0); outline-offset: 1px; }
+  .invite-form .invite-error { color: var(--rose, #ff6f6f); margin: 0; }
   @media (max-width: 640px) { .invite-summary { grid-template-columns: 1fr; gap: 2px; } .invite-summary dd { margin-bottom: 10px; } }
 </style>
 </head>
@@ -62,7 +67,7 @@
 
     <section class="doc-section">
       <h2>How invitations work</h2>
-      <p>An invitation works once, expires, and can only be accepted by a signed-in account whose email address matches the one it was sent to. The invitation code stays in your browser: it is part of the link after the <code>#</code>, which browsers do not send to servers or other sites.</p>
+      <p>An invitation works once, expires, and can only be accepted by an account whose email address matches the one it was sent to. If you have no account yet, choosing a password here creates one for that address. The invitation code stays in your browser: it is part of the link after the <code>#</code>, which browsers do not send to servers or other sites.</p>
     </section>
   </main>
 </body>
