@@ -74,12 +74,26 @@ those fall back to copying links by hand, and password reset is not offered.
 `MORROW_SIGNIN_SIMPLE=1` keeps the customer sign-in screen to email, password, "Forgot password?"
 and "Request access"; the token fields and server switcher are for self-hosted operators.
 
-## Customer sign-up
+## Customer sign-up: self-serve, limited to verified domains
 
-Approve a trial request in `/vendor-admin` (Customers → Trial requests), then send the invitation
-link to the address it names. Opening it, the person chooses a password, which creates their
-account, accepts the invitation and signs them in (`POST /auth/invite/register`). Without email
-configured (`MORROW_SMTP_HOST`), copy the link from the approval and send it yourself.
+With `MORROW_SELF_SIGNUP=1`, the form at `/trial` creates the organization at once and emails the
+invitation; opening it, the person chooses a password (`POST /auth/invite/register`). The email
+is the address check. Self sign-up turns itself off, and requests wait for approval in
+**Customers → Trial requests** as before, unless all of these hold: mail is configured,
+`MORROW_PUBLIC_BASE_URL` is set, and `MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1`.
+
+That last one is what makes open sign-up safe. An organization scans only hosts under domains it
+has verified (services/domain_verification.py): on `/ui/domains.html` it adds a domain, publishes
+`_morrow-verify.<domain> TXT "morrow-verify=<token>"`, and presses Check now. Verifying
+`example.com` covers every name under it. IP addresses are refused, since a DNS record cannot show
+who owns an address. The rule is enforced inside `scanner.scan_host` and `ssh_scanner.scan_ssh`,
+which every scan path calls, and a context that lost its organization is refused rather than let
+through. To let a trusted organization (a signed pilot, your own) scan anything, add its id to
+`MORROW_SCAN_UNRESTRICTED_ORGS` (comma-separated).
+
+What it does not stop: the owner of a verified domain can point a name under it at any address.
+The scan then reaches that address, from an account tied to a verified domain and an email
+address, with the trial caps applied.
 
 ## Domain
 

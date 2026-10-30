@@ -11,6 +11,7 @@ import sqlite3
 import sys
 import time
 import uuid
+import contextvars
 import threading
 import json
 import base64
@@ -1930,7 +1931,28 @@ _PUBLIC_INFO_PAGES = {
 @app.get("/abuse", include_in_schema=False)
 @app.get("/scanner", include_in_schema=False)
 def public_information_page(request: Request):
+    if request.url.path == "/trial":
+        from routers.trial_requests import self_signup_enabled
+        if self_signup_enabled():
+            return _trial_page_self_signup()
     return _public_static_html(_PUBLIC_INFO_PAGES[request.url.path])
+
+
+_TRIAL_SELF_SIGNUP_SECTION = """<h2>What happens next</h2>
+    <p>We email you a single&#8209;use link. Open it, choose a password, and your workspace is ready. No card, no call, no waiting for a reply.</p>
+    <p>An account here can scan hosts, so it scans only domains you've shown you control: add your domain under <b>Domains</b>, publish the DNS record it gives you, and everything under that domain is yours to scan. That check is what keeps this from being a reconnaissance service pointed at other people's systems.</p>"""
+
+
+def _trial_page_self_signup():
+    """/trial when sign-up is automatic: the same page, with the manual-review section replaced."""
+    from fastapi.responses import HTMLResponse
+
+    with open(os.path.join(BASE_DIR, "static", "trial.html"), encoding="utf-8") as handle:
+        page = handle.read()
+    page = re.sub(r"<!--signup:review-->.*?<!--/signup:review-->", _TRIAL_SELF_SIGNUP_SECTION, page, flags=re.S)
+    page = page.replace("A person reviews every request, because an account here can scan hosts.",
+                        "Sign up with your work email; you scan the domains you verify.")
+    return HTMLResponse(page, headers={"Cache-Control": "public, max-age=0, must-revalidate"})
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -11020,6 +11042,7 @@ def api_scan_ssh(req: SshScanRequest, request: Request):
     """Scan SSH endpoints for post-quantum readiness and weak algorithm detection."""
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="scan.ssh", resource_type="scan", resource_id="")
+    _refuse_unverified_targets(request, [t for t in req.targets[:50]])
     from concurrent.futures import ThreadPoolExecutor as _TPE
     results = []
     with _TPE(max_workers=10) as pool:
@@ -11033,7 +11056,8 @@ def api_scan_ssh(req: SshScanRequest, request: Request):
                 port = int(port)
             except ValueError:
                 port = 22
-            futures[pool.submit(scan_ssh, host, port)] = t
+            # Each task carries this request's context, so the scanner knows whose scan it is.
+            futures[pool.submit(contextvars.copy_context().run, scan_ssh, host, port)] = t
         for fut, target in futures.items():
             try:
                 results.append(fut.result(timeout=15))
@@ -12038,6 +12062,7 @@ def _emit_scan_telemetry(scan_id: str, result: Dict[str, Any], org_id: str, sour
 @app.post("/scan")
 @limiter.limit(_RATE_SCAN)
 def scan_legacy(payload: ScanRequest, request: Request):
+    _refuse_unverified_targets(request, payload.targets)
     results = []
     scan_id = str(uuid.uuid4())
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
@@ -12072,7 +12097,8 @@ def _scan_worker(scan_id: str, targets: List[str], organization_id: str = "") ->
             future_map = {}
             for t in targets:
                 host, port = parse_target(t)
-                fut = ex.submit(scan_host, host, port)
+                # Each task carries this worker's organization, so the scanner knows whose scan it is.
+                fut = ex.submit(contextvars.copy_context().run, scan_host, host, port)
                 future_map[fut] = (host, port)
 
             for fut in concurrent.futures.as_completed(future_map):
@@ -12155,6 +12181,7 @@ def _scan_worker(scan_id: str, targets: List[str], organization_id: str = "") ->
 def create_scan(payload: ScanRequest, request: Request):
     if len(payload.targets) > MAX_TARGETS:
         raise HTTPException(status_code=400, detail=f"Too many targets. Max is {MAX_TARGETS}.")
+    _refuse_unverified_targets(request, payload.targets)
 
     normalized: List[str] = []
     for t in payload.targets:
@@ -24742,6 +24769,95 @@ async def auth_password_reset_confirm(body: PasswordResetConfirmBody, request: R
 
     await run_in_threadpool(work)
     return JSONResponse({"detail": "Password changed. Sign in with your new password."}, headers={"Cache-Control": "no-store"})
+
+
+# ── Verified domains (services/domain_verification) ───────────────────────────────────────────
+
+from services import domain_verification as _domains  # noqa: E402
+
+
+class DomainBody(BaseModel):
+    domain: str = Field(..., min_length=1, max_length=300)
+
+
+def _domain_error(exc: "_domains.DomainError") -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+@app.get("/domains")
+def api_list_domains(request: Request):
+    """This organization's domains, verified or waiting for their DNS record, and the scan policy."""
+    _require_role(request, allowed_roles=["viewer", "operator", "admin"], action="domains.list", resource_type="domain")
+    org = _org(request)
+    return {"api_version": "v1", "enforced": _domains.enforcement_enabled(),
+            "unrestricted": org in _domains.unrestricted_orgs(), "domains": _domains.list_domains(org)}
+
+
+@app.post("/domains")
+def api_add_domain(body: DomainBody, request: Request):
+    """Add a domain. The answer carries the TXT record to publish before it can be verified."""
+    _require_role(request, allowed_roles=["operator", "admin"], action="domains.add", resource_type="domain",
+                  resource_id=str(body.domain)[:120])
+    try:
+        return {"api_version": "v1", "domain": _domains.add_domain(_org(request), body.domain)}
+    except _domains.DomainError as exc:
+        raise _domain_error(exc) from None
+
+
+@app.post("/domains/{domain}/verify")
+@limiter.limit("20/minute")
+def api_verify_domain(domain: str, request: Request):
+    """Look the TXT record up now. Verified once it holds the value this organization was given."""
+    _require_role(request, allowed_roles=["operator", "admin"], action="domains.verify", resource_type="domain",
+                  resource_id=domain[:120])
+    try:
+        return {"api_version": "v1", "domain": _domains.verify_domain(_org(request), domain)}
+    except _domains.DomainError as exc:
+        raise _domain_error(exc) from None
+
+
+@app.delete("/domains/{domain}")
+def api_remove_domain(domain: str, request: Request):
+    _require_role(request, allowed_roles=["admin"], action="domains.remove", resource_type="domain",
+                  resource_id=domain[:120])
+    try:
+        removed = _domains.remove_domain(_org(request), domain)
+    except _domains.DomainError as exc:
+        raise _domain_error(exc) from None
+    if not removed:
+        raise HTTPException(status_code=404, detail="That domain isn't on this organization.")
+    return {"api_version": "v1", "removed": True}
+
+
+def _refuse_unverified_targets(request: Request, targets: List[str]) -> None:
+    """Fail a scan request up front, naming every host outside the organization's verified domains.
+
+    scanner.scan_host and ssh_scanner.scan_ssh refuse such hosts anyway; this only turns a scan full
+    of per-host refusals into one clear answer before anything is queued.
+    """
+    if not _domains.enforcement_enabled():
+        return
+    org = _org(request)
+    refused: List[str] = []
+    for target in targets or []:
+        text = str(target or "").strip()
+        if not text:
+            continue
+        try:
+            host, _port = parse_target(text)
+        except Exception:
+            host = text
+        if _domains.refusal(org, host):
+            refused.append(str(host))
+    if refused:
+        shown = ", ".join(refused[:5]) + (f" and {len(refused) - 5} more" if len(refused) > 5 else "")
+        raise HTTPException(status_code=403, detail={
+            "code": "domain_not_verified",
+            "message": (f"You can only scan hosts under your verified domains. Not verified: {shown}. "
+                        "Add and verify the domain under Domains (/ui/domains.html), or scan by host name, "
+                        "not IP address."),
+            "hosts": refused[:50],
+        })
 
 
 @app.get("/auth/me")

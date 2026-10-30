@@ -35,6 +35,7 @@ ERR_TIMEOUT = "TIMEOUT"
 ERR_CONNECTION_ERROR = "CONNECTION_ERROR"
 ERR_TLS_VERIFY_FAILED = "TLS_VERIFY_FAILED"
 ERR_TLS_ERROR = "TLS_ERROR"
+ERR_NOT_PERMITTED = "NOT_PERMITTED"
 
 
 def _error_code_from_verify_reason(reason: str, message: str = "") -> str:
@@ -1146,7 +1147,9 @@ def _finalise_scan_status(facts: Dict[str, Any]) -> None:
     code = str(facts.get("error_code") or "")
     if not code and str(facts.get("error") or "").strip():
         code = ERR_CONNECTION_ERROR
-    if code in (ERR_TIMEOUT,):
+    if code == ERR_NOT_PERMITTED:
+        facts["scan_status"] = "not_permitted"
+    elif code in (ERR_TIMEOUT,):
         facts["scan_status"] = "timeout"
     elif code in (ERR_DNS,):
         facts["scan_status"] = "dns_error"
@@ -1157,6 +1160,21 @@ def _finalise_scan_status(facts: Dict[str, Any]) -> None:
     else:
         # Handshake succeeded but no certificate could be parsed.
         facts["scan_status"] = "no_certificate"
+
+
+def _scope_refusal(host: str) -> str:
+    """Why the current organization may not scan host, or "" (services/domain_verification)."""
+    try:
+        from services import domain_verification
+    except Exception:
+        return ""
+    if not domain_verification.enforcement_enabled():
+        return ""
+    try:
+        return domain_verification.refusal_for_current_org(host)
+    except Exception as exc:
+        # Fail closed: with enforcement on, a check that cannot run is a refusal, not a pass.
+        return f"Scan permission could not be checked ({exc.__class__.__name__})."
 
 
 def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
@@ -1248,90 +1266,43 @@ def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
         "pq_recommendation": "",
     }
 
-    # Primary handshake (verified)
-    try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = True
-        ctx.verify_mode = ssl.CERT_REQUIRED
+    # On a hosted deployment an organization scans only its verified domains
+    # (services/domain_verification). Refused before any connection is opened.
+    refusal = _scope_refusal(host)
+    if refusal:
+        facts["error"] = refusal
+        facts["error_code"] = ERR_NOT_PERMITTED
+        facts["key_exchange_unobservable_reason"] = "not scanned: " + refusal
+    else:
+        # Primary handshake (verified)
         try:
-            ctx.set_alpn_protocols(["h2", "http/1.1"])
-        except Exception:
-            pass
-
-        with socket.create_connection((host, port), timeout=DEFAULT_TIMEOUT) as sock:
-            with ctx.wrap_socket(sock, server_hostname=host) as ssock:
-                facts["tls_version"] = ssock.version() or ""
-                c = ssock.cipher()
-                if c:
-                    facts["cipher_name"] = c[0] or ""
-                    facts["cipher_bits"] = c[2] if len(c) > 2 else None
-                try:
-                    facts["alpn"] = ssock.selected_alpn_protocol()
-                except Exception:
-                    facts["alpn"] = None
-
-                # OCSP stapling (best-effort)
-                facts.update(_try_get_ocsp_staple(ssock))
-
-                # Leaf cert
-                cert_der = ssock.getpeercert(binary_form=True)
-                if cert_der:
-                    cert = x509.load_der_x509_certificate(cert_der, default_backend())
-                    facts.update(_leaf_cert_facts(cert))
-
-                    # Revocation endpoint reachability (best-effort)
-                    try:
-                        probes = _probe_revocation_endpoints(
-                            facts.get("ocsp_urls", []),
-                            facts.get("crl_urls", []),
-                            max_urls=2,
-                            ocsp_post=(not bool(facts.get("ocsp_stapled"))),
-                        )
-                        facts.update(probes)
-                    except Exception:
-                        pass
-
-                # Chain (best-effort)
-                chain_der, chain_source, conf, conf_reason = _get_cert_chain_der_with_source(ssock)
-                facts["chain_source"] = chain_source
-                facts["chain_confidence"] = conf
-                facts["chain_confidence_reason"] = conf_reason
-                facts.update(_analyze_cert_chain(chain_der))
-
-    except _SSLCertVerificationError as e:
-        facts["verify_error"] = str(e)
-        facts.update(_classify_verify_error(e))
-        facts["unverified_fallback"] = True
-        # Best-effort fallback: collect cert/chain details without verification so we can still produce actionable findings.
-        try:
-            ctx = _new_ssl_context(ssl.PROTOCOL_TLS)
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = True
+            ctx.verify_mode = ssl.CERT_REQUIRED
             try:
                 ctx.set_alpn_protocols(["h2", "http/1.1"])
             except Exception:
                 pass
+
             with socket.create_connection((host, port), timeout=DEFAULT_TIMEOUT) as sock:
                 with ctx.wrap_socket(sock, server_hostname=host) as ssock:
-                    # Populate best-effort facts (do not overwrite verify_error)
-                    if not facts.get("tls_version"):
-                        facts["tls_version"] = ssock.version() or ""
+                    facts["tls_version"] = ssock.version() or ""
                     c = ssock.cipher()
-                    if c and not facts.get("cipher_name"):
+                    if c:
                         facts["cipher_name"] = c[0] or ""
                         facts["cipher_bits"] = c[2] if len(c) > 2 else None
                     try:
-                        if facts.get("alpn") is None:
-                            facts["alpn"] = ssock.selected_alpn_protocol()
+                        facts["alpn"] = ssock.selected_alpn_protocol()
                     except Exception:
-                        pass
+                        facts["alpn"] = None
 
                     # OCSP stapling (best-effort)
                     facts.update(_try_get_ocsp_staple(ssock))
 
-                    der = ssock.getpeercert(binary_form=True)
-                    if der:
-                        cert = x509.load_der_x509_certificate(der, default_backend())
+                    # Leaf cert
+                    cert_der = ssock.getpeercert(binary_form=True)
+                    if cert_der:
+                        cert = x509.load_der_x509_certificate(cert_der, default_backend())
                         facts.update(_leaf_cert_facts(cert))
 
                         # Revocation endpoint reachability (best-effort)
@@ -1352,31 +1323,86 @@ def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
                     facts["chain_confidence"] = conf
                     facts["chain_confidence_reason"] = conf_reason
                     facts.update(_analyze_cert_chain(chain_der))
+
+        except _SSLCertVerificationError as e:
+            facts["verify_error"] = str(e)
+            facts.update(_classify_verify_error(e))
+            facts["unverified_fallback"] = True
+            # Best-effort fallback: collect cert/chain details without verification so we can still produce actionable findings.
+            try:
+                ctx = _new_ssl_context(ssl.PROTOCOL_TLS)
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                try:
+                    ctx.set_alpn_protocols(["h2", "http/1.1"])
+                except Exception:
+                    pass
+                with socket.create_connection((host, port), timeout=DEFAULT_TIMEOUT) as sock:
+                    with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                        # Populate best-effort facts (do not overwrite verify_error)
+                        if not facts.get("tls_version"):
+                            facts["tls_version"] = ssock.version() or ""
+                        c = ssock.cipher()
+                        if c and not facts.get("cipher_name"):
+                            facts["cipher_name"] = c[0] or ""
+                            facts["cipher_bits"] = c[2] if len(c) > 2 else None
+                        try:
+                            if facts.get("alpn") is None:
+                                facts["alpn"] = ssock.selected_alpn_protocol()
+                        except Exception:
+                            pass
+
+                        # OCSP stapling (best-effort)
+                        facts.update(_try_get_ocsp_staple(ssock))
+
+                        der = ssock.getpeercert(binary_form=True)
+                        if der:
+                            cert = x509.load_der_x509_certificate(der, default_backend())
+                            facts.update(_leaf_cert_facts(cert))
+
+                            # Revocation endpoint reachability (best-effort)
+                            try:
+                                probes = _probe_revocation_endpoints(
+                                    facts.get("ocsp_urls", []),
+                                    facts.get("crl_urls", []),
+                                    max_urls=2,
+                                    ocsp_post=(not bool(facts.get("ocsp_stapled"))),
+                                )
+                                facts.update(probes)
+                            except Exception:
+                                pass
+
+                        # Chain (best-effort)
+                        chain_der, chain_source, conf, conf_reason = _get_cert_chain_der_with_source(ssock)
+                        facts["chain_source"] = chain_source
+                        facts["chain_confidence"] = conf
+                        facts["chain_confidence_reason"] = conf_reason
+                        facts.update(_analyze_cert_chain(chain_der))
+            except Exception:
+                pass
+        except Exception as e:
+            facts["error"] = str(e)
+            facts["error_code"] = _error_code_from_exception(e)
+
+        # Probes (do not require verification)
+        try:
+            facts.update(_probe_tls_versions(host, port))
         except Exception:
             pass
-    except Exception as e:
-        facts["error"] = str(e)
-        facts["error_code"] = _error_code_from_exception(e)
 
-    # Probes (do not require verification)
-    try:
-        facts.update(_probe_tls_versions(host, port))
-    except Exception:
-        pass
-
-    try:
-        facts.update(_probe_tls12_accepted_ciphers(host, port))
-    except Exception:
-        pass
-
-    # Only worth a round trip if something answered on this port at all.
-    if facts.get("tls_supported_versions") or facts.get("tls_version"):
         try:
-            facts.update(_probe_key_exchange_group(host, port))
-        except Exception as exc:
-            facts["key_exchange_unobservable_reason"] = f"probe failed: {exc}"
-    else:
-        facts["key_exchange_unobservable_reason"] = "no TLS handshake completed on this endpoint"
+            facts.update(_probe_tls12_accepted_ciphers(host, port))
+        except Exception:
+            pass
+
+        # Only worth a round trip if something answered on this port at all.
+        if facts.get("tls_supported_versions") or facts.get("tls_version"):
+            try:
+                facts.update(_probe_key_exchange_group(host, port))
+            except Exception as exc:
+                facts["key_exchange_unobservable_reason"] = f"probe failed: {exc}"
+        else:
+            facts["key_exchange_unobservable_reason"] = "no TLS handshake completed on this endpoint"
 
     _finalise_scan_status(facts)
 

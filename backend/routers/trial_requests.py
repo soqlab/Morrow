@@ -105,6 +105,18 @@ def _page(title: str, heading: str, body: str, *, status_code: int = 200) -> HTM
     return HTMLResponse(document, status_code=status_code, headers=_NO_STORE)
 
 
+def self_signup_enabled() -> bool:
+    """MORROW_SELF_SIGNUP=1, and the safeguards it depends on are in place."""
+    def flag(name: str) -> bool:
+        return str(os.getenv(name, "0") or "0").strip().lower() in {"1", "true", "yes", "on"}
+    if not flag("MORROW_SELF_SIGNUP") or not flag("MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS"):
+        return False
+    from services import invite_links as _links
+    from services import platform_mail as _mail
+
+    return _mail.configured() and bool(_links.public_base_url_only())
+
+
 def create_trial_requests_router(deps: Any) -> APIRouter:
     """deps: limiter, public_rate, client_ip(request), require_platform_admin(request, roles)."""
 
@@ -130,10 +142,43 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
         result = _trials.submit(email=email, name=name, company=company, domain=domain,
                                 use_case=use_case, client_ip=_ip(request))
         if not result.get("duplicate"):
-            _notify_operator(email, name, company, domain, use_case)
+            result["self_serve"] = _self_serve(result)
+            _notify_operator(email, name, company, domain, use_case, bool(result["self_serve"]))
         return result
 
-    def _notify_operator(email: Any, name: Any, company: Any, domain: Any, use_case: Any) -> None:
+    def _self_serve(result: Dict[str, Any]) -> bool:
+        """Self sign-up: approve the request at once and email the invitation.
+
+        Only with MORROW_SELF_SIGNUP=1, and only where an account cannot scan beyond what it
+        proves it owns (MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1) and the invitation can actually be
+        delivered (mail and MORROW_PUBLIC_BASE_URL). Otherwise the request waits for a person, as
+        before. The invitation email is the address check: only its owner can open the link.
+        """
+        if not self_signup_enabled() or not result.get("id"):
+            return False
+        try:
+            from services import invite_links as _links
+            from services import platform_mail as _mail
+
+            decided = _trials.approve(result["id"], "self-signup", plan_type="trial",
+                                      expires_hours=72, note="Approved automatically (self sign-up).")
+            link = _links.external_invite_link(decided["invite_token"])
+            message = _links.email_body(link, decided.get("organization_name") or "your organization",
+                                        decided.get("role") or "", decided.get("invite_expires_at") or "")
+        except Exception:
+            logger.exception("self sign-up: approval failed for request %s; it stays pending", result.get("id"))
+            return False
+        to = str(decided.get("invite_email") or "")
+
+        def send() -> None:
+            sent = _mail.send_text([to], message["subject"], message["text"])
+            if not sent.get("ok"):
+                logger.warning("self sign-up invitation not sent: %s", sent.get("error") or "unknown error")
+        threading.Thread(target=send, name="self-signup-invite", daemon=True).start()
+        return True
+
+    def _notify_operator(email: Any, name: Any, company: Any, domain: Any, use_case: Any,
+                         self_served: bool = False) -> None:
         """Email MORROW_TRIAL_NOTIFY_EMAIL about a new request, on a background thread, best effort.
 
         Requests are approved by hand, so the operator has to hear about them; without this the
@@ -147,11 +192,15 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
         if not _mail.configured() or not _mail.valid_address(to):
             return
         clean = lambda value, limit=300: " ".join(str(value or "").split())[:limit]  # noqa: E731
-        subject = f"Morrow trial request: {clean(company, 80) or clean(email, 80)}"
-        body = (f"A new trial request is waiting for review.\n\n"
+        who = clean(company, 80) or clean(email, 80)
+        subject = f"Morrow sign-up: {who}" if self_served else f"Morrow trial request: {who}"
+        intro = ("A new organization signed up; its invitation was emailed automatically."
+                 if self_served else "A new trial request is waiting for review.")
+        action = ("See it in the operator console under Customers.\n" if self_served else
+                  "Approve or decline it in the operator console under Customers > Trial requests.\n")
+        body = (f"{intro}\n\n"
                 f"Name:     {clean(name)}\nEmail:    {clean(email)}\nCompany:  {clean(company)}\n"
-                f"Domain:   {clean(domain)}\n\nUse case:\n{clean(use_case, 2000)}\n\n"
-                "Approve or decline it in the operator console under Customers > Trial requests.\n")
+                f"Domain:   {clean(domain)}\n\nUse case:\n{clean(use_case, 2000)}\n\n" + action)
 
         def send() -> None:
             result = _mail.send_text([to], subject, body)
@@ -182,6 +231,17 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
                 '<p><a class="btn" href="/pilot#trial">Back to the form</a></p>',
                 status_code=exc.status_code)
         logger.info("trial request submitted id=%s", result.get("id") or "-")
+        if self_signup_enabled():
+            return _page(
+                "Check your email", "Check your email",
+                "<p>We've sent a link to the address you entered. Open it to choose a password; "
+                "your workspace is ready as soon as you do. The link works once and expires in "
+                "72 hours.</p>"
+                "<p>Nothing arrived after a few minutes? Check your spam folder. If you already "
+                "have an account, <a href=\"/ui/\">sign in</a> or "
+                "<a href=\"/reset-password\">reset your password</a>.</p>"
+                "<p>Once you're in, add and verify your domain under Domains: you can scan the "
+                "domains you've shown you control.</p>")
         return _page(
             "Request received", "Request received",
             "<p>Thank you &mdash; your request is in the queue and a person reads it. If it is "
@@ -205,7 +265,9 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
         return JSONResponse(
             {"recorded": True, "id": result.get("id", ""), "status": result.get("status"),
              "duplicate": bool(result.get("duplicate")),
-             "detail": "A person reviews every request. Approval is not automatic."},
+             "self_serve": bool(result.get("self_serve")),
+             "detail": ("Check your email for a link to choose your password." if self_signup_enabled()
+                        else "A person reviews every request. Approval is not automatic.")},
             headers=_NO_STORE)
 
     # ── Operator ─────────────────────────────────────────────────────────────

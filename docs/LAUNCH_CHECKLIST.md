@@ -157,9 +157,11 @@ Certificate Transparency seeding is safe at any scale and active measurement is 
 person. That is a choice, not a gap: an authenticated account can scan arbitrary hosts, and none of
 the free checker's guardrails apply to the full scanner. Open signup would make this a free
 reconnaissance service pointed at other people's infrastructure, from your IP addresses, under your
-name. The staged path is to launch with review, then build verified-domain self-serve — where
+name. The staged path was to launch with review, then build verified-domain self-serve — where
 scanning is limited to domains the account has proved it controls — which is the only design that
-makes open signup safe.
+makes open signup safe. That now exists: `MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1` with
+`MORROW_SELF_SIGNUP=1` (see deploy/render-hosted/README.md). Without the first, the second does
+nothing and requests wait for a person.
 
 **A status page, SOC 2, a SIEM integration, SSO for customers.** All real asks from real buyers,
 none of them a launch blocker. Wait until someone asks; the answer "not yet, and here is when"

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Domains | Morrow</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+<link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script>
+<script src="/ui/domains.js?v=20261030-domains" defer></script>
+<style>
+  .unused-summary { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; margin: 16px 0 0; }
+  .unused-summary dt { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); padding-top: 3px; }
+  .unused-summary dd { margin: 0; color: var(--chalk, #eee); overflow-wrap: anywhere; }
+  .invite-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+  .public-document .invite-state { max-width: 70ch; padding-left: 52px; }
+  .invite-state p { color: var(--fog, #b9b9b9); line-height: 1.7; }
+  .invite-state[data-tone="bad"] { border-left-color: var(--rose, #ff6f6f); }
+  .invite-state[data-tone="ok"] { border-left-color: var(--jade, #6fd3a0); }
+  .invite-pill { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--line, #27303a); }
+  .invite-pill[data-status="valid"] { color: var(--jade, #6fd3a0); border-color: currentColor; }
+  .invite-pill[data-status="expired"], .invite-pill[data-status="used"], .invite-pill[data-status="revoked"] { color: var(--rose, #ff6f6f); border-color: currentColor; }
+  .invite-skeleton { color: var(--fog-dim, #7f7f7f); }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+  .invite-form { display: grid; gap: 14px; max-width: 420px; margin-top: 18px; }
+  .invite-form label { display: grid; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); }
+  .invite-form input { font: inherit; font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--chalk, #eee); background: transparent; border: 1px solid var(--line, #27303a); padding: 10px 12px; }
+  .invite-form input:focus-visible { outline: 2px solid var(--jade, #6fd3a0); outline-offset: 1px; }
+  .invite-form .invite-error { color: var(--rose, #ff6f6f); margin: 0; }
+  @media (max-width: 640px) { .unused-summary { grid-template-columns: 1fr; gap: 2px; } .unused-summary dd { margin-bottom: 10px; } }
+  .dom-list { display: grid; gap: 14px; margin-top: 18px; }
+  .dom-card { border: 1px solid var(--line, #27303a); padding: 18px 20px; display: grid; gap: 10px; }
+  .dom-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  .dom-name { font-family: var(--mono); font-size: 15px; color: var(--chalk, #eee); overflow-wrap: anywhere; }
+  .dom-rec { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 14px; align-items: center; }
+  .dom-rec dt { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); }
+  .dom-rec dd { margin: 0; font-family: var(--mono); font-size: 13px; color: var(--chalk, #eee); overflow-wrap: anywhere; }
+  .dom-note { margin: 0; color: var(--fog, #b9b9b9); font-size: 14px; line-height: 1.6; }
+  .dom-note.bad { color: var(--rose, #ff6f6f); }
+  .invite-pill[data-status="pending"] { color: var(--amber, #f2c14e); border-color: currentColor; }
+  .btn.small { padding: 6px 12px; font-size: 11px; }
+  @media (max-width: 640px) { .dom-rec { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="public-document"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+  <main class="doc-shell">
+    <header class="topbar">
+      <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
+      <nav class="nav" aria-label="Public navigation"><a href="/security">Security</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Back to console &#8599;</a></nav>
+    </header>
+
+    <section class="doc-hero">
+      <div>
+        <span class="eyebrow">Domains</span>
+        <h1 tabindex="-1">Your domains.</h1>
+        <p class="lead" id="domLead">You can scan the domains you've shown you control, and every name under them. Add a domain, publish the DNS record it gives you, then check it.</p>
+      </div>
+    </section>
+
+    <section class="doc-section" aria-live="polite">
+      <div class="notice invite-state" id="domState"><p>Loading.</p></div>
+      <div class="dom-list" id="domList"></div>
+    </section>
+
+    <section class="doc-section">
+      <h2>Why this is needed</h2>
+      <p>Morrow connects to the servers you scan. So that nobody can point it at systems they don't run, a hosted account can only scan domains it has verified. Verifying example.com lets you scan example.com and any name under it, such as vpn.example.com. IP addresses can't be verified, so scan by host name. The record can stay in place; removing it doesn't remove the domain here.</p>
+    </section>
+  </main>
+</body>
+</html>

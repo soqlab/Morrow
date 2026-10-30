@@ -163,6 +163,14 @@ services:
       # Where new trial requests are announced. Set in the dashboard.
       - key: MORROW_TRIAL_NOTIFY_EMAIL
         sync: false
+      # Self sign-up: a request creates the organization and emails the invitation at once. Only
+      # safe because scans are limited to domains the organization verified with a DNS record;
+      # self sign-up switches itself off unless that, mail and MORROW_PUBLIC_BASE_URL are set.
+      # List organizations that may scan any host in MORROW_SCAN_UNRESTRICTED_ORGS.
+      - key: MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS
+        value: "1"
+      - key: MORROW_SELF_SIGNUP
+        value: "1"
       # Customer sign-in screen: email and password only, no developer token options.
       - key: MORROW_SIGNIN_SIMPLE
         value: "1"

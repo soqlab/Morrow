@@ -214,8 +214,9 @@ def email_body(link: str, org_name: str, role: str, expires_at: str) -> Dict[str
     subject = f"You're invited to {org_name} on Morrow"
     text = (
         f"You have been invited to join {org_name} on Morrow as {ROLE_LABELS.get(role, role)}.\n\n"
-        f"Open this link to review and accept the invitation:\n{link}\n\n"
-        f"The link works once and expires {expires_at}. Sign in with this email address to accept it.\n"
+        f"Open this link to accept it:\n{link}\n\n"
+        f"New to Morrow? You'll choose a password there. Already have an account for this address? "
+        f"Sign in to accept. The link works once and expires {expires_at}.\n"
         "If you did not expect this invitation, you can ignore this message.\n"
     )
     return {"subject": subject, "text": text}

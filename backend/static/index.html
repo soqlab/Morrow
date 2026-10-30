@@ -4685,7 +4685,8 @@ VIEWS.scans = async (host) => {
     <div class="col">
       ${card("New scan", `
         <div class="field"><label for="tg">Targets — one per line, <span class="mono">host</span> or <span class="mono">host:port</span></label>
-          <textarea class="inp" id="tg" spellcheck="false" placeholder="your-company.com&#10;api.your-company.com:443">${H(LS.get("pq_targets", ""))}</textarea></div>
+          <textarea class="inp" id="tg" spellcheck="false" placeholder="your-company.com&#10;api.your-company.com:443">${H(LS.get("pq_targets", ""))}</textarea>
+          <a href="/ui/domains.html" style="font-size:12px;color:var(--ink2)">Hosted accounts scan their verified domains · Manage domains &#8599;</a></div>
         <div class="chipRow" style="margin-top:10px">
           ${[["Clear", ""]].map(([l, v]) =>
             `<button class="chip" type="button" data-act="preset" data-v="${H(v)}">${H(l)}</button>`).join("")}

@@ -132,6 +132,16 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
         "error": None,
     }
 
+    # On a hosted deployment an organization scans only its verified domains
+    # (services/domain_verification). Refused before any connection is opened.
+    from scanner import _scope_refusal
+
+    refusal = _scope_refusal(host)
+    if refusal:
+        result["error"] = refusal
+        result["error_code"] = "NOT_PERMITTED"
+        return result
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(_TIMEOUT)
     try:

@@ -1093,7 +1093,7 @@ def _scan_one_sync(target: str) -> Dict[str, Any]:
 async def _exec_scan(targets: List[str]) -> Dict[str, Any]:
     loop = asyncio.get_running_loop()
     raw_results = await asyncio.gather(
-        *[loop.run_in_executor(_EXECUTOR, _scan_one_sync, t) for t in targets[:_MAX_TARGETS]],
+        *[loop.run_in_executor(_EXECUTOR, contextvars.copy_context().run, _scan_one_sync, t) for t in targets[:_MAX_TARGETS]],
         return_exceptions=True,
     )
     hosts = []
@@ -1965,7 +1965,7 @@ async def _dispatch_tool(fn_name: str, args: Dict[str, Any], org_id: str) -> tup
             from ssh_scanner import scan_ssh as _scan_ssh
             label = ", ".join(targets[:3])
             results = await asyncio.gather(*[
-                loop.run_in_executor(_EXECUTOR,
+                loop.run_in_executor(_EXECUTOR, contextvars.copy_context().run,
                     lambda t=t: _scan_ssh(*((t.rsplit(":",1)[0], int(t.rsplit(":",1)[1]))
                                             if ":" in t else (t, 22))))
                 for t in targets[:10]
