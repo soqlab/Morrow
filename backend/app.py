@@ -2234,6 +2234,11 @@ def _auth_public_path(path: str) -> bool:
         "/auth/invite/preview",
         # Creating the account an invitation names (rate limited; the token is the authorization).
         "/auth/invite/register",
+        # Password reset: the page, the request (same answer whether or not the address has an
+        # account) and the confirmation (the emailed single-use token is the authorization).
+        "/reset-password",
+        "/auth/password-reset/request",
+        "/auth/password-reset/confirm",
         # Console banner source. Anonymous callers only see notices addressed to everyone.
         "/announcements/active",
     }:
@@ -2365,7 +2370,19 @@ def _public_auth_config() -> Dict[str, Any]:
         "bearer_token_supported": AUTH_MODE == "jwt",
         "manual_actor_supported": AUTH_MODE != "jwt" or not AUTH_REQUIRED,
         "password_login_enabled": bool(AUTH_ISSUER_ENABLED),
+        "password_reset_enabled": bool(AUTH_ISSUER_ENABLED) and _password_reset_available(),
+        # Hosted for customers: the sign-in screen offers email and password only.
+        "simple_sign_in": str(os.getenv("MORROW_SIGNIN_SIMPLE", "0") or "0").strip().lower() in {"1", "true", "yes", "on"},
     }
+
+
+def _password_reset_available() -> bool:
+    """Reset links are emailed, so both mail and the configured public origin are needed."""
+    try:
+        from services import invite_links, platform_mail
+        return platform_mail.configured() and bool(invite_links.public_base_url_only())
+    except Exception:
+        return False
 
 
 def _public_access_policy() -> Dict[str, Any]:
@@ -24642,6 +24659,89 @@ async def auth_invite_register(body: InviteRegisterRequest, request: Request):
 
     result = await run_in_threadpool(register)
     return JSONResponse(result, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
+
+
+from services import password_reset as _password_reset  # noqa: E402
+from services import platform_mail as _platform_mail  # noqa: E402
+
+
+class PasswordResetRequestBody(BaseModel):
+    email: str = Field(..., min_length=3, max_length=320)
+
+
+class PasswordResetConfirmBody(BaseModel):
+    token: str = Field(..., min_length=16, max_length=256)
+    password: str = Field(..., min_length=1, max_length=200)
+
+
+_PASSWORD_RESET_SENT = ("If an account exists for that address, we've emailed it a link to choose a new "
+                        "password. Check your inbox and spam folder.")
+
+
+@app.get("/reset-password", include_in_schema=False)
+def public_reset_password_page():
+    from fastapi.responses import FileResponse
+
+    path = os.path.join(BASE_DIR, "static", "reset-password.html")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="reset-password.html not found")
+    return FileResponse(path, media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-store, must-revalidate", "X-Robots-Tag": "noindex, nofollow"})
+
+
+@app.post("/auth/password-reset/request")
+@limiter.limit(_RATE_AUTH)
+async def auth_password_reset_request(body: PasswordResetRequestBody, request: Request):
+    """Email a single-use reset link to a built-in account. The answer never says whether one exists.
+
+    The email goes out on a background thread, so an address with an account takes as long to
+    answer as one without (an SMTP round trip would otherwise give it away).
+    """
+    _require_auth_issuer_enabled()
+    # The link leaves the process by email, so its origin comes from configuration, never from the
+    # Host header (see invite_links.external_invite_link for the attack that rules out).
+    base = _invite_links.public_base_url_only()
+    if not _platform_mail.configured() or not base:
+        raise HTTPException(503, "Password reset needs email, which isn't set up on this server. Ask your administrator to reset it.")
+
+    def work():
+        with _db() as db:
+            created = _password_reset.create(db, body.email)
+        _auth_journal(request, "password_reset.requested", user=created[1] if created else None,
+                      subject=body.email, status_code=200, required=False)
+        if not created:
+            return
+        token, user = created
+        link = f"{base}/reset-password#token={token}"
+        message = _password_reset.email_body(link, user["email"])
+
+        def send():
+            result = _platform_mail.send_text([user["email"]], message["subject"], message["body"])
+            if not result.get("ok"):
+                logger.warning("[PasswordReset] reset email not sent: %s", result.get("error") or "unknown error")
+        threading.Thread(target=send, name="password-reset-mail", daemon=True).start()
+
+    await run_in_threadpool(work)
+    return JSONResponse({"detail": _PASSWORD_RESET_SENT}, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/auth/password-reset/confirm")
+@limiter.limit(_RATE_AUTH)
+async def auth_password_reset_confirm(body: PasswordResetConfirmBody, request: Request):
+    """Set a new password from a reset link. Every existing session of the account is signed out."""
+    _require_auth_issuer_enabled()
+
+    def work():
+        with _db() as db:
+            try:
+                user = _password_reset.consume(db, body.token, body.password)
+            except _password_reset.ResetError as exc:
+                _auth_journal(request, "password_reset.refused", subject="", status_code=exc.status_code, required=False)
+                raise HTTPException(exc.status_code, exc.detail) from None
+        _auth_journal(request, "password_reset.completed", user=user, subject=user.get("email") or "", required=False)
+
+    await run_in_threadpool(work)
+    return JSONResponse({"detail": "Password changed. Sign in with your new password."}, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/auth/me")

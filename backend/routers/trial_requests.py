@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import html
 import logging
+import os
+import threading
 import time
 from typing import Any, Dict, Iterable, Optional
 
@@ -125,8 +127,37 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
             # worked: telling a bot which signal caught it is how the next version avoids it.
             logger.info("trial request: honeypot filled, discarded")
             return {"id": "", "status": "pending", "duplicate": False, "discarded": True}
-        return _trials.submit(email=email, name=name, company=company, domain=domain,
-                              use_case=use_case, client_ip=_ip(request))
+        result = _trials.submit(email=email, name=name, company=company, domain=domain,
+                                use_case=use_case, client_ip=_ip(request))
+        if not result.get("duplicate"):
+            _notify_operator(email, name, company, domain, use_case)
+        return result
+
+    def _notify_operator(email: Any, name: Any, company: Any, domain: Any, use_case: Any) -> None:
+        """Email MORROW_TRIAL_NOTIFY_EMAIL about a new request, on a background thread, best effort.
+
+        Requests are approved by hand, so the operator has to hear about them; without this the
+        only signal was the count in the portal. Nothing is sent when the variable is unset.
+        """
+        to = str(os.getenv("MORROW_TRIAL_NOTIFY_EMAIL") or "").strip()
+        if not to:
+            return
+        from services import platform_mail as _mail
+
+        if not _mail.configured() or not _mail.valid_address(to):
+            return
+        clean = lambda value, limit=300: " ".join(str(value or "").split())[:limit]  # noqa: E731
+        subject = f"Morrow trial request: {clean(company, 80) or clean(email, 80)}"
+        body = (f"A new trial request is waiting for review.\n\n"
+                f"Name:     {clean(name)}\nEmail:    {clean(email)}\nCompany:  {clean(company)}\n"
+                f"Domain:   {clean(domain)}\n\nUse case:\n{clean(use_case, 2000)}\n\n"
+                "Approve or decline it in the operator console under Customers > Trial requests.\n")
+
+        def send() -> None:
+            result = _mail.send_text([to], subject, body)
+            if not result.get("ok"):
+                logger.warning("trial request notification not sent: %s", result.get("error") or "unknown error")
+        threading.Thread(target=send, name="trial-request-notify", daemon=True).start()
 
     # ── Public ───────────────────────────────────────────────────────────────
 

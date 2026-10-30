@@ -147,6 +147,25 @@ services:
       # legal review in docs/LAUNCH_CHECKLIST.md part 3 exist.
       - key: MORROW_PUBLIC_CHECK_ENABLED
         value: "0"
+      # Email (invitations, password reset, new trial request notices) through Resend's SMTP
+      # relay; soqlab.com is already verified there. MORROW_SMTP_PASSWORD is a Resend API key.
+      # Plain address only: the sender is also the SMTP envelope sender.
+      - key: MORROW_SMTP_HOST
+        value: smtp.resend.com
+      - key: MORROW_SMTP_PORT
+        value: "587"
+      - key: MORROW_SMTP_USER
+        value: resend
+      - key: MORROW_SMTP_FROM
+        value: noreply@soqlab.com
+      - key: MORROW_SMTP_PASSWORD
+        sync: false
+      # Where new trial requests are announced. Set in the dashboard.
+      - key: MORROW_TRIAL_NOTIFY_EMAIL
+        sync: false
+      # Customer sign-in screen: email and password only, no developer token options.
+      - key: MORROW_SIGNIN_SIMPLE
+        value: "1"
       # Admin dashboard figures are precomputed snapshots; at this size a minute is cheap.
       - key: MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS
         value: "60"

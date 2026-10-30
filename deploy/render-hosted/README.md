@@ -56,6 +56,24 @@ The production startup check requires customer sign-in through an external ident
 `MORROW_ENVIRONMENT=staging`, which keeps MFA and the refusal of the shared platform key. Before
 opening sign-ups to the public, work through `docs/LAUNCH_CHECKLIST.md`.
 
+## Email
+
+Mail goes through Resend's SMTP relay (`smtp.resend.com`, user `resend`), sending as
+`noreply@soqlab.com`; soqlab.com is verified in Resend. Set two values in the dashboard:
+
+| Variable | What to enter |
+|---|---|
+| `MORROW_SMTP_PASSWORD` | A Resend API key with sending access (resend.com → API Keys). |
+| `MORROW_TRIAL_NOTIFY_EMAIL` | Where to announce new trial requests: your own address. |
+
+With mail configured: approving a trial request emails the invitation, the sign-in screen offers
+"Forgot password?" (`/reset-password`, a single-use link valid for 30 minutes that signs the
+account out everywhere when used), and each new trial request is emailed to you. Without it,
+those fall back to copying links by hand, and password reset is not offered.
+
+`MORROW_SIGNIN_SIMPLE=1` keeps the customer sign-in screen to email, password, "Forgot password?"
+and "Request access"; the token fields and server switcher are for self-hosted operators.
+
 ## Customer sign-up
 
 Approve a trial request in `/vendor-admin` (Customers → Trial requests), then send the invitation

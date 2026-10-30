@@ -2804,6 +2804,10 @@ function authGateHtml() {
   const saml  = !!c.saml_enabled;
   const ext   = !!c.login_url;
   const provider = c.provider_name || "this deployment";
+  /* A hosted deployment for customers (MORROW_SIGNIN_SIMPLE=1): email and password only. The token
+     paste, the server switcher and "retry without signing in" are for operators and developers, and
+     on a hosted site they only lead customers to "missing bearer token". */
+  const simple = !!c.simple_sign_in && pw;
   return `<div class="gate" id="gate">
     <div class="gateCard" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
       <div class="gateBrand">
@@ -2813,8 +2817,9 @@ function authGateHtml() {
         <div><b>Morrow</b><small>Quantum Mesh</small></div>
       </div>
       <h2 id="gateTitle">Sign in</h2>
-      <p class="gsub">This server requires authentication. Signing in with
-        <b>${H(provider)}</b> (${H(TITLE(c.mode || "unknown"))} mode).</p>
+      ${simple ? `<p class="gsub">Sign in with the email address your invitation was sent to.</p>`
+        : `<p class="gsub">This server requires authentication. Signing in with
+        <b>${H(provider)}</b> (${H(TITLE(c.mode || "unknown"))} mode).</p>`}
       <div id="gateErr" role="alert" aria-live="assertive"></div>
 
       ${pw ? `<div class="col">
@@ -2823,6 +2828,7 @@ function authGateHtml() {
         <div class="field"><label for="gPass">Password</label>
           <input class="inp" id="gPass" type="password" autocomplete="current-password" placeholder="••••••••••"></div>
         <button class="btn pri block" data-act="gateLogin" type="button" style="height:38px">${I.lock}Sign in</button>
+        ${c.password_reset_enabled ? `<a class="forgotLink" href="/reset-password" style="font-size:12px;color:var(--ink2);align-self:flex-end">Forgot password?</a>` : ""}
       </div>` : `<div class="banner info">${I.info}<div><span class="bx">This server does not offer
         password sign-in. Use single sign-on or a token issued by your identity provider.</span></div></div>`}
 
@@ -2830,7 +2836,7 @@ function authGateHtml() {
       ${saml ? `<button class="btn block" data-act="loginSaml" type="button">${I.shield}Continue with single sign-on</button>` : ""}
       ${ext ? `<a class="btn block" href="${H(c.login_url)}">${I.link}Sign in with ${H(provider)}</a>` : ""}
 
-      <div class="orDiv"><i></i><span>or use a token</span><i></i></div>
+      ${simple ? `<div class="gateFoot"><span>No account yet? <a href="/trial">Request access</a></span></div>` : `<div class="orDiv"><i></i><span>or use a token</span><i></i></div>
       <div class="col">
         <div class="field"><label for="gTok">Bearer token</label>
           <input class="inp mono" id="gTok" placeholder="paste an access token" spellcheck="false"></div>
@@ -2843,7 +2849,7 @@ function authGateHtml() {
       <div class="gateFoot">
         <span>Signing in to <span class="mono">${H(S.base)}</span></span>
         <span><a href="#" data-act="gateConn">Change server</a> · <a href="#" data-act="gateRetry">Retry without signing in</a></span>
-      </div>
+      </div>`}
     </div></div>`;
 }
 let gateOpen = false;
@@ -2965,7 +2971,8 @@ function openLogin() {
           <input class="inp" id="lgEmail" type="email" data-autofocus autocomplete="username" placeholder="you@example.com"></div>
         <div class="field"><label for="lgPass">Password</label>
           <input class="inp" id="lgPass" type="password" autocomplete="current-password"></div>
-        <button class="btn pri block" data-act="loginPw" type="button">${I.lock}Sign in</button>` : ""}
+        <button class="btn pri block" data-act="loginPw" type="button">${I.lock}Sign in</button>
+        ${c.password_reset_enabled ? `<a href="/reset-password" style="font-size:12px;color:var(--ink2);align-self:flex-end">Forgot password?</a>` : ""}` : ""}
 
       ${saml ? `<button class="btn block" data-act="loginSaml" type="button">${I.shield}Continue with SAML single sign-on</button>` : ""}
       ${ext ? `<a class="btn block" href="${H(c.login_url)}">${I.link}Sign in with ${H(provider)}</a>` : ""}
