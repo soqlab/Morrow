@@ -1674,6 +1674,22 @@ _ALLOWED_HOSTS = [h.strip() for h in _ALLOWED_HOSTS_RAW.split(",") if h.strip()]
 if "*" not in _ALLOWED_HOSTS:
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=_ALLOWED_HOSTS)
 
+# One public address. With MORROW_CANONICAL_HOST set, a request for another of this deployment's
+# public names (an old address, say) is sent to the same path there with 308, which keeps the
+# method and body. The platform's own *.onrender.com name and /healthz are left alone, so probes
+# and direct checks still reach the service.
+_CANONICAL_HOST = str(os.getenv("MORROW_CANONICAL_HOST") or "").strip().lower()
+if _CANONICAL_HOST:
+    @app.middleware("http")
+    async def _canonical_host_redirect(request: Request, call_next):
+        host = str(request.headers.get("host") or "").split(":", 1)[0].lower()
+        if host and host != _CANONICAL_HOST and not host.endswith(".onrender.com") and host not in ("localhost", "127.0.0.1")                 and request.url.path != "/healthz":
+            target = f"https://{_CANONICAL_HOST}{request.url.path}"
+            if request.url.query:
+                target += "?" + request.url.query
+            return RedirectResponse(target, status_code=308)
+        return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,

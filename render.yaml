@@ -1,53 +1,7 @@
-# Public demo of Morrow (morrow.soqlab.com), on Render's free tier.
-#
-# Each visitor gets a private, throwaway workspace with fictional sample data. Nothing is kept:
-# workspaces are deleted after an hour, and the SQLite file lives on the container's ephemeral disk,
-# so it is wiped whenever the instance restarts or sleeps. Outbound network is locked to localhost,
-# so the demo cannot scan or contact anything. See backend/services/demo_mode.py.
-#
-# This is NOT a production deployment: for real use, see deploy/single-host/README.md.
+# Hosted Morrow at morrow.soqlab.com (Render web service morrow-app). The public demo that used to
+# answer there was removed: self sign-up gives anyone their own workspace in a minute.
+# demo mode (backend/services/demo_mode.py) is still available for anyone who wants to run one.
 services:
-  - type: web
-    name: morrow-demo
-    runtime: docker
-    plan: free
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    healthCheckPath: /health
-    autoDeploy: true
-    envVars:
-      - key: MORROW_DEMO_MODE
-        value: "1"
-      - key: MORROW_DEMO_TTL_SECONDS
-        value: "3600"
-      - key: MORROW_DEMO_MAX_WORKSPACES
-        value: "25"
-      # Offices and universities share one public address, so this is per network, not per person.
-      - key: MORROW_DEMO_STARTS_PER_IP_HOUR
-        value: "20"
-      - key: MORROW_ENVIRONMENT
-        value: local
-      - key: MORROW_MAIN_DB_BACKEND
-        value: sqlite
-      - key: MORROW_SCANNER_DB
-        value: /data/demo.db
-      - key: MORROW_DATA_DIR
-        value: /data
-      - key: MORROW_AUTH_MODE
-        value: jwt
-      - key: MORROW_AUTH_REQUIRED
-        value: "1"
-      - key: MORROW_DEFAULT_ROLE
-        value: viewer
-      - key: MORROW_AUTH_JWT_SECRET
-        generateValue: true
-      - key: MORROW_AUTH_TOKEN_TTL_SECONDS
-        value: "3600"
-      - key: MORROW_PUBLIC_CHECK_ENABLED
-        value: "0"
-      - key: MORROW_ALERT_DISPATCH_ENABLED
-        value: "0"
-
   # Hosted Morrow (app.morrow.soqlab.com): real accounts and saved scans, invitation only.
   #
   # One Starter service runs the API, the Celery worker with beat embedded, and Redis on
@@ -86,9 +40,9 @@ services:
       - key: MORROW_PUBLIC_BASE_URL
         value: https://app.morrow.soqlab.com
       - key: MORROW_ALLOWED_HOSTS
-        value: app.morrow.soqlab.com,morrow-app.onrender.com
+        value: morrow.soqlab.com,app.morrow.soqlab.com,morrow-app.onrender.com
       - key: MORROW_CORS_ORIGINS
-        value: https://app.morrow.soqlab.com
+        value: https://morrow.soqlab.com,https://app.morrow.soqlab.com
       # Render's proxy sets X-Forwarded-For; without this every visitor is Render's address.
       - key: MORROW_TRUST_PROXY_HEADERS
         value: "1"
