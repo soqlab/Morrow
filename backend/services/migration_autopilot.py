@@ -577,9 +577,11 @@ def deploy_via_code_host(task_id: str, org_id: str, repository: str, file_path: 
     path = str(file_path or "").strip() or suggested_snippet_path(task)
     host = str(task.get("asset_key") or "this endpoint")
     howto = _SNIPPET_HOWTO.get(server, {"how": "Apply these settings to the TLS configuration of {host}."})["how"]
+    # str.replace, not str.format: the nginx and apache instructions contain literal braces.
+    howto = howto.replace("{path}", path).replace("{host}", host)
     body = (
         f"Post-quantum TLS settings for **{host}** ({server}), proposed by Morrow.\n\n"
-        f"**How to apply:** {howto.replace("{path}", path).replace("{host}", host)}\n\n"
+        f"**How to apply:** {howto}\n\n"
         "Phase 1 hardens TLS today with no library changes. Phase 2 is commented out: enable it once the "
         "server's TLS library supports hybrid post-quantum key exchange (X25519MLKEM768).\n\n"
         "Nothing has been applied to a live system. Test in staging, merge when ready, then rescan the "
