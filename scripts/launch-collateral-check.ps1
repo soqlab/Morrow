@@ -28,7 +28,7 @@ $requiredFiles = @(
   @{ path = "backend\static_admin\traffic.html"; phrases = @("Traffic Monitor", "Platform-admin only", "No payload capture") },
   @{ path = "backend\static\security.html"; phrases = @("minimum customer access", "Production Controls", "Buyer Review References") },
   @{ path = "backend\static\trust-passport-demo.html"; phrases = @("Proof a buyer can actually review.", "Minimum Access", "verify signatures") },
-  @{ path = "backend\static\pricing.html"; phrases = @("Morrow is free", "no service", "MIT") },
+  @{ path = "backend\static\pricing.html"; phrases = @("Morrow is free", "no service", "AGPL") },
   @{ path = "backend\static\pilot.html"; phrases = @("6-8 week", "3-5 critical", "success criteria") },
   @{ path = "backend\static\data-boundary.html"; phrases = @("Optional integrations", "Platform traffic metadata") },
   @{ path = "backend\static\dpa.html"; phrases = @("Contract review required", "not an executed") },

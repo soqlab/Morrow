@@ -397,8 +397,8 @@ def _probe_tls12_accepted_ciphers(host: str, port: int) -> Dict[str, Any]:
 # means no TLS stack parses or drives the handshake -- `cryptography` is still used to generate the
 # X25519 key share, and `secrets` for the client random. Group code points and the fixed
 # HelloRetryRequest random (RFC 8446 section 4.1.3) are registry and specification constants, so
-# identical values in other tools are required by the standard, not copied. MIT-licensed with the
-# rest of this repository.
+# identical values in other tools are required by the standard, not copied. AGPL-3.0, like the rest of this
+# repository.
 
 #: IANA TLS Supported Groups, plus the hybrid code points in deployment today.
 TLS_NAMED_GROUPS: Dict[int, str] = {

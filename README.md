@@ -8,7 +8,7 @@ configuration; scores what is exposed; assigns each finding an owner; and follow
 remediation to verified closure with an audit trail.
 
 [![CI](https://github.com/soqlab/morrow/actions/workflows/tests.yml/badge.svg)](https://github.com/soqlab/morrow/actions/workflows/tests.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 ![The console's estate overview](demo/tour/overview.jpg)
 
@@ -253,7 +253,7 @@ guessing. Empty states say "no data yet" instead of showing a zero that looks li
 
 ### What it costs
 
-Nothing, in both senses. The platform is MIT-licensed, so you can run your own copy, modify it and
+Nothing, in both senses. The platform is open source under the AGPL-3.0, so you can run your own copy, modify it and
 redistribute it. The instance we host is also free: no card, no paid tier, nothing withheld behind
 one. Rate limits exist because capacity is finite, not as an upsell.
 
@@ -313,7 +313,12 @@ AI adapter, and what a reviewable pull request looks like. By participating you 
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Yasseen Nandally.
+GNU Affero General Public License v3.0 — see [LICENSE](LICENSE). Copyright (c) 2026 Yasseen Nandally.
+
+You may use, modify and run Morrow, including commercially and for your own organization. If you
+offer a modified version to others over a network, the AGPL requires you to publish your changes
+under the same licence. Versions published before 31 October 2026 were released under the MIT
+licence and remain available under it.
 
 Third-party dependency licences and attribution notices are in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

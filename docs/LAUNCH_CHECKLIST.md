@@ -8,7 +8,7 @@ Three things are launching at once and they have different readiness bars:
 |---|---|---|
 | **The hosted site** | `your-domain.com`: the marketing pages, the free check, the trial request form, the customer console | a server, a domain, an identity provider |
 | **The admin portal** | `/vendor-admin`: you, running the business | operator SSO and MFA on the real deployment |
-| **The public repository** | the MIT release on your forge, mirrored to GitHub | nothing technical; it is ready |
+| **The public repository** | the AGPL-3.0 release on GitHub | nothing technical; it is ready |
 
 The engineering is done. What is left is mostly decisions, accounts and one lawyer.
 
@@ -103,7 +103,7 @@ Certificate Transparency seeding is safe at any scale and active measurement is 
 
 ## Part 5 — Market ready, as distinct from technically ready
 
-- [x] **Pricing decided: there isn't any.** The hosted service is free and the platform is MIT.
+- [x] **Pricing decided: there isn't any.** The hosted service is free and the platform is open source (AGPL-3.0).
       `/pricing` says so and explains what free does and does not mean, and the billing code has
       been removed (revision 0009 drops its tables).
 - [ ] **Know what actually limits you, which is not money.** Scanning is close to free: a TLS scan
@@ -128,7 +128,7 @@ Certificate Transparency seeding is safe at any scale and active measurement is 
       request, or serve `demo/video/` off the box.
 - [ ] **Say what happens if you stop.** Free with no SLA is honest, but an organisation planning a
       migration against a 2030 deadline needs to know the answer. It is already a good one: the
-      source is MIT and published, so they can run their own copy. Make sure that sentence is
+      source is open (AGPL-3.0) and published, so they can run their own copy. Make sure that sentence is
       somewhere they will read it — it is on `/pricing` now.
 - [ ] **One real customer or pilot** who has run the full path and will say something about it.
       Everything else on this list is you talking about yourself.

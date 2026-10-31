@@ -17,8 +17,8 @@ qrcodegen or otherwise). The generator polynomials, the GF(256) log/antilog tabl
 built at import time from the standard 0x11D primitive polynomial, the
 per-version error-correction block tables and the eight mask penalty rules are
 specification data: any correct implementation necessarily reproduces the same
-numbers, so matching values elsewhere are not evidence of copying. MIT-licensed
-with the rest of this repository.
+numbers, so matching values elsewhere are not evidence of copying. AGPL-3.0, like the
+rest of this repository.
 """
 from __future__ import annotations
 

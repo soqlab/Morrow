@@ -2,7 +2,8 @@
 
 **Repository:** Morrow
 **Owner:** Yasseen Nandally
-**Target licence:** MIT
+**Licence:** AGPL-3.0 since 31 October 2026 (MIT before; this review was written for MIT, and every
+dependency it lists is permissive and compatible with the AGPL)
 **Review date:** 3 October 2026
 **Verdict: GO, conditional on four items** — see the [go/no-go checklist](#gono-go-checklist).
 
