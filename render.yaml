@@ -2,7 +2,7 @@
 # answer there was removed: self sign-up gives anyone their own workspace in a minute.
 # demo mode (backend/services/demo_mode.py) is still available for anyone who wants to run one.
 services:
-  # Hosted Morrow (app.morrow.soqlab.com): real accounts and saved scans, invitation only.
+  # Hosted Morrow (morrow.soqlab.com): real accounts and saved scans, self sign-up.
   #
   # One Starter service runs the API, the Celery worker with beat embedded, and Redis on
   # localhost (deploy/render-hosted). All data is SQLite on the service's disk (WAL mode), so the
@@ -38,7 +38,10 @@ services:
       - key: MORROW_DATA_DIR
         value: /data
       - key: MORROW_PUBLIC_BASE_URL
-        value: https://app.morrow.soqlab.com
+        value: https://morrow.soqlab.com
+      # app.morrow.soqlab.com, the first address, forwards here.
+      - key: MORROW_CANONICAL_HOST
+        value: morrow.soqlab.com
       - key: MORROW_ALLOWED_HOSTS
         value: morrow.soqlab.com,app.morrow.soqlab.com,morrow-app.onrender.com
       - key: MORROW_CORS_ORIGINS

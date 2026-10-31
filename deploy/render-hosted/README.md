@@ -1,6 +1,6 @@
 # Hosted Morrow on Render
 
-**Written for: the operator bringing up app.morrow.soqlab.com.**
+**Written for: the operator bringing up morrow.soqlab.com.**
 
 `render.yaml` defines `morrow-app`: one Starter web service (512 MB) with a 1 GB disk, about
 $7 a month. The free demo, `morrow-demo`, is a separate service and is not affected.
@@ -111,6 +111,7 @@ overwriting the server's configuration. Code: `services/code_hosts.py`.
 
 ## Domain
 
-Render dashboard → morrow-app → Settings → Custom Domains → `app.morrow.soqlab.com`, then a
-Cloudflare CNAME `app.morrow` → the service's onrender.com address, DNS only. If that address
-is not `morrow-app.onrender.com`, add it to `MORROW_ALLOWED_HOSTS`.
+Render dashboard → morrow-app → Settings → Custom Domains → `morrow.soqlab.com`, and a Cloudflare
+CNAME `morrow` → `morrow-app.onrender.com`, DNS only. `MORROW_PUBLIC_BASE_URL` builds every emailed
+link and `MORROW_CANONICAL_HOST` sends any other public name (the earlier `app.morrow.soqlab.com`)
+there with a 308. Every name must also be in `MORROW_ALLOWED_HOSTS`.
