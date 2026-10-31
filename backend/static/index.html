@@ -6733,8 +6733,8 @@ VIEWS.remediation = async (host) => {
             Autopilot analyzes your inventory, proposes hybrid-post-quantum configuration changes, and can open pull requests
             against connected repositories for review.</p>
           <div class="col">
-            ${actBtn("Analyze estate", "autoAnalyze", { cls: "btn sm block", icon: I.eye })}
-            ${actBtn("Deploy approved changes", "autoDeploy", { cls: "btn sm pri block", icon: I.play })}
+            ${actBtn("Propose fixes from latest scan", "autoAnalyze", { cls: "btn sm block", icon: I.eye })}
+            <a href="/ui/code-hosts.html" style="font-size:12px;color:var(--ink2)">Code hosts: GitHub, GitLab, Bitbucket, Azure DevOps, Gitea &#8599;</a>
           </div>
           <div id="autoOut" style="margin-top:14px"></div>`, { icon: I.atom, sub: "Automated migration engine" })}
       </div>
@@ -6812,7 +6812,19 @@ ACTIONS.remOpen = async (b) => {
 ACTIONS.remAct = async (b) => {
   const { id, op } = b.dataset;
   const r = await safe(`/remediations/${encodeURIComponent(id)}/${op}`, { method: "POST", body: {} });
-  if (!r.ok) return err(r.err);
+  if (!r.ok) {
+    if (op === "create-pr" && /Connect a code host/.test(r.err || "")) {
+      return modal("Connect your code host first", `<p style="font-size:13px;line-height:1.6;margin:0">${H(r.err)}</p>`,
+        `<button class="btn" data-close type="button">Cancel</button><a class="btn pri" href="/ui/code-hosts.html">Connect a code host</a>`);
+    }
+    return err(r.err);
+  }
+  if (op === "create-pr" && r.data?.pr?.html_url) {
+    ok(`${TITLE(r.data.pr.request_name || "pull request")} opened`);
+    window.open(r.data.pr.html_url, "_blank", "noopener");
+    $("#overlay").innerHTML = ""; retry();
+    return;
+  }
   ok(`${TITLE(op.replace("/", " "))} succeeded`);
   $("#overlay").innerHTML = ""; retry();
 };
@@ -6881,18 +6893,62 @@ ACTIONS.playProg = async () => {
   }, "/playbooks/progress/assets");
   wire(box);
 };
+/* Migration Autopilot: pick a scanned endpoint, generate its post-quantum TLS settings, then open
+   them as a pull request (merge request on GitLab) on the organization's connected code host. */
 ACTIONS.autoAnalyze = async () => {
   const box = $("#autoOut"); box.innerHTML = skel(2, 30);
-  const r = await safe("/autopilot/analyze", { method: "POST", body: {} });
-  box.innerHTML = bind(r, (d) => autoKV(d, { limit: 26 }), "/autopilot/analyze");
+  const hist = await safe("/scans?limit=25");
+  const last = hist.ok ? rows(hist.data).find(s => /complete/i.test(String(s.status || ""))) : null;
+  const res = last ? await safe(`/scans/${encodeURIComponent(last.id)}/results`) : null;
+  const found = (res?.ok ? rows(res.data, "results") : []).filter(x => x && x.host && !/not_permitted|dns_error/.test(String(x.scan_status || "")));
+  S.autoResults = found;
+  if (!found.length) {
+    box.innerHTML = `<p style="font-size:12.5px;color:var(--ink2)">No completed scan with reachable endpoints yet. Run a scan in TLS Scanner first.</p>`;
+    return;
+  }
+  box.innerHTML = `<p style="font-size:12.5px;color:var(--ink2);margin:0 0 8px">Endpoints from your latest scan. Choose one to get its fix as a pull request.</p>
+    <div class="col">${found.slice(0, 25).map((x, i) => `<div class="row" style="justify-content:space-between;gap:10px">
+      <span class="mono" style="font-size:12px">${H(x.host)}:${H(x.port || 443)} <span style="color:var(--ink3)">${H(x.tls_version || "")} ${x.pq_ready ? "· post-quantum ready" : ""}</span></span>
+      ${actBtn("Propose fix", "autoPropose", { cls: "btn xs", data: { i } })}</div>`).join("")}</div>`;
+  wire(box);
+};
+ACTIONS.autoPropose = async (b) => {
+  const result = (S.autoResults || [])[Number(b.dataset.i)];
+  if (!result) return;
+  const box = $("#autoOut");
+  const r = await safe("/autopilot/analyze", { method: "POST", body: { scan_result: result } });
+  if (!r.ok) return err(r.err);
+  S.autoTask = r.data;
+  box.innerHTML = `<p style="font-size:12.5px;color:var(--ink2);margin:0 0 8px">Proposed settings for <b class="mono">${H(r.data.asset_key || result.host)}</b> (${H(r.data.server_type || "server")}):</p>
+    <pre class="mono" style="font-size:11.5px;white-space:pre-wrap;max-height:260px;overflow:auto">${H(r.data.config_patch || "")}</pre>
+    ${actBtn("Open pull request", "autoDeploy", { cls: "btn sm pri block", icon: I.play })}`;
   wire(box);
 };
 ACTIONS.autoDeploy = async () => {
-  const box = $("#autoOut"); box.innerHTML = skel(2, 30);
-  const r = await safe("/autopilot/deploy", { method: "POST", body: {} });
-  box.innerHTML = bind(r, (d) => autoKV(d, { limit: 26 }), "/autopilot/deploy");
-  if (r.ok) ok("Autopilot deployment triggered");
-  wire(box);
+  const task = S.autoTask;
+  if (!task) return ACTIONS.autoAnalyze();
+  const hosts = await safe("/code-hosts");
+  const list = hosts.ok ? (hosts.data.connections || []) : [];
+  if (!list.length) {
+    return modal("Connect your code host first", `<p style="font-size:13px;line-height:1.6;margin:0">Morrow opens fixes as pull requests on GitHub, GitLab, Bitbucket, Azure DevOps or Gitea. Connect yours once; it takes a minute.</p>`,
+      `<button class="btn" data-close type="button">Cancel</button><a class="btn pri" href="/ui/code-hosts.html">Connect a code host</a>`);
+  }
+  requestForm("Open a pull request", "Nothing is applied to a live system: your team reviews and merges it.", [
+    { name: "connection", label: "Code host", type: "select", value: (list.find(c => c.is_default) || list[0]).id,
+      options: list.map(c => [c.id, `${c.provider_name}${c.account ? " · " + c.account : ""}${c.label && c.label !== c.provider_name ? " · " + c.label : ""}`]) },
+    { name: "repo", label: "Repository", mono: true, placeholder: "owner/repository", help: "The repository that holds this server's configuration. A pasted repository URL works too." },
+    { name: "path", label: "File to add (optional)", mono: true, required: false, placeholder: `morrow/pq-tls/${task.server_type || "nginx"}-….conf`,
+      help: "Leave empty to add the settings as a new file; the pull request says where to include it." },
+    { name: "base", label: "Target branch (optional)", mono: true, required: false, placeholder: "default branch" },
+  ], async v => {
+    const r = await safe("/autopilot/deploy", { method: "POST", body: { task_id: task.task_id || task.id, repository: v.repo, file_path: v.path, base_branch: v.base, connection_id: v.connection } });
+    if (!r.ok) return err(r.err);
+    const box = $("#autoOut");
+    if (box) {
+      box.innerHTML = `<p style="font-size:13px;margin:0">${H(TITLE(r.data.request_name || "pull request"))} opened on ${H(r.data.provider_name || "your code host")}: <a href="${H(r.data.pr_url)}" target="_blank" rel="noopener">${H(r.data.pr_url)}</a></p>`;
+    }
+    ok(`${TITLE(r.data.request_name || "pull request")} opened`);
+  });
 };
 ACTIONS.codegen = async () => {
   let ctx = {};

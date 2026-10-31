@@ -61,6 +61,8 @@ ORG_SCOPED_TABLES: List[str] = [
     "admin_rate_limits",
     # Verified domains (services/domain_verification.py): which hosts a tenant may scan.
     "org_verified_domains",
+    # Code-host connections (services/code_hosts.py): encrypted tokens a tenant uses to open PRs.
+    "org_code_connections",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -75,6 +77,7 @@ TENANT_COLUMNS: Dict[str, str] = {
     "admin_audit_log": "org_id",
     "admin_rate_limits": "org_id",
     "org_verified_domains": "org_id",
+    "org_code_connections": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".

@@ -571,3 +571,38 @@ def test_llm_wrapped_patch_is_applied():
         parsed["diff"],
     )
     assert "Note: The baseline requires TLS 1.3." in updated
+
+
+def test_create_pr_without_github_credential_uses_the_code_host_connection(client_and_repo, monkeypatch):
+    """No github_credential_id: the organization's connected host (any provider) opens the request."""
+    client, repo = client_and_repo
+    from services import code_hosts
+
+    resp = client.post("/remediations/suggest", json={
+        "asset_key": "gitlab.example:443", "repository_id": int(repo["id"]), "file_path": "main.tf",
+        "vulnerability": "TLS 1.2 is too weak; require TLS 1.3", "github_credential_id": 1, "ref": "main"})
+    assert resp.status_code == 200
+    rid = int(resp.json()["remediation"]["id"])
+    assert client.post(f"/remediations/{rid}/approve", json={"note": "ok"}).status_code == 200
+    assert client.post(f"/remediations/{rid}/validate", json={"github_credential_id": 1, "ref": "main", "async_mode": False}).status_code == 200
+
+    opened = {}
+    monkeypatch.setattr(code_hosts, "read_file", lambda org, repo_name, path, ref="", connection_id="": {
+        "ref": "trunk", "exists": True, "content": "tls_version = \"1.2\"\n", "repository": repo_name,
+        "connection_id": "ch_1", "provider": "gitlab"})
+
+    def fake_open(org, repo_name, files, title, body="", base_branch="", connection_id="", branch=""):
+        opened.update(repo=repo_name, files=files, base=base_branch, branch=branch, conn=connection_id)
+        return {"url": "https://gitlab.com/acme/demo/-/merge_requests/9", "number": 9, "branch": branch, "base": base_branch,
+                "provider": "gitlab", "provider_name": "GitLab", "request_name": "merge request",
+                "repository": repo_name, "connection_id": connection_id}
+    monkeypatch.setattr(code_hosts, "open_change_request", fake_open)
+
+    resp = client.post(f"/remediations/{rid}/create-pr", json={})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["pr"]["html_url"].endswith("/merge_requests/9") and body["pr"]["request_name"] == "merge request"
+    assert body["remediation"]["status"] == "pr_created"
+    assert opened["repo"] == "acme/demo" and opened["base"] == "trunk" and opened["conn"] == "ch_1"
+    assert list(opened["files"]) == ["main.tf"] and "1.3" in opened["files"]["main.tf"]
+    assert opened["branch"].startswith(f"fix/pq-remediation-{rid}-")

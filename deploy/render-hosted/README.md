@@ -95,6 +95,20 @@ What it does not stop: the owner of a verified domain can point a name under it 
 The scan then reaches that address, from an account tied to a verified domain and an email
 address, with the trial caps applied.
 
+## Pull requests on the customer's code host
+
+Customers connect their own code host on `/ui/code-hosts.html` with an access token they create
+there: GitHub (or GitHub Enterprise), GitLab (or self-managed), Bitbucket Cloud, Azure DevOps, or
+Gitea/Forgejo. Nothing has to be registered by the operator. The page links each host's token page
+and lists the permissions. Tokens are checked against the host, encrypted with
+`MORROW_VAULT_MASTER_KEY`, and never returned. A self-hosted server must be HTTPS on a public
+address.
+
+Fixes then open as a pull request (merge request on GitLab) there: **Remediation → Create PR**,
+and **Migration Autopilot → Propose fixes from latest scan → Open pull request**, which adds the
+generated settings as a new file and says in the description where to include it, rather than
+overwriting the server's configuration. Code: `services/code_hosts.py`.
+
 ## Domain
 
 Render dashboard → morrow-app → Settings → Custom Domains → `app.morrow.soqlab.com`, then a

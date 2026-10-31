@@ -9161,9 +9161,15 @@ class AutopilotAnalyzeRequest(BaseModel):
 
 class AutopilotDeployRequest(BaseModel):
     task_id: str
+    # The organization's code-host connection (services/code_hosts): GitHub, GitLab, Bitbucket,
+    # Azure DevOps or Gitea. connection_id "" uses the default connection.
+    repository: str = ""
+    file_path: str = ""
+    connection_id: str = ""
+    # Legacy GitHub-only fields: a raw token in the request instead of a stored connection.
     github_token: str = ""
     repo_full_name: str = ""
-    base_branch: str = "main"
+    base_branch: str = ""
     jira_url: str = ""
     jira_email: str = ""
     jira_token: str = ""
@@ -9757,17 +9763,35 @@ def api_autopilot_deploy(req: AutopilotDeployRequest, request: Request):
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID)
     _require_role(request, allowed_roles=["operator", "admin"],
                   action="autopilot.deploy", resource_type="organization", resource_id=org_id)
-    return _autopilot_deploy(
-        task_id=req.task_id,
-        org_id=org_id,
-        github_token=req.github_token or None,
-        repo_full_name=req.repo_full_name or None,
-        base_branch=req.base_branch,
-        jira_url=req.jira_url or None,
-        jira_email=req.jira_email or None,
-        jira_token=req.jira_token or None,
-        jira_project_key=req.jira_project_key or None,
-    )
+    if not req.github_token:
+        from services import migration_autopilot as _autopilot
+
+        repository = (req.repository or req.repo_full_name).strip()
+        if not repository:
+            raise HTTPException(status_code=400, detail="Choose the repository to open the pull request in.")
+        try:
+            return _autopilot.deploy_via_code_host(req.task_id, org_id, repository, req.file_path,
+                                                   req.base_branch, req.connection_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from None
+        except _code_hosts.CodeHostError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+    # The legacy keywords did not match deploy_patch's signature, so this path raised TypeError.
+    try:
+        return _autopilot_deploy(
+            task_id=req.task_id,
+            org_id=org_id,
+            github_token=req.github_token,
+            github_repo=req.repo_full_name or req.repository,
+            github_base_branch=req.base_branch or "main",
+            config_file_path=req.file_path or "nginx/nginx.conf",
+            jira_url=req.jira_url,
+            jira_email=req.jira_email,
+            jira_token=req.jira_token,
+            jira_project=req.jira_project_key,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
 
 
 @app.get("/autopilot/tasks")
@@ -18951,11 +18975,45 @@ async def github_oauth_connect(request: Request):
         return JSONResponse({"error": "GitHub OAuth not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET."}, status_code=503)
     org_id = _extract_org_id_from_request(request)
     user_id = _get_actor_id(request)
+    url = _gh_auth_url(state=_github_oauth_state_sign(org_id, user_id))
+    return RedirectResponse(url)
+
+
+def _github_oauth_state_key() -> bytes:
+    secret = str(os.getenv("MORROW_AUTH_JWT_SECRET") or os.getenv("MORROW_VAULT_MASTER_KEY") or "").strip()
+    if not secret:
+        raise HTTPException(status_code=503, detail="GitHub connection needs MORROW_AUTH_JWT_SECRET on the server.")
+    return hashlib.sha256(b"morrow-github-oauth-state:" + secret.encode("utf-8")).digest()
+
+
+def _github_oauth_state_sign(org_id: str, user_id: str) -> str:
+    """The OAuth state names the organization the token will be stored under, so it is signed and
+    expires: an unsigned state let anyone attach their own GitHub account to another organization."""
     import base64 as _b64
     import json as _json
-    state = _b64.urlsafe_b64encode(_json.dumps({"org": org_id, "uid": user_id}).encode()).decode()
-    url = _gh_auth_url(state=state)
-    return RedirectResponse(url)
+    import secrets as _secrets
+
+    payload = _b64.urlsafe_b64encode(_json.dumps({"org": org_id, "uid": user_id, "exp": int(time.time()) + 600,
+                                                  "n": _secrets.token_hex(8)}).encode()).decode().rstrip("=")
+    mac = hmac.new(_github_oauth_state_key(), payload.encode("ascii"), hashlib.sha256).hexdigest()
+    return f"{payload}.{mac}"
+
+
+def _github_oauth_state_verify(state: str) -> Optional[Dict[str, Any]]:
+    import base64 as _b64
+    import json as _json
+
+    try:
+        payload, mac = str(state or "").rsplit(".", 1)
+        expected = hmac.new(_github_oauth_state_key(), payload.encode("ascii"), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(mac, expected):
+            return None
+        data = _json.loads(_b64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)).decode())
+    except Exception:
+        return None
+    if int(data.get("exp") or 0) < int(time.time()) or not data.get("org"):
+        return None
+    return data
 
 
 @app.get("/auth/github/callback")
@@ -18969,11 +19027,9 @@ async def github_oauth_callback(code: str = "", state: str = "", error: str = ""
     try:
         import base64 as _b64
         import json as _json
-        ctx: dict = {}
-        try:
-            ctx = _json.loads(_b64.urlsafe_b64decode(state + "==").decode())
-        except Exception:
-            pass
+        ctx = _github_oauth_state_verify(state)
+        if not ctx:
+            return HTMLResponse(_gh_callback_page(success=False, message="This sign-in link is invalid or expired. Start again from Morrow."))
         org_id = str(ctx.get("org") or DEFAULT_ORG_ID)
         user_id = str(ctx.get("uid") or "local-user")
         token_info = _gh_exchange_code(code)
@@ -24827,6 +24883,100 @@ def api_remove_domain(domain: str, request: Request):
     if not removed:
         raise HTTPException(status_code=404, detail="That domain isn't on this organization.")
     return {"api_version": "v1", "removed": True}
+
+
+# ── Code hosts (services/code_hosts): GitHub, GitLab, Bitbucket, Azure DevOps, Gitea/Forgejo ─────
+
+from services import code_hosts as _code_hosts  # noqa: E402
+
+
+class CodeHostConnectBody(BaseModel):
+    provider: str = Field(..., min_length=2, max_length=40)
+    token: str = Field(..., min_length=1, max_length=1000)
+    base_url: str = Field("", max_length=300)
+    label: str = Field("", max_length=80)
+
+
+class ChangeRequestBody(BaseModel):
+    repository: str = Field(..., min_length=3, max_length=300)
+    files: Dict[str, str] = Field(..., min_length=1)
+    title: str = Field("Morrow: post-quantum configuration update", max_length=200)
+    body: str = Field("", max_length=60000)
+    base_branch: str = Field("", max_length=200)
+    connection_id: str = Field("", max_length=40)
+
+
+def _code_host_error(exc: "_code_hosts.CodeHostError") -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+@app.get("/code-hosts/providers")
+def api_code_host_providers(request: Request):
+    """The hosts an organization can connect, with where to create the token and what it needs."""
+    return {"api_version": "v1", "providers": _code_hosts.providers_public()}
+
+
+@app.get("/code-hosts")
+def api_list_code_hosts(request: Request):
+    _require_role(request, allowed_roles=["viewer", "operator", "admin"], action="code_hosts.list", resource_type="code_host")
+    return {"api_version": "v1", "connections": _code_hosts.list_connections(_org(request))}
+
+
+@app.post("/code-hosts")
+@limiter.limit("20/minute")
+def api_add_code_host(body: CodeHostConnectBody, request: Request):
+    """Connect a code host with an access token. The token is checked against the host, then stored encrypted."""
+    _require_role(request, allowed_roles=["admin"], action="code_hosts.add", resource_type="code_host",
+                  resource_id=body.provider[:40])
+    try:
+        connection = _code_hosts.add_connection(_org(request), body.provider, body.token, body.base_url, body.label,
+                                                created_by=_actor_id(request))
+    except _code_hosts.CodeHostError as exc:
+        raise _code_host_error(exc) from None
+    return {"api_version": "v1", "connection": connection}
+
+
+@app.post("/code-hosts/{connection_id}/test")
+@limiter.limit("20/minute")
+def api_test_code_host(connection_id: str, request: Request):
+    _require_role(request, allowed_roles=["operator", "admin"], action="code_hosts.test", resource_type="code_host",
+                  resource_id=connection_id[:40])
+    try:
+        return {"api_version": "v1", **_code_hosts.test_connection(_org(request), connection_id)}
+    except _code_hosts.CodeHostError as exc:
+        raise _code_host_error(exc) from None
+
+
+@app.post("/code-hosts/{connection_id}/default")
+def api_default_code_host(connection_id: str, request: Request):
+    _require_role(request, allowed_roles=["admin"], action="code_hosts.default", resource_type="code_host",
+                  resource_id=connection_id[:40])
+    if not _code_hosts.set_default(_org(request), connection_id):
+        raise HTTPException(status_code=404, detail="No such connection on this organization.")
+    return {"api_version": "v1", "connections": _code_hosts.list_connections(_org(request))}
+
+
+@app.delete("/code-hosts/{connection_id}")
+def api_remove_code_host(connection_id: str, request: Request):
+    _require_role(request, allowed_roles=["admin"], action="code_hosts.remove", resource_type="code_host",
+                  resource_id=connection_id[:40])
+    if not _code_hosts.remove_connection(_org(request), connection_id):
+        raise HTTPException(status_code=404, detail="No such connection on this organization.")
+    return {"api_version": "v1", "removed": True}
+
+
+@app.post("/code-hosts/change-requests")
+@limiter.limit("10/minute")
+def api_open_change_request(body: ChangeRequestBody, request: Request):
+    """Open a pull request (or GitLab merge request) with these files on the chosen or default connection."""
+    _require_role(request, allowed_roles=["operator", "admin"], action="code_hosts.change_request",
+                  resource_type="repository", resource_id=body.repository[:120])
+    try:
+        result = _code_hosts.open_change_request(_org(request), body.repository, body.files, body.title, body.body,
+                                                 body.base_branch, body.connection_id)
+    except _code_hosts.CodeHostError as exc:
+        raise _code_host_error(exc) from None
+    return {"api_version": "v1", **result}
 
 
 def _refuse_unverified_targets(request: Request, targets: List[str]) -> None:

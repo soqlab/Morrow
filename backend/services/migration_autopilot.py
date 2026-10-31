@@ -529,3 +529,69 @@ def get_migration_dashboard(org_id: str) -> Dict[str, Any]:
         },
         "recent_tasks": tasks[:10],
     }
+
+
+# ── Deploy through the organization's code host (services/code_hosts) ──────────────────────────
+
+# Where each server type's snippet goes, and how to pull it in. The patches above are fragments to
+# put inside a server block, not whole configuration files, so they are proposed as a file of their
+# own rather than written over the real configuration.
+_SNIPPET_HOWTO: Dict[str, Dict[str, str]] = {
+    "nginx":   {"ext": "conf", "how": "Add `include {path};` inside the `server { ... }` block that serves {host}."},
+    "apache":  {"ext": "conf", "how": "Add `Include {path}` inside the `<VirtualHost>` that serves {host}."},
+    "envoy":   {"ext": "yaml", "how": "Merge these settings into the TLS context of the listener that serves {host}."},
+    "haproxy": {"ext": "cfg",  "how": "Copy these lines into the `global`/`bind` sections that serve {host}."},
+    "openssl": {"ext": "cnf",  "how": "Reference this file from the OpenSSL configuration used by {host}."},
+}
+
+
+def suggested_snippet_path(task: Dict[str, Any]) -> str:
+    server = str(task.get("server_type") or "nginx")
+    ext = _SNIPPET_HOWTO.get(server, {"ext": "conf"})["ext"]
+    slug = "".join(c if c.isalnum() else "-" for c in str(task.get("asset_key") or "endpoint").lower()).strip("-")[:60]
+    return f"morrow/pq-tls/{server}-{slug or 'endpoint'}.{ext}"
+
+
+def get_task(task_id: str, org_id: str) -> Optional[Dict[str, Any]]:
+    _ensure_tables()
+    with closing(_db()) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM autopilot_migration_tasks WHERE id = ? AND org_id = ?",
+                           (task_id, org_id)).fetchone()
+    return dict(row) if row else None
+
+
+def deploy_via_code_host(task_id: str, org_id: str, repository: str, file_path: str = "",
+                         base_branch: str = "", connection_id: str = "") -> Dict[str, Any]:
+    """Open a pull request (merge request on GitLab) with the generated snippet on any connected host.
+
+    Proposes a change for review; nothing is applied to a live system. Raises ValueError for an
+    unknown task and code_hosts.CodeHostError for anything the host refuses.
+    """
+    from services import code_hosts
+
+    task = get_task(task_id, org_id)
+    if not task:
+        raise ValueError(f"Task {task_id} not found")
+    server = str(task.get("server_type") or "nginx")
+    path = str(file_path or "").strip() or suggested_snippet_path(task)
+    host = str(task.get("asset_key") or "this endpoint")
+    howto = _SNIPPET_HOWTO.get(server, {"how": "Apply these settings to the TLS configuration of {host}."})["how"]
+    body = (
+        f"Post-quantum TLS settings for **{host}** ({server}), proposed by Morrow.\n\n"
+        f"**How to apply:** {howto.replace("{path}", path).replace("{host}", host)}\n\n"
+        "Phase 1 hardens TLS today with no library changes. Phase 2 is commented out: enable it once the "
+        "server's TLS library supports hybrid post-quantum key exchange (X25519MLKEM768).\n\n"
+        "Nothing has been applied to a live system. Test in staging, merge when ready, then rescan the "
+        "endpoint in Morrow to confirm. To roll back, revert this change."
+    )
+    result = code_hosts.open_change_request(
+        org_id, repository, {path: str(task.get("config_patch") or _SERVER_PATCHES.get(server, _NGINX_PATCH))},
+        f"Post-quantum TLS settings for {host}"[:200], body, base_branch=base_branch, connection_id=connection_id)
+    with closing(_db()) as conn:
+        conn.execute("UPDATE autopilot_migration_tasks SET github_pr_url = ?, status = ? WHERE id = ? AND org_id = ?",
+                     (result["url"], "deployed", task_id, org_id))
+        conn.commit()
+    return {**task, "github_pr_url": result["url"], "pr_url": result["url"], "status": "deployed",
+            "file_path": path, "provider": result["provider"], "provider_name": result["provider_name"],
+            "request_name": result["request_name"], "repository": result["repository"], "branch": result["branch"]}

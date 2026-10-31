@@ -64,7 +64,11 @@ class RemediationDecisionRequest(BaseModel):
 
 
 class RemediationCreatePRRequest(BaseModel):
-    github_credential_id: int
+    # Either a GitHub credential from the vault (the original GitHub-only path), or nothing / a
+    # code-host connection id: the organization's connected GitHub, GitLab, Bitbucket, Azure DevOps
+    # or Gitea (services/code_hosts), its default connection when connection_id is empty.
+    github_credential_id: Optional[int] = None
+    connection_id: str = ""
     branch_prefix: str = "fix/pq-remediation"
     base_branch: str = ""
     title: str = ""
@@ -350,6 +354,44 @@ def create_remediations_router(
             complete_idempotency_key(key=str(idem.get("key") or ""), action="remediation.validate", response=response)
         return response
 
+    def _create_pr_via_code_host(remediation_id, req, request, row, latest_validation, repo_name, org_id):
+        """create-pr through the organization's code-host connection, on whichever host it uses."""
+        from services import code_hosts
+
+        file_path = str(row.get("file_path") or "").strip()
+        if not file_path:
+            raise HTTPException(status_code=400, detail="remediation missing file_path")
+        idem = _app_attr("_reserve_idempotency_or_raise")(request, action="remediation.create_pr", payload={
+            "remediation_id": int(remediation_id), "connection_id": req.connection_id, "branch_prefix": req.branch_prefix,
+            "base_branch": req.base_branch, "title": req.title, "body": req.body, "allow_unvalidated": req.allow_unvalidated})
+        if idem.get("replay"):
+            return idem.get("response") or {}
+        try:
+            current = code_hosts.read_file(org_id, repo_name, file_path, req.base_branch, req.connection_id)
+            if not current["exists"]:
+                raise HTTPException(status_code=400, detail=f"{file_path} was not found on {current['ref']} in {current['repository']}.")
+            try:
+                updated_content = resolve_remediation_updated_content(row, latest_validation, current["content"], lambda original_text, diff_text: _app_attr("_apply_unified_diff")(original_text, diff_text))
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"failed to resolve remediation content: {e}")
+            prefix = (req.branch_prefix or "fix/pq-remediation").strip().rstrip("/")
+            result = code_hosts.open_change_request(
+                org_id, repo_name, {file_path: updated_content},
+                build_remediation_pr_title(row, requested_title=str(req.title or "")),
+                build_remediation_pr_body(row, file_path, int(remediation_id), requested_body=str(req.body or "")),
+                base_branch=current["ref"], connection_id=current["connection_id"],
+                branch=build_remediation_branch_name(prefix, int(remediation_id)))
+        except code_hosts.CodeHostError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+        updated = set_remediation_pr(int(remediation_id), result["url"], status="pr_created", branch=result["branch"],
+                                     base_branch=result["base"], github_credential_id=0)
+        response = {"ok": True, "remediation": updated,
+                    "pr": {"html_url": result["url"], "number": result.get("number"), "provider": result["provider"],
+                           "provider_name": result["provider_name"], "request_name": result["request_name"]}}
+        if idem.get("enabled"):
+            complete_idempotency_key(key=str(idem.get("key") or ""), action="remediation.create_pr", response=response)
+        return response
+
     @router.post("/remediations/{remediation_id}/create-pr")
     def api_create_remediation_pr(remediation_id: int, req: RemediationCreatePRRequest, request: Request):
         actor = require_role(request, allowed_roles=["operator", "admin"], action="remediation.create_pr", resource_type="remediation", resource_id=str(remediation_id))
@@ -370,6 +412,8 @@ def create_remediations_router(
         repo_name = str(repo_row.get("name") or "").strip()
         if "/" not in repo_name:
             raise HTTPException(status_code=400, detail="repository name must be owner/repo")
+        if not req.github_credential_id:
+            return _create_pr_via_code_host(remediation_id, req, request, row, latest_validation, repo_name, org_id)
         owner, repo = split_owner_repo(repo_name)
         idem = _app_attr("_reserve_idempotency_or_raise")(request, action="remediation.create_pr", payload={"remediation_id": int(remediation_id), "github_credential_id": int(req.github_credential_id or 0), "branch_prefix": req.branch_prefix, "base_branch": req.base_branch, "title": req.title, "body": req.body, "allow_unvalidated": req.allow_unvalidated})
         if idem.get("replay"):
