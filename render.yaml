@@ -66,10 +66,11 @@ services:
         sync: false
       - key: MORROW_ADMIN_PASSWORD
         sync: false
-      # Operator portal (/vendor-admin): a named key plus an authenticator app. Only the key's
-      # SHA-256 is here; the key itself is in the owner's password manager.
+      # Operator portal (/vendor-admin): a named key or passphrase plus an authenticator app. Set in
+      # the dashboard, never here: the value holds the key's SHA-256, and for a passphrase a hash in
+      # a public repository can be guessed offline. scripts/set-admin-passphrase.py prints the value.
       - key: MORROW_PLATFORM_OPERATORS
-        value: '[{"name": "owner", "role": "owner", "key_sha256": "3c57afc7354587979278628b68d05faee2abba933ec085ab4fb94897aa2aa541"}]'
+        sync: false
       - key: MORROW_ADMIN_REQUIRE_MFA
         value: "1"
       # A named key stays verified this long after its last authenticator code (default 8 hours).
