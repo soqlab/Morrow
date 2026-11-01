@@ -110,6 +110,15 @@ managed Postgres and a proxy you already run, which is right for a cloud deploym
 
 `infra/helm` and `infra/gcp/cloudrun` are there for when one box stops being enough.
 
+### Inside a company network, with no internet
+
+[deploy/internal/README.md](deploy/internal/README.md) installs Morrow on a server with no
+internet access. You get one bundle file with the images, a setup script that generates the
+secrets, and HTTPS with the company's own certificate. Morrow then scans internal hosts by name or
+IP address and opens fixes on the company's own GitLab, Gitea or GitHub Enterprise
+(`MORROW_CODE_HOSTS_ALLOW_PRIVATE=1`). It makes no outbound connection: no telemetry, no licence
+check, no updates fetched.
+
 [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md) is what is left before putting it in front of
 strangers, including the parts that are not engineering.
 
@@ -182,7 +191,7 @@ Coraza and the OWASP Core Rule Set, used when the platform fronts a customer's w
 | `backend/services/llm/` | AI provider adapters |
 | `gateway/` | Go WAF and reverse proxy (Coraza + OWASP CRS) |
 | `infra/` | Terraform for Cloud Run |
-| `demo/` | Example-estate seeder, screenshots, video scripts |
+| `demo/` | Example-estate seeder, screenshots, a sample infrastructure repository |
 | `docs/` | Reference documentation |
 | `scripts/` | Operational and verification scripts |
 
@@ -272,8 +281,11 @@ deployment of this a free reconnaissance service pointed at other people's infra
 
 So `/trial` records a request and an operator approves it from the admin portal, which creates the
 organization and issues a single-use invitation. `/auth/register` stays admin-only. If you
-self-host and want open signup, the design that makes it safe is to limit scanning to domains an
-account has proved it controls (DNS TXT or a served file); that verification is not built yet.
+run a shared instance and want open signup, set `MORROW_SELF_SIGNUP=1` with
+`MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1`. Each organization can then scan only domains it has proved
+it controls with a DNS TXT record. IP addresses are refused, and self-signup stays off unless that
+check, mail and `MORROW_PUBLIC_BASE_URL` are all configured. A company installing Morrow for its
+own network leaves both off.
 
 ### Free public readiness check
 

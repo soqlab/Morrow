@@ -90,7 +90,7 @@ services:
       # The image contains only backend/, so the seeder is mounted from the
       # checkout rather than baked in.
       - ./demo:/seed/demo:ro
-    entrypoint: ["python", "/seed/demo/video/seed-demo-data.py"]
+    entrypoint: ["python", "/seed/demo/seed-demo-data.py"]
     restart: "no"
 
 volumes:

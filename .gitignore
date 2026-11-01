@@ -37,6 +37,10 @@ tfplan
 
 # Local tools and generated demo media.
 #
+# demo/video/ holds the promo-video tooling and its media. It is kept locally and is not part of
+# the open-source project.
+demo/video/
+#
 # Rendered media is regenerated from the scripts in demo/video/ (render-*.js, assemble-*.py,
 # make-*-music.py), so none of it belongs in the repository. Before this section was widened,
 # only *.mp4 was ignored: a `git add .` would have committed ~190 MB of .wav masters, a 29 MB
@@ -56,11 +60,11 @@ demo/video/*.m4a
 demo/video/*.mp3
 demo/video/*.webm
 
-# The demo workspace is reproducible from demo/video/seed-demo-data.py, so the database it
+# The demo workspace is reproducible from demo/seed-demo-data.py, so the database it
 # produces is a build artifact, not source. Never commit it.
-demo/video/demo.db
-demo/video/demo.db-shm
-demo/video/demo.db-wal
+demo/demo.db
+demo/demo.db-shm
+demo/demo.db-wal
 
 # demo/tour/*.jpg are deliberately NOT ignored: they are the screenshots the README embeds.
 # The tour's audio bed is generated and large, so it is.

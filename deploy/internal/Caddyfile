@@ -1,0 +1,30 @@
+# HTTPS with the company's own certificate: tls/cert.pem (full chain) and tls/key.pem.
+# No ACME, no Let's Encrypt, no outbound connection. Without those files, use the
+# "tls internal" line instead and Caddy makes its own certificate (browsers will warn
+# until its root, in the caddy-data volume, is trusted).
+{
+	auto_https disable_redirects
+	skip_install_trust
+}
+
+{$SITE_ADDRESS} {
+	tls /tls/cert.pem /tls/key.pem
+	# tls internal
+
+	encode zstd gzip
+	reverse_proxy morrow:8000 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+http://{$SITE_ADDRESS} {
+	redir https://{host}{uri} 308
+}

@@ -171,6 +171,21 @@ def test_private_self_hosted_server_is_refused(api, monkeypatch):
     assert "public internet" in err.value.detail
 
 
+def test_company_install_may_connect_internal_servers(api, monkeypatch):
+    """MORROW_CODE_HOSTS_ALLOW_PRIVATE=1 (a Morrow inside a company network) accepts internal
+    addresses and ports; https is still required."""
+    from services import gateway_network
+
+    def private(host):
+        raise gateway_network.CheckError("Private, special-use, or mixed DNS answers are blocked")
+    monkeypatch.setattr(gateway_network, "public_ips", private)
+    monkeypatch.setenv("MORROW_CODE_HOSTS_ALLOW_PRIVATE", "1")
+    assert ch.normalize_base_url("gitlab", "https://gitlab.internal-corp.net") == "https://gitlab.internal-corp.net"
+    assert ch.normalize_base_url("gitea", "git.corp.lan:3443") == "https://git.corp.lan:3443"
+    with pytest.raises(ch.CodeHostError):
+        ch.normalize_base_url("gitlab", "http://gitlab.internal-corp.net")
+
+
 @pytest.mark.parametrize("path", ["../etc/passwd", ".git/config", "a\\b", ""])
 def test_unsafe_file_paths_are_refused(hosts, monkeypatch, path):
     monkeypatch.setattr(ch, "_http", FakeHost({("GET", r"/user$"): (200, {"login": "octo"})}))

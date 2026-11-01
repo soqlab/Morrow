@@ -5,6 +5,15 @@ set -eu
 
 # Render mounts the disk owned by root; everything below runs as appuser.
 chown -R appuser:appuser /data
+
+# A company install (deploy/internal) may mount its own certificate authority at
+# /usr/local/share/ca-certificates, so Morrow trusts internal servers (GitLab, mail, scan targets'
+# chains) the way the company's machines do. Python's ssl and requests both read the system bundle.
+if find /usr/local/share/ca-certificates -name "*.crt" 2>/dev/null | grep -q .; then
+  update-ca-certificates >/dev/null 2>&1 || echo "[render-start] update-ca-certificates failed" >&2
+  export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+fi
 AS_APP="setpriv --reuid=appuser --regid=appuser --init-groups"
 
 # Redis is the Celery queue only and listens on localhost. Nothing durable lives in it: scan

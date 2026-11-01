@@ -1,0 +1,25 @@
+# Only what the image needs. Local secrets, databases, virtualenvs and build output stay out:
+# an image is a file people copy around (see deploy/internal/make-bundle.sh).
+.git
+**/.env
+**/.env.*
+!**/.env*.example
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite3
+**/data/
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+**/*.log
+**/*.err
+**/node_modules
+**/.next
+**/dist
+**/*.pem
+**/*.key

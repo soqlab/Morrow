@@ -13,7 +13,7 @@ internally consistent with what a real scan of such an estate would produce.
 
 Usage (with demo\\video\\run-demo-server.py already running on 8049):
 
-    backend/.venv/Scripts/python.exe demo/video/seed-demo-data.py
+    backend/.venv/Scripts/python.exe demo/seed-demo-data.py
 """
 from __future__ import annotations
 
@@ -27,16 +27,16 @@ from datetime import datetime, timedelta, timezone
 
 import requests
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 # MORROW_BACKEND_DIR exists because this script is also the quick-start seeder, and in the
 # container the backend lives at /app with no repo root above it -- ROOT/"backend" is only
 # correct when running from a checkout. The container mounts demo/ and points this at /app.
 BACKEND = pathlib.Path(os.environ.get("MORROW_BACKEND_DIR") or (ROOT / "backend"))
-DEMO_DB = pathlib.Path(os.environ.get("MORROW_DEMO_DB") or (ROOT / "demo" / "video" / "demo.db"))
+DEMO_DB = pathlib.Path(os.environ.get("MORROW_DEMO_DB") or (ROOT / "demo" / "demo.db"))
 BASE = os.environ.get("MORROW_DEMO_BASE", "http://127.0.0.1:8049")
 # The account the seeded workspace belongs to. The server creates it at startup from
 # MORROW_ADMIN_EMAIL / MORROW_ADMIN_PASSWORD, so these must match whatever started the server
-# (demo/video/run-demo-server.py, or the app service in docker-compose.yml).
+# (the app service in docker-compose.yml).
 EMAIL = os.environ.get("MORROW_DEMO_EMAIL") or "avery.chen@example.com"
 PASSWORD = os.environ.get("MORROW_DEMO_PASSWORD") or "Airlock-Demo-Recording-8049"
 

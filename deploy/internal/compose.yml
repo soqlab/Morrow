@@ -1,0 +1,46 @@
+# Morrow inside a company network, with no internet access.
+# See README.md in this folder. Run from this folder: docker compose up -d
+#
+# One container runs the API, the worker, the scheduler and Redis (the same image as
+# deploy/render-hosted), with SQLite on the "morrow-data" volume. Caddy in front serves HTTPS
+# with the company's own certificate; nothing is fetched from the internet at any point.
+name: morrow
+
+services:
+  morrow:
+    image: morrow:offline
+    restart: unless-stopped
+    env_file: morrow.env
+    volumes:
+      - morrow-data:/data
+      # The company's certificate authority, so Morrow trusts internal servers (GitLab, mail).
+      # Put zero or more *.crt files in ./ca/.
+      - ./ca:/usr/local/share/ca-certificates/company:ro
+    expose:
+      - "8000"
+    healthcheck:
+      # Sent with the configured name: Morrow answers 400 to host names it doesn't serve.
+      test: ["CMD-SHELL", "curl -fsS -H \"Host: $${MORROW_ALLOWED_HOSTS%%,*}\" http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - morrow
+    ports:
+      - "${MORROW_HTTPS_PORT:-443}:443"
+      - "${MORROW_HTTP_PORT:-80}:80"
+    environment:
+      SITE_ADDRESS: "${SITE_ADDRESS:?set SITE_ADDRESS in .env, e.g. morrow.corp.example}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./tls:/tls:ro
+      - caddy-data:/data
+
+volumes:
+  morrow-data:
+  caddy-data:

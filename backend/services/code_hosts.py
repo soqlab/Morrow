@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 import secrets
 import threading
@@ -174,7 +175,7 @@ def normalize_base_url(provider: str, value: Any) -> str:
     parts = urllib.parse.urlsplit(text)
     if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or parts.query or parts.fragment:
         raise CodeHostError(400, "Use the https:// address of your server, without a query or credentials.")
-    if parts.port not in (None, 443):
+    if parts.port not in (None, 443) and not private_servers_allowed():
         raise CodeHostError(400, "Only HTTPS on the standard port is supported.")
     path = parts.path.rstrip("/")
     if provider == "azure_devops":
@@ -187,16 +188,25 @@ def normalize_base_url(provider: str, value: Any) -> str:
     host = parts.hostname.lower()
     if host != urllib.parse.urlsplit(info["default_base_url"] or "https://x").hostname:
         _require_public_host(host)
-    return f"https://{host}{path}"
+    port = f":{parts.port}" if parts.port not in (None, 443) else ""
+    return f"https://{host}{port}{path}"
 
 
 _KNOWN_SAAS = {"github.com", "api.github.com", "gitlab.com", "bitbucket.org", "api.bitbucket.org",
                "dev.azure.com", "codeberg.org"}
 
 
+def private_servers_allowed() -> bool:
+    """MORROW_CODE_HOSTS_ALLOW_PRIVATE=1: a Morrow installed inside a company network may connect to
+    the company's own GitLab, Gitea or GitHub Enterprise on internal addresses and non-standard
+    ports. Off by default, and must stay off on a shared hosted instance, where it would let any
+    customer point Morrow at the hosting network."""
+    return os.getenv("MORROW_CODE_HOSTS_ALLOW_PRIVATE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def _require_public_host(host: str) -> None:
     """A self-hosted server must resolve only to public addresses (no reaching internal networks)."""
-    if host in _KNOWN_SAAS or host.endswith(".visualstudio.com"):
+    if host in _KNOWN_SAAS or host.endswith(".visualstudio.com") or private_servers_allowed():
         return
     from services import gateway_network
 

@@ -34,7 +34,9 @@ RUN apt-get update \
 
 COPY --chown=appuser:appuser backend/ /app/
 COPY --chown=appuser:appuser deploy/render-hosted/start.sh /app/render-start.sh
-RUN chmod +x /app/entrypoint.sh /app/render-start.sh \
+# sed: a bundle built from a Windows checkout may carry CRLF line endings, which break sh.
+RUN sed -i 's/\r$//' /app/entrypoint.sh /app/render-start.sh \
+    && chmod +x /app/entrypoint.sh /app/render-start.sh \
     && mkdir -p /data \
     && chown appuser:appuser /data
 
