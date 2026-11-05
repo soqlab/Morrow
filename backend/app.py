@@ -1130,7 +1130,10 @@ CORS_ORIGINS: list[str] = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 # Wildcard is allowed only when MORROW_CORS_ALLOW_ALL=1 is explicitly set (dev convenience)
 if os.getenv("MORROW_CORS_ALLOW_ALL", "0").strip() in {"1", "true", "yes"}:
     CORS_ORIGINS = ["*"]
-DEFAULT_USER_ROLE = str(os.getenv("MORROW_DEFAULT_ROLE", "admin") or "admin").strip().lower()
+# The role a request gets when nothing says otherwise. viewer, never admin: an unset variable must
+# not hand every anonymous caller full control. The readiness checks use the same fallback.
+_DEFAULT_ROLE_FALLBACK = "viewer"
+DEFAULT_USER_ROLE = str(os.getenv("MORROW_DEFAULT_ROLE", _DEFAULT_ROLE_FALLBACK) or _DEFAULT_ROLE_FALLBACK).strip().lower()
 VALID_USER_ROLES = {"viewer", "operator", "admin"}
 DEFAULT_ORG_ID = str(os.getenv("MORROW_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001") or "00000000-0000-0000-0000-000000000001").strip()
 AUTH_MODE = str(os.getenv("MORROW_AUTH_MODE", "headers") or "headers").strip().lower()
@@ -5973,7 +5976,7 @@ def _platform_readiness_result() -> Dict[str, Any]:
 
     auth_mode = str(os.getenv("MORROW_AUTH_MODE", "headers") or "headers").strip().lower()
     auth_required = str(os.getenv("MORROW_AUTH_REQUIRED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}
-    default_role = str(os.getenv("MORROW_DEFAULT_ROLE", "viewer") or "viewer").strip().lower()
+    default_role = str(os.getenv("MORROW_DEFAULT_ROLE", _DEFAULT_ROLE_FALLBACK) or _DEFAULT_ROLE_FALLBACK).strip().lower()
     environment = str(os.getenv("MORROW_ENVIRONMENT", "local") or "local").strip().lower()
     jwt_algorithms = [str(x or "").strip().upper() for x in str(os.getenv("MORROW_AUTH_JWT_ALGORITHMS", "RS256") or "RS256").split(",") if str(x or "").strip()]
     auth_issuer_enabled = str(os.getenv("MORROW_AUTH_ISSUER_ENABLED", "1") or "1").strip().lower() in {"1", "true", "yes", "on"}

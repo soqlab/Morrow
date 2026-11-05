@@ -18,7 +18,9 @@ services:
       context: ./backend
     image: morrow:local
     ports:
-      - "8001:8000"
+      # Loopback only. This quick start runs with header auth and an admin default role, so on
+      # 0.0.0.0 anyone on the same network (office, café Wi-Fi) would be an admin.
+      - "127.0.0.1:8001:8000"
     environment:
       # The Dockerfile defaults this to postgres for production. Override it:
       # the point of this file is that nothing else has to be running.
@@ -32,7 +34,10 @@ services:
       MORROW_AUTH_MODE: headers
       MORROW_AUTH_REQUIRED: "0"
       MORROW_DEFAULT_ROLE: admin
-      MORROW_CORS_ALLOW_ALL: "1"
+      # Not allow-all: with an admin default, any website open in your browser could otherwise call
+      # this API as admin. The console is served from the same origin and needs no CORS.
+      MORROW_CORS_ALLOW_ALL: "0"
+      MORROW_CORS_ORIGINS: "http://localhost:8001,http://127.0.0.1:8001"
 
       # Creates a signed-in account on first start so the console has a real
       # workspace and the seeder below can log in. Throwaway credentials for a
