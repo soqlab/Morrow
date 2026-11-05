@@ -1604,6 +1604,45 @@ class TestSearchMatchesInTheDatabase(_InventoryFixture):
         self.assertIn("text_query=term", src)
 
 
+class TestRemediationListLooksUpRepositoriesOnce(_InventoryFixture):
+    """Each listed remediation fetched its repository separately: 500 extra queries on every
+    /crypto-agility call and 2,000 on /migration-velocity."""
+
+    def test_statement_count_does_not_grow_with_the_list(self):
+        repo = self.db.upsert_repository("example/other", "https://git.example.com/example/other")
+        for n in range(30):
+            self.db.create_remediation("h%d.org-a:443" % n, int(repo["id"]) if n % 3 else 0,
+                                       "main.tf", "RSA", "fix")
+        with _TracedSqlite(self.db) as traced:
+            rows = self.db.list_remediations(limit=2000)
+        self.assertEqual(len(rows), 30)
+        self.assertLessEqual(len(traced.selects()), 3, traced.selects())
+        for row in rows:
+            one = self.db.get_remediation(row["id"])
+            self.assertEqual(row["repository_name"], one["repository_name"])
+            self.assertEqual(row["repository_html_url"], one["repository_html_url"])
+        self.assertEqual({r["repository_name"] for r in rows}, {"", "example/other"})
+
+
+def test_capped_reports_say_how_much_of_the_inventory_they_cover(monkeypatch):
+    """/hndl/dashboard prices the newest 1,000 assets and /cbom exports the newest 2,000. At 10,000
+    assets both looked like totals for the estate; they now say what they cover."""
+    import inspect
+
+    import app
+
+    monkeypatch.setattr(app, "count_assets", lambda: 10000)
+    assert app._inventory_coverage(1000) == {"assets_in_report": 1000, "inventory_assets": 10000,
+                                             "complete": False}
+    assert app._inventory_coverage(10000)["complete"] is True
+    assert app._coverage_headers(2000) == {"X-Morrow-Assets-In-Report": "2000",
+                                           "X-Morrow-Inventory-Assets": "10000"}
+    for handler in (app.api_hndl_tls_dashboard, app.api_hndl_tls_timeline):
+        assert "_inventory_coverage(len(asset_inputs))" in inspect.getsource(handler)
+    for handler in (app.api_cbom_org, app.api_cbom_csv):
+        assert "_coverage_headers(" in inspect.getsource(handler)
+
+
 def test_certificate_and_shadow_it_reports_batch_their_fallback():
     """Without fallback_keys every asset missing from the newest 100 scans cost its own query:
     /governance/certificates took 111 s at 10,000 assets."""

@@ -8425,6 +8425,21 @@ def api_v1_cloud_azure_blob_hndl_inventory(req: AzureBlobHndlInventoryRequest, r
     return response
 
 
+def _inventory_coverage(assets_in_report: int) -> Dict[str, Any]:
+    """How much of the inventory a capped report describes.
+
+    The HNDL views price the newest 1,000 assets and the CBOM exports the newest 2,000 / 5,000 so
+    that the response stays bounded; on a larger inventory the figures cover part of the estate,
+    and the reader has to be told so rather than shown a total that looks complete.
+    """
+    try:
+        inventory = int(count_assets())
+    except Exception:
+        inventory = None
+    return {"assets_in_report": int(assets_in_report), "inventory_assets": inventory,
+            "complete": None if inventory is None else int(assets_in_report) >= inventory}
+
+
 @app.get("/hndl/dashboard")
 @app.get("/v1/hndl/dashboard")
 def api_hndl_tls_dashboard(request: Request, q_day_year: Optional[int] = None):
@@ -8491,6 +8506,7 @@ def api_hndl_tls_dashboard(request: Request, q_day_year: Optional[int] = None):
         })
 
     dashboard = compute_org_hndl_dashboard(asset_inputs, q_day_year=q_day_year)
+    dashboard["inventory_coverage"] = _inventory_coverage(len(asset_inputs))
     dashboard["organization_id"] = org_id
     dashboard["generated_at"] = _now_iso()
     dashboard["api_version"] = "v1"
@@ -8553,6 +8569,7 @@ def api_hndl_tls_timeline(request: Request):
         "organization_id": org_id,
         "generated_at": _now_iso(),
         "timeline": timeline,
+        "inventory_coverage": _inventory_coverage(len(asset_inputs)),
         "model_basis": _hndl_model_basis(),
     }
 
@@ -22778,6 +22795,14 @@ app.include_router(create_migration_milestones_router(_require_role, _audit_even
 # WAVE 13 — ORG-LEVEL CBOM  (fixes CBOM Viewer modal)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _coverage_headers(assets_in_report: int) -> Dict[str, str]:
+    cov = _inventory_coverage(assets_in_report)
+    headers = {"X-Morrow-Assets-In-Report": str(cov["assets_in_report"])}
+    if cov["inventory_assets"] is not None:
+        headers["X-Morrow-Inventory-Assets"] = str(cov["inventory_assets"])
+    return headers
+
+
 @app.get("/cbom")
 @app.get("/v1/cbom")
 def api_cbom_org(request: Request):
@@ -22819,7 +22844,8 @@ def api_cbom_org(request: Request):
         })
 
     cbom = generate_cbom(results, org_name=org_id, scan_id="org-aggregate")
-    return JSONResponse(content=cbom)
+    # The document stays CycloneDX; how much of the inventory it covers travels in headers.
+    return JSONResponse(content=cbom, headers=_coverage_headers(len(results)))
 
 
 @app.get("/v1/cbom.csv")
@@ -22851,7 +22877,8 @@ def api_cbom_csv(request: Request):
     return _Resp(
         content=out.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": 'attachment; filename="crypto-inventory.csv"'},
+        headers={"Content-Disposition": 'attachment; filename="crypto-inventory.csv"',
+                 **_coverage_headers(len(facts))},
     )
 
 

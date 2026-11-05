@@ -2665,7 +2665,7 @@ def latest_scan_result_for_asset(asset_key_str: str) -> Optional[Dict[str, Any]]
 # Sprint 12: remediation workflow
 # -----------------------------
 
-def _remediation_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
+def _remediation_row_to_dict(row: sqlite3.Row, repos: Optional[Dict[int, Dict[str, Any]]] = None) -> Dict[str, Any]:
     d = dict(row)
     try:
         d["repo_id"] = int(d.get("repo_id") or 0)
@@ -2693,7 +2693,10 @@ def _remediation_row_to_dict(row: sqlite3.Row) -> Dict[str, Any]:
     d["drift_acknowledged_at"] = str(d.get("drift_acknowledged_at") or "").strip()
     d["drift_acknowledged_by"] = str(d.get("drift_acknowledged_by") or "").strip()
     d["drift_ack_note"] = str(d.get("drift_ack_note") or "").strip()
-    repo = get_repository_by_id(d["repo_id"]) if d["repo_id"] else None
+    if repos is not None:
+        repo = repos.get(d["repo_id"]) if d["repo_id"] else None
+    else:
+        repo = get_repository_by_id(d["repo_id"]) if d["repo_id"] else None
     d["repository_name"] = (repo or {}).get("name", "")
     d["repository_html_url"] = (repo or {}).get("html_url", "")
     return d
@@ -3289,7 +3292,17 @@ def list_remediations(
             """,
             (*params, limit),
         ).fetchall()
-    return [_remediation_row_to_dict(r) for r in rows]
+        # One lookup for every linked repository, not one per remediation: /crypto-agility,
+        # /migration-velocity and /remediations list up to 2,000 rows each.
+        repo_ids = sorted({int(r["repo_id"] or 0) for r in rows} - {0})
+        repos: Dict[int, Dict[str, Any]] = {}
+        for start in range(0, len(repo_ids), 500):
+            chunk = repo_ids[start:start + 500]
+            for rid, name, url in conn.execute(
+                "SELECT id, name, html_url FROM repositories WHERE organization_id = ? AND id IN (%s)"
+                % ",".join("?" * len(chunk)), (org_id, *chunk)):
+                repos[int(rid)] = {"name": name, "html_url": url}
+    return [_remediation_row_to_dict(r, repos=repos) for r in rows]
 
 
 def update_remediation_status(remediation_id: int, status: str, review_note: str = "") -> Optional[Dict[str, Any]]:

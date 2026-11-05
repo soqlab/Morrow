@@ -77,6 +77,8 @@ def main() -> int:
     ap.add_argument("--samples", type=int, default=7)
     ap.add_argument("--budget", type=float, default=20.0, help="seconds per endpoint")
     ap.add_argument("--only", default="", help="comma-separated path prefixes")
+    ap.add_argument("--cold-only", action="store_true",
+                    help="one traced call per endpoint, no p50/p95 (for endpoints that take minutes)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--label", default="")
     args = ap.parse_args()
@@ -152,16 +154,17 @@ def main() -> int:
             tracemalloc.stop()
             spent = cold
 
-            while len(times) < args.samples - 1 and spent < args.budget or not times:
+            while not args.cold_only and (len(times) < args.samples - 1 and spent < args.budget or not times):
                 elapsed, status, size = call()
                 times.append(elapsed)
                 spent += elapsed
             row = {"view": view, "path": template, "status": status, "bytes": size,
                    "calls": len(times) + 1, "cold_traced_ms": round(cold * 1000, 1),
-                   "p50_ms": round(pct(times, 50) * 1000, 1), "p95_ms": round(pct(times, 95) * 1000, 1),
+                   "p50_ms": round(pct(times, 50) * 1000, 1) if times else None,
+                   "p95_ms": round(pct(times, 95) * 1000, 1) if times else None,
                    "peak_mb": round(peak, 1)}
             report["endpoints"].append(row)
-            print("%-12s %-28s %3s %9d B  cold %8.1f  p50 %8.1f  p95 %8.1f ms  peak %7.1f MB  (n=%d)" % (
+            print("%-12s %-28s %3s %9d B  cold %8.1f  p50 %8s  p95 %8s ms  peak %7.1f MB  (n=%d)" % (
                 view, template, status, size, row["cold_traced_ms"], row["p50_ms"], row["p95_ms"], peak,
                 len(times)), flush=True)
 
