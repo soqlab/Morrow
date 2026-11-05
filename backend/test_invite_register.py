@@ -6,7 +6,7 @@ Reuses the real-stack fixture from test_invite_landing. Covers the path a brand-
 
 import pytest
 
-from test_invite_landing import PASSWORD, api, invite, make_org  # noqa: F401  (api is a fixture)
+from test_invite_landing import PASSWORD, api_fixture, invite, make_org  # noqa: F401  (api_fixture registers the "api" fixture)
 
 NEW_PASSWORD = "first-customer-password-2047"
 

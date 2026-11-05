@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from test_invite_landing import PASSWORD, api, make_org  # noqa: F401  (api is a fixture)
+from test_invite_landing import PASSWORD, api_fixture, make_org  # noqa: F401  (api_fixture registers the "api" fixture)
 
 from services import migration_milestones as mm
 from services.migration_velocity import build_velocity_report

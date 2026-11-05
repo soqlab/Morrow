@@ -32,7 +32,7 @@ import secrets
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from db_feature_store import atomic, feature_conn
 

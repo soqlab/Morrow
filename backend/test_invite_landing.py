@@ -17,8 +17,10 @@ LEGACY = "invite-landing-tests-platform-key-0123456789abcdef"
 PASSWORD = "invite-landing-password-8841"
 
 
-@pytest.fixture
-def api(tmp_path, monkeypatch):
+# Registered as "api" but defined as api_fixture, so other modules can import it (which is how pytest
+# picks up a fixture from another module) without the import being shadowed by the test parameter.
+@pytest.fixture(name="api")
+def api_fixture(tmp_path, monkeypatch):
     import app
 
     monkeypatch.setenv("MORROW_SCANNER_DB", str(tmp_path / "invite.db"))
