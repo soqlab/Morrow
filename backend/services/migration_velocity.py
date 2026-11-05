@@ -164,7 +164,7 @@ def build_velocity_report(
     weekly_counts: Dict[str, int] = {}
     for rem in remediations:
         status = (rem.get("status") or "").lower()
-        if status not in ("resolved", "done", "closed", "completed", "fixed"):
+        if status not in ("resolved", "done", "closed", "completed", "fixed", "verified_closed"):
             continue
         ts_str = rem.get("updated_at") or rem.get("resolved_at") or rem.get("created_at")
         if not ts_str:
