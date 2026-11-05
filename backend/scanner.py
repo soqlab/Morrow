@@ -23,6 +23,9 @@ from cryptography.x509 import ocsp as x509_ocsp
 from policy import evaluate_tls_findings, derive_risk_and_score, derive_pq_relevance, derive_quantum_readiness
 
 DEFAULT_TIMEOUT = 6
+#: Recorded on every scan result, so evidence built from a stored scan (a migration proof, for one)
+#: can say which scanner produced it. Bump when what the scanner observes or how it classifies changes.
+SCANNER_VERSION = "morrow-tls-scanner/2026.11"
 
 logger = logging.getLogger(__name__)
 
@@ -1190,6 +1193,7 @@ def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
     facts: Dict[str, Any] = {
         "host": host,
         "port": port,
+        "scanner_version": SCANNER_VERSION,
 
         "error": "",
         "error_code": "",

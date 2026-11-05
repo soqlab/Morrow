@@ -797,6 +797,29 @@ Vault credential operations are scoped to the active organization context. The s
   - operator/admin
   - exports filtered audit logs as CSV
 
+- `GET /audit/journal/verify`
+  - admin/owner
+  - re-derives every hash of the organization's audit chain; reports `ok`, `entries_checked`, `head`, `breaks`
+
+- `GET /audit/journal/export`
+  - admin/owner
+  - the full chain with exactly the fields the hash covers, for offline verification
+
+## 19a. Migration proofs
+
+- `POST /remediations/{remediation_id}/migration-proof`
+  - operator/admin/owner
+  - signed (Ed25519 + ML-DSA-65) proof for a `verified_closed` remediation, built only from Morrow's records
+  - 409 when not verified_closed or evidence is missing; 404 for another organization's remediation
+
+- `GET /.well-known/morrow-proof-keys.json`
+  - public; every proof signing key ever used, with status and validity window
+
+- Offline verifier: `scripts/verify_migration_proof.py`. See `docs/MIGRATION_PROOF.md`.
+
+- Legacy: `POST /remediation/proof-package` and the `/trust-passport` envelopes are signed with
+  HS256 (a shared secret). They remain available but are not third-party evidence.
+
 ## 20. Inbound GitHub webhook
 
 - `POST /integrations/github/webhook`

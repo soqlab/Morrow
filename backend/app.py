@@ -2283,6 +2283,8 @@ def _auth_public_path(path: str) -> bool:
         "/auth/password-reset/confirm",
         # Console banner source. Anonymous callers only see notices addressed to everyone.
         "/announcements/active",
+        # Public halves of the migration-proof signing keys, so a proof can be checked without an account.
+        "/.well-known/morrow-proof-keys.json",
     }:
         return True
     if p == "/auth/config":
@@ -11323,6 +11325,10 @@ app.include_router(_crypto_switch_router, prefix="/v1")
 # Passive TLS discovery from proxy logs; routes carry their own /v1 paths (routers/passive_discovery.py).
 from routers.passive_discovery import create_passive_discovery_router  # noqa: E402
 app.include_router(create_passive_discovery_router(_require_role))
+
+from routers.migration_proof import create_migration_proof_router  # noqa: E402
+app.include_router(create_migration_proof_router(_require_role))
+app.include_router(create_migration_proof_router(_require_role), prefix="/v1")
 
 # Vendor platform administration: operator identity, tenant users/invites, sessions, API keys, audit
 # search/export, announcements and maintenance mode. Dependencies are passed as late-bound lambdas so

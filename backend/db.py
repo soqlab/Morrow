@@ -3973,6 +3973,37 @@ def acknowledge_remediation_drift(remediation_id: int, actor_id: str, note: str 
 
 
 def auto_close_merged_remediations(scan_id: str, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Close merged remediations whose asset now scans clean, and journal each closure.
+
+    The closure is the event a migration proof attests to, so it is written to the hash-chained
+    audit journal (action remediation.verified_closed) rather than only to the remediation row.
+    """
+    try:
+        merged_before = [int(r.get("id") or 0) for r in list_remediations(status="merged", limit=2000)]
+    except Exception:
+        merged_before = []
+    stats = _auto_close_merged_remediations(scan_id, results)
+    if isinstance(stats, dict) and int(stats.get("closed") or 0) > 0:
+        for rid in merged_before:
+            try:
+                row = get_remediation(rid) or {}
+                if row.get("status") == "verified_closed" and str(row.get("verification_scan_id") or "") == str(scan_id or ""):
+                    append_audit_log(
+                        actor_id="morrow-verify-loop",
+                        actor_role="system",
+                        action="remediation.verified_closed",
+                        resource_type="remediation",
+                        resource_id=str(rid),
+                        decision="allow",
+                        reason="merged fix re-verified by a passing scan",
+                        details={"verification_scan_id": str(scan_id or ""), "asset_key": str(row.get("asset_key") or "")},
+                    )
+            except Exception:
+                __import__("logging").getLogger(__name__).exception("could not journal verified closure of remediation %s", rid)
+    return stats
+
+
+def _auto_close_merged_remediations(scan_id: str, results: List[Dict[str, Any]]) -> Dict[str, Any]:
     org_id = current_organization_id()
     if postgres_main_db_requested():
         return pg_auto_close_merged_remediations(org_id, scan_id, results)
