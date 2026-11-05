@@ -5322,8 +5322,9 @@ ACTIONS.scanDetail = (b) => {
    VIEW: ASSETS — inventory, tags, collections, repositories
    ========================================================================== */
 VIEWS.assets = async (host) => {
-  const [assets, tags, colls, repos, baselines, gov, chain] = await all([
+  const [assets, tags, colls, repos, baselines, gov, chain, passive] = await all([
     "/assets", "/tags", "/collections", "/repositories", "/baselines", "/governance/certificates", "/blast-radius/graph",
+    "/v1/runtime/passive/endpoints",
   ]);
   const A = assets.ok ? rows(assets.data) : [];
   const envs = {}, owners = {}, crit = {};
@@ -5357,6 +5358,9 @@ VIEWS.assets = async (host) => {
       ${card("By criticality", donut(Object.entries(crit).map(([k, v]) => ({ k, v, c: SEV_COLOR[k.replace("tier-", "")] })), { center: NUM(A.length), sub: "assets" }), { icon: I.target })}
       ${card("Top owners", barChart(Object.entries(owners).sort((a, b) => b[1] - a[1]).slice(0, 7).map(([k, v]) => ({ k, v })), { horizontal: true }), { icon: I.users })}
     </div>
+
+    ${sec("Passive discovery", card("", `<div id="passiveBox">${bind(passive, (d) => passiveTable(rows(d)), "/v1/runtime/passive/endpoints")}</div>`,
+      { flush: true, lift: false, sub: "Hosts, TLS versions, ciphers and key-exchange groups seen in proxy logs — no scan needed" }))}
 
     ${sec("Grouping", `<div class="g g3">
       ${card("Collections", bind(colls, (d) => {
@@ -5404,8 +5408,24 @@ VIEWS.assets = async (host) => {
   ACTIONS.shadow();
   navBadge("assets", A.length || "");
 };
+/* Passive discovery: endpoints learned from proxy/sensor logs (POST /v1/runtime/passive/ingest). */
+const PASSIVE_PQ = { pq_safe_key_exchange: ["ok", "PQ key exchange"], quantum_vulnerable: ["bad", "quantum-vulnerable"], unknown: ["", "group not logged"] };
+const passiveBadge = (a) => {
+  const m = a.metadata || {};
+  if (!((m.discovery_sources || []).includes("passive") || (a.tags || []).includes("passive-discovered"))) return "";
+  const [tone, label] = PASSIVE_PQ[m.passive_pq_status] || ["", "unclassified"];
+  return ` <span class="pill mono" title="Seen in proxy logs (passive)">passive</span> <span class="pill ${tone}">${H(label)}</span>`;
+};
+const passiveTable = (items) => table([
+  { h: "Endpoint", w: "26%", f: e => `<b class="m">${H(e.asset_key)}</b><span class="sub">${H(e.source_format)} · passive</span>` },
+  { h: "TLS", f: e => `<span class="m">${H(e.tls_version || "—")}</span>` },
+  { h: "Key exchange", f: e => e.key_exchange_group ? `<span class="m">${H(e.key_exchange_group)}</span>` : `<span class="pill">${e.group_logged_by_source ? "not logged" : "source cannot log"}</span>` },
+  { h: "Cipher", f: e => `<span class="m" style="font-size:11px">${H(e.cipher || "—")}</span>` },
+  { h: "PQ status", f: e => { const [t, l] = PASSIVE_PQ[e.pq_status] || ["", e.pq_status]; return `<span class="pill ${t}">${H(l)}</span>`; } },
+  { h: "Seen", f: e => `<span class="mono">${NUM(e.observation_count)}×</span><span class="sub">${H(AGO(e.last_seen))}</span>` },
+], items, { max: "420px", empty: "No passive observations yet. Create an ingest token and point Fluent Bit or Vector at /v1/runtime/passive/ingest." });
 const assetTable = (A) => table([
-  { h: "Asset key", w: "24%", f: a => `<b class="m">${H(a.asset_key)}</b>${a.repository_name ? `<span class="sub">${H(a.repository_name)}</span>` : ""}` },
+  { h: "Asset key", w: "24%", f: a => `<b class="m">${H(a.asset_key)}</b>${passiveBadge(a)}${a.repository_name ? `<span class="sub">${H(a.repository_name)}</span>` : ""}` },
   { h: "Owner", f: a => a.owner ? `<span>${H(a.owner)}</span><span class="sub">${H(a.team || "")}</span>` : `<span class="pill">unassigned</span>` },
   { h: "Environment", f: a => a.environment ? pill(a.environment) : "—" },
   { h: "Criticality", f: a => a.criticality ? pill(a.criticality) : "—" },

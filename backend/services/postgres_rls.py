@@ -50,6 +50,9 @@ ORG_SCOPED_TABLES: List[str] = [
     "platform_active_users_daily",
     "platform_traffic_events",
     "platform_feature_state_records",
+    # Passive TLS discovery (services/passive_ingest.py): ingest tokens and deduplicated observations.
+    "passive_ingest_tokens",
+    "passive_tls_endpoints",
     # Admin-console tables (services/admin_console.py). These spell the tenant `org_id`, not
     # `organization_id`, which is why they were outside the plan AND invisible to the coverage
     # audit: the audit looked for one column name. They hold the tenant's user list, its pending

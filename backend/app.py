@@ -2330,6 +2330,9 @@ def _auth_public_path(path: str) -> bool:
     # Jira/ServiceNow status callbacks: each authenticates by the org's signature/token (routers/ticket_sync.py).
     if _route_paths.has_prefix(p, ("/integrations/tickets/inbound",)):
         return True
+    # Log-shipper ingest: the per-org ingest token is the credential (routers/passive_discovery.py).
+    if p == "/v1/runtime/passive/ingest":
+        return True
     return False
 
 
@@ -3124,6 +3127,7 @@ async def set_request_org_context(request: Request, call_next):
 _AUDIT_SKIP_PATHS = frozenset({
     "/health", "/healthz", "/health/deep", "/docs", "/openapi.json", "/redoc",
     "/favicon.ico", "/favicon.svg", "/robots.txt", "/ui/", "/static/",
+    "/v1/runtime/passive/ingest",  # a shipper posts every few seconds; token changes are audited
 })
 _AUDIT_WRITE_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
 
@@ -11315,6 +11319,10 @@ _crypto_switch_router = create_crypto_switch_router(
     lambda targets: _create_scan_and_start(list(targets), source="crypto_switch")["id"])
 app.include_router(_crypto_switch_router)
 app.include_router(_crypto_switch_router, prefix="/v1")
+
+# Passive TLS discovery from proxy logs; routes carry their own /v1 paths (routers/passive_discovery.py).
+from routers.passive_discovery import create_passive_discovery_router  # noqa: E402
+app.include_router(create_passive_discovery_router(_require_role))
 
 # Vendor platform administration: operator identity, tenant users/invites, sessions, API keys, audit
 # search/export, announcements and maintenance mode. Dependencies are passed as late-bound lambdas so
