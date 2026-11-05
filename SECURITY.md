@@ -91,6 +91,65 @@ warned about at runtime.
 | Tagged releases | Latest only |
 | Anything older | No — please upgrade before reporting |
 
+## Verifying a release
+
+Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml) when a
+`vX.Y.Z` tag is pushed. Nothing is signed with a long-lived key: each image and release file carries
+a keyless Sigstore attestation, issued through GitHub's OIDC token, that names this repository, that
+workflow file and the tag. Each release publishes:
+
+| What | Where |
+|---|---|
+| All-in-one image (Render, offline bundle) | `ghcr.io/soqlab/morrow:X.Y.Z` |
+| API image (`docker-compose.prod.yml`) | `ghcr.io/soqlab/morrow:X.Y.Z-api` |
+| Image SBOMs (CycloneDX) | release asset `morrow-X.Y.Z[-api]-image.cdx.json`, and attested on the image |
+| Python dependency SBOM (CycloneDX) | release asset `morrow-X.Y.Z-python.cdx.json` |
+| Offline bundle | release asset `morrow-offline-X.Y.Z.tar.gz` |
+| Image digests | release asset `IMAGES.txt` |
+| Checksums of every asset | release asset `SHA256SUMS` |
+
+You need the [GitHub CLI](https://cli.github.com/) (2.49 or later). Replace `1.2.3` with the version.
+
+**Image: provenance and SBOM.**
+
+```sh
+# SLSA build provenance: built by release.yml in soqlab/Morrow from the tagged commit.
+gh attestation verify oci://ghcr.io/soqlab/morrow:1.2.3 \
+  --repo soqlab/Morrow \
+  --signer-workflow soqlab/Morrow/.github/workflows/release.yml \
+  --source-ref refs/tags/v1.2.3
+
+# The signed CycloneDX SBOM, and a copy of it extracted from the attestation.
+gh attestation verify oci://ghcr.io/soqlab/morrow:1.2.3 \
+  --repo soqlab/Morrow --predicate-type https://cyclonedx.org/bom
+gh attestation verify oci://ghcr.io/soqlab/morrow:1.2.3 \
+  --repo soqlab/Morrow --predicate-type https://cyclonedx.org/bom \
+  --format json --jq '.[0].verificationResult.statement.predicate' > morrow-image.cdx.json
+```
+
+Repeat with `:1.2.3-api` for the API image. Then deploy by digest, not by tag, so what runs is what
+you verified. The digests are in `IMAGES.txt`, or `docker buildx imagetools inspect
+ghcr.io/soqlab/morrow:1.2.3` prints them.
+
+**Release files: checksums and provenance.**
+
+```sh
+gh release download v1.2.3 --repo soqlab/Morrow --dir morrow-1.2.3
+cd morrow-1.2.3
+sha256sum -c SHA256SUMS
+for f in *.tar.gz *.cdx.json IMAGES.txt; do
+  gh attestation verify "$f" --repo soqlab/Morrow \
+    --signer-workflow soqlab/Morrow/.github/workflows/release.yml
+done
+```
+
+If any of these checks fails, the file did not come from this repository's release workflow. Do
+not install it, and please report it as described above. The SBOMs are plain CycloneDX JSON and
+work with any scanner, for example `grype sbom:morrow-1.2.3-image.cdx.json`.
+
+For an air-gapped install, run these checks on the machine with internet access before copying the
+bundle inside. `images.tar.gz` inside the bundle is also covered by the bundle's own `SHA256SUMS`.
+
 ## What the platform does to protect itself
 
 Not a certification claim, just what is implemented, so you know where to look:

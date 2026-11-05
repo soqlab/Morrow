@@ -1,0 +1,314 @@
+# Signed release: runs when a maintainer pushes a tag such as v1.4.0.
+#
+#   1. test      the suite on Python 3.11, the version the images run.
+#   2. image     builds the two deployment images and pushes them to GHCR:
+#                  ghcr.io/soqlab/morrow:<version>      deploy/render-hosted/Dockerfile (Render, offline bundle)
+#                  ghcr.io/soqlab/morrow:<version>-api  backend/Dockerfile (docker-compose.prod.yml)
+#                then writes a CycloneDX SBOM of each image and attaches two keyless Sigstore
+#                attestations to it in the registry: SLSA build provenance and the SBOM.
+#   3. python-sbom  a CycloneDX SBOM of the Python environment that requirements.txt resolves to.
+#   4. bundle    the offline bundle (deploy/internal/make-bundle.sh) built from the image pushed in
+#                step 2, by digest, so the bundle carries the same bytes that were signed.
+#   5. release   SHA256SUMS over every file, a provenance attestation for each of them, and a
+#                GitHub Release with all of it attached.
+#
+# Signing is keyless: each job that attests gets a short-lived certificate from Sigstore through
+# GitHub's OIDC token, bound to this workflow file and the tag. There is no signing key to store
+# or leak. SECURITY.md ("Verifying a release") has the commands to check it.
+#
+# Every third-party action is pinned to a full commit SHA; the comment names the tag it was.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+# Nothing by default; each job asks for exactly what it uses.
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/soqlab/morrow
+
+jobs:
+  test:
+    name: Test suite (Python 3.11)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PYTHONPATH: .
+      MORROW_MAIN_DB_BACKEND: sqlite
+      MORROW_ENVIRONMENT: local
+      MORROW_AUTH_REQUIRED: "0"
+      MORROW_DEFAULT_ROLE: admin
+      MORROW_LLM_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the tag is a plain version
+        working-directory: .
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || {
+            echo "::error::Tag $TAG is not vMAJOR.MINOR.PATCH[-pre]"; exit 1; }
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip==26.2
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest -q --tb=short -rf
+
+  image:
+    name: Image (${{ matrix.variant }})
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write      # push to ghcr.io/soqlab/morrow
+      id-token: write      # Sigstore certificate for the attestations
+      attestations: write  # record the attestations on the repository
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - variant: all-in-one
+            dockerfile: deploy/render-hosted/Dockerfile
+            context: .
+            suffix: ""
+          - variant: api
+            dockerfile: backend/Dockerfile
+            context: backend
+            suffix: "-api"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          # Both Dockerfiles download the linux_amd64 OpenTofu binary.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}${{ matrix.suffix }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.title=morrow${{ matrix.suffix }}
+          # Provenance and SBOM come from the attestation steps below, signed through Sigstore.
+          provenance: false
+          sbom: false
+
+      - name: Image SBOM (CycloneDX)
+        uses: anchore/sbom-action@fffec3d851af758d56fee099cf3fbf8aa8779843 # v0.24.3
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: morrow-${{ steps.version.outputs.version }}${{ matrix.suffix }}-image.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: morrow-${{ steps.version.outputs.version }}${{ matrix.suffix }}-image.cdx.json
+          push-to-registry: true
+
+      - name: Record the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REF: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}${{ matrix.suffix }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          echo "$DIGEST" > "digest-$VARIANT.txt"
+          echo "$REF@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-${{ matrix.variant }}
+          path: |
+            morrow-*-image.cdx.json
+            digest-${{ matrix.variant }}.txt
+          if-no-files-found: error
+
+  python-sbom:
+    name: Python dependency SBOM
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      # The runtime environment is a clean venv holding only requirements.txt, so the SBOM lists
+      # the full resolved closure (transitives included) and nothing from the tooling.
+      - name: Resolve runtime dependencies
+        run: |
+          python -m venv /tmp/runtime
+          /tmp/runtime/bin/python -m pip install --upgrade pip==26.2 setuptools==83.0.0 wheel==0.48.0
+          /tmp/runtime/bin/python -m pip install -r backend/requirements.txt
+          /tmp/runtime/bin/python -m pip check
+
+      - name: Generate CycloneDX SBOM
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python -m venv /tmp/tools
+          /tmp/tools/bin/python -m pip install cyclonedx-bom==8.0.1
+          /tmp/tools/bin/cyclonedx-py environment \
+            --of JSON \
+            -o "morrow-${TAG#v}-python.cdx.json" \
+            /tmp/runtime/bin/python
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: python-sbom
+          path: morrow-*-python.cdx.json
+          if-no-files-found: error
+
+  bundle:
+    name: Offline bundle
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read  # pull the image just pushed (the package may still be private)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-all-in-one
+          path: image
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build the bundle from the signed image
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          digest="$(cat image/digest-all-in-one.txt)"
+          MORROW_BUNDLE_VERSION="${TAG#v}" MORROW_IMAGE="$IMAGE@$digest" \
+            sh deploy/internal/make-bundle.sh
+          ls -l dist/
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: offline-bundle
+          path: dist/morrow-offline-*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    name: GitHub Release
+    needs: [image, python-sbom, bundle]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # create the release and upload its assets
+      id-token: write      # Sigstore certificate for the file attestations
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: artifacts
+
+      - name: Collect files and write SHA256SUMS
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir release
+          find artifacts -type f \( -name '*.cdx.json' -o -name 'morrow-offline-*.tar.gz' \) -exec cp {} release/ \;
+          version="${TAG#v}"
+          {
+            echo "${IMAGE}:${version}@$(cat artifacts/image-all-in-one/digest-all-in-one.txt)"
+            echo "${IMAGE}:${version}-api@$(cat artifacts/image-api/digest-api.txt)"
+          } > release/IMAGES.txt
+          cd release
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attest release files
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: release/SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          prerelease=""
+          case "$version" in *-*) prerelease="--prerelease" ;; esac
+          {
+            echo "Images (signed, with SBOM and provenance attestations in the registry):"
+            echo
+            echo '```'
+            cat release/IMAGES.txt
+            echo '```'
+            echo
+            echo "Verify before deploying: see \"Verifying a release\" in SECURITY.md."
+          } > notes.md
+          gh release create "$TAG" release/* \
+            --verify-tag \
+            --title "Morrow $version" \
+            --notes-file notes.md \
+            $prerelease

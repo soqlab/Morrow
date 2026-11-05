@@ -3,18 +3,30 @@
 # internet access. Run on a machine WITH internet, from anywhere in the repository:
 #   sh deploy/internal/make-bundle.sh
 # Output: dist/morrow-offline-<date>-<commit>.tar.gz containing the images and this folder.
+#
+# Optional environment (used by .github/workflows/release.yml):
+#   MORROW_IMAGE            bundle this already-published image (e.g. ghcr.io/soqlab/morrow@sha256:...)
+#                           instead of building one, so the bundle holds the exact signed image.
+#   MORROW_BUNDLE_VERSION   version string for the file name and VERSION (default: <date>-<commit>).
 set -eu
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 
-version="$(date +%Y.%m.%d)-$(git rev-parse --short HEAD 2>/dev/null || echo local)"
+version="${MORROW_BUNDLE_VERSION:-$(date +%Y.%m.%d)-$(git rev-parse --short HEAD 2>/dev/null || echo local)}"
 name="morrow-offline-$version"
 work="dist/$name"
 rm -rf "$work"
 mkdir -p "$work"
 
-echo "Building morrow:offline ($version)..."
-docker build --platform linux/amd64 -f deploy/render-hosted/Dockerfile -t morrow:offline -t "morrow:$version" .
+if [ -n "${MORROW_IMAGE:-}" ]; then
+  echo "Using published image $MORROW_IMAGE as morrow:offline ($version)..."
+  docker pull --platform linux/amd64 "$MORROW_IMAGE"
+  docker tag "$MORROW_IMAGE" morrow:offline
+  docker tag "$MORROW_IMAGE" "morrow:$version"
+else
+  echo "Building morrow:offline ($version)..."
+  docker build --platform linux/amd64 -f deploy/render-hosted/Dockerfile -t morrow:offline -t "morrow:$version" .
+fi
 docker pull --platform linux/amd64 caddy:2-alpine
 
 # Refuse to package local secrets or databases (an image is a file people copy around).
