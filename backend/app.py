@@ -12587,8 +12587,16 @@ def api_list_assets(
     criticality: Optional[str] = None,
     tag: Optional[str] = None,
     limit: int = Query(2000, ge=1, le=5000),
+    cursor: Optional[str] = Query(None, description="next_cursor from the previous page"),
 ):
-    return {"items": list_assets(owner=owner, team=team, environment=environment, criticality=criticality, tag=tag, limit=limit)}
+    # "items" is unchanged; "next_cursor" (null on the last page) lets a client walk an inventory
+    # larger than one page instead of silently seeing only its newest `limit` assets.
+    from db import list_assets_page
+    try:
+        return list_assets_page(owner=owner, team=team, environment=environment, criticality=criticality,
+                                tag=tag, limit=limit, cursor=cursor)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid cursor")
 
 
 @app.post("/assets/import-csv")
@@ -17587,7 +17595,7 @@ def api_cloud_discover_azure(req: CloudDiscoverAzureRequest, request: Request):
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _latest_asset_scan_facts(org_id: str, limit: int = 1000) -> List[Dict[str, Any]]:
+def _latest_asset_scan_facts(org_id: str, limit: int = 1000, text_query: str = "") -> List[Dict[str, Any]]:
     """Most recent scan facts per asset, as flat host/port/algorithm rows.
 
     Several reporting endpoints were written against a flat
@@ -17613,7 +17621,10 @@ def _latest_asset_scan_facts(org_id: str, limit: int = 1000) -> List[Dict[str, A
     # tenant's scan history rather than of its inventory.
     token = set_current_organization_id(org_id or DEFAULT_ORG_ID)
     try:
-        rows = latest_scan_facts_for_org(limit=limit) or []
+        if text_query:
+            rows = latest_scan_facts_for_org(limit=limit, text_query=text_query) or []
+        else:
+            rows = latest_scan_facts_for_org(limit=limit) or []
     except (_pg_pool.PoolError, psycopg2.OperationalError):
         # A saturated pool or an unreachable database is congestion, not "this organization has no
         # findings". Swallowing it here made /executive-dashboard, /board-risk and /heatmap answer
@@ -22958,10 +22969,13 @@ def api_search(request: Request, q: str = "", limit: int = 50):
     with _db() as db:
         # Search scanned assets. The previous query hit `scans` with org_id/host/scan_time/
         # cert_subject — none of which exist there — so it always raised and, swallowed by the
-        # except, search never returned a single asset. Filter in Python over the per-asset facts;
-        # the result set is one row per asset, so this stays cheap.
+        # except, search never returned a single asset. The database matches the term on the newest
+        # row per asset and returns at most `limit` of them; filtering the newest 5,000 in Python
+        # here meant an asset outside those 5,000 could never be found. The Python check stays as
+        # the definition of a match (the SQL filter is the same columns).
         try:
-            for r in _latest_asset_scan_facts(org_id, limit=5000):
+            for r in _latest_asset_scan_facts(org_id, limit=max(1, min(int(limit or 50), 500)),
+                                              text_query=term):
                 haystack = " ".join(str(r.get(k) or "") for k in
                                     ("host", "asset_key", "algorithm", "sig_algorithm",
                                      "tls_version", "risk_level", "owner", "team", "environment")).lower()

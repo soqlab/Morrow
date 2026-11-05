@@ -35,9 +35,12 @@ def create_governance_router(require_role: RequireRole) -> APIRouter:
         org_id = str(getattr(request.state, "org_id", current_organization_id()) or _default_org_id()).strip() or _default_org_id()
         require_role(request, allowed_roles=["viewer", "operator", "admin"], action="governance.certificates", resource_type="organization", resource_id=org_id)
         assets = list_assets(limit=int(asset_limit))
+        # fallback_keys: an asset missing from the recent scans is answered from one batched
+        # query instead of one query per asset (5,000 sequential reads on a 10k inventory).
         report = build_certificate_lifecycle_report(
             assets=assets,
-            latest_for_asset=_app_attr("_latest_full_scan_result_lookup")(),
+            latest_for_asset=_app_attr("_latest_full_scan_result_lookup")(
+                fallback_keys=[a.get("asset_key") or "" for a in assets]),
             warning_days=int(warning_days),
         )
         return {"api_version": "v1", "organization_id": org_id, **report}
@@ -56,7 +59,8 @@ def create_governance_router(require_role: RequireRole) -> APIRouter:
         report = build_shadow_it_report(
             assets=assets,
             runtime_assets=runtime_assets,
-            latest_for_asset=_app_attr("_latest_full_scan_result_lookup")(),
+            latest_for_asset=_app_attr("_latest_full_scan_result_lookup")(
+                fallback_keys=[a.get("asset_key") or "" for a in assets]),
         )
         return {"api_version": "v1", "organization_id": org_id, **report}
 

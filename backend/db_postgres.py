@@ -549,6 +549,8 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     "CREATE INDEX IF NOT EXISTS idx_assets_team ON assets(team)",
     "CREATE INDEX IF NOT EXISTS idx_assets_env ON assets(environment)",
     "CREATE INDEX IF NOT EXISTS idx_assets_crit ON assets(criticality)",
+    # GET /assets pages "this tenant, newest first" with a (updated_at, asset_key) keyset cursor.
+    "CREATE INDEX IF NOT EXISTS idx_assets_org_updated ON assets(organization_id, updated_at DESC, asset_key DESC)",
     """
     CREATE TABLE IF NOT EXISTS asset_tags (
         organization_id TEXT NOT NULL,
@@ -1769,11 +1771,17 @@ def pg_list_assets(
     tag: Optional[str] = None,
     limit: int = 2000,
     dsn: Optional[str] = None,
+    after: Optional[tuple] = None,
+    max_limit: int = 5000,
 ) -> List[Dict[str, Any]]:
     ensure_postgres_core_schema(dsn)
     params: List[Any] = [str(org_id or "").strip() or DEFAULT_ORG_ID]
     joins = ""
     clauses = ["a.organization_id = %s"]
+    if after:
+        # Keyset cursor: the (updated_at, asset_key) of the last row of the previous page.
+        clauses.append("(a.updated_at, a.asset_key) < (%s::timestamptz, %s)")
+        params.extend([str(after[0]), str(after[1])])
     if tag:
         joins += " JOIN asset_tags tf ON tf.organization_id = a.organization_id AND tf.asset_key = a.asset_key"
         clauses.append("tf.tag = %s")
@@ -1790,7 +1798,7 @@ def pg_list_assets(
     if criticality not in (None, ""):
         clauses.append("a.criticality = %s")
         params.append(criticality)
-    params.append(max(1, min(int(limit or 2000), 5000)))
+    params.append(max(1, min(int(limit or 2000), int(max_limit))))
     sql = f"""
         SELECT a.asset_key, a.owner, a.team, a.environment, a.criticality, a.confidentiality_lifetime,
                a.notes, a.metadata_json, a.repository_id, a.updated_at,
@@ -1807,7 +1815,7 @@ def pg_list_assets(
           ON r.organization_id = a.organization_id AND r.id = a.repository_id
         {joins}
         WHERE {' AND '.join(clauses)}
-        ORDER BY a.updated_at DESC
+        ORDER BY a.updated_at DESC, a.asset_key DESC
         LIMIT %s
     """
     with pg_product_conn(dsn) as conn:
@@ -2003,7 +2011,8 @@ _SCAN_FACT_COLUMNS = (
 )
 
 
-def pg_latest_scan_facts_for_org(org_id: str, limit: int = 5000, dsn: Optional[str] = None) -> List[Dict[str, Any]]:
+def pg_latest_scan_facts_for_org(org_id: str, limit: int = 5000, dsn: Optional[str] = None,
+                                 text_query: str = "") -> List[Dict[str, Any]]:
     """The newest scan_results row per asset for one tenant, newest scan first, in one statement.
 
     The caller used to read every scan result the tenant had ever recorded (up to 50,000 rows),
@@ -2012,6 +2021,16 @@ def pg_latest_scan_facts_for_org(org_id: str, limit: int = 5000, dsn: Optional[s
     bounds the rows that ever become Python objects.
     """
     columns = ", ".join(_SCAN_FACT_COLUMNS)
+    term = str(text_query or "").strip().lower()
+    where, params = "", []
+    if term:
+        # The same columns as the SQLite path (db._SCAN_FACT_SEARCH_SQL), matched on the newest row.
+        pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        where = (" WHERE asset_key ILIKE %s OR key_type ILIKE %s OR sig_algorithm ILIKE %s"
+                 " OR tls_version ILIKE %s"
+                 " OR (CASE WHEN COALESCE(risk_level, '') = '' THEN 'unknown' ELSE risk_level END) ILIKE %s"
+                 " OR owner ILIKE %s OR team ILIKE %s OR environment ILIKE %s")
+        params = [pattern] * 8
     ensure_postgres_core_schema(dsn)
     with pg_product_conn(dsn) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -2022,11 +2041,12 @@ def pg_latest_scan_facts_for_org(org_id: str, limit: int = 5000, dsn: Optional[s
                     FROM scan_results
                     WHERE organization_id = %s
                     ORDER BY asset_key, scanned_at DESC, id DESC
-                ) newest
+                ) newest{where}
                 ORDER BY scanned_at DESC
                 LIMIT %s
                 """,
-                (str(org_id or "").strip() or DEFAULT_ORG_ID, max(1, min(int(limit or 5000), 50000))),
+                (str(org_id or "").strip() or DEFAULT_ORG_ID, *params,
+                 max(1, min(int(limit or 5000), 50000))),
             )
             return [_row_to_scan_result_dict(r) or {} for r in _fetchall_dicts(cur)]
 

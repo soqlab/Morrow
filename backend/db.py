@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import sqlite3
 import json
@@ -762,7 +763,13 @@ def _ensure_integrations_tables(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_sprint11_tables(conn: sqlite3.Connection) -> None:
-    """Sprint 11: repositories + asset metadata/repo linkage."""
+    """Sprint 11: repositories + asset metadata/repo linkage.
+
+    Memoized per database: get_repository_by_id() runs this on every call, and get_asset() /
+    upsert_asset() call that per asset, so a CSV import of 10,000 assets re-ran this DDL 40,000 times.
+    """
+    if schema_ensured("sprint11"):
+        return
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS repositories (
@@ -786,7 +793,8 @@ def _ensure_sprint11_tables(conn: sqlite3.Connection) -> None:
             conn.execute("ALTER TABLE assets ADD COLUMN repository_id INTEGER NOT NULL DEFAULT 0")
     except Exception:
         # Don't crash startup if PRAGMA fails; other calls re-run this.
-        pass
+        return
+    mark_schema_ensured("sprint11")
 
 
 def _ensure_sprint12_tables(conn: sqlite3.Connection) -> None:
@@ -1431,6 +1439,13 @@ def _ensure_sprint14_tables(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_repositories_org ON repositories(organization_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_repositories_name ON repositories(name)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_org ON audit_logs(organization_id)")
+    # Found by scripts/scale (docs/SCALE.md). /assets pages "tenant, newest first" with an
+    # (updated_at, asset_key) cursor; every report's "newest row per asset" window partitions the
+    # tenant's scan_results by asset_key and orders by scanned_at. Without these both sort the
+    # whole tenant on every request.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_org_updated ON assets(organization_id, updated_at, asset_key)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_org_asset_scanned "
+                 "ON scan_results(organization_id, asset_key, scanned_at)")
 
 
 def _compute_audit_entry_hash(
@@ -1872,19 +1887,29 @@ def count_scans() -> int:
     return int((row or [0])[0] or 0)
 
 
+#: The newest `?` scans of organization `?`, as rowids. Choosing them reads only the leading columns
+#: of each row. The previous single statement ("SELECT ..., summary_json FROM scans ... ORDER BY
+#: datetime(created_at) DESC LIMIT ?") fed every scan of the tenant into the sorter with every
+#: selected column, and summary_json is stored after results_json -- the whole scan's results, about
+#: 400 KB per 100-endpoint scan -- so SQLite walked the overflow pages of every results blob the
+#: tenant had ever stored to answer "the newest scan". At 10,000 assets that was 34 s for LIMIT 1.
+_NEWEST_SCAN_ROWIDS_SQL = (
+    "SELECT rowid FROM scans WHERE organization_id = ? ORDER BY datetime(created_at) DESC LIMIT ?"
+)
+
+
 def list_scan_rows(limit: int = 20) -> List[Dict[str, Any]]:
     org_id = current_organization_id()
     if postgres_main_db_requested():
         return pg_list_scan_rows(org_id, limit=limit)
     with closing(get_connection()) as conn:
         cur = conn.execute(
-            """
+            f"""
             SELECT id, status, created_at, progress_json, error_text, summary_json,
                    job_id, job_state, job_started_at, job_finished_at
             FROM scans
-            WHERE organization_id = ?
+            WHERE rowid IN ({_NEWEST_SCAN_ROWIDS_SQL})
             ORDER BY datetime(created_at) DESC
-            LIMIT ?
             """,
             (org_id, limit),
         )
@@ -1930,12 +1955,11 @@ def list_scan_results_bulk(limit: int = 10) -> List[Dict[str, Any]]:
     org_id = current_organization_id()
     with closing(get_connection()) as conn:
         cur = conn.execute(
-            """
+            f"""
             SELECT id, created_at, results_json
             FROM scans
-            WHERE organization_id = ?
+            WHERE rowid IN ({_NEWEST_SCAN_ROWIDS_SQL})
             ORDER BY datetime(created_at) DESC
-            LIMIT ?
             """,
             (org_id, limit),
         )
@@ -2158,8 +2182,17 @@ def list_assets(
     criticality: Optional[str] = None,
     tag: Optional[str] = None,
     limit: int = 2000,
+    cursor: Optional[str] = None,
+    _max_limit: int = 5000,
 ) -> List[Dict[str, Any]]:
+    """One page of the inventory, newest first, ordered by (updated_at, asset_key) descending.
+
+    `cursor` is the opaque value asset_page_cursor() makes from the last row of the previous page;
+    rows strictly after it are returned, so paging is stable while assets are added. One SELECT
+    whatever the page size: tags and the linked repository are joined in, not fetched per row.
+    """
     org_id = current_organization_id()
+    after = decode_asset_cursor(cursor) if cursor else None
     if postgres_main_db_requested():
         return pg_list_assets(
             org_id,
@@ -2169,12 +2202,28 @@ def list_assets(
             criticality=criticality,
             tag=tag,
             limit=limit,
+            after=after,
+            max_limit=_max_limit,
         )
-    limit = max(1, min(int(limit or 2000), 5000))
-    sql = "SELECT a.asset_key, a.owner, a.team, a.environment, a.criticality, a.confidentiality_lifetime, a.notes, a.metadata_json, a.repository_id, a.updated_at FROM assets a"
+    limit = max(1, min(int(limit or 2000), int(_max_limit)))
+    # Tags and the repository used to be two more queries per row (plus the schema checks
+    # get_repository_by_id runs on every call): ~5 statements per asset, 25,000 for one /assets
+    # page. The tag subquery walks asset_tags' primary key, so it comes back in tag order.
+    sql = (
+        "SELECT a.asset_key, a.owner, a.team, a.environment, a.criticality, a.confidentiality_lifetime,"
+        " a.notes, a.metadata_json, a.repository_id, a.updated_at,"
+        " COALESCE(r.name, ''), COALESCE(r.html_url, ''),"
+        " (SELECT group_concat(tag, char(31)) FROM (SELECT tg.tag FROM asset_tags tg"
+        "   WHERE tg.organization_id = a.organization_id AND tg.asset_key = a.asset_key ORDER BY tg.tag))"
+        " FROM assets a"
+        " LEFT JOIN repositories r ON r.organization_id = a.organization_id AND r.id = a.repository_id"
+    )
     params: List[Any] = []
     wh: List[str] = ["a.organization_id = ?"]
     params.append(org_id)
+    if after:
+        wh.append("(a.updated_at, a.asset_key) < (?, ?)")
+        params.extend([str(after[0]), str(after[1])])
 
     if tag:
         sql += " JOIN asset_tags t ON t.asset_key = a.asset_key AND t.organization_id = a.organization_id"
@@ -2196,34 +2245,61 @@ def list_assets(
 
     if wh:
         sql += " WHERE " + " AND ".join(wh)
-    sql += " ORDER BY a.updated_at DESC LIMIT ?"
+    sql += " ORDER BY a.updated_at DESC, a.asset_key DESC LIMIT ?"
     params.append(limit)
 
     out: List[Dict[str, Any]] = []
     with closing(get_connection()) as conn:
-        cur = conn.execute(sql, params)
-        rows = cur.fetchall()
-        for row in rows:
-            ak = row[0]
-            tags_cur = conn.execute("SELECT tag FROM asset_tags WHERE organization_id=? AND asset_key = ? ORDER BY tag", (org_id, ak))
-            tags = [r[0] for r in tags_cur.fetchall()]
-            repo = get_repository_by_id(row[8]) if "get_repository_by_id" in globals() else None
-            out.append({
-                "asset_key": ak,
-                "owner": row[1],
-                "team": row[2],
-                "environment": row[3],
-                "criticality": row[4],
-                "confidentiality_lifetime": row[5],
-                "notes": row[6],
-                "metadata": _json_obj(row[7]),
-                "repository_id": int(row[8] or 0),
-                "repository_name": (repo or {}).get("name") if repo else "",
-                "repository_html_url": (repo or {}).get("html_url") if repo else "",
-                "updated_at": row[9],
-                "tags": tags,
-            })
+        rows = conn.execute(sql, params).fetchall()
+    for row in rows:
+        out.append({
+            "asset_key": row[0],
+            "owner": row[1],
+            "team": row[2],
+            "environment": row[3],
+            "criticality": row[4],
+            "confidentiality_lifetime": row[5],
+            "notes": row[6],
+            "metadata": _json_obj(row[7]),
+            "repository_id": int(row[8] or 0),
+            "repository_name": row[10] or "",
+            "repository_html_url": row[11] or "",
+            "updated_at": row[9],
+            "tags": sorted(row[12].split("\x1f")) if row[12] else [],
+        })
     return out
+
+
+def asset_page_cursor(asset: Dict[str, Any]) -> str:
+    """The opaque cursor that continues a list_assets() page after `asset` (its last row)."""
+    raw = json.dumps([str(asset.get("updated_at") or ""), str(asset.get("asset_key") or "")])
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
+
+
+def decode_asset_cursor(cursor: str) -> tuple:
+    """Inverse of asset_page_cursor(). ValueError on anything that is not one of its cursors."""
+    try:
+        text = str(cursor or "").strip()
+        raw = base64.urlsafe_b64decode(text + "=" * (-len(text) % 4)).decode("utf-8")
+        updated_at, key = json.loads(raw)
+        if not isinstance(updated_at, str) or not isinstance(key, str) or not key:
+            raise ValueError
+        return updated_at, key
+    except Exception:
+        raise ValueError("invalid cursor") from None
+
+
+def list_assets_page(limit: int = 2000, cursor: Optional[str] = None, **filters: Any) -> Dict[str, Any]:
+    """list_assets() plus the cursor of the next page (None on the last page).
+
+    Reads one row past the page to know whether there is a next page, so a page that ends exactly
+    at the end of the inventory does not hand out a cursor to an empty page.
+    """
+    limit = max(1, min(int(limit or 2000), 5000))
+    rows = list_assets(limit=limit + 1, cursor=cursor, _max_limit=5001, **filters)
+    more = len(rows) > limit
+    rows = rows[:limit]
+    return {"items": rows, "next_cursor": asset_page_cursor(rows[-1]) if more and rows else None}
 
 
 def list_tags(limit: int = 2000) -> List[str]:
@@ -5035,7 +5111,19 @@ def recent_scan_result_times(limit: int = 2000) -> list[str]:
     return [str(r[0] or "") for r in rows if r and r[0]]
 
 
-def latest_scan_facts_for_org(limit: int = 5000) -> list[dict]:
+#: The columns /search matches a term against, on the newest row per asset. risk_level is matched as
+#: the reporting layer shows it ("unknown" when blank).
+_SCAN_FACT_SEARCH_SQL = (
+    r"(LOWER(asset_key) LIKE ? ESCAPE '\' OR LOWER(key_type) LIKE ? ESCAPE '\'"
+    r" OR LOWER(sig_algorithm) LIKE ? ESCAPE '\' OR LOWER(tls_version) LIKE ? ESCAPE '\'"
+    r" OR LOWER(CASE WHEN COALESCE(risk_level, '') = '' THEN 'unknown' ELSE risk_level END) LIKE ? ESCAPE '\'"
+    r" OR LOWER(owner) LIKE ? ESCAPE '\' OR LOWER(team) LIKE ? ESCAPE '\'"
+    r" OR LOWER(environment) LIKE ? ESCAPE '\')"
+)
+_SCAN_FACT_SEARCH_TERMS = 8
+
+
+def latest_scan_facts_for_org(limit: int = 5000, text_query: str = "") -> list[dict]:
     """The newest scan_results row per asset for the current tenant, newest scan first.
 
     This replaces `list_scan_results_since("1970-01-01", limit=50000)` followed by a Python
@@ -5048,12 +5136,21 @@ def latest_scan_facts_for_org(limit: int = 5000) -> list[dict]:
     One statement per dialect now does the same work: DISTINCT ON in Postgres, a ROW_NUMBER()
     window in SQLite. `LIMIT` is applied by the database, so the row count this returns is
     bounded by the caller's limit rather than by the size of the tenant's history.
+
+    `text_query` keeps only assets whose newest row contains it (case-insensitively) in one of the
+    columns /search matches on. /search used to read the newest 5,000 assets and filter them in
+    Python, so on a larger inventory it could not find an asset outside those 5,000.
     """
     org_id = current_organization_id()
     limit = max(1, min(int(limit or 5000), 50000))
+    term = str(text_query or "").strip().lower()
     if postgres_main_db_requested():
+        if term:
+            return pg_latest_scan_facts_for_org(org_id, limit=limit, text_query=term)
         return pg_latest_scan_facts_for_org(org_id, limit=limit)
     columns = ", ".join(_SCAN_FACT_COLUMNS)
+    search = (" AND " + _SCAN_FACT_SEARCH_SQL) if term else ""
+    search_params = [_like_contains(term)] * _SCAN_FACT_SEARCH_TERMS if term else []
     with closing(get_connection()) as conn, conn:
         conn.row_factory = sqlite3.Row
         try:
@@ -5067,11 +5164,11 @@ def latest_scan_facts_for_org(limit: int = 5000) -> list[dict]:
                     FROM scan_results
                     WHERE organization_id = ?
                 ) ranked
-                WHERE _rn = 1
+                WHERE _rn = 1{search}
                 ORDER BY scanned_at DESC
                 LIMIT ?
                 """,
-                (org_id, limit),
+                (org_id, *search_params, limit),
             ).fetchall()
         except sqlite3.OperationalError as exc:
             if "no such table" in str(exc).lower():

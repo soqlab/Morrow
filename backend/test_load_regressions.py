@@ -1392,6 +1392,230 @@ class TestDatabaseSelectionDoesNotLeakBetweenModules(unittest.TestCase):
                                         "private database: %s" % offenders)
 
 
+# ── 15. Inventory-scale reads (scripts/scale, docs/SCALE.md) ─────────────────
+#
+# Found by seeding 10,000 and 100,000 assets through the db helpers and timing every endpoint the
+# console calls. Each of these was invisible at the functional suite's dozen assets.
+
+
+class _TracedSqlite:
+    """Route db.get_connection() through one connection whose statements are recorded."""
+
+    def __init__(self, db):
+        self.db = db
+        self.statements = []
+
+    def __enter__(self):
+        self.conn = self.db.get_connection()
+        self.conn.set_trace_callback(self.statements.append)
+        self.original = self.db.get_connection
+        self.db.get_connection = lambda *a, **k: self._handle()
+        return self
+
+    def _handle(self):
+        conn = self.conn
+
+        class _NoClose:
+            def __getattr__(self, name):
+                return getattr(conn, name)
+
+            def __setattr__(self, name, value):
+                setattr(conn, name, value)
+
+            def close(self):
+                pass
+
+            def __enter__(self):
+                return conn.__enter__()
+
+            def __exit__(self, *exc):
+                return conn.__exit__(*exc)
+
+        return _NoClose()
+
+    def selects(self):
+        return [s for s in self.statements if s.lstrip().upper().startswith("SELECT")]
+
+    def __exit__(self, *exc):
+        self.db.get_connection = self.original
+        try:
+            self.conn.set_trace_callback(None)
+            self.conn.close()
+        except sqlite3.ProgrammingError:
+            pass
+
+
+class _InventoryFixture(unittest.TestCase):
+    ASSETS = 23
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="pq-scale-")
+        self.previous = {k: os.environ.get(k) for k in ("MORROW_SCANNER_DB", "MORROW_MAIN_DB_BACKEND")}
+        self.db = _full_sqlite_db(os.path.join(self.tmp, "inv.db"), assets=self.ASSETS, scans_per_asset=2)
+        self.token = self.db.set_current_organization_id("org-a")
+        blob = [{"host": "h.org-a", "port": 443, "findings": [{"id": "x" * 200}] * 20}]
+        for n in range(self.ASSETS):
+            for s in range(2):
+                self.db.save_scan_row("scan-org-a-%d-%d" % (n, s), "completed",
+                                      datetime(2026, 9, 1 + s, n // 60, n % 60, tzinfo=UTC),
+                                      {"total": 1, "done": 1, "percent": 100}, "", blob, {"total": 1})
+        repo = self.db.upsert_repository("example/edge", "https://git.example.com/example/edge")
+        for n in range(self.ASSETS):
+            self.db.upsert_asset("h%d.org-a:443" % n, owner="o%d" % (n % 3), team="t", environment="prod",
+                                 tags=["z-last", "a-first", "tag%d" % (n % 4)],
+                                 repository_id=int(repo["id"]) if n % 2 else 0)
+        # Many assets share an updated_at in a bulk import; the cursor must still be exact.
+        conn = sqlite3.connect(os.environ["MORROW_SCANNER_DB"])
+        conn.execute("UPDATE assets SET updated_at='2026-10-01T00:00:00Z' WHERE asset_key LIKE 'h1%'")
+        conn.commit()
+        conn.close()
+
+    def tearDown(self):
+        import shutil
+
+        self.db.reset_current_organization_id(self.token)
+        for key, value in self.previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+class TestAssetListIsOneStatementAndPages(_InventoryFixture):
+    """list_assets() ran two queries per row (tags, then the repository -- which itself re-ran the
+    repositories DDL each time), about 25,000 statements for one 5,000-asset page; /assets took 7 s
+    at 10,000 assets. And /assets had no way past its first 5,000 rows."""
+
+    def test_one_select_for_the_whole_page(self):
+        with _TracedSqlite(self.db) as traced:
+            rows = self.db.list_assets(limit=5000)
+        self.assertEqual(len(rows), self.ASSETS)
+        self.assertEqual(len(traced.selects()), 1, traced.selects())
+
+    def test_the_page_matches_the_per_asset_read(self):
+        for row in self.db.list_assets(limit=5000):
+            one = self.db.get_asset(row["asset_key"])
+            for field in ("tags", "repository_id", "repository_name", "repository_html_url",
+                          "owner", "metadata", "updated_at"):
+                self.assertEqual(row[field], one[field], "%s.%s" % (row["asset_key"], field))
+        self.assertEqual(self.db.list_assets(tag="a-first", limit=5000)[0]["tags"][0], "a-first")
+
+    def test_walking_the_cursor_visits_every_asset_once_in_order(self):
+        everything = [r["asset_key"] for r in self.db.list_assets(limit=5000)]
+        walked, cursor, pages = [], None, 0
+        while True:
+            page = self.db.list_assets_page(limit=4, cursor=cursor)
+            walked.extend(r["asset_key"] for r in page["items"])
+            pages += 1
+            cursor = page["next_cursor"]
+            if not cursor:
+                break
+        self.assertEqual(walked, everything)
+        self.assertEqual(pages, -(-self.ASSETS // 4))
+
+    def test_a_page_that_ends_the_inventory_has_no_cursor(self):
+        self.assertIsNone(self.db.list_assets_page(limit=self.ASSETS)["next_cursor"])
+        self.assertIsNotNone(self.db.list_assets_page(limit=self.ASSETS - 1)["next_cursor"])
+
+    def test_a_forged_cursor_is_refused(self):
+        for bad in ("nope", "W10", "WyJhIl0"):
+            with self.assertRaises(ValueError):
+                self.db.list_assets_page(cursor=bad)
+
+    def test_the_endpoint_returns_the_cursor_and_rejects_a_bad_one(self):
+        import inspect
+
+        import app
+
+        src = inspect.getsource(app.api_list_assets)
+        self.assertIn("list_assets_page", src)
+        self.assertIn("status_code=400", src)
+
+    def test_the_indexes_behind_the_ordering_exist(self):
+        conn = sqlite3.connect(os.environ["MORROW_SCANNER_DB"])
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
+        conn.close()
+        self.assertIn("idx_assets_org_updated", names)
+        self.assertIn("idx_scan_results_org_asset_scanned", names)
+        import db_postgres
+
+        self.assertIn("idx_assets_org_updated", " ".join(db_postgres.POSTGRES_CORE_SCHEMA_SQL))
+
+
+class TestNewestScanDoesNotReadEveryResultBlob(_InventoryFixture):
+    """list_scan_rows(limit=1) took 34 s at 10,000 assets.
+
+    It selected summary_json in the statement that sorted all of the tenant's scans, and
+    summary_json is stored after results_json, so SQLite read every scan's full results (about
+    400 KB each) to pick one. /fix-next, /scans, /blast-radius/graph, the telemetry KPIs and the
+    certificate report all start with that call.
+    """
+
+    def test_the_sort_selects_only_rowids(self):
+        with _TracedSqlite(self.db) as traced:
+            rows = self.db.list_scan_rows(limit=3)
+            self.db.list_scan_results_bulk(limit=3)
+        self.assertEqual(len(rows), 3)
+        for statement in traced.selects():
+            if "FROM scans" not in statement:
+                continue
+            inner = statement[statement.index("IN (") + 4:]
+            self.assertTrue(inner.lstrip().upper().startswith("SELECT ROWID FROM SCANS"), statement)
+            self.assertIn("LIMIT", inner)
+
+    def test_newest_first_and_inside_the_tenant(self):
+        rows = self.db.list_scan_rows(limit=1000)
+        stamps = [r["created_at"] for r in rows]
+        self.assertEqual(stamps, sorted(stamps, reverse=True))
+        self.assertEqual(len(rows), self.ASSETS * 2)
+        self.assertTrue(all("org-a" in r["id"] for r in rows))
+        self.assertEqual([r["id"] for r in self.db.list_scan_rows(limit=2)], [r["id"] for r in rows[:2]])
+
+
+class TestSearchMatchesInTheDatabase(_InventoryFixture):
+    """/search read the newest 5,000 assets and filtered them in Python: on a bigger inventory an
+    asset outside those 5,000 could not be found, and the cost was 5,000 rows per keystroke."""
+
+    def test_the_term_is_applied_before_the_limit(self):
+        # The oldest asset is outside limit=1; a Python filter over that one row would never see it.
+        ordered = [f["asset_key"] for f in self.db.latest_scan_facts_for_org(limit=5000)]
+        target = ordered[-1]
+        self.assertNotIn(target, [f["asset_key"] for f in self.db.latest_scan_facts_for_org(limit=1)])
+        hits = self.db.latest_scan_facts_for_org(limit=1, text_query=target.split(":")[0].upper() + ":")
+        self.assertEqual([h["asset_key"] for h in hits], [target])
+
+    def test_wildcards_typed_by_the_operator_stay_literal(self):
+        self.assertEqual(self.db.latest_scan_facts_for_org(limit=50, text_query="%"), [])
+        self.assertEqual(self.db.latest_scan_facts_for_org(limit=50, text_query="h_.org"), [])
+
+    def test_matches_on_the_newest_row_only(self):
+        # Every asset's older scan says "low"; the newest says "critical".
+        self.assertEqual(self.db.latest_scan_facts_for_org(limit=50, text_query="low"), [])
+        self.assertEqual(len(self.db.latest_scan_facts_for_org(limit=50, text_query="critical")), self.ASSETS)
+
+    def test_the_endpoint_no_longer_reads_five_thousand_assets(self):
+        import inspect
+
+        import app
+
+        src = inspect.getsource(app.api_search)
+        self.assertNotIn("limit=5000", src)
+        self.assertIn("text_query=term", src)
+
+
+def test_certificate_and_shadow_it_reports_batch_their_fallback():
+    """Without fallback_keys every asset missing from the newest 100 scans cost its own query:
+    /governance/certificates took 111 s at 10,000 assets."""
+    import inspect
+
+    from routers import governance
+
+    src = inspect.getsource(governance.create_governance_router)
+    assert src.count("_latest_full_scan_result_lookup\")(") == 2
+    assert src.count("fallback_keys=") == 2
+
+
 if __name__ == "__main__":
     unittest.main()
 
