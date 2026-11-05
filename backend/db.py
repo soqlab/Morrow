@@ -3997,7 +3997,7 @@ def auto_close_merged_remediations(scan_id: str, results: List[Dict[str, Any]]) 
                 continue
 
             due = conn.execute(
-                "SELECT COUNT(1) FROM remediations WHERE organization_id=? AND asset_key=? AND status='merged'",
+                "SELECT COUNT(1) FROM remediations WHERE organization_id=? AND asset_key=? AND status IN ('merged', 'awaiting_verification')",
                 (org_id, ak),
             ).fetchone()
             to_close = int((due or [0])[0] or 0)
@@ -4011,7 +4011,7 @@ def auto_close_merged_remediations(scan_id: str, results: List[Dict[str, Any]]) 
                     verification_scan_id=?,
                     closed_at=?,
                     updated_at=?
-                WHERE organization_id=? AND asset_key=? AND status='merged'
+                WHERE organization_id=? AND asset_key=? AND status IN ('merged', 'awaiting_verification')
                 """,
                 (str(scan_id or ""), now, now, org_id, ak),
             )

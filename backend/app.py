@@ -770,6 +770,7 @@ from routers.readiness import create_readiness_router
 from routers.agent import create_agent_router
 from routers.security_intent import create_security_intent_router
 from routers.gateway import create_gateway_router
+from routers.ticket_sync import create_ticket_sync_router
 from integrations.gcp import sync_gcp_assets
 from integrations.github import sync_github_repos
 from integrations.github_app import (
@@ -2325,6 +2326,9 @@ def _auth_public_path(path: str) -> bool:
     if p.startswith("/vendor-attestation/"):
         return True
     if p == "/integrations/github/webhook":
+        return True
+    # Jira/ServiceNow status callbacks: each authenticates by the org's signature/token (routers/ticket_sync.py).
+    if _route_paths.has_prefix(p, ("/integrations/tickets/inbound",)):
         return True
     return False
 
@@ -11301,6 +11305,8 @@ app.include_router(create_workfeed_router(_require_role), prefix="/v1")
 app.include_router(create_readiness_router(_require_role), prefix="/v1")
 app.include_router(create_security_intent_router(_require_role), prefix="/v1")
 app.include_router(create_gateway_router(_require_role), prefix="/v1")
+app.include_router(create_ticket_sync_router(_require_role, _broker_reachable))
+app.include_router(create_ticket_sync_router(_require_role, _broker_reachable), prefix="/v1")
 
 # Vendor platform administration: operator identity, tenant users/invites, sessions, API keys, audit
 # search/export, announcements and maintenance mode. Dependencies are passed as late-bound lambdas so
@@ -23244,6 +23250,7 @@ def api_ticket_config_get(request: Request):
         if "api_token" in c: c["api_token"] = "***"
         if "token" in c: c["token"] = "***"
         if "client_secret" in c: c["client_secret"] = "***"
+        if "password" in c: c["password"] = "***"
     return {"configs": configs}
 
 @app.post("/v1/tickets/create")

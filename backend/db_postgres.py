@@ -3525,7 +3525,7 @@ def pg_auto_close_merged_remediations(
                     """
                     SELECT COUNT(1)
                     FROM remediations
-                    WHERE organization_id = %s AND asset_key = %s AND status = 'merged'
+                    WHERE organization_id = %s AND asset_key = %s AND status IN ('merged', 'awaiting_verification')
                     """,
                     (str(org_id or "").strip() or DEFAULT_ORG_ID, asset_key_str),
                 )
@@ -3540,7 +3540,7 @@ def pg_auto_close_merged_remediations(
                         verification_scan_id = %s,
                         closed_at = NOW(),
                         updated_at = NOW()
-                    WHERE organization_id = %s AND asset_key = %s AND status = 'merged'
+                    WHERE organization_id = %s AND asset_key = %s AND status IN ('merged', 'awaiting_verification')
                     """,
                     (scan_id, str(org_id or "").strip() or DEFAULT_ORG_ID, asset_key_str),
                 )

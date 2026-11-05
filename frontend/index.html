@@ -6790,8 +6790,9 @@ ACTIONS.remCleanup = async () => {
 };
 ACTIONS.remOpen = async (b) => {
   const id = b.dataset.id;
-  const [one, val] = await all([`/remediations/${encodeURIComponent(id)}`, `/remediations/${encodeURIComponent(id)}/validate`]);
+  const [one, val, sync] = await all([`/remediations/${encodeURIComponent(id)}`, `/remediations/${encodeURIComponent(id)}/validate`, `/remediations/${encodeURIComponent(id)}/ticket-sync`]);
   const d = one.ok ? one.data : { id };
+  const tix = sync.ok ? rows(sync.data, "tickets") : [];
   drawer(String(id).slice(0, 26), "Remediation detail", `
     ${autoKV(d, { limit: 40 })}
     <div style="height:16px"></div>
@@ -6806,6 +6807,12 @@ ACTIONS.remOpen = async (b) => {
       ${actBtn("Cleanup branch", "remAct", { cls: "btn sm ghost", data: { id, op: "branch/cleanup" } })}
     </div>`, { icon: I.wrench, lift: false })}
     ${val.ok ? `<div style="height:14px"></div>${card("Validation", autoKV(val.data, { limit: 24 }), { icon: I.check, lift: false })}` : ""}
+    ${tix.length ? `<div style="height:14px"></div>${card("Ticket sync", table([
+      { h: "Ticket", f: t => `<b class="m">${t.ticket_url ? `<a href="${H(t.ticket_url)}" target="_blank" rel="noopener">${H(t.ticket_id)}</a>` : H(t.ticket_id)}</b><span class="sub">${H(TITLE(t.provider))}</span>` },
+      { h: "Ticket status", f: t => t.external_status ? rawPill(t.external_status) : `<span class="pill">—</span>` },
+      { h: "Sync", f: t => `${pill(t.last_outcome)}${t.verification_scan_id ? `<span class="sub mono">rescan ${H(String(t.verification_scan_id).slice(0, 8))}</span>` : ""}` },
+      { h: "Last update", f: t => `<span class="m">${H(t.last_synced_at ? AGO(t.last_synced_at) : "never")}</span><span class="sub">${H(t.last_source || "")}</span>` },
+    ], tix, { empty: "No linked tickets" }), { icon: I.link, lift: false, flush: true })}` : ""}
     <div style="height:14px"></div>
     ${card("Raw record", `<pre class="out">${H(JSON.stringify(d, null, 2))}</pre>`, { lift: false })}`);
 };
@@ -8531,6 +8538,7 @@ VIEWS.integrations = async (host) => {
             ${actBtn("Configure", "tikCfg", { cls: "btn sm pri block" })}
             ${actBtn("Create ticket", "tikNew", { cls: "btn sm block" })}
             ${actBtn("List tickets", "tikList", { cls: "btn sm ghost block" })}
+            ${actBtn("Status sync setup", "tikSync", { cls: "btn sm ghost block" })}
           </div>`, { icon: I.file }), "/tickets/config")}
         ${card("Jira & ServiceNow", `<div class="col">
           ${actBtn("Jira template", "jiraTmpl", { cls: "btn sm block" })}
@@ -8705,6 +8713,48 @@ ACTIONS.tikCfgGo = async () => {
 };
 ACTIONS.tikNew  = async () => igOut("#chatOut", await safe("/tickets/create", { method: "POST", body: { title: "Post-quantum remediation required", severity: "high" } }), "/tickets/create", "Ticket created", I.file);
 ACTIONS.tikList = async () => igOut("#chatOut", await safe("/tickets"), "/tickets", "Tickets", I.file);
+/* Inbound status sync: Jira / ServiceNow tell Morrow when a ticket is resolved or reopened.
+ * A resolved ticket only moves the remediation to awaiting verification; a clean rescan closes it. */
+ACTIONS.tikSync = async () => {
+  const r = await safe("/tickets/sync/settings");
+  if (!r.ok) return err(r.err);
+  const d = r.data || {};
+  const block = (p) => `
+    <div style="margin-bottom:18px">
+      <div class="row" style="justify-content:space-between"><b>${H(TITLE(p.provider))}</b>
+        ${p.configured ? `<span class="pill ok">Secret set ${H(p.secret_hint)}</span>` : `<span class="pill">No secret yet</span>`}</div>
+      <div class="field" style="margin-top:8px"><label>Webhook URL</label>
+        <div class="row tight"><input class="inp mono" readonly value="${H(p.webhook_url)}"><button class="btn xs" data-copy="${H(p.webhook_url)}" type="button">Copy</button></div></div>
+      <ol style="font-size:12.5px;line-height:1.6;margin:8px 0 0 18px;padding:0">${(p.setup_steps || []).map(x => `<li>${H(x)}</li>`).join("")}</ol>
+      ${p.servicenow_business_rule ? `<pre class="out" style="margin-top:8px">${H(p.servicenow_business_rule)}</pre>
+        <button class="btn xs" data-copy="${H(p.servicenow_business_rule)}" type="button">Copy business rule</button>` : ""}
+      <div class="sub" style="margin-top:6px">Last event: ${H(p.last_event_at ? AGO(p.last_event_at) : "never")}${p.last_outcome ? ` · ${H(TITLE(p.last_outcome))}` : ""}
+        · refused: ${NUM(p.rejected_auth_count || 0)} bad signature, ${NUM(p.rejected_unknown_count || 0)} unknown ticket</div>
+      <div class="row" style="margin-top:8px">
+        ${actBtn(p.configured ? "Rotate secret" : "Generate secret", "tikSyncSecret", { cls: "btn sm pri", data: { p: p.provider } })}
+        ${actBtn(p.poll_enabled ? "Disable polling" : "Enable polling", "tikSyncPoll", { cls: "btn sm ghost", data: { p: p.provider, on: p.poll_enabled ? "0" : "1" } })}
+      </div>
+    </div>`;
+  modal("Ticket status sync", `
+    <p style="font-size:13px;line-height:1.6;margin:0 0 14px">${H(d.rule || "")}</p>
+    ${(d.providers || []).map(block).join("")}
+    <p class="sub" style="margin:0">Polling is a fallback for teams that cannot add a webhook${d.polling_available ? "" : " and is switched off on this server (MORROW_TICKET_SYNC_POLL)"}.</p>`,
+    `<button class="btn" data-close type="button">Close</button>`);
+};
+ACTIONS.tikSyncSecret = async (b) => {
+  const r = await safe("/tickets/sync/secret", { method: "POST", body: { provider: b.dataset.p } });
+  if (!r.ok) return err(r.err);
+  modal("Copy this secret now", `
+    <p style="font-size:13px;line-height:1.6;margin:0 0 10px">It is shown once. Paste it into ${H(TITLE(r.data.provider))}; the previous secret stops working immediately.</p>
+    <div class="row tight"><input class="inp mono" readonly value="${H(r.data.secret)}"><button class="btn xs pri" data-copy="${H(r.data.secret)}" type="button">Copy</button></div>
+    <div class="sub mono" style="margin-top:10px">${H(r.data.webhook_url)}</div>`,
+    `<button class="btn" data-close type="button">Done</button>`);
+};
+ACTIONS.tikSyncPoll = async (b) => {
+  const r = await safe("/tickets/sync/settings", { method: "POST", body: { provider: b.dataset.p, poll_enabled: b.dataset.on === "1" } });
+  if (!r.ok) return err(r.err);
+  ok(r.data.poll_enabled ? "Polling enabled" : "Polling disabled"); ACTIONS.tikSync();
+};
 ACTIONS.jiraTmpl = async () => igOut("#chatOut", await safe("/integrations/jira/template"), "/integrations/jira/template", "Jira issue template", I.file);
 ACTIONS.jiraNew  = async () => igOut("#chatOut", await safe("/integrations/jira/create-issue", { method: "POST", body: {} }), "/integrations/jira/create-issue", "Jira issue", I.file);
 ACTIONS.jiraBulk = async () => igOut("#chatOut", await safe("/integrations/jira/create-issues", { method: "POST", body: {} }), "/integrations/jira/create-issues", "Jira bulk create", I.file);

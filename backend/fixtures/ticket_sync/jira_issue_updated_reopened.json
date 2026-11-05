@@ -1,0 +1,39 @@
+{
+  "timestamp": 1793875812345,
+  "webhookEvent": "jira:issue_updated",
+  "issue_event_type_name": "issue_generic",
+  "user": {
+    "self": "https://acme-sec.atlassian.net/rest/api/2/user?accountId=5b10ac8d82e05b22cc7d4ef5",
+    "accountId": "5b10ac8d82e05b22cc7d4ef5",
+    "displayName": "Priya Raman",
+    "active": true,
+    "accountType": "atlassian"
+  },
+  "issue": {
+    "id": "10427",
+    "self": "https://acme-sec.atlassian.net/rest/api/2/10427",
+    "key": "SEC-142",
+    "fields": {
+      "issuetype": {"id": "10004", "name": "Bug", "subtask": false},
+      "project": {"id": "10001", "key": "SEC", "name": "Security", "projectTypeKey": "software"},
+      "resolution": null,
+      "resolutiondate": null,
+      "labels": ["high", "morrow", "post-quantum"],
+      "summary": "[Morrow] RSA-2048 key exchange on public API — api.acme.example:443",
+      "updated": "2026-11-05T10:50:12.311+0000",
+      "status": {
+        "self": "https://acme-sec.atlassian.net/rest/api/2/status/4",
+        "name": "Reopened",
+        "id": "4",
+        "statusCategory": {"self": "https://acme-sec.atlassian.net/rest/api/2/statuscategory/2", "id": 2, "key": "new", "colorName": "blue-gray", "name": "To Do"}
+      }
+    }
+  },
+  "changelog": {
+    "id": "18663",
+    "items": [
+      {"field": "resolution", "fieldtype": "jira", "fieldId": "resolution", "from": "10000", "fromString": "Done", "to": null, "toString": null},
+      {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "10002", "fromString": "Done", "to": "4", "toString": "Reopened"}
+    ]
+  }
+}

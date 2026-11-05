@@ -1,0 +1,22 @@
+{
+  "timestamp": 1793872212999,
+  "webhookEvent": "jira:issue_updated",
+  "issue_event_type_name": "issue_generic",
+  "user": {"accountId": "5b10ac8d82e05b22cc7d4ef5", "displayName": "Priya Raman", "accountType": "atlassian"},
+  "issue": {
+    "id": "10430",
+    "key": "SEC-145",
+    "fields": {
+      "resolution": {"id": "10001", "name": "Won't Do"},
+      "labels": ["morrow", "post-quantum"],
+      "status": {"name": "Done", "id": "10002", "statusCategory": {"id": 3, "key": "done", "name": "Done"}}
+    }
+  },
+  "changelog": {
+    "id": "18651",
+    "items": [
+      {"field": "resolution", "fieldtype": "jira", "from": null, "fromString": null, "to": "10001", "toString": "Won't Do"},
+      {"field": "status", "fieldtype": "jira", "from": "10000", "fromString": "To Do", "to": "10002", "toString": "Done"}
+    ]
+  }
+}

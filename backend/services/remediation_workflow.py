@@ -55,6 +55,8 @@ def remediation_next_action(row: Dict[str, Any]) -> str:
         return "Track merge, then rescan to verify closure."
     if status == "merged":
         return "Run or wait for verification scan to prove the issue is actually closed."
+    if status == "awaiting_verification":
+        return "The linked ticket was resolved. A clean rescan of the asset closes it; until then it is not fixed."
     if status == "verified_closed":
         return "Monitor drift so the fix does not get silently undone."
     if status == "rejected":
@@ -67,7 +69,7 @@ def remediation_queue_column(row: Dict[str, Any]) -> str:
     drift = str(row.get("drift_status") or "").lower()
     if drift == "drifted" or status == "verified_closed":
         return "verified"
-    if status in {"pr_created", "merged"}:
+    if status in {"pr_created", "merged", "awaiting_verification"}:
         return "pr"
     if status in {"approved", "validation_failed"}:
         return "validate"

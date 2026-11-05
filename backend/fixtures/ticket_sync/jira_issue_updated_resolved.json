@@ -1,0 +1,44 @@
+{
+  "timestamp": 1793872212345,
+  "webhookEvent": "jira:issue_updated",
+  "issue_event_type_name": "issue_generic",
+  "user": {
+    "self": "https://acme-sec.atlassian.net/rest/api/2/user?accountId=5b10ac8d82e05b22cc7d4ef5",
+    "accountId": "5b10ac8d82e05b22cc7d4ef5",
+    "avatarUrls": {"48x48": "https://secure.gravatar.com/avatar/9f3c.png"},
+    "displayName": "Priya Raman",
+    "active": true,
+    "timeZone": "Europe/London",
+    "accountType": "atlassian"
+  },
+  "issue": {
+    "id": "10427",
+    "self": "https://acme-sec.atlassian.net/rest/api/2/10427",
+    "key": "SEC-142",
+    "fields": {
+      "statuscategorychangedate": "2026-11-05T09:50:12.311+0000",
+      "issuetype": {"id": "10004", "name": "Bug", "subtask": false},
+      "project": {"id": "10001", "key": "SEC", "name": "Security", "projectTypeKey": "software"},
+      "resolution": {"self": "https://acme-sec.atlassian.net/rest/api/2/resolution/10000", "id": "10000", "description": "Work has been completed on this issue.", "name": "Done"},
+      "resolutiondate": "2026-11-05T09:50:12.300+0000",
+      "labels": ["high", "morrow", "post-quantum"],
+      "priority": {"id": "2", "name": "High"},
+      "summary": "[Morrow] RSA-2048 key exchange on public API — api.acme.example:443",
+      "updated": "2026-11-05T09:50:12.311+0000",
+      "status": {
+        "self": "https://acme-sec.atlassian.net/rest/api/2/status/10002",
+        "description": "",
+        "name": "Done",
+        "id": "10002",
+        "statusCategory": {"self": "https://acme-sec.atlassian.net/rest/api/2/statuscategory/3", "id": 3, "key": "done", "colorName": "green", "name": "Done"}
+      }
+    }
+  },
+  "changelog": {
+    "id": "18650",
+    "items": [
+      {"field": "resolution", "fieldtype": "jira", "fieldId": "resolution", "from": null, "fromString": null, "to": "10000", "toString": "Done"},
+      {"field": "status", "fieldtype": "jira", "fieldId": "status", "from": "3", "fromString": "In Progress", "to": "10002", "toString": "Done"}
+    ]
+  }
+}

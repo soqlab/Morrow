@@ -1,0 +1,10 @@
+{
+  "table": "incident",
+  "sys_id": "9d385017c611228701d22104cc95c371",
+  "number": "INC0010023",
+  "state": "6",
+  "state_label": "Resolved",
+  "close_code": "Solved (Permanently)",
+  "sys_updated_on": "2026-11-05 09:41:12",
+  "sys_mod_count": "7"
+}

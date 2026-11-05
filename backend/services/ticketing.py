@@ -140,7 +140,7 @@ def create_jira_issue(
 
     if status in (200, 201):
         key = resp.get("key", "")
-        return {"success": True, "issue_key": key,
+        return {"success": True, "issue_key": key, "issue_id": str(resp.get("id", "") or ""),
                 "url": f"{url}/browse/{key}" if key else ""}
     return {"success": False, "status": status, "error": resp}
 
@@ -291,6 +291,13 @@ _DDL = [
 def init_tables(conn: sqlite3.Connection) -> None:
     for ddl in _DDL:
         conn.execute(ddl)
+    # external_id: the provider's immutable id (Jira numeric issue id, ServiceNow sys_id). Inbound
+    # sync (services/ticket_sync.py) matches on it as well as on ticket_id, because a Jira key
+    # changes when an issue moves project and a ServiceNow number is only unique per table.
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(auto_tickets)").fetchall()}
+    if "external_id" not in cols:
+        conn.execute("ALTER TABLE auto_tickets ADD COLUMN external_id TEXT NOT NULL DEFAULT ''")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_auto_tickets_org_ticket ON auto_tickets(organization_id, provider, ticket_id)")
     conn.commit()
 
 
@@ -335,17 +342,33 @@ def create_ticket(
     if not cfg:
         raise ValueError(f"No {provider} config found for org {org_id}")
 
+    external_id = ""
+    finding = {"title": title, "fix": body, "severity": severity, "rule_id": finding_type}
     if provider == "jira":
+        # create_jira_issue takes a finding dict and project_key/issue_type; this call used to pass the
+        # title string and misspelled keyword arguments, so every DB-configured Jira ticket failed.
         result = create_jira_issue(
-            title, finding_ref,
+            finding, finding_ref,
             jira_url=cfg.get("base_url", ""),
             jira_user=cfg.get("email", ""),
             jira_api_token=cfg.get("api_token", ""),
-            jira_project_key=cfg.get("project_key", ""),
-            jira_issue_type=cfg.get("issue_type", "Bug"),
+            project_key=cfg.get("project_key", ""),
+            issue_type=cfg.get("issue_type", "Bug"),
         )
-        ticket_url = result.get("issue_url", "")
+        ticket_url = result.get("url", "")
         ticket_id = result.get("issue_key", "")
+        external_id = str(result.get("issue_id", "") or "")
+    elif provider == "servicenow":
+        result = create_servicenow_incident(
+            finding, finding_ref,
+            snow_instance=cfg.get("instance", "") or cfg.get("base_url", ""),
+            snow_user=cfg.get("user", "") or cfg.get("email", ""),
+            snow_password=cfg.get("password", "") or cfg.get("api_token", ""),
+            table=cfg.get("table", ""),
+        )
+        ticket_url = result.get("url", "")
+        ticket_id = result.get("number", "") or result.get("sys_id", "")
+        external_id = result.get("sys_id", "")
     elif provider == "github":
         # Use stdlib approach for GitHub Issues
         import urllib.request
@@ -376,11 +399,12 @@ def create_ticket(
 
     conn.execute(
         """INSERT INTO auto_tickets
-           (organization_id, provider, finding_ref, finding_type, ticket_url, ticket_id, severity, title, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (organization_id, provider, finding_ref, finding_type, ticket_url, ticket_id, severity, title, created_at,
+            external_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (org_id, provider, finding_ref, finding_type,
          ticket_url, ticket_id, severity, title,
-         datetime.now(timezone.utc).isoformat()),
+         datetime.now(timezone.utc).isoformat(), external_id),
     )
     conn.commit()
     return {"ticket_id": ticket_id, "ticket_url": ticket_url, "provider": provider}

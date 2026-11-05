@@ -150,6 +150,15 @@ try:
         except Exception:
             pass
 
+    # Optional: pull Jira/ServiceNow ticket status for orgs that cannot configure inbound webhooks.
+    # Off unless MORROW_TICKET_SYNC_POLL is on; each org must also enable polling in its settings.
+    if _env_str("MORROW_TICKET_SYNC_POLL").lower() in ("1", "true", "yes", "on"):
+        _beat["poll-ticket-status"] = {
+            "task": "morrow.poll_ticket_status",
+            "schedule": float(max(60, _env_int("MORROW_TICKET_SYNC_POLL_SECONDS", 900))),
+            "args": (),
+        }
+
     celery_app.conf.beat_schedule = _beat
 except Exception:
     pass
@@ -175,6 +184,14 @@ def drain_webhook_queue_task(limit: int | None = None, max_attempts: int | None 
     lim = int(limit or _env_int("MORROW_WEBHOOK_DRAIN_LIMIT", 200))
     ma = int(max_attempts or _env_int("MORROW_WEBHOOK_MAX_ATTEMPTS", 5))
     return drain_webhook_delivery_queue(limit=lim, max_attempts=ma)
+
+
+@celery_app.task(name="morrow.poll_ticket_status")
+def poll_ticket_status_task() -> Dict[str, Any]:
+    """Polling fallback for inbound ticket sync (services/ticket_sync.py). A no-op unless enabled."""
+    from services.ticket_sync import poll_all
+
+    return poll_all()
 
 
 @celery_app.task(bind=True, name="morrow.run_scan_task")

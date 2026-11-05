@@ -1,0 +1,10 @@
+{
+  "result": {
+    "sys_id": {"display_value": "9d385017c611228701d22104cc95c371", "value": "9d385017c611228701d22104cc95c371"},
+    "number": {"display_value": "INC0010023", "value": "INC0010023"},
+    "state": {"display_value": "Resolved", "value": "6"},
+    "close_code": {"display_value": "Solved (Permanently)", "value": "Solved (Permanently)"},
+    "sys_updated_on": {"display_value": "2026-11-05 09:41:12", "value": "2026-11-05 09:41:12"},
+    "sys_mod_count": {"display_value": "7", "value": "7"}
+  }
+}
