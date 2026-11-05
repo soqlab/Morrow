@@ -13,6 +13,17 @@ Metrics:
 
 Uses scan history and remediation tables. Pure stdlib.
 
+Deadlines: ``projection.milestones`` has one entry per named milestone the organization tracks
+(services/migration_milestones: its own list, or the NIST IR 8547 2030 / 2035 defaults, whose
+sources are cited there). Each entry says whether the projected completion lands on or before
+that milestone, the weekly velocity needed to make it, the gap to the current velocity, the days
+left, and the margin between projected completion and the deadline.
+
+The older single-deadline keys (``on_track_for_2030``, ``velocity_needed_for_2030``,
+``velocity_gap``, ``days_to_2030``) are still published with their original meaning, measured
+against 1 January 2030, for consumers written before milestones existed. New consumers read
+``projection.milestones``.
+
 Everything here is measured from this organization's own scans and
 remediations. With no scanned asset there is no migration to have velocity:
 the report returns ``available: false`` with a reason and the minimum needed,
@@ -44,13 +55,86 @@ _MINIMUM_DATA = {
 }
 
 
+#: The one deadline the report knew before milestones were configurable. Kept only so the legacy
+#: ``*_2030`` keys keep their original meaning; it is not a default milestone.
+LEGACY_DEADLINE = datetime(2030, 1, 1, tzinfo=timezone.utc)
+
+
+def _deadline(milestone_date: str) -> datetime:
+    """A milestone dated D is met by work finished during D: the deadline is the end of that day (UTC)."""
+    d = datetime.strptime(str(milestone_date)[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    return d + timedelta(days=1)
+
+
+def _resolve_milestones(milestones: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    if milestones is None:
+        from services.migration_milestones import defaults
+        milestones = defaults()
+    usable = []
+    for m in milestones:
+        try:
+            _deadline(m.get("date"))
+        except (TypeError, ValueError):
+            continue
+        usable.append(m)
+    return sorted(usable, key=lambda m: str(m.get("date")))
+
+
+def _milestone_base(m: Dict[str, Any], now: datetime) -> Dict[str, Any]:
+    deadline = _deadline(m["date"])
+    return {
+        "id": m.get("id") or "",
+        "name": m.get("name") or m["date"],
+        "date": str(m["date"])[:10],
+        "scope": m.get("scope") or "",
+        "source": m.get("source") or "",
+        "source_url": m.get("source_url") or "",
+        "days_left": (deadline - now).days,
+        "passed": deadline <= now,
+    }
+
+
+def _milestone_unmeasured(m: Dict[str, Any], now: datetime) -> Dict[str, Any]:
+    return {**_milestone_base(m, now), "status": "not_measured", "on_track": None,
+            "velocity_needed": None, "velocity_gap": None,
+            "projected_completion_date": None, "projected_margin_days": None}
+
+
+def _milestone_measured(
+    m: Dict[str, Any],
+    now: datetime,
+    *,
+    vulnerable: int,
+    avg_velocity: float,
+    completion_dt: Optional[datetime],
+) -> Dict[str, Any]:
+    row = _milestone_base(m, now)
+    deadline = _deadline(m["date"])
+    margin = (deadline - completion_dt).days if completion_dt is not None else None
+    completion = completion_dt.strftime("%Y-%m-%d") if completion_dt is not None else None
+    if vulnerable == 0:
+        return {**row, "status": "complete", "on_track": True, "velocity_needed": 0, "velocity_gap": 0,
+                "projected_completion_date": completion, "projected_margin_days": margin}
+    if row["passed"]:
+        # The date has gone and vulnerable assets remain: no velocity can meet it any more.
+        return {**row, "status": "missed", "on_track": False, "velocity_needed": None, "velocity_gap": None,
+                "projected_completion_date": completion, "projected_margin_days": margin}
+    weeks_left = (deadline - now).total_seconds() / (7 * 86400)
+    needed = math.ceil(vulnerable / max(1, weeks_left))
+    gap = round(max(0.0, needed - avg_velocity), 1)
+    on_track = completion_dt is not None and completion_dt <= deadline
+    status = "on_track" if on_track else ("no_velocity" if completion_dt is None else "behind")
+    return {**row, "status": status, "on_track": on_track, "velocity_needed": needed, "velocity_gap": gap,
+            "projected_completion_date": completion, "projected_margin_days": margin}
+
+
 def _week_start(d: datetime) -> str:
     """Return ISO date string for Monday of the week containing d."""
     monday = d - timedelta(days=d.weekday())
     return monday.strftime("%Y-%m-%d")
 
 
-def _unavailable_report(now: datetime) -> Dict[str, Any]:
+def _unavailable_report(now: datetime, milestones: List[Dict[str, Any]]) -> Dict[str, Any]:
     """The honest empty-workspace shape: same keys, no projection, no verdict."""
     return {
         "generated_at": now.isoformat(),
@@ -73,19 +157,29 @@ def _unavailable_report(now: datetime) -> Dict[str, Any]:
             "weeks_to_completion": None,
             "completion_date": None,
             "sprints_to_completion": None,
+            "milestones": [_milestone_unmeasured(m, now) for m in milestones],
+            "next_milestone": _next_milestone_id(milestones, now),
+            # Legacy single-deadline keys (see the module docstring).
             "on_track_for_2030": None,
             "velocity_needed_for_2030": None,
             "velocity_gap": None,
-            "days_to_2030": (datetime(2030, 1, 1, tzinfo=timezone.utc) - now).days,
+            "days_to_2030": (LEGACY_DEADLINE - now).days,
         },
         "recommendation": None,
     }
+
+
+def _next_milestone_id(milestones: List[Dict[str, Any]], now: datetime) -> Optional[str]:
+    upcoming = [m for m in milestones if _deadline(m["date"]) > now]
+    return (upcoming[0].get("id") or upcoming[0]["date"]) if upcoming else None
 
 
 def build_velocity_report(
     scans: List[Dict[str, Any]],
     remediations: List[Dict[str, Any]],
     total_known_assets: int = 0,
+    milestones: Optional[List[Dict[str, Any]]] = None,
+    now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """
     Build migration velocity report.
@@ -93,8 +187,12 @@ def build_velocity_report(
     scans         — list of scan rows (host, port, algorithm, scan_time, risk_level)
     remediations  — list of remediation rows (status, created_at, updated_at, target_host)
     total_known_assets — total asset count (0 = derived from scans)
+    milestones    — the organization's deadlines ({name, date, scope, ...}); None = the defaults
+                    in services/migration_milestones
+    now           — the moment to measure from (tests); defaults to the current time
     """
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    deadlines = _resolve_milestones(milestones)
 
     # ── Current vulnerability snapshot ────────────────────────────────────────
     # Deduplicate by host:port, keep latest scan
@@ -117,7 +215,7 @@ def build_velocity_report(
     total_assets = total_known_assets or len(seen)
 
     if total_assets < MINIMUM_SCANNED_ASSETS:
-        return _unavailable_report(now)
+        return _unavailable_report(now, deadlines)
 
     # "EC" and "ECC" were missing, and scan_results stores the certificate key type as the bare
     # "EC" for every elliptic-curve asset. Because the only two buckets were vulnerable and safe,
@@ -215,30 +313,36 @@ def build_velocity_report(
         trend_pct = 0
 
     # ── Projection ────────────────────────────────────────────────────────────
+    completion_dt: Optional[datetime]
     if avg_4week > 0 and current_vulnerable > 0:
         weeks_to_completion = math.ceil(current_vulnerable / avg_4week)
         completion_date = (now + timedelta(weeks=weeks_to_completion)).strftime("%Y-%m-%d")
         sprints_to_completion = math.ceil(weeks_to_completion / 2)
-
-        # CNSA 2030 deadline feasibility
-        cnsa_deadline = datetime(2030, 1, 1, tzinfo=timezone.utc)
-        days_to_completion = weeks_to_completion * 7
-        completion_dt = now + timedelta(days=days_to_completion)
-        on_track_for_2030 = completion_dt <= cnsa_deadline
+        completion_dt = now + timedelta(days=weeks_to_completion * 7)
+        on_track_for_2030 = completion_dt <= LEGACY_DEADLINE
     elif current_vulnerable == 0:
         weeks_to_completion = 0
         completion_date = now.strftime("%Y-%m-%d")
         sprints_to_completion = 0
+        completion_dt = now
         on_track_for_2030 = True
     else:
-        # No velocity data — estimate based on team capacity
+        # No completed remediation in four weeks: no rate, so no projected date.
         weeks_to_completion = None
         completion_date = None
         sprints_to_completion = None
+        completion_dt = None
         on_track_for_2030 = False
 
-    # ── Acceleration needed to hit 2030 ──────────────────────────────────────
-    days_to_2030 = (datetime(2030, 1, 1, tzinfo=timezone.utc) - now).days
+    # ── Each milestone: on track, velocity needed, gap, days left, margin ────
+    milestone_rows = [
+        _milestone_measured(m, now, vulnerable=current_vulnerable, avg_velocity=avg_4week,
+                            completion_dt=completion_dt)
+        for m in deadlines
+    ]
+
+    # ── Legacy: acceleration needed to hit 1 January 2030 ────────────────────
+    days_to_2030 = (LEGACY_DEADLINE - now).days
     weeks_to_2030 = days_to_2030 / 7
     needed_velocity = math.ceil(current_vulnerable / max(1, weeks_to_2030)) if current_vulnerable > 0 else 0
 
@@ -268,41 +372,58 @@ def build_velocity_report(
             "weeks_to_completion": weeks_to_completion,
             "completion_date": completion_date,
             "sprints_to_completion": sprints_to_completion,
+            "milestones": milestone_rows,
+            "next_milestone": _next_milestone_id(deadlines, now),
+            # Legacy single-deadline keys, measured against 1 January 2030 (see the module docstring).
             "on_track_for_2030": on_track_for_2030,
             "velocity_needed_for_2030": needed_velocity,
             "velocity_gap": max(0, needed_velocity - avg_4week),
             "days_to_2030": days_to_2030,
         },
         "recommendation": _recommendation(
-            avg_4week, needed_velocity, current_vulnerable, trend
+            avg_4week, current_vulnerable, trend, milestone_rows
         ),
     }
 
 
 def _recommendation(
     current_velocity: float,
-    needed_velocity: float,
     vulnerable: int,
     trend: Optional[str],
+    milestones: List[Dict[str, Any]],
 ) -> str:
     if vulnerable == 0:
         return "Migration complete — all scanned assets are quantum-safe. Schedule quarterly re-scans to catch regressions."
 
+    upcoming = [m for m in milestones if not m["passed"]]
+    if not upcoming:
+        missed = milestones[-1]["name"] if milestones else "every configured deadline"
+        return (
+            f"{vulnerable} assets are still quantum-vulnerable and {missed} has passed. "
+            f"Add the next deadline you are working to, and prioritize the remaining endpoints by exposure."
+        )
+
+    # The nearest milestone still ahead is the one the team has to plan the next sprints against.
+    target = upcoming[0]
+    needed_velocity = float(target["velocity_needed"] or 0)
     gap = needed_velocity - current_velocity
     if gap <= 0:
+        later_behind = [m["name"] for m in upcoming[1:] if m["on_track"] is False]
+        tail = f" Later milestones behind: {', '.join(later_behind)}." if later_behind else ""
         return (
-            f"Current velocity ({current_velocity:.1f} assets/week) is sufficient to meet the CNSA 2.0 2030 deadline. "
-            f"Maintain this pace and ensure new assets are scanned on intake."
+            f"Current velocity ({current_velocity:.1f} assets/week) is sufficient to meet {target['name']} "
+            f"({target['date']}). Maintain this pace and ensure new assets are scanned on intake.{tail}"
         )
 
     if trend == "decelerating":
         return (
             f"Velocity is decelerating — from prior rate to {current_velocity:.1f} assets/week. "
-            f"Need {needed_velocity:.1f}/week for 2030. Re-prioritize sprint backlog; consider automation-assisted remediation."
+            f"Need {needed_velocity:.1f}/week for {target['name']} ({target['date']}). "
+            f"Re-prioritize sprint backlog; consider automation-assisted remediation."
         )
 
     return (
-        f"Need to increase from {current_velocity:.1f} to {needed_velocity:.1f} assets/week to hit CNSA 2.0 deadline. "
-        f"Gap: {gap:.1f} assets/week. "
+        f"Need to increase from {current_velocity:.1f} to {needed_velocity:.1f} assets/week to meet "
+        f"{target['name']} ({target['date']}). Gap: {gap:.1f} assets/week. "
         f"Consider parallel-track remediation: automate TLS config updates for the {vulnerable} remaining vulnerable endpoints."
     )

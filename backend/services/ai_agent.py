@@ -1428,12 +1428,14 @@ def _exec_migration_velocity(org_id: str) -> Dict[str, Any]:
     This used to invent its own weekly rate (resolved / 12) and an
     ``cnsa_2030_on_track`` verdict from a hardcoded threshold of 2 per week.
     """
+    from services.migration_milestones import milestones_for
     from services.migration_velocity import build_velocity_report
 
     try:
         return build_velocity_report(
             scans=_org_scan_rows(org_id, limit=5000),
             remediations=_org_remediation_rows(org_id),
+            milestones=milestones_for(org_id),
         )
     except Exception as exc:
         return {"error": str(exc)}

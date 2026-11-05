@@ -22730,8 +22730,15 @@ def api_migration_velocity(request: Request):
         {"host": f["host"], "port": f["port"], "algorithm": f["algorithm"], "scan_time": f["scanned_at"]}
         for f in _latest_asset_scan_facts(org_id, limit=5000)
     ]
-    result = _velocity_report(scans=scans, remediations=rems)
+    result = _velocity_report(scans=scans, remediations=rems, milestones=_velocity_milestones(org_id))
     return {"api_version": "v1", "org_id": org_id, **result, "unavailable": unavailable}
+
+
+# The organization's migration deadlines: GET/PUT/DELETE /migration-velocity/milestones (and /v1).
+from routers.migration_milestones import create_migration_milestones_router  # noqa: E402
+from services.migration_milestones import milestones_for as _velocity_milestones  # noqa: E402
+
+app.include_router(create_migration_milestones_router(_require_role, _audit_event, _org))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

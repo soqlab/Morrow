@@ -3558,19 +3558,22 @@ VIEWS.overview = async (host) => {
   const velCard = bind(velocity, (v) => {
     /* Nothing scanned means there is no migration to have velocity — and
        certainly not a "migration complete" verdict. */
+    const deadlines = velocityMilestones(v.projection?.milestones || []);
     if (unmeasured(v)) {
-      return card("Migration velocity", notEnoughData(v, { title: "Migration velocity not measured yet" }),
-        { icon: I.chart, sub: "Assets moved off quantum-vulnerable crypto per week" });
+      return card("Migration velocity", notEnoughData(v, { title: "Migration velocity not measured yet" }) + deadlines,
+        { icon: I.chart, sub: "Assets moved off quantum-vulnerable crypto per week",
+          act: actBtn("Deadlines", "velMilestones", { cls: "btn xs ghost", icon: I.flag }) });
     }
     const hist = (v.velocity?.weekly_history || []).map(w => ({ k: String(w.week_start || "").slice(5), v: w.assets_migrated }));
     const t = v.velocity?.trend;
-    return card("Migration velocity", areaChart(hist, { color: "var(--ok)", yFmt: v => NUM(v, 0), label: "Assets migrated per week" }), {
+    return card("Migration velocity", areaChart(hist, { color: "var(--ok)", yFmt: v => NUM(v, 0), label: "Assets migrated per week" }) + deadlines, {
       icon: I.chart, sub: v.velocity?.avg_4week_assets_per_week == null
         ? "No completed remediation yet, so there is no weekly rate to report"
         : `${NUM(v.velocity.avg_4week_assets_per_week, 1)} assets/week (4-week average)`,
-      act: t ? `<span class="trend ${t === "accelerating" ? "up" : t === "decelerating" ? "dn" : "flat"}">${H(TITLE(t))}
+      act: (t ? `<span class="trend ${t === "accelerating" ? "up" : t === "decelerating" ? "dn" : "flat"}">${H(TITLE(t))}
         ${v.velocity?.trend_pct ? ` ${v.velocity.trend_pct > 0 ? "+" : ""}${NUM(v.velocity.trend_pct)}%` : ""}</span>`
-        : `<span class="trend flat">No trend yet</span>`,
+        : `<span class="trend flat">No trend yet</span>`)
+        + actBtn("Deadlines", "velMilestones", { cls: "btn xs ghost", icon: I.flag }),
     });
   }, "/migration-velocity");
 
@@ -3607,6 +3610,102 @@ VIEWS.overview = async (host) => {
   startMissionLive(missionCtx);
 
   navBadge("overview", (S.warns || []).length || "");
+};
+
+/* ---- Migration deadlines: one row per milestone the organization measures velocity against.
+        The list is per organization (GET/PUT/DELETE /migration-velocity/milestones); admins edit it. */
+const MS_STATE = {
+  complete: ["ok", "Complete"], on_track: ["ok", "On track"], behind: ["bad", "Behind"], missed: ["bad", "Missed"],
+  no_velocity: ["warn", "No velocity yet"], not_measured: ["", "Not measured"],
+};
+function velocityMilestones(list) {
+  if (!list.length) return "";
+  return `<div class="stack" style="margin-top:14px">${list.map(m => {
+    const [tone, label] = MS_STATE[m.status] || ["", TITLE(m.status || "")];
+    const d = Number(m.days_left);
+    const facts = [`${H(m.date)} · ${m.passed ? `passed ${NUM(Math.abs(d))} days ago` : `${NUM(d)} days left`}`];
+    if (m.velocity_needed != null && m.status !== "complete") {
+      facts.push(`needs ${NUM(m.velocity_needed)}/week${m.velocity_gap ? ` · gap ${NUM(m.velocity_gap, 1)}/week` : ""}`);
+    }
+    if (m.projected_completion_date && m.status !== "complete") {
+      const margin = m.projected_margin_days;
+      facts.push(`projected ${H(m.projected_completion_date)}${margin == null ? ""
+        : margin >= 0 ? ` · ${NUM(margin)} days early` : ` · ${NUM(-margin)} days late`}`);
+    }
+    const src = m.source_url ? `<a href="${H(m.source_url)}" target="_blank" rel="noopener noreferrer">${H(m.source || "source")} ↗</a>` : H(m.source || "");
+    return `<div class="lrow"><i class="mark" style="background:${tone ? `var(--${tone})` : "var(--ink3)"}"></i>
+      <div class="grow"><b style="font-size:12.5px">${H(m.name)}</b>
+        <div style="font-size:11.5px;color:var(--ink3);line-height:1.45">${facts.join(" · ")}</div>
+        ${m.scope || src ? `<div style="font-size:11px;color:var(--ink3);line-height:1.45">${H(m.scope || "")}${m.scope && src ? " · " : ""}${src}</div>` : ""}</div>
+      <span class="pill ${tone}"><i class="pd"></i>${H(label)}</span></div>`;
+  }).join("")}</div>`;
+}
+function msFieldRow(m, i) {
+  const f = (k, label, attrs = "") => `<div class="field"><label for="ms_${k}_${i}">${label}</label>
+    <input class="inp" id="ms_${k}_${i}" data-ms="${k}" value="${H(m[k] || "")}" ${attrs}></div>`;
+  return `<fieldset class="msRow" data-i="${i}" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 10px">
+    <div class="row" style="gap:10px;align-items:flex-end">
+      <div class="grow">${f("name", "Name", 'maxlength="120" placeholder="e.g. Internal target: TLS on ML-KEM"')}</div>
+      <div>${f("date", "Date", 'type="date"')}</div>
+      <button class="btn xs ghost" type="button" data-act="velMsRemove" data-i="${i}" aria-label="Remove milestone ${i + 1}">${I.x}</button>
+    </div>
+    ${f("scope", "Scope (optional)", 'maxlength="300" placeholder="What has to be migrated by then"')}
+    ${f("source", "Source (optional)", 'maxlength="300" placeholder="Regulation, policy or internal decision"')}
+    ${f("source_url", "Source link (optional)", 'maxlength="500" placeholder="https://…"')}
+    <input type="hidden" data-ms="id" value="${H(m.id || "")}">
+  </fieldset>`;
+}
+function msReadForm() {
+  return $$("#msRows .msRow").map(row => {
+    const m = {};
+    $$("[data-ms]", row).forEach(el => { m[el.dataset.ms] = el.value.trim(); });
+    return m;
+  });
+}
+function msRender(list, d) {
+  const box = $("#msRows"); if (!box) return;
+  box.innerHTML = list.map(msFieldRow).join("")
+    + (list.length < (d.bounds?.max_milestones || 12) ? actBtn("Add milestone", "velMsAdd", { cls: "btn sm", icon: I.plus }) : "");
+  wire(box);
+}
+ACTIONS.velMilestones = async () => {
+  const r = await safe("/migration-velocity/milestones");
+  if (!r.ok) return err(r.err);
+  const d = r.data; S.msData = d;
+  const origin = d.source === "organization"
+    ? `Set for this organization${d.updated_at ? ` ${H(AGO(d.updated_at))}` : ""}${d.updated_by ? ` by ${H(d.updated_by)}` : ""}.`
+    : "These are the defaults: the NIST IR 8547 deprecation (after 2030) and disallowance (after 2035) dates.";
+  if (!d.can_edit) {
+    return modal("Migration deadlines", `<p style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:0 0 12px">${origin}</p>
+      ${velocityMilestones(d.milestones.map(m => ({ ...m, status: "not_measured", days_left: Math.ceil((new Date(m.date + "T23:59:59Z") - Date.now()) / 86400000) })))}
+      <p style="margin-top:12px"><span class="pill">Only organization admins can change these</span></p>`,
+      `<button class="btn" data-close type="button">Close</button>`);
+  }
+  modal("Migration deadlines", `<p style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:0 0 12px">
+      The velocity report says, for each milestone, whether the projected completion lands before it and what weekly rate it needs.
+      ${origin} Dates from ${H(d.bounds?.earliest_date || "2000-01-01")} to ${H(d.bounds?.latest_date || "2100-12-31")}; past dates show as missed.</p>
+    <div id="msRows"></div>
+    <div class="field" style="margin-top:6px"><label for="msReason">Reason for the change (kept in the audit log)</label>
+      <input class="inp" id="msReason" maxlength="500" placeholder="e.g. Board set an internal 2029 target"></div>`,
+    `${d.source === "organization" ? `<button class="btn danger" data-act="velMsReset" type="button">Reset to defaults</button>` : ""}
+     <button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="velMsSave" type="button">Save deadlines</button>`);
+  msRender(d.milestones, d);
+};
+ACTIONS.velMsAdd = () => { const list = msReadForm(); list.push({}); msRender(list, S.msData || {}); };
+ACTIONS.velMsRemove = (b) => {
+  const list = msReadForm(); list.splice(Number(b.dataset.i), 1); msRender(list, S.msData || {});
+};
+ACTIONS.velMsSave = async () => {
+  const milestones = msReadForm().filter(m => m.name || m.date);
+  if (!milestones.length) return err("Keep at least one milestone, or reset to the defaults.");
+  const r = await safe("/migration-velocity/milestones", { method: "PUT", body: { milestones, reason: $("#msReason")?.value || "" } });
+  if (!r.ok) return err(r.err, "Deadlines not saved");
+  $("#overlay").innerHTML = ""; ok(`${NUM(r.data.milestones.length)} migration deadlines saved`, "Deadlines updated"); retry();
+};
+ACTIONS.velMsReset = async () => {
+  const r = await safe("/migration-velocity/milestones", { method: "DELETE" });
+  if (!r.ok) return err(r.err, "Deadlines not reset");
+  $("#overlay").innerHTML = ""; ok("Back to the NIST IR 8547 defaults", "Deadlines reset"); retry();
 };
 
 const MISSION_LIVE_MS = 20000;
