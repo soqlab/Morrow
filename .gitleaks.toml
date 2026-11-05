@@ -1,0 +1,108 @@
+# Gitleaks configuration for .github/workflows/security.yml (Secret scan).
+#
+# The default ruleset applies in full. Each allowlist below names a finding that was reviewed and is
+# not a secret, and is scoped to the file it appears in plus the exact value (or a pattern that only
+# that value matches), so the same rule still fires anywhere else. Add an entry only after checking
+# that the value is a fixture, a public documentation sample or a placeholder, and say why.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """Throwaway CI vault key: base64url of the ASCII text "pqc-scanner-test-only-key-32byte". \
+It only encrypts test databases created and deleted by the suite and the load scripts."""
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = [
+    '''^\.github/workflows/ci\.yml$''',
+    '''^backend/conftest\.py$''',
+    '''^backend/test_admin_sso_mfa\.py$''',
+    '''^scripts/scale/(bench|profile_endpoint)\.py$''',
+]
+regexes = ['''^cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=$''']
+
+[[allowlists]]
+description = """Disposable Fernet key planted by test_check_integrations.py to prove the checker never \
+prints it. It protects nothing."""
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^backend/test_check_integrations\.py$''']
+regexes = ['''^kRQ7wRwQ2n0Xy0lGZnMS7O8u4WQsL1ZFQK1cQpJ1n3M=$''']
+
+[[allowlists]]
+description = """Vendor documentation samples in the (since removed) certificate-manager and KMS sync \
+tests: the AWS docs example credential pair, a sample Venafi API key and token, an AWS KMS key \
+material id, an Azure skiptoken and a truncated JWT header. None was ever a live credential."""
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^backend/test_cert_inventory\.py$''']
+regexes = [
+    '''^0a1b2c3d-4e5f-6789-abcd-ef0123456789$''',
+    '''^KT2EEVTIjWM/37L78dqJAg==$''',
+    '''^0b7fd7ddbac6eef27907413567cad8c810e2883dc8a7534067a82ee1142fc1e6$''',
+    '''^wJalrXUtnFEMI/K7MDENG$''',
+    '''^eyJOZXh0TWFya2VyIjoiMiE5NiFNREF3TURJM0lXdGxlUzlW$''',
+    '''^eyJ0eXAiOiJKV1Qi\.az$''',
+]
+
+[[allowlists]]
+description = """TLS key-exchange group names (X25519MLKEM768, X25519Kyber768) next to the word "key". \
+They are algorithm identifiers, which this product reports on, not key material."""
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = [
+    '''^backend/test_(crypto_switch|migration_proof|public_checker|scan_pipeline_accuracy)\.py$''',
+    '''^backend/services/(knowledge_base|remediation_playbooks)\.py$''',
+]
+regexes = ['''(?i)^x25519_?(mlkem|kyber)768$''']
+
+[[allowlists]]
+description = "A KPI field name compared against a variable called key, not a secret."
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^backend/static_admin/admin-views\.js$''']
+regexes = ['''^p95_latency_ms$''']
+
+[[allowlists]]
+description = """The sample Sec-WebSocket-Key nonce from RFC 6455 section 1.3 ("the sample nonce"), used \
+by the gateway's WebSocket upgrade test."""
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^(gateway/)?main_test\.go$''']
+regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''']
+
+[[allowlists]]
+description = "Placeholder in the production environment template; operators replace it."
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^\.env\.prod\.example$''']
+regexes = ['''^REPLACE_WITH_64_HEX$''']
+
+[[allowlists]]
+description = """SHA-256 digests of the hosted operator key, committed to render.yaml before e2f8633 moved \
+the setting to the Render dashboard. A digest is what the server compares against, not the key; both \
+keys were rotated (see the security note in the CI fix that added this file)."""
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^render\.yaml$''']
+regexes = [
+    '''^3c57afc7354587979278628b68d05faee2abba933ec085ab4fb94897aa2aa541$''',
+    '''^16f76356012827b0a047256036d1327a0d377ef2ba2785b45149c3db3a326f4f$''',
+]
+
+[[allowlists]]
+description = """PEM header literals the secrets scanner searches for, and truncated dummy PEM blocks \
+(AAA, MIIBOgIBAAJBAK) that its accuracy tests feed it. Neither contains a usable key."""
+targetRules = ["private-key"]
+condition = "AND"
+regexTarget = "match"
+paths = [
+    '''^backend/services/secrets_scanner\.py$''',
+    '''^backend/test_archive_scanner_accuracy\.py$''',
+    '''^backend/test_code_scanner_accuracy\.py$''',
+]
+regexes = [
+    '''^-----BEGIN (RSA )?PRIVATE KEY-----",\s+"(RSA|PKS8)",\s+"private"\),''',
+    '''^-----BEGIN PRIVATE KEY-----AAA-----END PRIVATE KEY-----''',
+    '''^-----BEGIN RSA PRIVATE KEY-----\\nMIIBOgIBAAJBAK\\n-----END RSA PRIVATE KEY-----''',
+]
