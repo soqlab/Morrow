@@ -6933,8 +6933,27 @@ ACTIONS.remOpen = async (b) => {
       { h: "Sync", f: t => `${pill(t.last_outcome)}${t.verification_scan_id ? `<span class="sub mono">rescan ${H(String(t.verification_scan_id).slice(0, 8))}</span>` : ""}` },
       { h: "Last update", f: t => `<span class="m">${H(t.last_synced_at ? AGO(t.last_synced_at) : "never")}</span><span class="sub">${H(t.last_source || "")}</span>` },
     ], tix, { empty: "No linked tickets" }), { icon: I.link, lift: false, flush: true })}` : ""}
+    ${String(d.status || "").toLowerCase() === "verified_closed" ? `<div style="height:14px"></div>${card("Proof of migration", `
+      <p style="font-size:12.5px;line-height:1.6;margin:0 0 10px">A signed record that this asset was found vulnerable, fixed and re-verified clean, built from Morrow's own scans and audit journal. Anyone can check it without a Morrow account.</p>
+      <div class="row">${actBtn("Download proof", "remProof", { cls: "btn sm pri", data: { id } })}</div>
+      <p style="font-size:11.5px;line-height:1.6;margin:10px 0 0;color:var(--ink2)"><b>How to verify:</b> get the public keys from <a href="/.well-known/morrow-proof-keys.json" target="_blank" rel="noopener"><code>/.well-known/morrow-proof-keys.json</code></a>, then run <code>python scripts/verify_migration_proof.py proof.json --keys morrow-proof-keys.json</code> (needs only <code>pip install cryptography</code>). Add <code>--journal</code> with an audit journal export to check the cited journal entries too.</p>`, { icon: I.lock, lift: false })}` : ""}
     <div style="height:14px"></div>
     ${card("Raw record", `<pre class="out">${H(JSON.stringify(d, null, 2))}</pre>`, { lift: false })}`);
+};
+ACTIONS.remProof = async (b) => {
+  const id = b.dataset.id;
+  const r = await safe(`/remediations/${encodeURIComponent(id)}/migration-proof`, { method: "POST", body: {} });
+  if (!r.ok) return err(r.err);
+  const proof = r.data?.proof || r.data;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(proof, null, 2)], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${proof?.document?.proof_id || `migration-proof-${id}`}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  ok("Proof downloaded");
 };
 ACTIONS.remAct = async (b) => {
   const { id, op } = b.dataset;

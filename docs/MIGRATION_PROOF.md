@@ -61,8 +61,9 @@ Key management:
   with fingerprint, status and validity window.
 - Rotate with `python scripts/rotate-proof-signing-key.py` (run on the server, from `backend/`).
   Retired keys are never deleted and stay published with `valid_until`, so older proofs still verify.
-- Rotating `MORROW_VAULT_MASTER_KEY` must re-seal `proof_signing_keys.sealed_private_key` like every
-  other vault secret; otherwise the server can no longer sign, though existing proofs still verify.
+- `scripts/rotate-vault-master-key.py` re-seals `proof_signing_keys.sealed_private_key` (active and
+  retired keys) in the same transaction and verify step as every other vault secret. The public keys,
+  and so every issued proof, are unaffected.
 
 ## Verifying offline
 

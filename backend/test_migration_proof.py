@@ -323,6 +323,42 @@ def test_key_rotation_keeps_old_proofs_verifiable(client, issued):
     assert verifier.verify(issued["response"], keys=late).exit_code == 1
 
 
+def test_proofs_sign_and_verify_after_vault_key_rotation(client, issued, monkeypatch, capsys):
+    from cryptography.fernet import Fernet
+
+    spec = importlib.util.spec_from_file_location("rotate_vault_master_key",
+                                                  os.path.join(REPO_ROOT, "scripts", "rotate-vault-master-key.py"))
+    rotation = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rotation)
+    for name in ("MORROW_MAIN_DB_BACKEND", "DATABASE_URL", "MORROW_PRODUCT_DATABASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    old_vault_key = os.environ["MORROW_VAULT_MASTER_KEY"]
+    new_vault_key = Fernet.generate_key().decode()
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY_NEW", new_vault_key)
+    assert rotation.main(["--sqlite", os.environ["MORROW_SCANNER_DB"], "--apply"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    target = report["targets"]["proof_signing_keys"]
+    assert target["present"] and target["rotated"] == target["rows"] >= 2 and not target["undecryptable"]
+
+    monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", new_vault_key)
+    monkeypatch.delenv("MORROW_VAULT_MASTER_KEY_NEW")
+    proof_signing.reset_cache_for_tests()  # a restarted server holds no unsealed keys
+    try:
+        rid, _ = _closed_remediation(client, ORG_A, "vault.alpha.example")
+        fresh = _issue(client, ORG_A, rid)
+        assert fresh.status_code == 200, fresh.text
+        keys = _keys(client)
+        assert verifier.verify(fresh.json(), keys=keys).exit_code == 0
+        assert verifier.verify(issued["response"], keys=keys).exit_code == 0  # public keys untouched
+        # The old vault key can no longer unseal the signing key, so it cannot sign.
+        monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", old_vault_key)
+        proof_signing.reset_cache_for_tests()
+        assert _issue(client, ORG_A, rid).status_code == 503
+    finally:
+        monkeypatch.setenv("MORROW_VAULT_MASTER_KEY", new_vault_key)
+        proof_signing.reset_cache_for_tests()
+
+
 def test_private_keys_are_sealed(client, issued):
     with sqlite3.connect(os.environ["MORROW_SCANNER_DB"]) as conn:
         rows = conn.execute("SELECT algorithm, public_key_b64, sealed_private_key FROM proof_signing_keys").fetchall()

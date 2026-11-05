@@ -6,6 +6,9 @@ What is encrypted with the vault key (Fernet):
   * credentials.secret_enc                 Postgres (DATABASE_URL)   vault_db / vault_crypto
   * gateway_sites.data -> "sealed_key"     feature store             services/gateway.py
   * platform_operator_mfa.secret_enc       feature store             services/operator_auth.py (TOTP secrets)
+  * proof_signing_keys.sealed_private_key  feature store             services/proof_signing.py (migration-proof
+                                                                     Ed25519 / ML-DSA-65 private keys; retired
+                                                                     keys included, public halves unchanged)
   * platform_alert_channels.target_sealed  feature store             services/alert_routing.py ("fernet:" prefix:
                                                                      Slack/PagerDuty/webhook targets; "plain:"
                                                                      email recipient lists are not encrypted)
@@ -374,6 +377,7 @@ def run(args: argparse.Namespace, out: Callable[[str], None] = print) -> Dict[st
         rotate_gateway(stores["feature"], old["vault"], fernets["vault"], report["targets"])
         rotate_column(stores["feature"], "ai_privacy_policy", "organization_id", "key_sealed", old["vault"], fernets["vault"], report["targets"], "ai_receipt_signing_keys")
         rotate_column(stores["feature"], "platform_operator_mfa", "identity", "secret_enc", old["vault"], fernets["vault"], report["targets"], "operator_mfa_secrets")
+        rotate_column(stores["feature"], "proof_signing_keys", "kid", "sealed_private_key", old["vault"], fernets["vault"], report["targets"], "proof_signing_keys")
         rotate_alert_channels(stores["feature"], old["vault"], fernets["vault"], report["targets"])
         if "vault" in stores:
             rotate_column(stores["vault"], "credentials", "id", "secret_enc", old["vault"], fernets["vault"], report["targets"], "vault_credentials")

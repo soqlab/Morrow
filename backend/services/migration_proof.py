@@ -282,7 +282,10 @@ def build_proof(remediation_id: int, issuer: Optional[Dict[str, Any]] = None) ->
         "signing_keys": [proof_signing.public_descriptor(k) for k in keys],
     }
     message = proof_signing.canonical_bytes(document)
-    signatures = proof_signing.sign(message, keys)
+    try:
+        signatures = proof_signing.sign(message, keys)
+    except proof_signing.SigningUnavailable as exc:
+        raise ProofRefused(503, str(exc))
     by_kid = {k["kid"]: k for k in keys}
     for sig in signatures:  # never hand out a proof this server cannot itself verify
         if not proof_signing.verify_signature(sig["alg"], by_kid[sig["kid"]]["public_key_b64"], sig["signature"], message):
