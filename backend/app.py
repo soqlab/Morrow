@@ -11308,6 +11308,14 @@ app.include_router(create_gateway_router(_require_role), prefix="/v1")
 app.include_router(create_ticket_sync_router(_require_role, _broker_reachable))
 app.include_router(create_ticket_sync_router(_require_role, _broker_reachable), prefix="/v1")
 
+# Crypto kill switch and gradual post-quantum rollout. Late-bound so tests can replace the rescan.
+from routers.crypto_switch import create_crypto_switch_router  # noqa: E402
+_crypto_switch_router = create_crypto_switch_router(
+    _require_role, lambda org_id: _load_org_policy(org_id),
+    lambda targets: _create_scan_and_start(list(targets), source="crypto_switch")["id"])
+app.include_router(_crypto_switch_router)
+app.include_router(_crypto_switch_router, prefix="/v1")
+
 # Vendor platform administration: operator identity, tenant users/invites, sessions, API keys, audit
 # search/export, announcements and maintenance mode. Dependencies are passed as late-bound lambdas so
 # module-level monkeypatching (tests) and later reassignment still take effect.

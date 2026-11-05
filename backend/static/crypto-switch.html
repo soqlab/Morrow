@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Crypto Switch | Morrow</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+<link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script>
+<script src="/ui/crypto-switch.js?v=20261105-switch" defer></script>
+<style>
+  .public-document .invite-state { max-width: 70ch; padding-left: 52px; }
+  .invite-state p { color: var(--fog, #b9b9b9); line-height: 1.7; }
+  .invite-state[data-tone="bad"] { border-left-color: var(--rose, #ff6f6f); }
+  .invite-state[data-tone="ok"] { border-left-color: var(--jade, #6fd3a0); }
+  .invite-pill { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--line, #27303a); }
+  .invite-pill[data-status="switched"], .invite-pill[data-status="completed"] { color: var(--jade, #6fd3a0); border-color: currentColor; }
+  .invite-pill[data-status="vulnerable"], .invite-pill[data-status="failed"], .invite-pill[data-status="rolled_back"], .invite-pill[data-status="rescan_mismatch"] { color: var(--rose, #ff6f6f); border-color: currentColor; }
+  .invite-pill[data-status="pr_open"], .invite-pill[data-status="merged"], .invite-pill[data-status="in_progress"], .invite-pill[data-status="approved"], .invite-pill[data-status="executing"], .invite-pill[data-status="manual_apply"] { color: var(--amber, #f2c14e); border-color: currentColor; }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+  .btn.small { padding: 6px 12px; font-size: 11px; }
+  .sw-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 18px; }
+  .sw-form label { display: grid; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); }
+  .sw-form input, .sw-form select, .sw-form textarea { font: inherit; font-size: 14px; letter-spacing: 0; text-transform: none; color: var(--chalk, #eee); background: transparent; border: 1px solid var(--line, #27303a); padding: 9px 11px; }
+  .sw-form .wide { grid-column: 1 / -1; }
+  .sw-form .check { display: flex; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--fog, #b9b9b9); }
+  .sw-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  .sw-error { color: var(--rose, #ff6f6f); margin: 10px 0 0; }
+  .sw-note { color: var(--fog, #b9b9b9); font-size: 14px; line-height: 1.6; margin: 8px 0 0; }
+  .sw-list { display: grid; gap: 14px; margin-top: 18px; }
+  .sw-card { border: 1px solid var(--line, #27303a); padding: 18px 20px; display: grid; gap: 12px; }
+  .sw-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  .sw-name { font-family: var(--mono); font-size: 15px; color: var(--chalk, #eee); overflow-wrap: anywhere; }
+  .sw-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+  .sw-tile { border: 1px solid var(--line, #27303a); padding: 10px 12px; }
+  .sw-tile b { display: block; font-family: var(--mono); font-size: 22px; color: var(--chalk, #eee); }
+  .sw-tile span { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); }
+  .sw-map { display: flex; flex-wrap: wrap; gap: 4px; }
+  .sw-cell { width: 16px; height: 16px; border: 1px solid var(--line, #27303a); background: var(--rose, #ff6f6f); transition: background .6s ease; }
+  .sw-cell[data-state="pr_open"], .sw-cell[data-state="merged"], .sw-cell[data-state="manual_apply"] { background: var(--amber, #f2c14e); }
+  .sw-cell[data-state="switched"] { background: var(--jade, #6fd3a0); }
+  .sw-cell[data-state="failed"], .sw-cell[data-state="rescan_mismatch"] { background: transparent; border-color: var(--rose, #ff6f6f); }
+  .sw-bar { height: 6px; border: 1px solid var(--line, #27303a); }
+  .sw-bar i { display: block; height: 100%; background: var(--jade, #6fd3a0); transition: width .6s ease; }
+  .sw-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sw-table th { text-align: left; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); padding: 6px 8px; border-bottom: 1px solid var(--line, #27303a); }
+  .sw-table td { padding: 7px 8px; border-bottom: 1px solid var(--line, #27303a); color: var(--chalk, #eee); overflow-wrap: anywhere; vertical-align: top; }
+  .sw-table a { color: inherit; }
+  .sw-stages { display: flex; gap: 6px; flex-wrap: wrap; }
+  .sw-stage { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border: 1px solid var(--line, #27303a); color: var(--fog-dim, #7f7f7f); }
+  .sw-stage[data-on="done"] { color: var(--jade, #6fd3a0); border-color: currentColor; }
+  .sw-stage[data-on="now"] { color: var(--amber, #f2c14e); border-color: currentColor; }
+  pre.sw-code { max-height: 280px; overflow: auto; font-size: 12px; border: 1px solid var(--line, #27303a); padding: 10px 12px; margin: 0; white-space: pre; }
+  @media (max-width: 640px) { .sw-table th:nth-child(3), .sw-table td:nth-child(3) { display: none; } }
+</style>
+</head>
+<body class="public-document"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+  <main class="doc-shell">
+    <header class="topbar">
+      <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
+      <nav class="nav" aria-label="Public navigation"><a href="/ui/code-hosts.html">Code hosts</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Back to console &#8599;</a></nav>
+    </header>
+
+    <section class="doc-hero">
+      <div>
+        <span class="eyebrow">Crypto kill switch</span>
+        <h1 tabindex="-1">When an algorithm breaks.</h1>
+        <p class="lead">Declare that an algorithm or group is broken and name the fallback. Morrow plans the switch from your inventory, opens it as pull requests batch by batch after an admin approves, and marks an asset switched only when a rescan sees the new algorithm. Nothing is changed on a live system by Morrow.</p>
+      </div>
+    </section>
+
+    <section class="doc-section" aria-live="polite">
+      <div class="notice invite-state" id="swState"><p>Loading.</p></div>
+      <form class="sw-form" id="swForm" novalidate hidden>
+        <label>Broken algorithm or group<input id="swBroken" list="swAlgs" required placeholder="ML-KEM, RSA-2048, X25519MLKEM768"></label>
+        <label>Fallback<input id="swFallback" list="swAlgs" placeholder="Leave empty to use the mesh profile"></label>
+        <label>Repository (when the asset has none)<input id="swRepo" placeholder="owner/repository"></label>
+        <label>Batch size<input id="swBatch" type="number" min="1" max="200" value="10"></label>
+        <label class="wide">Reason<input id="swReason" maxlength="2000" placeholder="Advisory, CVE or vendor notice"></label>
+        <label class="check wide"><input id="swDry" type="checkbox" checked> Dry run: plan and preview the pull requests, open none</label>
+        <datalist id="swAlgs"></datalist>
+      </form>
+      <div class="sw-actions" id="swFormActions" hidden>
+        <button class="btn" type="button" id="swPreflight">Check pre-flight</button>
+        <button class="btn pri" type="button" id="swDeclare">Declare and build plan</button>
+      </div>
+      <p class="sw-error" id="swError" role="alert"></p>
+      <div id="swPreview"></div>
+      <div class="sw-list" id="swIncidents"></div>
+    </section>
+
+    <section class="doc-section" aria-live="polite">
+      <span class="eyebrow">Gradual post-quantum rollout</span>
+      <h2>1%, 10%, 50%, 100%, with automatic rollback.</h2>
+      <p class="sw-note">Each stage is a weighted-routing change for Envoy, Istio, nginx or HAProxy. A stage advances only when the handshake failure rate and the HTTP error rate on the hybrid side stay within their gates against the classic side for the whole soak. If a gate fails, Morrow proposes the rollback at once and alerts your webhooks.</p>
+      <div class="notice invite-state" id="roSummary"><p>Loading.</p></div>
+      <form class="sw-form" id="roForm" novalidate hidden>
+        <label>Name<input id="roName" maxlength="120" placeholder="checkout hybrid TLS"></label>
+        <label>Platform<select id="roPlatform"><option value="envoy">Envoy</option><option value="istio">Istio</option><option value="nginx">nginx</option><option value="haproxy">HAProxy</option></select></label>
+        <label>Service<input id="roService" placeholder="checkout"></label>
+        <label>Hostname<input id="roHost" placeholder="checkout.example.com"></label>
+        <label data-for="lb">Classic upstream<input id="roClassic" placeholder="10.0.0.10:443"></label>
+        <label data-for="lb">Hybrid PQ upstream<input id="roPq" placeholder="10.0.0.11:8443"></label>
+        <label data-for="istio" hidden>Namespace<input id="roNs" placeholder="default"></label>
+        <label>Soak minutes per stage<input id="roSoak" type="number" min="1" max="10080" value="30"></label>
+        <label class="wide">Prometheus URL<input id="roProm" placeholder="https://prometheus.example.com"></label>
+        <label>Prometheus token<input id="roToken" type="password" autocomplete="off"></label>
+        <label>Repository<input id="roRepo" placeholder="owner/repository"></label>
+        <label class="wide">Handshake failure rate query ($variant = classic / pq-hybrid)<input id="roQHs" value='sum(rate(tls_handshake_failures_total{listener="$variant"}[5m])) / sum(rate(tls_handshakes_total{listener="$variant"}[5m]))'></label>
+        <label class="wide">HTTP error rate query<input id="roQErr" value='sum(rate(http_requests_total{listener="$variant",code=~"5.."}[5m])) / sum(rate(http_requests_total{listener="$variant"}[5m]))'></label>
+        <label>Advancing<select id="roMode"><option value="manual">An admin approves each stage</option><option value="automatic">Automatic (still only opens pull requests)</option></select></label>
+        <label class="check"><input id="roDry" type="checkbox" checked> Dry run</label>
+      </form>
+      <div class="sw-actions" id="roFormActions" hidden>
+        <button class="btn" type="button" id="roPreview">Preview configurations</button>
+        <button class="btn pri" type="button" id="roCreate">Create rollout</button>
+      </div>
+      <p class="sw-error" id="roError" role="alert"></p>
+      <div id="roPreviewOut"></div>
+      <div class="sw-list" id="roList"></div>
+    </section>
+  </main>
+</body>
+</html>

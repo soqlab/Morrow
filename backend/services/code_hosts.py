@@ -662,5 +662,67 @@ def read_file(org_id: str, repo: Any, path: Any, ref: str = "", connection_id: s
             "connection_id": conn["id"], "provider": conn["provider"]}
 
 
+# Reading the state of a request Morrow opened: (provider) -> fn(conn, repo, number) -> (state, merged_at),
+# state one of "open", "merged", "closed" (closed without merging).
+
+def _github_state(conn, repo, number):
+    pr = _http("GET", f"{_gh_api(conn)}/repos/{repo}/pulls/{int(number)}", _gh_headers(conn))[1]
+    if pr.get("merged") or pr.get("merged_at"):
+        return "merged", str(pr.get("merged_at") or "")
+    return ("closed" if pr.get("state") == "closed" else "open"), ""
+
+
+def _gitlab_state(conn, repo, number):
+    mr = _http("GET", f"{conn['base_url']}/api/v4/projects/{_q(repo)}/merge_requests/{int(number)}", _gl_headers(conn))[1]
+    state = str(mr.get("state") or "")
+    if state == "merged":
+        return "merged", str(mr.get("merged_at") or "")
+    return ("closed" if state in ("closed", "locked") else "open"), ""
+
+
+def _bitbucket_state(conn, repo, number):
+    pr = _http("GET", f"https://api.bitbucket.org/2.0/repositories/{repo}/pullrequests/{int(number)}", _bb_headers(conn))[1]
+    state = str(pr.get("state") or "").upper()
+    if state == "MERGED":
+        return "merged", str(pr.get("updated_on") or "")
+    return ("closed" if state in ("DECLINED", "SUPERSEDED") else "open"), ""
+
+
+def _azure_devops_state(conn, repo, number):
+    project, name = repo.split("/", 1)
+    url = f"{conn['base_url']}/{_q(project)}/_apis/git/repositories/{_q(name)}/pullrequests/{int(number)}?api-version=7.1"
+    pr = _http("GET", url, _ado_headers(conn))[1]
+    status = str(pr.get("status") or "")
+    if status == "completed":
+        return "merged", str(pr.get("closedDate") or "")
+    return ("closed" if status == "abandoned" else "open"), ""
+
+
+def _gitea_state(conn, repo, number):
+    pr = _http("GET", f"{conn['base_url']}/api/v1/repos/{repo}/pulls/{int(number)}", _gt_headers(conn))[1]
+    if pr.get("merged"):
+        return "merged", str(pr.get("merged_at") or "")
+    return ("closed" if pr.get("state") == "closed" else "open"), ""
+
+
+_STATE: Dict[str, Callable] = {
+    "github": _github_state, "gitlab": _gitlab_state, "bitbucket": _bitbucket_state,
+    "azure_devops": _azure_devops_state, "gitea": _gitea_state,
+}
+
+
+def change_request_state(org_id: str, repo: Any, number: Any, connection_id: str = "") -> Dict[str, Any]:
+    """Whether a pull/merge request is still open, was merged, or was closed without merging. Read only."""
+    try:
+        num = int(number)
+    except (TypeError, ValueError):
+        raise CodeHostError(400, "Unknown pull request number.") from None
+    conn = _load(org_id, connection_id)
+    repo_name = normalize_repo(conn["provider"], repo)
+    state, merged_at = _STATE[conn["provider"]](conn, repo_name, num)
+    return {"state": state, "merged_at": merged_at, "number": num, "repository": repo_name,
+            "provider": conn["provider"], "connection_id": conn["id"]}
+
+
 def providers_public() -> List[Dict[str, Any]]:
     return [{"id": key, **{k: v for k, v in info.items()}} for key, info in PROVIDERS.items()]
