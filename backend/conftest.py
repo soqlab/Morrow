@@ -17,7 +17,7 @@ os.environ.setdefault("MORROW_ADMIN_PASSWORD", "changeme123!")
 # Vault operations require a valid Fernet key (32 url-safe base64 bytes). Without it, anything that
 # stores an integration secret raises "MORROW_VAULT_MASTER_KEY is required for Vault operations".
 # This is a fixed throwaway key so the vault-backed tests are deterministic — never a real one.
-# base64url of b"morrow-test-only-key-32byte" (exactly 32 bytes, as Fernet requires).
+# base64url of b"pqc-scanner-test-only-key-32byte" (exactly 32 bytes, as Fernet requires).
 os.environ.setdefault("MORROW_VAULT_MASTER_KEY", "cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=")
 
 
