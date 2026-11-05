@@ -114,6 +114,13 @@ try:
             "schedule": crontab(minute=45, hour=3),
             "args": (),
         },
+        # Certificate-manager / KMS inventory: does nothing unless a connection has opted into a
+        # schedule (services/cert_inventory; every connection starts with scheduled sync off).
+        "cert-sources-sync-due-every-15m": {
+            "task": "morrow.sync_due_cert_sources",
+            "schedule": 900.0,
+            "args": (),
+        },
     }
 
     # Optional: daily GitHub repo sync
@@ -299,6 +306,18 @@ def sync_gcp_assets_task(credential_id: int, project_id: str | None = None, orga
         raise
     finally:
         reset_current_organization_id(token)
+
+
+@celery_app.task(name="morrow.sync_due_cert_sources")
+def sync_due_cert_sources_task() -> Dict[str, Any]:
+    """Sync the certificate-manager / KMS connections whose own schedule is due (read-only)."""
+    from services import cert_inventory
+
+    try:
+        return cert_inventory.run_due_syncs()
+    except Exception as exc:
+        capture_exception(exc, {"task": "morrow.sync_due_cert_sources"})
+        raise
 
 
 @celery_app.task(name="morrow.sync_github_repos")

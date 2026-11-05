@@ -730,6 +730,15 @@ def _leaf_cert_facts(cert: x509.Certificate) -> Dict[str, Any]:
         "not_after": _utc_iso(_cert_not_after(cert)),
         "days_until_expiry": _days_until(_cert_not_after(cert)),
     }
+    # Fingerprints of the DER leaf, so a certificate seen on the wire can be matched to the same
+    # certificate reported by a certificate manager (services/cert_inventory), which identify
+    # certificates by SHA-1 thumbprint.
+    try:
+        from cryptography.hazmat.primitives import hashes as _hashes
+        facts["cert_sha256"] = cert.fingerprint(_hashes.SHA256()).hex().upper()
+        facts["cert_sha1"] = cert.fingerprint(_hashes.SHA1()).hex().upper()
+    except Exception:
+        pass
     try:
         facts["sig_algorithm"] = (
             cert.signature_algorithm_oid._name or cert.signature_algorithm_oid.dotted_string

@@ -25443,6 +25443,13 @@ app.include_router(create_ai_privacy_router(_require_role))
 app.include_router(create_ai_privacy_router(_require_role), prefix="/v1")
 register_deferred_schema("ai_privacy", _ai_privacy.init_tables)
 
+# Certificate-manager and cloud KMS inventory sync (services/cert_inventory, read-only at every vendor).
+from routers.cert_inventory import create_cert_inventory_router  # noqa: E402
+from services import cert_inventory as _cert_inventory  # noqa: E402
+app.include_router(create_cert_inventory_router(_require_role))
+app.include_router(create_cert_inventory_router(_require_role), prefix="/v1")
+register_deferred_schema("cert_inventory", _cert_inventory.init_tables)
+
 # The rule-based answerer is a first-class provider ("builtin"), so "no AI configured"
 # is a deliberate mode rather than an error path. Registering it here keeps
 # services/llm free of any dependency on this module. See docs/AI_PROVIDERS.md.

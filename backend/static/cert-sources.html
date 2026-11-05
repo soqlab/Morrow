@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Certificate &amp; KMS Inventory | Morrow</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+<link rel="stylesheet" href="/ui/experience.css?v=20260918-idle"><script src="/ui/fabric.js?v=20260915-perf2" defer></script><script src="/ui/motion.js?v=20260918-idle" defer></script>
+<script src="/ui/cert-sources.js?v=20261105-inventory" defer></script>
+<style>
+  .invite-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+  .public-document .invite-state { max-width: 70ch; padding-left: 52px; }
+  .invite-state p { color: var(--fog, #b9b9b9); line-height: 1.7; }
+  .invite-state[data-tone="bad"] { border-left-color: var(--rose, #ff6f6f); }
+  .invite-state[data-tone="ok"] { border-left-color: var(--jade, #6fd3a0); }
+  .invite-pill { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--line, #27303a); }
+  .invite-pill[data-status="ok"], .invite-pill[data-status="low"] { color: var(--jade, #6fd3a0); border-color: currentColor; }
+  .invite-pill[data-status="error"], .invite-pill[data-status="critical"], .invite-pill[data-status="high"] { color: var(--rose, #ff6f6f); border-color: currentColor; }
+  .invite-pill[data-status="medium"], .invite-pill[data-status="pending"] { color: var(--amber, #f2c14e); border-color: currentColor; }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+  .invite-form { display: grid; gap: 14px; max-width: 460px; margin-top: 18px; }
+  .invite-form label { display: grid; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); }
+  .invite-form input, .invite-form textarea, .invite-form select, .dom-card select { font: inherit; font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--chalk, #eee); background: transparent; border: 1px solid var(--line, #27303a); padding: 10px 12px; }
+  .invite-form textarea { min-height: 96px; font-family: var(--mono); font-size: 12.5px; }
+  .invite-form input:focus-visible, .invite-form textarea:focus-visible, .invite-form select:focus-visible { outline: 2px solid var(--jade, #6fd3a0); outline-offset: 1px; }
+  .invite-form .invite-error { color: var(--rose, #ff6f6f); margin: 0; }
+  .dom-list { display: grid; gap: 14px; margin-top: 18px; }
+  .dom-card { border: 1px solid var(--line, #27303a); padding: 18px 20px; display: grid; gap: 10px; }
+  .dom-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  .dom-name { font-family: var(--mono); font-size: 15px; color: var(--chalk, #eee); overflow-wrap: anywhere; }
+  .dom-note { margin: 0; color: var(--fog, #b9b9b9); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+  .dom-note.bad { color: var(--rose, #ff6f6f); }
+  .btn.small { padding: 6px 12px; font-size: 11px; }
+  .host-picks { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
+  .host-picks button[aria-pressed="true"] { border-color: var(--jade, #6fd3a0); color: var(--jade, #6fd3a0); }
+  .host-steps { margin: 4px 0 0; padding-left: 20px; color: var(--fog, #b9b9b9); line-height: 1.7; }
+  .host-steps a { color: inherit; }
+  .inv-wrap { overflow-x: auto; margin-top: 14px; }
+  .inv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .inv-table th { text-align: left; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); padding: 8px 10px; border-bottom: 1px solid var(--line, #27303a); }
+  .inv-table td { padding: 8px 10px; border-bottom: 1px solid var(--line, #27303a); color: var(--chalk, #eee); vertical-align: top; overflow-wrap: anywhere; }
+  .inv-table td.m { font-family: var(--mono); font-size: 12px; }
+</style>
+</head>
+<body class="public-document"><div class="page-fabric" data-fabric="ambient" data-fabric-pointer="off" data-fabric-theme="light" aria-hidden="true"></div>
+  <main class="doc-shell">
+    <header class="topbar">
+      <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
+      <nav class="nav" aria-label="Public navigation"><a href="/security">Security</a><a href="/support">Contact</a><a class="nav-cta" href="/ui/">Back to console &#8599;</a></nav>
+    </header>
+
+    <section class="doc-hero">
+      <div>
+        <span class="eyebrow">Certificate &amp; KMS inventory</span>
+        <h1 tabindex="-1">Every certificate and key you already manage.</h1>
+        <p class="lead">Connect Keyfactor Command, Venafi (TLS Protect Cloud or Trust Protection Platform), DigiCert CertCentral, AWS KMS, Azure Key Vault or Google Cloud KMS. Morrow reads their inventory, grades each certificate and key for quantum risk, and matches certificates to your TLS scans. It never issues, renews, revokes or changes anything.</p>
+      </div>
+    </section>
+
+    <section class="doc-section" aria-live="polite">
+      <div class="notice invite-state" id="srcState"><p>Loading.</p></div>
+      <div class="dom-list" id="srcList"></div>
+    </section>
+
+    <section class="doc-section">
+      <h2>Inventory</h2>
+      <p>The certificates and keys from every connection, most urgent expiry first. Each one is also on its asset in the console inventory; a certificate a TLS scan has seen is attached to that host.</p>
+      <div class="inv-wrap" id="invTable"><p class="dom-note">Nothing synced yet.</p></div>
+    </section>
+
+    <section class="doc-section">
+      <h2>What Morrow does with the credentials</h2>
+      <p>Only reads: it lists and describes certificates and key metadata. Give it a read-only account where the vendor offers one. The credentials are encrypted as soon as they arrive and are never shown again. Scheduled sync is off until you choose an interval for a connection; remove the connection here, or revoke the credential at the vendor, to stop it.</p>
+      <p>These connectors were built and tested against each vendor's published API documentation and example responses, not against live accounts. If a sync reports something unexpected, the message says which vendor answered and how.</p>
+    </section>
+  </main>
+</body>
+</html>

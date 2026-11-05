@@ -70,8 +70,13 @@ def _aws_sign_request(
     access_key: str,
     secret_key: str,
     session_token: str = "",
+    extra_headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, str]:
-    """Compute AWS SigV4 Authorization header + required headers."""
+    """Compute AWS SigV4 Authorization header + required headers.
+
+    extra_headers are signed too (lower-cased names) and returned, e.g. the JSON-protocol
+    Content-Type and X-Amz-Target that KMS expects in SignedHeaders.
+    """
     now = datetime.now(timezone.utc)
     amz_date  = now.strftime("%Y%m%dT%H%M%SZ")
     date_stamp = now.strftime("%Y%m%d")
@@ -81,6 +86,8 @@ def _aws_sign_request(
     headers_to_sign = {"host": host, "x-amz-date": amz_date, "x-amz-content-sha256": payload_hash}
     if session_token:
         headers_to_sign["x-amz-security-token"] = session_token
+    for name, value in (extra_headers or {}).items():
+        headers_to_sign[name.lower()] = str(value).strip()
 
     signed_headers = ";".join(sorted(headers_to_sign))
     canonical_headers = "".join(f"{k}:{v}\n" for k, v in sorted(headers_to_sign.items()))
@@ -110,6 +117,8 @@ def _aws_sign_request(
     }
     if session_token:
         result["X-Amz-Security-Token"] = session_token
+    for name, value in (extra_headers or {}).items():
+        result[name] = str(value).strip()
     return result
 
 
@@ -226,6 +235,37 @@ def discover_aws(
 
 
 # ── GCP Discovery ──────────────────────────────────────────────────────────────
+
+def _gcp_service_account_token(service_account_json: Dict[str, Any], http_post=None) -> str:
+    """Exchange a service-account key for an access token (RS256 JWT bearer grant).
+
+    Never falls back to the metadata server, so a customer's credential can never silently be
+    replaced by the platform's own identity.
+    """
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding as _padding
+    import time as _time
+
+    priv_key_pem = service_account_json["private_key"].encode()
+    private_key = serialization.load_pem_private_key(priv_key_pem, password=None)
+    client_email = service_account_json["client_email"]
+    token_uri = "https://oauth2.googleapis.com/token"
+
+    now = int(_time.time())
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "RS256", "typ": "JWT"}).encode()).rstrip(b"=")
+    claims = base64.urlsafe_b64encode(json.dumps({
+        "iss": client_email, "sub": client_email, "aud": token_uri,
+        "scope": "https://www.googleapis.com/auth/cloud-platform",
+        "iat": now, "exp": now + 3600,
+    }).encode()).rstrip(b"=")
+    msg = header + b"." + claims
+    sig = base64.urlsafe_b64encode(private_key.sign(msg, _padding.PKCS1v15(), hashes.SHA256())).rstrip(b"=")
+    token_resp = (http_post or _http_post)(token_uri, {
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": (msg + b"." + sig).decode(),
+    })
+    return token_resp.get("access_token", "")
+
 
 def _gcp_get_access_token(service_account_json: Dict[str, Any]) -> str:
     """Obtain a GCP access token via the metadata server or service-account JWT."""
@@ -350,13 +390,14 @@ def discover_gcp(
 
 # ── Azure Discovery ────────────────────────────────────────────────────────────
 
-def _azure_get_token(tenant_id: str, client_id: str, client_secret: str) -> str:
+def _azure_get_token(tenant_id: str, client_id: str, client_secret: str,
+                     scope: str = "https://management.azure.com/.default", http_post=None) -> str:
     url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-    resp = _http_post(url, {
+    resp = (http_post or _http_post)(url, {
         "grant_type": "client_credentials",
         "client_id": client_id,
         "client_secret": client_secret,
-        "scope": "https://management.azure.com/.default",
+        "scope": scope,
     })
     return resp.get("access_token", "")
 

@@ -66,6 +66,10 @@ ORG_SCOPED_TABLES: List[str] = [
     # Migration deadlines (services/migration_milestones.py): the milestones a tenant's velocity
     # report is measured against.
     "org_migration_milestones",
+    # Certificate-manager / KMS inventory (services/cert_inventory.py): sealed credentials and the
+    # certificates and keys read from them.
+    "org_cert_sources",
+    "org_cert_inventory",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -82,6 +86,8 @@ TENANT_COLUMNS: Dict[str, str] = {
     "org_verified_domains": "org_id",
     "org_code_connections": "org_id",
     "org_migration_milestones": "org_id",
+    "org_cert_sources": "org_id",
+    "org_cert_inventory": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".
