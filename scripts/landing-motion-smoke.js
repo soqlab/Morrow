@@ -142,6 +142,13 @@ async function main() {
     await page.waitForTimeout(250);
     assert.notEqual(await boundaryFlow.evaluate(el => getComputedStyle(el).strokeDashoffset), boundaryOffset, "Boundary fabric actually flows");
     await page.evaluate(() => document.querySelector("#motionToggle").click());
+    // Read the frozen position only once the browser has applied the pause. Sampled straight after the
+    // click, an animation still settling a pending play or pause can move one more step, and the check
+    // failed now and then on CI although the page was paused.
+    assert.equal(await boundaryFlow.evaluate(async el => {
+      await Promise.all(el.getAnimations().map(animation => animation.ready));
+      return el.getAnimations().every(animation => animation.playState === "paused");
+    }), true, "Global pause pauses the second fabric's animations");
     const boundaryPaused = await boundaryFlow.evaluate(el => getComputedStyle(el).strokeDashoffset);
     await page.waitForTimeout(250);
     assert.equal(await boundaryFlow.evaluate(el => getComputedStyle(el).strokeDashoffset), boundaryPaused, "Global pause freezes the second fabric too");
@@ -235,6 +242,15 @@ async function main() {
     await health.waitForFunction(() => document.querySelector("#serviceStatus").dataset.state === "unavailable");
     releaseDelayed();
     await health.locator("#platform").scrollIntoViewIfNeeded();
+    // Wait until the browser has told the page the badge left the viewport. Fast-forwarding straight
+    // after the scroll could fire the refresh already scheduled before the page heard, and the check
+    // failed now and then. Observers are notified in creation order, so the page's has run by now.
+    await health.evaluate(() => new Promise(resolve => {
+      const observer = new IntersectionObserver(entries => {
+        if (!entries[entries.length - 1].isIntersecting) { observer.disconnect(); resolve(); }
+      });
+      observer.observe(document.querySelector("#serviceStatus"));
+    }));
     const offscreenCalls = calls;
     await health.clock.fastForward(121000);
     assert.equal(calls, offscreenCalls, "No status polling when offscreen");
