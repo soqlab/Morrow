@@ -29,6 +29,7 @@ import re
 import secrets
 import threading
 import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -343,8 +344,6 @@ def _prometheus_get(base_url: str, query: str, token: str) -> Dict[str, Any]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     if code_hosts.private_servers_allowed():
-        import urllib.request
-
         req = urllib.request.Request(base_url.rstrip("/") + suffix, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
