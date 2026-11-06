@@ -452,6 +452,12 @@ def _init() -> None:
         _ready_for = marker
 
 
+def init_tables() -> None:
+    """Create this module's tables now (db_postgres.apply_deferred_schemas, registered in app.py),
+    so a fresh Postgres deployment has them before the RLS plan is applied, not on first use."""
+    _init()
+
+
 _JSON_COLS = {"spec_json": "spec", "stages_json": "stages", "metrics_json": "metrics", "baseline_json": "baseline",
               "last_gate_json": "last_gate", "events_json": "events"}
 

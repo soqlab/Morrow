@@ -155,6 +155,12 @@ def _init() -> None:
         _ready = True
 
 
+def init_tables() -> None:
+    """Create this module's tables now (db_postgres.apply_deferred_schemas, registered in app.py),
+    so a fresh Postgres deployment has them before the RLS plan is applied, not on first use."""
+    _init()
+
+
 # ── Input checks ────────────────────────────────────────────────────────────────────────────────
 
 def provider_info(provider: str) -> Dict[str, Any]:

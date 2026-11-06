@@ -507,6 +507,12 @@ def _init() -> None:
         _ready_for = marker
 
 
+def init_tables() -> None:
+    """Create this module's tables now (db_postgres.apply_deferred_schemas, registered in app.py),
+    so a fresh Postgres deployment has them before the RLS plan is applied, not on first use."""
+    _init()
+
+
 def _incident_row(row: Any) -> Dict[str, Any]:
     d = dict(row)
     d["dry_run"] = bool(int(d.get("dry_run") or 0))

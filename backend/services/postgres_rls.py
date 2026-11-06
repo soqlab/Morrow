@@ -73,6 +73,12 @@ ORG_SCOPED_TABLES: List[str] = [
     # certificates and keys read from them.
     "org_cert_sources",
     "org_cert_inventory",
+    # Found uncovered by services/rls_verify.py: per-org AI provider settings (sealed key), and
+    # the crypto kill switch and gradual-rollout records. Every read and write is org-filtered.
+    "llm_org_provider",
+    "crypto_switch_incidents",
+    "crypto_switch_items",
+    "pq_rollouts",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -91,6 +97,9 @@ TENANT_COLUMNS: Dict[str, str] = {
     "org_migration_milestones": "org_id",
     "org_cert_sources": "org_id",
     "org_cert_inventory": "org_id",
+    "crypto_switch_incidents": "org_id",
+    "crypto_switch_items": "org_id",
+    "pq_rollouts": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".
@@ -128,6 +137,8 @@ PLATFORM_SCOPED_TABLES: List[str] = [
     "platform_autopatches",      # vendor-initiated remediation campaigns
     "platform_auth_events",      # the security journal's auth trail, read by the operator console
     "platform_request_events",   # the security journal's request trail, input to the usage rollups
+    "trial_requests",            # sign-up requests the operator reviews; organization_id is only
+                                 # filled in once a request has been turned into a workspace
 ]
 
 # The tenant registry. `organizations` keys the tenant on `id`, not `organization_id`, so it is

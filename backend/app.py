@@ -25490,6 +25490,20 @@ app.include_router(create_cert_inventory_router(_require_role))
 app.include_router(create_cert_inventory_router(_require_role), prefix="/v1")
 register_deferred_schema("cert_inventory", _cert_inventory.init_tables)
 
+# Org-scoped feature tables that are otherwise created on first use. Registered so that
+# apply_deferred_schemas creates them up front: services/postgres_rls.py covers them, and the RLS
+# plan cannot protect (or verify) a table that does not exist yet.
+from services import code_hosts as _code_hosts_schema  # noqa: E402
+from services import crypto_switch as _crypto_switch_schema  # noqa: E402
+from services import domain_verification as _domain_verification_schema  # noqa: E402
+from services import migration_milestones as _migration_milestones_schema  # noqa: E402
+from services import pq_rollout as _pq_rollout_schema  # noqa: E402
+register_deferred_schema("domain_verification", _domain_verification_schema.init_tables)
+register_deferred_schema("code_hosts", _code_hosts_schema.init_tables)
+register_deferred_schema("migration_milestones", _migration_milestones_schema.init_tables)
+register_deferred_schema("crypto_switch", _crypto_switch_schema.init_tables)
+register_deferred_schema("pq_rollout", _pq_rollout_schema.init_tables)
+
 # The rule-based answerer is a first-class provider ("builtin"), so "no AI configured"
 # is a deliberate mode rather than an error path. Registering it here keeps
 # services/llm free of any dependency on this module. See docs/AI_PROVIDERS.md.

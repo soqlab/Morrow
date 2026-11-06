@@ -101,6 +101,12 @@ def _init() -> None:
         _ready = True
 
 
+def init_tables() -> None:
+    """Create this module's tables now (db_postgres.apply_deferred_schemas, registered in app.py),
+    so a fresh Postgres deployment has them before the RLS plan is applied, not on first use."""
+    _init()
+
+
 def _invalidate(org_id: str) -> None:
     with _cache_lock:
         _cache.pop(org_id, None)
