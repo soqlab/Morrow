@@ -1912,7 +1912,7 @@ def list_scan_rows(limit: int = 20) -> List[Dict[str, Any]]:
             FROM scans
             WHERE rowid IN ({_NEWEST_SCAN_ROWIDS_SQL})
             ORDER BY datetime(created_at) DESC
-            """,
+            """,  # nosec B608  # the subquery is the module constant _NEWEST_SCAN_ROWIDS_SQL; org id and limit are bound
             (org_id, limit),
         )
         rows = cur.fetchall()
@@ -1962,7 +1962,7 @@ def list_scan_results_bulk(limit: int = 10) -> List[Dict[str, Any]]:
             FROM scans
             WHERE rowid IN ({_NEWEST_SCAN_ROWIDS_SQL})
             ORDER BY datetime(created_at) DESC
-            """,
+            """,  # nosec B608  # the subquery is the module constant _NEWEST_SCAN_ROWIDS_SQL; org id and limit are bound
             (org_id, limit),
         )
         rows = cur.fetchall()
@@ -3333,7 +3333,7 @@ def list_remediations(
         for start in range(0, len(repo_ids), 500):
             chunk = repo_ids[start:start + 500]
             for rid, name, url in conn.execute(
-                "SELECT id, name, html_url FROM repositories WHERE organization_id = ? AND id IN (%s)"
+                "SELECT id, name, html_url FROM repositories WHERE organization_id = ? AND id IN (%s)"  # nosec B608  # only a list of ? placeholders is interpolated; ids are bound
                 % ",".join("?" * len(chunk)), (org_id, *chunk)):
                 repos[int(rid)] = {"name": name, "html_url": url}
     return [_remediation_row_to_dict(r, repos=repos) for r in rows]
