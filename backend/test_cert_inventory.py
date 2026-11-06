@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from test_invite_landing import PASSWORD, api, make_org  # noqa: F401  (api is a fixture)
+from test_invite_landing import PASSWORD, api_fixture, make_org  # noqa: F401  (api_fixture registers the "api" fixture)
 
 from services import cert_inventory as ci
 

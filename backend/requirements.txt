@@ -8,6 +8,11 @@
 # Transitive dependencies are not pinned here; add a lock file if you need full closure.
 
 fastapi==0.141.1
+# FastAPI 0.141.1 accepts any starlette>=0.46.0, so without a pin a clean install takes the newest
+# release. From 1.7.0 every response here carries "Vary: Origin", including the README
+# badge that must not vary per viewer (test_public_registry.py::test_badge_route_never_starts_a_check).
+# 1.6.0 is the release the suite passes against; raise it together with that behaviour.
+starlette==1.6.0
 uvicorn[standard]==0.38.0
 bcrypt==5.0.0
 PyJWT==2.15.1
