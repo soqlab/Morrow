@@ -75,8 +75,11 @@ def _saml_settings() -> Dict[str, Any]:
 def _load_idp_metadata() -> Optional[str]:
     """Fetch and return IdP metadata XML, or None on failure."""
     import urllib.request
+    # Configured URL: fetch it over http(s) only, never file:// or another scheme.
+    if not IDP_METADATA_URL.lower().startswith(("https://", "http://")):
+        return None
     try:
-        with urllib.request.urlopen(IDP_METADATA_URL, timeout=10) as resp:
+        with urllib.request.urlopen(IDP_METADATA_URL, timeout=10) as resp:  # nosec B310  # scheme checked to http/https above
             return resp.read().decode("utf-8")
     except Exception:
         return None

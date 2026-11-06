@@ -9,6 +9,9 @@ from typing import Any, Dict, Optional
 
 
 def github_api(method: str, url: str, token: str, body: Optional[Dict[str, Any]] = None, timeout_s: int = 30) -> Dict[str, Any]:
+    # Some URLs come from API responses (e.g. blob URLs in a tree listing): open http(s) only.
+    if not str(url).lower().startswith(("https://", "http://")):
+        return {"ok": False, "http_status": 0, "json": None, "raw": "GitHub API URL must be http(s)"}
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = urllib.request.Request(url, data=data, method=method.upper())
     req.add_header("Authorization", f"Bearer {token}")
@@ -17,7 +20,7 @@ def github_api(method: str, url: str, token: str, body: Optional[Dict[str, Any]]
     if body is not None:
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:  # nosec B310  # scheme checked to http/https above
             raw = resp.read().decode("utf-8", errors="replace")
             parsed = json.loads(raw) if raw else {}
             return {"ok": 200 <= int(resp.status) < 300, "http_status": int(resp.status), "json": parsed, "raw": raw[:2000]}

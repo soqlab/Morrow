@@ -29,10 +29,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 def _http_post(url: str, payload: Dict[str, Any],
                headers: Dict[str, str], timeout: int = 20) -> Tuple[int, Dict[str, Any]]:
+    # Jira/ServiceNow base URLs are user-configured: refuse file:// and every scheme but http(s).
+    if not str(url).lower().startswith(("https://", "http://")):
+        raise ValueError("ticketing URL must be http(s)")
     data = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310  # scheme checked to http/https above
             body = resp.read().decode("utf-8", "replace")
             return resp.status, json.loads(body) if body.strip() else {}
     except urllib.error.HTTPError as exc:
@@ -386,7 +389,7 @@ def create_ticket(
             f"https://api.github.com/repos/{cfg['owner']}/{cfg['repo']}/issues",
             data=payload_bytes, headers=gh_headers, method="POST",
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310  # fixed https://api.github.com base; only the path varies
             data = json.loads(resp.read())
         ticket_url = data.get("html_url", "")
         ticket_id = str(data.get("number", ""))

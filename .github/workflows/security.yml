@@ -35,8 +35,12 @@ jobs:
 
       - name: Bandit static analysis
         run: |
+          # Excludes are matched against the paths bandit walks ("./tests/x.py"), so they need the
+          # "./" prefix: the previous bare "tests" matched nothing and the test suite was scanned.
+          # Test modules (tests/, test_*.py, conftest.py) are out of scope for this job. Every
+          # remaining Medium+ finding is fixed or carries an inline nosec with its reason.
           bandit -r . \
-            -x ".venv,tests,__pycache__,alembic/versions" \
+            -x "./.venv,./tests,./__pycache__,./alembic/versions,./test_*.py,./conftest.py" \
             -ll \
             -f json \
             -o bandit-report.json

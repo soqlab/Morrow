@@ -4309,7 +4309,8 @@ def _sqlite_feature_state_tables() -> List[Dict[str, Any]]:
                 name = str(row["name"] or "")
                 count = 0
                 try:
-                    count = int(conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0] or 0)
+                    quoted_name = '"' + name.replace('"', '""') + '"'
+                    count = int(conn.execute(f"SELECT COUNT(*) FROM {quoted_name}").fetchone()[0] or 0)  # nosec B608  # table name read from sqlite_master and double-quoted as an identifier
                 except Exception:
                     count = 0
                 out.append({
@@ -4373,7 +4374,8 @@ def _migrate_sqlite_auxiliary_state_to_postgres(req: PlatformStateMigrationReque
     with closing(get_connection()) as src:
         src.row_factory = sqlite3.Row
         for table in tables:
-            rows = src.execute(f"SELECT rowid AS __rowid__, * FROM {table} LIMIT ?", (int(req.limit_per_table),)).fetchall()
+            quoted_table = '"' + table.replace('"', '""') + '"'
+            rows = src.execute(f"SELECT rowid AS __rowid__, * FROM {quoted_table} LIMIT ?", (int(req.limit_per_table),)).fetchall()  # nosec B608  # only existing sqlite_master table names reach here (request filters select among them), double-quoted
             result["tables"][table] = {"matched": len(rows), "copied": 0}
             if req.dry_run or not rows:
                 continue
@@ -4457,7 +4459,7 @@ def _platform_list_admin_events(organization_id: str = "", limit: int = 100) -> 
                     {where}
                     ORDER BY created_at DESC, id DESC
                     LIMIT %s
-                    """,
+                    """,  # nosec B608  # where is a constant org filter or ""; values are bound
                     params,
                 )
                 return [_json_safe(dict(r)) for r in cur.fetchall()]
@@ -4469,7 +4471,7 @@ def _platform_list_admin_events(organization_id: str = "", limit: int = 100) -> 
             where2 = "WHERE organization_id = ?"
             params2.append(organization_id)
         rows = conn.execute(
-            f"SELECT * FROM platform_admin_events {where2} ORDER BY created_at DESC, id DESC LIMIT ?",
+            f"SELECT * FROM platform_admin_events {where2} ORDER BY created_at DESC, id DESC LIMIT ?",  # nosec B608  # where2 is a constant org filter or ""; values are bound
             (*params2, lim),
         ).fetchall()
         out = []
@@ -4607,7 +4609,7 @@ def _run_platform_retention(req: PlatformRetentionRunRequest) -> Dict[str, Any]:
                 for table, column, days in plans:
                     cutoff = _retention_cutoff_iso(days)
                     try:
-                        cur.execute(f"SELECT COUNT(*) FROM {table} WHERE {column} < %s", (cutoff,))
+                        cur.execute(f"SELECT COUNT(*) FROM {table} WHERE {column} < %s", (cutoff,))  # nosec B608  # table/column come from the hardcoded retention plans list; cutoff is bound
                         count = int((cur.fetchone() or [0])[0] or 0)
                         deleted = 0
                         if not req.dry_run and count:
@@ -4619,7 +4621,7 @@ def _run_platform_retention(req: PlatformRetentionRunRequest) -> Dict[str, Any]:
                                     WHERE {column} < %s
                                     LIMIT %s
                                 )
-                                """,
+                                """,  # nosec B608  # table/column come from the hardcoded retention plans list; values are bound
                                 (cutoff, limit),
                             )
                             deleted = int(cur.rowcount or 0)
@@ -4633,7 +4635,7 @@ def _run_platform_retention(req: PlatformRetentionRunRequest) -> Dict[str, Any]:
             for table, column, days in plans:
                 cutoff = _retention_cutoff_iso(days)
                 try:
-                    row = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE datetime({column}) < datetime(?)", (cutoff,)).fetchone()
+                    row = conn.execute(f"SELECT COUNT(*) FROM {table} WHERE datetime({column}) < datetime(?)", (cutoff,)).fetchone()  # nosec B608  # table/column come from the hardcoded retention plans list; cutoff is bound
                     count = int((row[0] if row else 0) or 0)
                     deleted = 0
                     if not req.dry_run and count:
@@ -4645,7 +4647,7 @@ def _run_platform_retention(req: PlatformRetentionRunRequest) -> Dict[str, Any]:
                                 WHERE datetime({column}) < datetime(?)
                                 LIMIT ?
                             )
-                            """,
+                            """,  # nosec B608  # table/column come from the hardcoded retention plans list; values are bound
                             (cutoff, limit),
                         )
                         deleted = int(cur.rowcount or 0)
@@ -4933,7 +4935,7 @@ def _list_platform_autopatches(status: str = "", limit: int = 100) -> List[Dict[
         params.append(lim)
         with pg_product_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(f"SELECT * FROM platform_autopatches {where} ORDER BY updated_at DESC, id DESC LIMIT %s", params)
+                cur.execute(f"SELECT * FROM platform_autopatches {where} ORDER BY updated_at DESC, id DESC LIMIT %s", params)  # nosec B608  # where is a constant status filter or ""; values are bound
                 return [_normalize_autopatch_row(dict(r)) for r in cur.fetchall()]
     with closing(get_connection()) as conn:
         conn.row_factory = sqlite3.Row
@@ -4942,7 +4944,7 @@ def _list_platform_autopatches(status: str = "", limit: int = 100) -> List[Dict[
         if status:
             where2 = "WHERE status = ?"
             params2.append(status)
-        rows = conn.execute(f"SELECT * FROM platform_autopatches {where2} ORDER BY updated_at DESC, id DESC LIMIT ?", (*params2, lim)).fetchall()
+        rows = conn.execute(f"SELECT * FROM platform_autopatches {where2} ORDER BY updated_at DESC, id DESC LIMIT ?", (*params2, lim)).fetchall()  # nosec B608  # where2 is a constant status filter or ""; values are bound
         return [_normalize_autopatch_row(dict(r)) for r in rows]
 
 
@@ -4970,7 +4972,7 @@ def _update_platform_autopatch(autopatch_id: int, fields: Dict[str, Any]) -> Dic
         with pg_product_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    f"UPDATE platform_autopatches SET {', '.join(assignments)}, updated_at = NOW() WHERE id = %s RETURNING *",
+                    f"UPDATE platform_autopatches SET {', '.join(assignments)}, updated_at = NOW() WHERE id = %s RETURNING *",  # nosec B608  # column names are filtered through the `allowed` set; values are bound
                     params,
                 )
                 row = cur.fetchone()
@@ -4984,7 +4986,7 @@ def _update_platform_autopatch(autopatch_id: int, fields: Dict[str, Any]) -> Dic
     params2.extend([now, int(autopatch_id)])
     with closing(get_connection()) as conn:
         conn.row_factory = sqlite3.Row
-        conn.execute(f"UPDATE platform_autopatches SET {set_sql}, updated_at=? WHERE id=?", params2)
+        conn.execute(f"UPDATE platform_autopatches SET {set_sql}, updated_at=? WHERE id=?", params2)  # nosec B608  # column names are filtered through the `allowed` set; values are bound
         row = conn.execute("SELECT * FROM platform_autopatches WHERE id=?", (int(autopatch_id),)).fetchone()
         conn.commit()
     if not row:
@@ -13786,6 +13788,8 @@ async def api_jira_create_issue(request: Request):
 
     if not jira_url or not project_key or not email or not api_token:
         raise HTTPException(status_code=400, detail="jira_url, project_key, email, and api_token are required")
+    if urllib.parse.urlsplit(jira_url).scheme.lower() not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="jira_url must be an http:// or https:// URL")
 
     import base64 as _b64
     credentials = _b64.b64encode(f"{email}:{api_token}".encode()).decode()
@@ -13812,7 +13816,7 @@ async def api_jira_create_issue(request: Request):
             headers={"Content-Type": "application/json", "Authorization": f"Basic {credentials}"},
             method="POST",
         )
-        with _req.urlopen(req, timeout=15) as resp:
+        with _req.urlopen(req, timeout=15) as resp:  # nosec B310  # jira_url scheme is checked to be http/https above
             result = json.loads(resp.read(65536))
         return {"ok": True, "issue_key": result.get("key"), "issue_id": result.get("id"), "url": f"{jira_url}/browse/{result.get('key', '')}"}
     except _uerr.HTTPError as e:
@@ -14143,7 +14147,7 @@ def _cf_api(method: str, path: str, token: str, body_obj: Optional[Dict[str, Any
     req = urllib.request.Request(url, data=data, headers=headers, method=str(method or "GET").upper())
 
     try:
-        with urllib.request.urlopen(req, timeout=int(timeout_s or 20)) as resp:
+        with urllib.request.urlopen(req, timeout=int(timeout_s or 20)) as resp:  # nosec B310  # URL is the fixed https://api.cloudflare.com base plus a path
             raw = resp.read().decode("utf-8", errors="replace")
             try:
                 j = json.loads(raw) if raw else {}
@@ -15290,7 +15294,7 @@ def _list_external_findings(
         with pg_product_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    f"SELECT * FROM external_findings {where} ORDER BY id DESC LIMIT %s",
+                    f"SELECT * FROM external_findings {where} ORDER BY id DESC LIMIT %s",  # nosec B608  # where joins fixed column conditions; filter values are bound
                     (*params, limit),
                 )
                 rows = cur.fetchall()
@@ -15299,7 +15303,7 @@ def _list_external_findings(
     with closing(get_connection()) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            f"SELECT * FROM external_findings {where} ORDER BY id DESC LIMIT ?",
+            f"SELECT * FROM external_findings {where} ORDER BY id DESC LIMIT ?",  # nosec B608  # where joins fixed column conditions; filter values are bound
             (*params, limit),
         ).fetchall()
     return [_external_finding_from_row(r) for r in rows]
@@ -15317,7 +15321,7 @@ def _get_external_finding(finding_id: int, organization_id: str = "") -> Dict[st
         with pg_product_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    f"SELECT * FROM external_findings WHERE {' AND '.join(pg_clauses)}",
+                    f"SELECT * FROM external_findings WHERE {' AND '.join(pg_clauses)}",  # nosec B608  # clauses are fixed column conditions; values are bound
                     tuple(params),
                 )
                 row = cur.fetchone()
@@ -15327,7 +15331,7 @@ def _get_external_finding(finding_id: int, organization_id: str = "") -> Dict[st
     with closing(get_connection()) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
-            f"SELECT * FROM external_findings WHERE {' AND '.join(clauses)}",
+            f"SELECT * FROM external_findings WHERE {' AND '.join(clauses)}",  # nosec B608  # clauses are fixed column conditions; values are bound
             tuple(params),
         ).fetchone()
     if not row:

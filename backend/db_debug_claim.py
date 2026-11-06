@@ -32,7 +32,7 @@ def main():
         if has(c):
             select_cols.append(c)
 
-    q = "SELECT " + ", ".join(select_cols) + " FROM webhook_events ORDER BY id DESC LIMIT 20"
+    q = "SELECT " + ", ".join(select_cols) + " FROM webhook_events ORDER BY id DESC LIMIT 20"  # nosec B608  # columns come from the fixed list above, filtered by PRAGMA table_info; no values
     rows = conn.execute(q).fetchall()
 
     print("last 20 webhook_events:")

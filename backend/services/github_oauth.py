@@ -195,7 +195,7 @@ def exchange_code(code: str) -> Dict[str, Any]:
         headers={"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=20) as resp:
+    with urllib.request.urlopen(req, timeout=20) as resp:  # nosec B310  # fixed https://github.com token endpoint
         data = json.loads(resp.read().decode())
 
     if "error" in data:
@@ -214,7 +214,7 @@ def exchange_code(code: str) -> Dict[str, Any]:
             "User-Agent": "pq-scout/1.0",
         },
     )
-    with urllib.request.urlopen(user_req, timeout=15) as resp:
+    with urllib.request.urlopen(user_req, timeout=15) as resp:  # nosec B310  # fixed https://api.github.com/user URL
         user_info = json.loads(resp.read().decode())
 
     return {

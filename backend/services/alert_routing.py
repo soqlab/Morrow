@@ -511,7 +511,7 @@ def public_channel(channel: Dict[str, Any]) -> Dict[str, Any]:
 def list_channels(enabled_only: bool = False) -> List[Dict[str, Any]]:
     init_tables()
     with feature_conn() as conn:
-        rows = conn.execute(f"SELECT {_CHANNEL_COLUMNS} FROM platform_alert_channels ORDER BY created_at, id").fetchall()
+        rows = conn.execute(f"SELECT {_CHANNEL_COLUMNS} FROM platform_alert_channels ORDER BY created_at, id").fetchall()  # nosec B608  # _CHANNEL_COLUMNS is a module constant; no values
     channels = [_row_dict(r) for r in rows]
     return [c for c in channels if c["enabled"]] if enabled_only else channels
 
@@ -522,7 +522,7 @@ def get_channel(channel_id: str) -> Optional[Dict[str, Any]]:
         return None
     init_tables()
     with feature_conn() as conn:
-        row = conn.execute(f"SELECT {_CHANNEL_COLUMNS} FROM platform_alert_channels WHERE id = ?", (cid,)).fetchone()
+        row = conn.execute(f"SELECT {_CHANNEL_COLUMNS} FROM platform_alert_channels WHERE id = ?", (cid,)).fetchone()  # nosec B608  # _CHANNEL_COLUMNS is a module constant; id is bound
     return _row_dict(row) if row else None
 
 
@@ -599,7 +599,7 @@ def update_channel(channel_id: str, data: Dict[str, Any], actor: str,
     fields["updated_at"] = iso(now_utc())
     assignments = ", ".join(f"{k} = ?" for k in fields)
     with feature_conn() as conn:
-        conn.execute(f"UPDATE platform_alert_channels SET {assignments} WHERE id = ?", (*fields.values(), current["id"]))
+        conn.execute(f"UPDATE platform_alert_channels SET {assignments} WHERE id = ?", (*fields.values(), current["id"]))  # nosec B608  # column names are literal keys set in update_channel; values are bound
         conn.commit()
     if current["kind"] == "pagerduty" and current["enabled"] and fields.get("enabled") == 0:
         # The channel is off from here on, so its open incidents are resolved now, with the key they were raised

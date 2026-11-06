@@ -574,7 +574,7 @@ def update_assessment(
 
     with closing(conn.cursor()) as cur:
         cur.execute(
-            f"UPDATE vendor_assessments SET {set_clause} WHERE id = ? AND organization_id = ?",
+            f"UPDATE vendor_assessments SET {set_clause} WHERE id = ? AND organization_id = ?",  # nosec B608  # columns are filtered through the allowed set above; values are bound
             values,
         )
         if cur.rowcount == 0:

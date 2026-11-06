@@ -1428,7 +1428,7 @@ _COLS = ("id, provider, label, base_url, settings_json, account, schedule_hours,
 def list_sources(org_id: str) -> List[Dict[str, Any]]:
     _init()
     with feature_conn() as conn:
-        rows = conn.execute(f"SELECT {_COLS} FROM org_cert_sources WHERE org_id = ? ORDER BY created_at", (org_id,)).fetchall()
+        rows = conn.execute(f"SELECT {_COLS} FROM org_cert_sources WHERE org_id = ? ORDER BY created_at", (org_id,)).fetchall()  # nosec B608  # _COLS is a module constant; org_id is bound
     return [_public(r) for r in rows]
 
 

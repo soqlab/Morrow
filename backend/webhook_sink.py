@@ -53,7 +53,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    host = "0.0.0.0"
+    host = "0.0.0.0"  # nosec B104  # dev-only compose container; must listen on the container network for the api service to reach it
     port = 9001
     httpd = HTTPServer((host, port), Handler)
     print(f"Webhook sink listening on http://{host}:{port}")

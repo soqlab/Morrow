@@ -178,7 +178,7 @@ def _row(row: Any) -> Dict[str, Any]:
 def get_announcement(announcement_id: int) -> Optional[Dict[str, Any]]:
     init_tables()
     with feature_conn() as conn:
-        row = conn.execute(f"SELECT {_COLUMNS} FROM platform_announcements WHERE id = ?", (int(announcement_id),)).fetchone()
+        row = conn.execute(f"SELECT {_COLUMNS} FROM platform_announcements WHERE id = ?", (int(announcement_id),)).fetchone()  # nosec B608  # _COLUMNS is a module constant; id is bound
     return _row(row) if row else None
 
 
@@ -186,7 +186,7 @@ def list_announcements(limit: int = 200) -> List[Dict[str, Any]]:
     init_tables()
     with feature_conn() as conn:
         rows = conn.execute(
-            f"SELECT {_COLUMNS} FROM platform_announcements ORDER BY id DESC LIMIT ?",
+            f"SELECT {_COLUMNS} FROM platform_announcements ORDER BY id DESC LIMIT ?",  # nosec B608  # _COLUMNS is a module constant; limit is bound
             (max(1, min(int(limit or 200), 500)),),
         ).fetchall()
     return [_row(r) for r in rows]

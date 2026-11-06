@@ -29,10 +29,17 @@ from typing import Any, Dict, List, Optional
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
+def _require_http_url(url: str) -> None:
+    """Some URLs come from customer input (e.g. token_uri in a GCP key file): http(s) only."""
+    if urllib.parse.urlsplit(url).scheme.lower() not in ("http", "https"):
+        raise ValueError("cloud API URL must be http(s)")
+
+
 def _http_get(url: str, headers: Dict[str, str] = None, timeout: int = 12) -> Dict[str, Any]:
+    _require_http_url(url)
     req = urllib.request.Request(url, headers=headers or {}, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310  # scheme checked to http/https above
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         body = ""
@@ -46,9 +53,10 @@ def _http_post(url: str, data: dict, headers: Dict[str, str] = None, timeout: in
     hdrs = {"Content-Type": "application/x-www-form-urlencoded"}
     if headers:
         hdrs.update(headers)
+    _require_http_url(url)
     req = urllib.request.Request(url, data=payload, headers=hdrs, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # nosec B310  # scheme checked to http/https above
             return json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         body = ""
@@ -186,7 +194,7 @@ def _discover_aws_cloudfront(access_key: str, secret_key: str, token: str = "") 
         url = f"https://{host}{path}"
         resp_raw = ""
         req = urllib.request.Request(url, headers=hdrs)
-        with urllib.request.urlopen(req, timeout=12) as r:
+        with urllib.request.urlopen(req, timeout=12) as r:  # nosec B310  # fixed https://cloudfront.amazonaws.com URL
             resp_raw = r.read().decode()
         domains = re.findall(r"<DomainName>([^<]+\.cloudfront\.net)</DomainName>", resp_raw)
         for d in domains:
@@ -273,7 +281,7 @@ def _gcp_get_access_token(service_account_json: Dict[str, Any]) -> str:
     try:
         meta_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
         req = urllib.request.Request(meta_url, headers={"Metadata-Flavor": "Google"})
-        with urllib.request.urlopen(req, timeout=3) as r:
+        with urllib.request.urlopen(req, timeout=3) as r:  # nosec B310  # fixed GCE metadata-server URL constant
             return json.loads(r.read().decode()).get("access_token", "")
     except Exception:
         pass

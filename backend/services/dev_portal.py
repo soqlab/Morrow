@@ -119,7 +119,7 @@ def list_findings_for_scope(conn: sqlite3.Connection, org_id: str,
             params.extend([f"%{team}%", f"%{team}%"])
 
         rows = conn.execute(
-            f"SELECT host, endpoint, finding_type, severity, algorithm, vulnerability, remediation_hint, scan_ts "
+            f"SELECT host, endpoint, finding_type, severity, algorithm, vulnerability, remediation_hint, scan_ts "  # nosec B608  # filters are literal clauses with ? placeholders; repo/team are bound
             f"FROM scan_results WHERE {' AND '.join(filters)} ORDER BY scan_ts DESC LIMIT 200",
             params,
         ).fetchall()
@@ -142,7 +142,7 @@ def list_findings_for_scope(conn: sqlite3.Connection, org_id: str,
             params2.extend([f"%{team}%", f"%{team}%"])
 
         rows2 = conn.execute(
-            f"SELECT id, asset_key, title, status, severity, assigned_to, created_at "
+            f"SELECT id, asset_key, title, status, severity, assigned_to, created_at "  # nosec B608  # filters2 are literal clauses with ? placeholders; repo/team are bound
             f"FROM remediations WHERE {' AND '.join(filters2)} ORDER BY created_at DESC LIMIT 200",
             params2,
         ).fetchall()
@@ -208,7 +208,7 @@ def list_requests(conn: sqlite3.Connection, org_id: str,
                    title, description, priority, status, reviewer_id, reviewer_note,
                    created_at, updated_at
             FROM dev_remediation_requests WHERE {' AND '.join(filters)}
-            ORDER BY created_at DESC LIMIT 500""",
+            ORDER BY created_at DESC LIMIT 500""",  # nosec B608  # filters are literal "col=?" clauses; values are bound
         params,
     ).fetchall()
     cols = ["id", "organization_id", "requester_id", "team", "repo", "finding_ref",

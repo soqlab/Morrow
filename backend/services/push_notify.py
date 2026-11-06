@@ -113,10 +113,13 @@ def list_subscriptions(db, org_id: str) -> list[dict]:
 # ── Slack / Teams delivery ─────────────────────────────────────────────────
 
 def _post_json(url: str, payload: dict, timeout: int = 8) -> tuple[int, str]:
+    # Slack/Teams webhook URLs are user-configured: refuse file:// and every scheme but http(s).
+    if not str(url).lower().startswith(("https://", "http://")):
+        return 0, "webhook URL must be http(s)"
     body = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310  # scheme checked to http/https above
             return resp.status, resp.read().decode()
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode()

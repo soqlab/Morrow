@@ -1608,7 +1608,7 @@ def list_login_events(
             where.append("created_at >= ?"); params.append(since_iso)
         clause = "WHERE " + " AND ".join(where) if where else ""
         rows = conn.execute(
-            f"SELECT * FROM login_events {clause} ORDER BY created_at DESC LIMIT ?",
+            f"SELECT * FROM login_events {clause} ORDER BY created_at DESC LIMIT ?",  # nosec B608  # WHERE clause is built from fixed column conditions; values are bound
             (*params, lim),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -2667,7 +2667,7 @@ def latest_scan_results_for_assets(asset_keys: Sequence[str]) -> Dict[str, Dict[
             FROM scan_results
             WHERE organization_id = ? AND asset_key IN ({placeholders})
             ORDER BY asset_key, scanned_at ASC
-            """,
+            """,  # nosec B608  # only a "?" placeholder list is interpolated; asset keys are bound
             (org_id, *keys),
         ).fetchall()
     # Ascending, so the last row written for each key is the newest one.
@@ -2862,7 +2862,7 @@ def list_validation_jobs(
             {where}
             ORDER BY datetime(created_at) DESC, id DESC
             LIMIT ?
-            """,
+            """,  # nosec B608  # WHERE clause is built from fixed column conditions; values are bound
             (*params, limit),
         ).fetchall()
     return [_validation_job_row_to_dict(r) for r in rows]
@@ -2891,7 +2891,7 @@ def get_latest_validation_job_for_remediation(remediation_id: int, passed_only: 
             WHERE {' AND '.join(clauses)}
             ORDER BY datetime(created_at) DESC, id DESC
             LIMIT 1
-            """,
+            """,  # nosec B608  # clauses are fixed column conditions; values are bound
             params,
         ).fetchone()
     return _validation_job_row_to_dict(row) if row else None
@@ -2963,7 +2963,7 @@ def update_validation_job(
     with closing(get_connection()) as conn:
         _ensure_sprint12_tables(conn)
         conn.execute(
-            f"UPDATE validation_jobs SET {', '.join(sets)} WHERE organization_id = ? AND id = ?",
+            f"UPDATE validation_jobs SET {', '.join(sets)} WHERE organization_id = ? AND id = ?",  # nosec B608  # SET list is fixed "column = ?" strings; values are bound
             params,
         )
         conn.commit()
@@ -3086,7 +3086,7 @@ def list_migration_tasks(
         clauses.append("repository_name = ?")
         params.append(str(repository_name or "").strip())
     params.append(max(1, min(int(limit or 200), 2000)))
-    sql = f"SELECT * FROM migration_tasks WHERE {' AND '.join(clauses)} ORDER BY created_at DESC, id DESC LIMIT ?"
+    sql = f"SELECT * FROM migration_tasks WHERE {' AND '.join(clauses)} ORDER BY created_at DESC, id DESC LIMIT ?"  # nosec B608  # clauses are fixed column conditions; values are bound
     with closing(get_connection()) as conn:
         _ensure_sprint12_tables(conn)
         conn.row_factory = sqlite3.Row
@@ -3323,7 +3323,7 @@ def list_remediations(
             {where}
             ORDER BY datetime(created_at) DESC, id DESC
             LIMIT ?
-            """,
+            """,  # nosec B608  # WHERE clause is built from fixed column conditions; search text is bound
             (*params, limit),
         ).fetchall()
         # One lookup for every linked repository, not one per remediation: /crypto-agility,
@@ -4320,7 +4320,7 @@ def list_audit_logs(
         _ensure_sprint13_tables(conn)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            f"SELECT * FROM audit_logs {where} ORDER BY id DESC LIMIT ?",
+            f"SELECT * FROM audit_logs {where} ORDER BY id DESC LIMIT ?",  # nosec B608  # WHERE clause is built from fixed column conditions; values are bound
             (*params, limit),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -4443,7 +4443,7 @@ def list_flight_recorder_events(
         _ensure_flight_recorder_tables(conn)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            f"SELECT * FROM flight_recorder_events WHERE {' AND '.join(clauses)} ORDER BY id DESC LIMIT ?",
+            f"SELECT * FROM flight_recorder_events WHERE {' AND '.join(clauses)} ORDER BY id DESC LIMIT ?",  # nosec B608  # column names come from the fixed filters dict keys; values are bound
             (*params, limit),
         ).fetchall()
     return [_normalize_flight_event(dict(r)) for r in rows]
@@ -4708,7 +4708,7 @@ def delete_organization(organization_id: str, mode: str = "archive") -> Dict[str
                 cols = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
                 if "organization_id" not in cols:
                     continue
-                cur = conn.execute(f"DELETE FROM {table} WHERE organization_id=?", (oid,))
+                cur = conn.execute(f"DELETE FROM {table} WHERE organization_id=?", (oid,))  # nosec B608  # table comes from the hardcoded tables list above; org id is bound
                 counts[table] = int(cur.rowcount or 0)
             except Exception:
                 continue
@@ -5086,7 +5086,7 @@ def list_scan_results(scan_id: str, owner: str = "", team: str = "", environment
             WHERE {where}
             ORDER BY quantum_score DESC, findings_count DESC
             LIMIT ?
-            """,
+            """,  # nosec B608  # WHERE clause is built from fixed column conditions; filter values are bound
             (*params, limit),
         ).fetchall()
         out: list[dict] = []
@@ -5216,7 +5216,7 @@ def latest_scan_facts_for_org(limit: int = 5000, text_query: str = "") -> list[d
                   ){search}
                 ORDER BY sr.scanned_at DESC, sr.id DESC
                 LIMIT ?
-                """,
+                """,  # nosec B608  # columns are the _SCAN_FACT_COLUMNS constant and search the constant _SCAN_FACT_SEARCH_SQL; org id, terms and limit are bound
                 (org_id, *search_params, limit),
             ).fetchall()
         except sqlite3.OperationalError as exc:
@@ -5453,7 +5453,7 @@ def list_webhooks_public(limit: int = 200) -> list[dict]:
         if "event_types" in cols: select_cols.append("event_types")# some DBs use this name
         if "secret" in cols: select_cols.append("secret")
 
-        q = f"SELECT {', '.join(select_cols)} FROM webhooks WHERE organization_id=? ORDER BY id DESC LIMIT ?"
+        q = f"SELECT {', '.join(select_cols)} FROM webhooks WHERE organization_id=? ORDER BY id DESC LIMIT ?"  # nosec B608  # select_cols holds only literal column names; values are bound
         rows = conn.execute(q, (org_id, limit)).fetchall()
 
         out = []
@@ -5668,7 +5668,7 @@ def record_webhook_event(
                 vals.append("")
             vals.extend([org_id, int(existing["id"])])
             conn.execute(
-                f"UPDATE webhook_events SET {', '.join(sets)} WHERE organization_id=? AND id=?",
+                f"UPDATE webhook_events SET {', '.join(sets)} WHERE organization_id=? AND id=?",  # nosec B608  # SET list is fixed "column=?" strings; values are bound
                 tuple(vals),
             )
             conn.commit()
@@ -5725,7 +5725,7 @@ def record_webhook_event(
         add("status_code", int(http_status) if http_status else 0)
         add("delivered_at", "")
 
-        sql = f"INSERT INTO webhook_events({','.join(insert_cols)}) VALUES ({','.join(['?']*len(insert_cols))})"
+        sql = f"INSERT INTO webhook_events({','.join(insert_cols)}) VALUES ({','.join(['?']*len(insert_cols))})"  # nosec B608  # insert_cols are literal names passed to add(); values are bound
         try:
             cur = conn.execute(sql, tuple(insert_vals))
             row_id = int(cur.lastrowid)
@@ -5826,7 +5826,7 @@ def update_webhook_event(
             return
 
         vals.extend([current_organization_id(), int(event_row_id)])
-        conn.execute(f"UPDATE webhook_events SET {', '.join(sets)} WHERE organization_id=? AND id=?", tuple(vals))
+        conn.execute(f"UPDATE webhook_events SET {', '.join(sets)} WHERE organization_id=? AND id=?", tuple(vals))  # nosec B608  # SET list is fixed "column=?" strings; values are bound
         conn.commit()
 
 
@@ -5913,7 +5913,7 @@ def list_webhook_events(limit: int = 50):
                  FROM webhook_events
                  WHERE organization_id=?
                  ORDER BY id DESC
-                 LIMIT ?""",
+                 LIMIT ?""",  # nosec B608  # select list is literal column expressions chosen by schema checks; values are bound
             (current_organization_id(), limit),
         ).fetchall()
 
@@ -5983,7 +5983,7 @@ def list_pending_webhook_events(limit: int = 100, max_attempts: int = 5) -> List
                    AND {where_clause}
                    AND {attempts_expr} < ?
                  ORDER BY id ASC
-                 LIMIT ?""",
+                 LIMIT ?""",  # nosec B608  # interpolated parts are literal column expressions chosen by schema checks; values are bound
             (current_organization_id(), int(max_attempts), int(limit)),
         ).fetchall()
 
@@ -6254,7 +6254,7 @@ def update_scan_job(
         if not sets:
             return
         vals.extend([org_id, scan_id])
-        conn.execute(f"UPDATE scans SET {', '.join(sets)} WHERE organization_id = ? AND id = ?", vals)
+        conn.execute(f"UPDATE scans SET {', '.join(sets)} WHERE organization_id = ? AND id = ?", vals)  # nosec B608  # SET list is fixed "column = ?" strings; values are bound
         conn.commit()
 
 # -----------------------------
@@ -6858,7 +6858,7 @@ def list_runtime_traffic_observations(asset_key_str: str = "", source: str = "",
                     FROM runtime_traffic_observations
                     WHERE {' AND '.join(clauses)}
                     ORDER BY last_seen DESC, id DESC LIMIT %s
-                    """,
+                    """,  # nosec B608  # clauses are fixed column conditions; values are bound
                     tuple(params),
                 )
                 rows = cur.fetchall()
@@ -6891,7 +6891,7 @@ def list_runtime_traffic_observations(asset_key_str: str = "", source: str = "",
             FROM runtime_traffic_observations
             WHERE {' AND '.join(clauses)}
             ORDER BY last_seen DESC, id DESC LIMIT ?
-            """,
+            """,  # nosec B608  # clauses are fixed column conditions; values are bound
             tuple(params2),
         ).fetchall()
         return [

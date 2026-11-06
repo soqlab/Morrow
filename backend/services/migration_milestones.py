@@ -212,7 +212,7 @@ def get(org_id: Any) -> Dict[str, Any]:
     _init()
     with store.feature_conn() as conn:
         _scope(conn, org)
-        row = conn.execute(f"SELECT milestones, updated_at, updated_by FROM {TABLE} WHERE org_id = ?",
+        row = conn.execute(f"SELECT milestones, updated_at, updated_by FROM {TABLE} WHERE org_id = ?",  # nosec B608  # TABLE is a module constant; org is bound
                            (org,)).fetchone()
     if row:
         try:
@@ -239,7 +239,7 @@ def save(org_id: Any, raw: Any, actor: str = "") -> Dict[str, Any]:
     with store.feature_conn() as conn:
         _scope(conn, org)
         conn.execute(
-            f"INSERT INTO {TABLE} (org_id, milestones, updated_at, updated_by) VALUES (?, ?, ?, ?) "
+            f"INSERT INTO {TABLE} (org_id, milestones, updated_at, updated_by) VALUES (?, ?, ?, ?) "  # nosec B608  # TABLE is a module constant; values are bound
             "ON CONFLICT (org_id) DO UPDATE SET milestones = excluded.milestones, "
             "updated_at = excluded.updated_at, updated_by = excluded.updated_by",
             (org, json.dumps(clean, separators=(",", ":")), _now(), str(actor or "")[:200]),
@@ -254,7 +254,7 @@ def reset(org_id: Any) -> Dict[str, Any]:
     _init()
     with store.feature_conn() as conn:
         _scope(conn, org)
-        conn.execute(f"DELETE FROM {TABLE} WHERE org_id = ?", (org,))
+        conn.execute(f"DELETE FROM {TABLE} WHERE org_id = ?", (org,))  # nosec B608  # TABLE is a module constant; org is bound
         conn.commit()
     return get(org)
 

@@ -314,7 +314,7 @@ def _complete_from(now: datetime) -> Optional[datetime]:
     with store.feature_conn() as conn:
         for table in ("platform_request_events", "platform_auth_events"):
             try:
-                row = conn.execute(f"SELECT MIN(created_at) FROM {table}").fetchone()
+                row = conn.execute(f"SELECT MIN(created_at) FROM {table}").fetchone()  # nosec B608  # table iterates over two hard-coded journal table names
             except Exception:
                 return None
             found = _parse_ts(row[0] if row else None)
@@ -482,7 +482,7 @@ def roll_day(day: datetime, now: Optional[datetime] = None) -> Dict[str, Any]:
             conn.executemany("INSERT INTO platform_usage_routes_daily (day, path, requests, server_errors, client_errors) "
                              "VALUES (?, ?, ?, ?, ?)", [(key, str(p), n, e, c) for p, (n, e, c) in routes.items()])
         if rows:
-            conn.executemany(f"INSERT INTO platform_usage_daily ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",
+            conn.executemany(f"INSERT INTO platform_usage_daily ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",  # nosec B608  # columns are the module's constant column tuples; values are bound
                              [tuple(r[c] for c in columns) for r in rows.values()])
         hashed = sorted({(org, actor_hash(actor, hkey)) for org, actor in actors})
         if hashed:
@@ -570,7 +570,7 @@ def _run_unscoped(now: Optional[datetime] = None, rebuild: bool = False) -> Dict
         with store.feature_conn() as conn:
             for table in ("platform_usage_daily", "platform_active_users_daily", "platform_usage_rollup_days",
                           "platform_usage_routes_daily"):
-                conn.execute(f"DELETE FROM {table} WHERE day < ?", (horizon,))
+                conn.execute(f"DELETE FROM {table} WHERE day < ?", (horizon,))  # nosec B608  # table iterates over four hard-coded rollup table names; horizon is bound
             if reformat:
                 _state_set(conn, "format_version", ROLLUP_FORMAT)
             conn.commit()
@@ -640,7 +640,7 @@ def rollup_extent(r: Any) -> Dict[str, Any]:
 def sums(r: Any, start: datetime, end: datetime, org: Optional[str] = None) -> Dict[str, Any]:
     extra, params = _org_sql(org)
     select = ", ".join(f"SUM({c}) AS {c}" for c in COUNT_COLUMNS + LATENCY_COLUMNS)
-    row = r.one("platform_usage_daily", f"SELECT {select}, MAX(duration_max_ms) AS duration_max_ms FROM platform_usage_daily "
+    row = r.one("platform_usage_daily", f"SELECT {select}, MAX(duration_max_ms) AS duration_max_ms FROM platform_usage_daily "  # nosec B608  # select is built from constant column tuples, extra is a fixed "AND organization_id = ?"; values are bound
                                         f"WHERE day >= ? AND day < ?{extra}", [day_key(start), day_key(end), *params])
     return {k: (v or 0) for k, v in row.items()}
 
@@ -651,7 +651,7 @@ def by_day(r: Any, start: datetime, end: datetime, org: Optional[str] = None) ->
     # p50/p95 are exact per org-day; for a single organization there is one row per day.
     pct = ", MAX(p50_ms) AS p50_ms, MAX(p95_ms) AS p95_ms" if org is not None else ""
     out: Dict[str, Dict[str, Any]] = {}
-    for row in r.rows("platform_usage_daily", f"SELECT day, {select}{pct} FROM platform_usage_daily WHERE day >= ? AND day < ?{extra} "
+    for row in r.rows("platform_usage_daily", f"SELECT day, {select}{pct} FROM platform_usage_daily WHERE day >= ? AND day < ?{extra} "  # nosec B608  # select/pct are constant column expressions, extra is a fixed org filter; values are bound
                                               "GROUP BY day", [day_key(start), day_key(end), *params]):
         out[str(row.pop("day")) + "T00:00:00Z"] = row
     return out
@@ -678,7 +678,7 @@ def day_latency(r: Any, start: datetime, end: datetime) -> Dict[str, Dict[str, A
 
 def active_hashes(r: Any, start: datetime, end: datetime, org: Optional[str] = None) -> Set[str]:
     extra, params = _org_sql(org)
-    return {str(row["h"]) for row in r.rows("platform_active_users_daily", "SELECT DISTINCT actor_hash AS h FROM platform_active_users_daily "
+    return {str(row["h"]) for row in r.rows("platform_active_users_daily", "SELECT DISTINCT actor_hash AS h FROM platform_active_users_daily "  # nosec B608  # extra is the fixed "AND organization_id = ?" from _org_sql; values are bound
                                                                            f"WHERE day >= ? AND day < ?{extra}",
                                             [day_key(start), day_key(end), *params])}
 
@@ -686,7 +686,7 @@ def active_hashes(r: Any, start: datetime, end: datetime, org: Optional[str] = N
 def active_by_day(r: Any, start: datetime, end: datetime, org: Optional[str] = None) -> Dict[str, int]:
     extra, params = _org_sql(org)
     return {str(row["day"]) + "T00:00:00Z": int(row["n"] or 0)
-            for row in r.rows("platform_active_users_daily", "SELECT day, COUNT(DISTINCT actor_hash) AS n FROM platform_active_users_daily "
+            for row in r.rows("platform_active_users_daily", "SELECT day, COUNT(DISTINCT actor_hash) AS n FROM platform_active_users_daily "  # nosec B608  # extra is the fixed "AND organization_id = ?" from _org_sql; values are bound
                                                              f"WHERE day >= ? AND day < ?{extra} GROUP BY day",
                               [day_key(start), day_key(end), *params])}
 

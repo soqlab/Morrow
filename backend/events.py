@@ -452,11 +452,15 @@ def _post_json(
     - For 2xx responses, we still read up to max_read_bytes so we can capture a snippet for debugging.
     - For non-2xx responses urllib raises HTTPError; callers should handle it and can still read the body.
     """
+    # Webhook URLs are user-configured, and the response excerpt is stored: a file:// URL would
+    # read a local file into the delivery log. Only http(s) is ever opened.
+    if not str(url).lower().startswith(("https://", "http://")):
+        raise ValueError("webhook URL must be http(s)")
     headers = {"Content-Type": "application/json", "X-Morrow-Event": event_type}
     if secret:
         headers["X-Morrow-Signature"] = _hmac_sig(secret, body)
     req = request.Request(url, data=body, headers=headers, method="POST")
-    with request.urlopen(req, timeout=timeout_s) as resp:
+    with request.urlopen(req, timeout=timeout_s) as resp:  # nosec B310  # scheme checked to http/https above
         code = int(getattr(resp, "status", 200) or 200)
         excerpt = ""
         try:

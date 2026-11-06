@@ -37,7 +37,7 @@ def _github_api(method: str, url: str, token: str, timeout_s: int = 30) -> Dict[
     }
     req = urllib.request.Request(url=url, method=method.upper(), headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:  # nosec B310  # only caller passes a fixed https://api.github.com URL
             raw = resp.read().decode("utf-8", errors="replace")
             try:
                 payload = json.loads(raw) if raw else {}

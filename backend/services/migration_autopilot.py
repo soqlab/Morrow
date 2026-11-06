@@ -226,7 +226,7 @@ def create_github_pr(
         req = urllib.request.Request(f"{api}{path}", data=data,
                                      headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310  # fixed https://api.github.com base; only the path varies
                 return json.loads(resp.read())
         except urllib.error.HTTPError as e:
             raise RuntimeError(f"GitHub API {e.code}: {e.read().decode()[:300]}")
@@ -319,6 +319,8 @@ def create_jira_issue(
         }
     }
 
+    if not str(jira_url).lower().startswith(("https://", "http://")):
+        raise ValueError("Jira URL must be http(s)")
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
         f"{jira_url.rstrip('/')}/rest/api/3/issue",
@@ -331,7 +333,7 @@ def create_jira_issue(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310  # Jira URL scheme checked to http/https above
             result = json.loads(resp.read())
         issue_key = result.get("key", "")
         return {

@@ -145,7 +145,7 @@ def _geoip(ip: str) -> Dict[str, str]:
     try:
         url = f"http://ip-api.com/json/{ip}?fields=country,countryCode,org,isp,query"
         req = urllib.request.Request(url, headers={"User-Agent": "Morrow/1.0"})
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=4) as resp:  # nosec B310  # fixed http://ip-api.com URL; only the IP path segment varies
             data = json.loads(resp.read().decode())
         if data.get("status") == "fail":
             return {}
@@ -605,13 +605,16 @@ def fire_canary_slack_alert(canary: Dict[str, Any]) -> None:
 
     try:
         import urllib.request as _ur
+        import urllib.parse as _up
+        if _up.urlsplit(webhook_url).scheme.lower() not in ("http", "https"):
+            raise ValueError("Slack webhook URL must be http(s)")
         data = json.dumps(payload).encode()
         req  = _ur.Request(
             webhook_url, data=data,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        _ur.urlopen(req, timeout=8)
+        _ur.urlopen(req, timeout=8)  # nosec B310  # webhook URL scheme checked to http/https above
         mark_slack_alerted(canary.get("beacon_token", ""))
     except Exception:
         pass

@@ -390,7 +390,7 @@ def get_session(session_id: str) -> Optional[Dict[str, Any]]:
         return None
     init_tables()
     with feature_conn() as conn:
-        row = conn.execute(f"SELECT {_SESSION_COLUMNS} FROM platform_support_sessions WHERE id = ?", (sid,)).fetchone()
+        row = conn.execute(f"SELECT {_SESSION_COLUMNS} FROM platform_support_sessions WHERE id = ?", (sid,)).fetchone()  # nosec B608  # _SESSION_COLUMNS is a module constant; session id is bound
     return dict(row) if row else None
 
 
@@ -432,7 +432,7 @@ def list_sessions(organization_id: str = "", active: Optional[bool] = None, limi
     params.append(max(1, min(int(limit or 200), 1000)))
     with feature_conn() as conn:
         rows = conn.execute(
-            f"SELECT {_SESSION_COLUMNS} FROM platform_support_sessions{where} ORDER BY created_at DESC LIMIT ?",
+            f"SELECT {_SESSION_COLUMNS} FROM platform_support_sessions{where} ORDER BY created_at DESC LIMIT ?",  # nosec B608  # columns are a module constant, where joins fixed filter literals; values are bound
             tuple(params),
         ).fetchall()
     return [public_session(dict(r)) for r in rows]
@@ -555,7 +555,7 @@ def finalize_expired(organization_id: str = "") -> int:
         clause, params = " AND organization_id = ?", [now, str(organization_id)]
     with feature_conn() as conn:
         rows = conn.execute(
-            f"SELECT {_SESSION_COLUMNS} FROM platform_support_sessions "
+            f"SELECT {_SESSION_COLUMNS} FROM platform_support_sessions "  # nosec B608  # columns are a module constant, clause is empty or a fixed org filter; values are bound
             "WHERE revoked_at = '' AND ended_recorded = 0 AND expires_at <= ?" + clause + " LIMIT 100",
             tuple(params),
         ).fetchall()
@@ -619,7 +619,7 @@ def create_session(*, organization_id: str, operator_id: str, operator_role: str
     }
     with feature_conn() as conn:
         conn.execute(
-            f"INSERT INTO platform_support_sessions ({_SESSION_COLUMNS}) VALUES ({', '.join(['?'] * 18)})",
+            f"INSERT INTO platform_support_sessions ({_SESSION_COLUMNS}) VALUES ({', '.join(['?'] * 18)})",  # nosec B608  # columns are a module constant with fixed placeholders; values are bound
             tuple(row[c.strip()] for c in _SESSION_COLUMNS.split(",")),
         )
         conn.execute(
@@ -764,10 +764,10 @@ def customer_request_history(organization_id: str, session_ids: List[str],
     marks = ", ".join("?" for _ in ids)
     with feature_conn() as conn:
         totals = conn.execute(
-            f"SELECT session_id, COUNT(*) FROM platform_support_requests WHERE organization_id = ? AND session_id IN ({marks}) "
+            f"SELECT session_id, COUNT(*) FROM platform_support_requests WHERE organization_id = ? AND session_id IN ({marks}) "  # nosec B608  # marks is only "?" placeholders; org and session ids are bound
             "GROUP BY session_id", (org, *ids)).fetchall()
         rows = conn.execute(
-            f"SELECT session_id, path, created_at FROM platform_support_requests WHERE organization_id = ? AND session_id IN ({marks}) "
+            f"SELECT session_id, path, created_at FROM platform_support_requests WHERE organization_id = ? AND session_id IN ({marks}) "  # nosec B608  # marks is only "?" placeholders; org and session ids are bound
             "ORDER BY created_at ASC, id ASC", (org, *ids)).fetchall()
     for sid, total in totals:
         out[str(sid)]["total"] = int(total or 0)

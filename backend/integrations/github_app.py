@@ -45,7 +45,7 @@ def _github_api(
 
     req = urllib.request.Request(url=url, data=data, method=method.upper(), headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:  # nosec B310  # every caller passes a fixed https://api.github.com URL
             raw = resp.read().decode("utf-8", errors="replace")
             try:
                 payload = json.loads(raw) if raw else {}

@@ -227,10 +227,10 @@ def build_rls_sql(*, app_role: str = "morrow_app", tables: List[str] | None = No
         "-- Fail fast if the application role is missing or can bypass RLS, before altering anything.",
         "DO $$",
         "BEGIN",
-        f"  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = {_lit(app_role)}) THEN",
+        f"  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = {_lit(app_role)}) THEN",  # nosec B608  # app_role passed quote_ident's identifier check above and is escaped by _lit
         f"    RAISE EXCEPTION 'application role %s does not exist; create it before applying RLS', {_lit(app_role)};",
         "  END IF;",
-        f"  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = {_lit(app_role)} AND (rolsuper OR rolbypassrls)) THEN",
+        f"  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = {_lit(app_role)} AND (rolsuper OR rolbypassrls)) THEN",  # nosec B608  # app_role passed quote_ident's identifier check above and is escaped by _lit
         f"    RAISE EXCEPTION 'application role %s is SUPERUSER or has BYPASSRLS; RLS policies would be inert', {_lit(app_role)};",
         "  END IF;",
         "END $$;",

@@ -769,7 +769,7 @@ def _set_item(org_id: str, item_id: str, **fields: Any) -> None:
     fields["updated_at"] = _now()
     cols = ", ".join(f"{k} = ?" for k in fields)
     with feature_conn() as conn:
-        conn.execute(f"UPDATE crypto_switch_items SET {cols} WHERE org_id = ? AND id = ?", (*fields.values(), org_id, item_id))
+        conn.execute(f"UPDATE crypto_switch_items SET {cols} WHERE org_id = ? AND id = ?", (*fields.values(), org_id, item_id))  # nosec B608  # column names are keyword names fixed at the _set_item call sites; values are bound
         conn.commit()
 
 

@@ -739,7 +739,7 @@ def _leaf_cert_facts(cert: x509.Certificate) -> Dict[str, Any]:
     try:
         from cryptography.hazmat.primitives import hashes as _hashes
         facts["cert_sha256"] = cert.fingerprint(_hashes.SHA256()).hex().upper()
-        facts["cert_sha1"] = cert.fingerprint(_hashes.SHA1()).hex().upper()
+        facts["cert_sha1"] = cert.fingerprint(_hashes.SHA1()).hex().upper()  # nosec B303  # SHA-1 thumbprint only to match certificate managers that index by it; not a security check
     except Exception:
         pass
     try:
@@ -875,11 +875,19 @@ def _probe_http_endpoint(url: str, timeout: float = 3.0, max_read: int = 4096) -
         out["method"] = method
         out["status_code"] = status
 
+    # The URL comes from the scanned certificate's AIA/CRL extensions, i.e. from the remote server.
+    # Only probe http(s): a file:// or other scheme must never be opened on the scanner host.
+    scheme = urllib.parse.urlsplit(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        out["error"] = f"unsupported URL scheme: {scheme or '(none)'}"
+        out["elapsed_ms"] = 0
+        return out
+
     try:
         # HEAD first (fast). Some responders reject HEAD (405), which still proves reachability.
         req = urllib.request.Request(url, method="HEAD")
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310  # scheme checked to http/https above
                 _mark_reachable("HEAD", getattr(resp, "status", None) or resp.getcode())
         except urllib.error.HTTPError as e:
             _mark_reachable("HEAD", getattr(e, "code", None))
@@ -888,7 +896,7 @@ def _probe_http_endpoint(url: str, timeout: float = 3.0, max_read: int = 4096) -
             # Fallback GET with Range to limit bytes.
             req = urllib.request.Request(url, method="GET", headers={"Range": f"bytes=0-{max_read-1}"})
             try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310  # scheme checked to http/https above
                     _mark_reachable("GET", getattr(resp, "status", None) or resp.getcode())
                     _ = resp.read(max_read)
             except urllib.error.HTTPError as e:

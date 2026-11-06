@@ -131,7 +131,7 @@ def list_feedback(
 
     with feature_conn() as conn:
         rows = conn.execute(
-            "SELECT id,organization_id,user_id,email,category,rating,message,page,"
+            "SELECT id,organization_id,user_id,email,category,rating,message,page,"  # nosec B608  # where joins only fixed "col = ?" literals; filter values are bound
             "user_agent,status,admin_note,created_at,updated_at FROM feedback"
             + where + " ORDER BY id DESC LIMIT ?",
             tuple(params),
@@ -157,7 +157,7 @@ def get_feedback(feedback_id: int, organization_id: str = "") -> Optional[Dict[s
         clause, params = " AND organization_id = ?", [ident, organization_id]
     with feature_conn() as conn:
         row = conn.execute(
-            "SELECT id,organization_id,user_id,email,category,rating,message,page,"
+            "SELECT id,organization_id,user_id,email,category,rating,message,page,"  # nosec B608  # clause is empty or the fixed " AND organization_id = ?"; values are bound
             "user_agent,status,admin_note,created_at,updated_at FROM feedback WHERE id = ?" + clause,
             tuple(params),
         ).fetchone()
@@ -198,21 +198,21 @@ def summary(organization_id: str = "") -> Dict[str, Any]:
 
     with feature_conn() as conn:
         total = int((conn.execute(
-            "SELECT COUNT(*) FROM feedback" + where, tuple(params)).fetchone() or [0])[0] or 0)
+            "SELECT COUNT(*) FROM feedback" + where, tuple(params)).fetchone() or [0])[0] or 0)  # nosec B608  # where is empty or the fixed " WHERE organization_id = ?"; org is bound
         by_status = {
             str(r[0]): int(r[1])
             for r in conn.execute(
-                "SELECT status, COUNT(*) FROM feedback" + where + " GROUP BY status",
+                "SELECT status, COUNT(*) FROM feedback" + where + " GROUP BY status",  # nosec B608  # where is empty or the fixed " WHERE organization_id = ?"; org is bound
                 tuple(params)).fetchall()
         }
         by_category = {
             str(r[0]): int(r[1])
             for r in conn.execute(
-                "SELECT category, COUNT(*) FROM feedback" + where + " GROUP BY category",
+                "SELECT category, COUNT(*) FROM feedback" + where + " GROUP BY category",  # nosec B608  # where is empty or the fixed " WHERE organization_id = ?"; org is bound
                 tuple(params)).fetchall()
         }
         rated = conn.execute(
-            "SELECT AVG(rating), COUNT(rating) FROM feedback"
+            "SELECT AVG(rating), COUNT(rating) FROM feedback"  # nosec B608  # where is empty or the fixed " WHERE organization_id = ?"; org is bound
             + (where + " AND" if where else " WHERE") + " rating IS NOT NULL",
             tuple(params),
         ).fetchone()

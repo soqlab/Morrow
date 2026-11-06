@@ -13,10 +13,17 @@ PagerDuty: Events API v2  — creates/resolves incidents in PagerDuty
 from __future__ import annotations
 
 import json
+import urllib.parse
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
+
+
+def _require_http_url(url: str) -> None:
+    """Webhook URLs are user-configured: refuse file:// and every scheme but http(s)."""
+    if urllib.parse.urlsplit(url).scheme.lower() not in ("http", "https"):
+        raise ValueError("webhook URL must be http(s)")
 
 
 # ── Teams ─────────────────────────────────────────────────────────────────────
@@ -99,6 +106,7 @@ def send_teams_alert(
     }
 
     try:
+        _require_http_url(webhook_url)
         data = json.dumps(payload).encode()
         req = urllib.request.Request(
             webhook_url,
@@ -106,7 +114,7 @@ def send_teams_alert(
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # webhook URL scheme checked to http/https above
             body = resp.read().decode()
         return {"ok": True, "status": resp.status, "body": body[:200]}
     except urllib.error.HTTPError as e:
@@ -186,7 +194,7 @@ def send_pagerduty_alert(
             headers={"Content-Type": "application/json", "Accept": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # fixed https PagerDuty Events API URL
             body = json.loads(resp.read().decode())
         return {"ok": True, "status": resp.status, "dedup_key": body.get("dedup_key", ""),
                 "message": body.get("message", ""), "body": body}
@@ -214,7 +222,7 @@ def resolve_pagerduty_incident(routing_key: str, dedup_key: str) -> Dict[str, An
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # fixed https PagerDuty Events API URL
             body = json.loads(resp.read().decode())
         return {"ok": True, "resolved": True, "body": body}
     except Exception as ex:
@@ -265,8 +273,9 @@ def fire_alert(
                 fields = [{"type": "mrkdwn", "text": f"*{f['name']}*\n{f['value']}"} for f in facts[:10]]
                 _blocks.append({"type": "section", "fields": fields[:10]})
             _payload = _json.dumps({"text": title, "blocks": _blocks}).encode()
+            _require_http_url(slack_webhook)
             _req = _ur.Request(slack_webhook, data=_payload, headers={"Content-Type": "application/json"})
-            with _ur.urlopen(_req, timeout=8) as r:
+            with _ur.urlopen(_req, timeout=8) as r:  # nosec B310  # webhook URL scheme checked to http/https above
                 results["channels"]["slack"] = {"ok": True, "status": r.status}
         except Exception as ex:
             results["channels"]["slack"] = {"ok": False, "error": str(ex)[:100]}

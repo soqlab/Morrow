@@ -23,10 +23,17 @@ import base64
 import hashlib
 import json
 import re
+import urllib.parse
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+
+def _require_http_url(url: str) -> None:
+    """Vault addresses are user-supplied: refuse file:// and every scheme but http(s)."""
+    if urllib.parse.urlsplit(url).scheme.lower() not in ("http", "https"):
+        raise ValueError("vault URL must be http(s)")
 
 
 # ── Quantum vulnerability assessment ─────────────────────────────────────────
@@ -159,8 +166,9 @@ def scan_vault(
     def _vault_request(path: str) -> Optional[Any]:
         url = f"{vault_addr}/v1/{path}"
         try:
+            _require_http_url(url)
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # scheme checked to http/https above
                 return json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             if e.code not in (403, 404):
@@ -430,7 +438,7 @@ def scan_azure_key_vault(
         try:
             req = urllib.request.Request(token_url, data=body,
                                          headers={"Content-Type": "application/x-www-form-urlencoded"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # fixed https://login.microsoftonline.com URL
                 return json.loads(resp.read().decode()).get("access_token")
         except Exception as e:
             errors.append(f"Azure token error: {str(e)[:80]}")
@@ -448,8 +456,9 @@ def scan_azure_key_vault(
     def _az_get(path: str) -> Optional[Any]:
         url = f"{vault_url}/{path}?api-version=7.4"
         try:
+            _require_http_url(url)
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # scheme checked to http/https above
                 return json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             if e.code not in (403, 404):

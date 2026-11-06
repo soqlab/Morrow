@@ -190,7 +190,7 @@ def get_token(token_id: str, organization_id: str) -> Optional[Dict[str, Any]]:
     init_tables()
     with feature_conn() as conn:
         row = conn.execute(
-            f"SELECT {_TOKEN_COLUMNS} FROM passive_ingest_tokens WHERE id = ? AND organization_id = ?",
+            f"SELECT {_TOKEN_COLUMNS} FROM passive_ingest_tokens WHERE id = ? AND organization_id = ?",  # nosec B608  # _TOKEN_COLUMNS is a module constant; values are bound
             (str(token_id or ""), str(organization_id or "")),
         ).fetchone()
     return _public_token(row) if row else None
@@ -200,7 +200,7 @@ def list_tokens(organization_id: str) -> List[Dict[str, Any]]:
     init_tables()
     with feature_conn() as conn:
         rows = conn.execute(
-            f"SELECT {_TOKEN_COLUMNS} FROM passive_ingest_tokens WHERE organization_id = ? ORDER BY created_at DESC LIMIT 500",
+            f"SELECT {_TOKEN_COLUMNS} FROM passive_ingest_tokens WHERE organization_id = ? ORDER BY created_at DESC LIMIT 500",  # nosec B608  # _TOKEN_COLUMNS is a module constant; values are bound
             (str(organization_id or ""),),
         ).fetchall()
     return [_public_token(r) for r in rows]
@@ -448,11 +448,11 @@ def list_endpoints(organization_id: str, host: str = "", limit: int = 500) -> Li
     with feature_conn() as conn:
         if host:
             rows = conn.execute(
-                f"SELECT {_ENDPOINT_COLUMNS} FROM passive_tls_endpoints WHERE organization_id = ? AND host = ? "
+                f"SELECT {_ENDPOINT_COLUMNS} FROM passive_tls_endpoints WHERE organization_id = ? AND host = ? "  # nosec B608  # _ENDPOINT_COLUMNS is a module constant; values are bound
                 "ORDER BY last_seen DESC LIMIT ?", (str(organization_id), str(host).lower(), lim)).fetchall()
         else:
             rows = conn.execute(
-                f"SELECT {_ENDPOINT_COLUMNS} FROM passive_tls_endpoints WHERE organization_id = ? "
+                f"SELECT {_ENDPOINT_COLUMNS} FROM passive_tls_endpoints WHERE organization_id = ? "  # nosec B608  # _ENDPOINT_COLUMNS is a module constant; values are bound
                 "ORDER BY last_seen DESC LIMIT ?", (str(organization_id), lim)).fetchall()
     return [_endpoint(r) for r in rows]
 

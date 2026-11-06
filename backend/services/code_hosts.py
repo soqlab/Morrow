@@ -256,7 +256,7 @@ def _http(method: str, url: str, headers: Dict[str, str], body: Any = None, form
     want_text = raw
     req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:  # nosec B310  # URLs are fixed https SaaS APIs or a base_url stored only after normalize_base_url forced https
             body_bytes = resp.read()
             status = resp.status
     except urllib.error.HTTPError as exc:

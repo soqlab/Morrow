@@ -42,14 +42,22 @@ def _gh_headers(token: str) -> Dict[str, str]:
     }
 
 
+def _gh_url(path: str) -> str:
+    """API path -> URL. Absolute URLs are accepted only with an http(s) scheme."""
+    url = f"{_GH_API}{path}" if path.startswith("/") else path
+    if not url.lower().startswith(("https://", "http://")):
+        raise ValueError("GitHub API URL must be http(s)")
+    return url
+
+
 def _gh_get(path: str, token: str, accept: str = "") -> Any:
     hdrs = _gh_headers(token)
     if accept:
         hdrs["Accept"] = accept
-    url = f"{_GH_API}{path}" if path.startswith("/") else path
+    url = _gh_url(path)
     req = urllib.request.Request(url, headers=hdrs)
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:  # nosec B310  # _gh_url allows only http(s) URLs
             ct = r.headers.get("Content-Type","")
             body = r.read()
             return json.loads(body) if "json" in ct else body.decode(errors="replace")
@@ -61,11 +69,11 @@ def _gh_get(path: str, token: str, accept: str = "") -> Any:
 
 
 def _gh_post(path: str, token: str, payload: Dict[str, Any]) -> Any:
-    url = f"{_GH_API}{path}" if path.startswith("/") else path
+    url = _gh_url(path)
     data = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=data, headers=_gh_headers(token), method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:  # nosec B310  # _gh_url allows only http(s) URLs
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         body = ""
@@ -75,11 +83,11 @@ def _gh_post(path: str, token: str, payload: Dict[str, Any]) -> Any:
 
 
 def _gh_patch(path: str, token: str, payload: Dict[str, Any]) -> Any:
-    url = f"{_GH_API}{path}" if path.startswith("/") else path
+    url = _gh_url(path)
     data = json.dumps(payload).encode()
     req = urllib.request.Request(url, data=data, headers=_gh_headers(token), method="PATCH")
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with urllib.request.urlopen(req, timeout=15) as r:  # nosec B310  # _gh_url allows only http(s) URLs
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         body = ""

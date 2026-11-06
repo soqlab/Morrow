@@ -649,8 +649,8 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
             params.append(until)
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
         select = (f"SELECT id, organization_id, action, actor_id, reason, details_json, created_at FROM platform_admin_events "
-                  f"{where} ORDER BY created_at DESC, id DESC LIMIT {ph} OFFSET {ph}")
-        count_sql = f"SELECT COUNT(*) FROM platform_admin_events {where}"
+                  f"{where} ORDER BY created_at DESC, id DESC LIMIT {ph} OFFSET {ph}")  # nosec B608  # WHERE uses fixed columns and dialect placeholders; filter values are bound
+        count_sql = f"SELECT COUNT(*) FROM platform_admin_events {where}"  # nosec B608  # WHERE uses fixed columns and dialect placeholders; filter values are bound
         if pg:
             from psycopg2.extras import RealDictCursor
 

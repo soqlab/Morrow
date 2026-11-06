@@ -182,7 +182,7 @@ def update_policy(conn: sqlite3.Connection, policy_id: str, org_id: str,
     if enabled is not None: sets.append("enabled=?"); vals.append(1 if enabled else 0)
     sets.append("updated_at=?"); vals.append(now)
     vals.extend([policy_id, org_id])
-    conn.execute(f"UPDATE morrow_policies SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)
+    conn.execute(f"UPDATE morrow_policies SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)  # nosec B608  # sets holds only literal "col=?" strings; values are bound
     conn.commit()
     return get_policy(conn, policy_id)
 

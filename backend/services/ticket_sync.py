@@ -270,7 +270,7 @@ def _note_rejection(org_id: str, provider: str, column: str, reason: str) -> Non
         with closing(_connect()) as conn:
             conn.execute(
                 f"""UPDATE ticket_sync_settings SET {column}={column}+1, last_rejected_at=?, last_rejected_reason=?
-                    WHERE organization_id=? AND provider=?""",
+                    WHERE organization_id=? AND provider=?""",  # nosec B608  # column is allowlisted to two counter names above; values are bound
                 (_now_iso(), reason[:200], org_id, provider),
             )
             conn.commit()
@@ -517,7 +517,7 @@ def _find_link(conn: sqlite3.Connection, org_id: str, provider: str, keys: List[
         f"""SELECT id, ticket_id, ticket_url, finding_ref, finding_type FROM auto_tickets
             WHERE organization_id=? AND provider=? AND finding_type='remediation'
               AND (ticket_id IN ({marks}) OR (external_id <> '' AND external_id IN ({marks})))
-            ORDER BY id DESC LIMIT 1""",
+            ORDER BY id DESC LIMIT 1""",  # nosec B608  # only ? placeholder lists are interpolated; keys are bound
         (org_id, provider, *keys, *keys),
     ).fetchone()
 
@@ -778,8 +778,14 @@ def poll_globally_enabled() -> bool:
     return str(os.getenv("MORROW_TICKET_SYNC_POLL", "") or "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def _require_http_url(url: str) -> None:
+    if urllib.parse.urlsplit(str(url or "")).scheme.lower() not in ("http", "https"):
+        raise TicketSyncError(400, "ticket system URL refused: it must use http or https")
+
+
 def _check_poll_url(url: str) -> str:
     if str(os.getenv("MORROW_TICKET_SYNC_ALLOW_PRIVATE_HOSTS", "")).strip().lower() in ("1", "true", "yes"):
+        _require_http_url(url)
         return url
     from services.alert_routing import AlertRoutingError, validate_webhook_url
 
@@ -790,8 +796,9 @@ def _check_poll_url(url: str) -> str:
 
 
 def _http_get_json(url: str, headers: Dict[str, str], timeout: int = 15) -> Dict[str, Any]:
+    _require_http_url(url)
     req = urllib.request.Request(url, headers=headers, method="GET")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - URL validated by _check_poll_url
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310  # nosec B310  # scheme checked to be http/https just above
         return json.loads(resp.read(MAX_BODY_BYTES).decode("utf-8") or "{}")
 
 
@@ -846,7 +853,7 @@ def poll_org(org_id: str, *, fetch: Callable = _http_get_json, limit: int = 200,
         links = conn.execute(
             f"""SELECT a.provider, a.ticket_id, a.external_id, a.finding_ref FROM auto_tickets a
                 WHERE a.organization_id=? AND a.finding_type='remediation' AND a.provider IN ({marks})
-                ORDER BY a.id DESC LIMIT ?""",
+                ORDER BY a.id DESC LIMIT ?""",  # nosec B608  # only a ? placeholder list is interpolated; providers are bound
             (org_id, *providers, int(limit)),
         ).fetchall() if providers else []
     token = db.set_current_organization_id(org_id)

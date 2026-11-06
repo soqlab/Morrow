@@ -226,7 +226,7 @@ def create_key(
 def get_key(key_id: str) -> Optional[Dict[str, Any]]:
     init_tables()
     with feature_conn() as conn:
-        row = conn.execute(f"SELECT {_COLUMNS} FROM platform_api_keys WHERE id = ?", (str(key_id or ""),)).fetchone()
+        row = conn.execute(f"SELECT {_COLUMNS} FROM platform_api_keys WHERE id = ?", (str(key_id or ""),)).fetchone()  # nosec B608  # _COLUMNS is a module constant; key id is bound
     return _public(row) if row else None
 
 
@@ -236,12 +236,12 @@ def list_keys(organization_id: str = "", status: str = "", limit: int = 500) -> 
     with feature_conn() as conn:
         if organization_id:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM platform_api_keys WHERE organization_id = ? ORDER BY created_at DESC LIMIT ?",
+                f"SELECT {_COLUMNS} FROM platform_api_keys WHERE organization_id = ? ORDER BY created_at DESC LIMIT ?",  # nosec B608  # _COLUMNS is a module constant; org and limit are bound
                 (str(organization_id), lim),
             ).fetchall()
         else:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM platform_api_keys ORDER BY created_at DESC LIMIT ?", (lim,)
+                f"SELECT {_COLUMNS} FROM platform_api_keys ORDER BY created_at DESC LIMIT ?", (lim,)  # nosec B608  # _COLUMNS is a module constant; limit is bound
             ).fetchall()
     items = [_public(r) for r in rows]
     wanted = str(status or "").strip().lower()
@@ -361,7 +361,7 @@ def verify_token(token: str) -> Tuple[Optional[Dict[str, Any]], str, int]:
             with platform_scope("api-key verification: key lookup precedes tenant identity"):
                 with feature_conn() as conn:
                     row = conn.execute(
-                        f"SELECT {_COLUMNS} FROM platform_api_keys WHERE prefix = ?", (match.group(1),)
+                        f"SELECT {_COLUMNS} FROM platform_api_keys WHERE prefix = ?", (match.group(1),)  # nosec B608  # _COLUMNS is a module constant; key prefix is bound
                     ).fetchone()
         except Exception as exc:
             logger.warning("[api-keys] verification storage unavailable: %s", exc.__class__.__name__)

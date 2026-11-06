@@ -153,9 +153,9 @@ def set_user_organization(db, user_id: str, org_id: str, role: str = "", email: 
         return False
     where, args = ("id=?", [uid]) if uid else ("email=?", [address])
     if role:
-        cur = db.execute(f"UPDATE morrow_users SET org_id=?, role=? WHERE {where}", (org, role, *args))
+        cur = db.execute(f"UPDATE morrow_users SET org_id=?, role=? WHERE {where}", (org, role, *args))  # nosec B608  # where is the literal "id=?" or "email=?"; values are bound
     else:
-        cur = db.execute(f"UPDATE morrow_users SET org_id=? WHERE {where}", (org, *args))
+        cur = db.execute(f"UPDATE morrow_users SET org_id=? WHERE {where}", (org, *args))  # nosec B608  # where is the literal "id=?" or "email=?"; values are bound
     if cur.rowcount == 0 and address and uid:
         if role:
             cur = db.execute("UPDATE morrow_users SET org_id=?, role=? WHERE email=?", (org, role, address))
@@ -309,7 +309,7 @@ def list_refresh_sessions(db, org_id: str = "", user_id: str = "", limit: int = 
         params.append(user_id)
     params.append(max(1, min(int(limit or 200), 1000)))
     rows = db.execute(
-        "SELECT t.token_hash, t.user_id, t.created_at, t.expires_at, u.email, u.org_id, u.role, u.is_active "
+        "SELECT t.token_hash, t.user_id, t.created_at, t.expires_at, u.email, u.org_id, u.role, u.is_active "  # nosec B608  # clauses are literal "col = ?" strings; values are bound
         "FROM morrow_refresh_tokens t LEFT JOIN morrow_users u ON u.id = t.user_id WHERE "
         + " AND ".join(clauses) + " ORDER BY t.created_at DESC LIMIT ?",
         tuple(params),

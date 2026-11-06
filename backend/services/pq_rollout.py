@@ -344,9 +344,11 @@ def _prometheus_get(base_url: str, query: str, token: str) -> Dict[str, Any]:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     if code_hosts.private_servers_allowed():
+        if parts.scheme.lower() not in ("http", "https"):
+            raise MetricsError("The Prometheus address must use https.")
         req = urllib.request.Request(base_url.rstrip("/") + suffix, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # scheme checked to be http/https just above
                 status, body = resp.status, resp.read(262144)
         except Exception as exc:
             raise MetricsError(f"Prometheus could not be reached ({exc.__class__.__name__}).") from None
@@ -494,7 +496,7 @@ def _update(org_id: str, rollout: Dict[str, Any], actor: str, action: str, detai
             fields[f"{key}_json"] = json.dumps(fields.pop(key))
     cols = ", ".join(f"{k} = ?" for k in fields)
     with feature_conn() as conn:
-        conn.execute(f"UPDATE pq_rollouts SET {cols} WHERE org_id = ? AND id = ?", (*fields.values(), org_id, rollout["id"]))
+        conn.execute(f"UPDATE pq_rollouts SET {cols} WHERE org_id = ? AND id = ?", (*fields.values(), org_id, rollout["id"]))  # nosec B608  # column names are keyword names fixed at the _update call sites; values are bound
         conn.commit()
         return _load(conn, org_id, rollout["id"])
 

@@ -23,6 +23,8 @@ DEFAULT_ORG_ID = (
     os.environ.get("MORROW_DEFAULT_ORG_ID", "00000000-0000-0000-0000-000000000001").strip()
     or "00000000-0000-0000-0000-000000000001"
 )
+# DEFAULT_ORG_ID as a quoted SQL string literal for the schema backfills below (a ' in the env value is doubled).
+_DEFAULT_ORG_ID_SQL = "'" + DEFAULT_ORG_ID.replace("'", "''") + "'"
 _SCHEMA_READY_LOCK = threading.Lock()
 _SCHEMA_READY: set[str] = set()
 logger = logging.getLogger(__name__)
@@ -589,7 +591,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     )
     """,
     "ALTER TABLE scans ADD COLUMN IF NOT EXISTS organization_id TEXT NOT NULL DEFAULT ''",
-    f"UPDATE scans SET organization_id='{DEFAULT_ORG_ID}' WHERE organization_id=''",
+    f"UPDATE scans SET organization_id={_DEFAULT_ORG_ID_SQL} WHERE organization_id=''",  # nosec B608  # constant table name; the value is the operator's default org id, quote-escaped above
     "CREATE INDEX IF NOT EXISTS idx_scans_org ON scans(organization_id)",
     # pg_list_scan_rows is "WHERE organization_id = %s ORDER BY created_at DESC LIMIT %s"; the
     # single-column index above leaves Postgres to sort every one of the tenant's scans on every
@@ -863,7 +865,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     )
     """,
     "ALTER TABLE webhooks ADD COLUMN IF NOT EXISTS organization_id TEXT NOT NULL DEFAULT ''",
-    f"UPDATE webhooks SET organization_id='{DEFAULT_ORG_ID}' WHERE organization_id=''",
+    f"UPDATE webhooks SET organization_id={_DEFAULT_ORG_ID_SQL} WHERE organization_id=''",  # nosec B608  # constant table name; the value is the operator's default org id, quote-escaped above
     "ALTER TABLE webhooks DROP CONSTRAINT IF EXISTS webhooks_name_key",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_webhooks_org_name_unique ON webhooks(organization_id, name)",
     "CREATE INDEX IF NOT EXISTS idx_webhooks_org ON webhooks(organization_id)",
@@ -892,7 +894,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     )
     """,
     "ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS organization_id TEXT NOT NULL DEFAULT ''",
-    f"UPDATE webhook_events SET organization_id='{DEFAULT_ORG_ID}' WHERE organization_id=''",
+    f"UPDATE webhook_events SET organization_id={_DEFAULT_ORG_ID_SQL} WHERE organization_id=''",  # nosec B608  # constant table name; the value is the operator's default org id, quote-escaped above
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_events_org_webhook_dedupe_unique ON webhook_events(organization_id, webhook_id, dedupe_key)",
     "CREATE INDEX IF NOT EXISTS idx_webhook_events_org ON webhook_events(organization_id)",
     "CREATE INDEX IF NOT EXISTS idx_webhook_events_created ON webhook_events(created_at)",
@@ -910,7 +912,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     )
     """,
     "ALTER TABLE collections ADD COLUMN IF NOT EXISTS organization_id TEXT NOT NULL DEFAULT ''",
-    f"UPDATE collections SET organization_id='{DEFAULT_ORG_ID}' WHERE organization_id=''",
+    f"UPDATE collections SET organization_id={_DEFAULT_ORG_ID_SQL} WHERE organization_id=''",  # nosec B608  # constant table name; the value is the operator's default org id, quote-escaped above
     "CREATE INDEX IF NOT EXISTS idx_collections_org ON collections(organization_id)",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_collections_org_name_unique ON collections(organization_id, name)",
     "CREATE INDEX IF NOT EXISTS idx_collections_name ON collections(name)",
@@ -929,7 +931,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     )
     """,
     "ALTER TABLE schedules ADD COLUMN IF NOT EXISTS organization_id TEXT NOT NULL DEFAULT ''",
-    f"UPDATE schedules SET organization_id='{DEFAULT_ORG_ID}' WHERE organization_id=''",
+    f"UPDATE schedules SET organization_id={_DEFAULT_ORG_ID_SQL} WHERE organization_id=''",  # nosec B608  # constant table name; the value is the operator's default org id, quote-escaped above
     "CREATE INDEX IF NOT EXISTS idx_schedules_org ON schedules(organization_id)",
     "CREATE INDEX IF NOT EXISTS idx_schedules_next_run ON schedules(next_run_at)",
     "CREATE INDEX IF NOT EXISTS idx_schedules_collection ON schedules(collection_id)",
@@ -961,7 +963,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     )
     """,
     "ALTER TABLE event_rules ADD COLUMN IF NOT EXISTS organization_id TEXT NOT NULL DEFAULT ''",
-    f"UPDATE event_rules SET organization_id='{DEFAULT_ORG_ID}' WHERE organization_id=''",
+    f"UPDATE event_rules SET organization_id={_DEFAULT_ORG_ID_SQL} WHERE organization_id=''",  # nosec B608  # constant table name; the value is the operator's default org id, quote-escaped above
     "CREATE INDEX IF NOT EXISTS idx_event_rules_org ON event_rules(organization_id)",
     "CREATE INDEX IF NOT EXISTS idx_event_rules_enabled ON event_rules(enabled)",
     """
@@ -974,7 +976,7 @@ POSTGRES_CORE_SCHEMA_SQL: Sequence[str] = (
     )
     """,
     "ALTER TABLE event_rule_fires ADD COLUMN IF NOT EXISTS organization_id TEXT NOT NULL DEFAULT ''",
-    f"UPDATE event_rule_fires SET organization_id='{DEFAULT_ORG_ID}' WHERE organization_id=''",
+    f"UPDATE event_rule_fires SET organization_id={_DEFAULT_ORG_ID_SQL} WHERE organization_id=''",  # nosec B608  # constant table name; the value is the operator's default org id, quote-escaped above
     "CREATE INDEX IF NOT EXISTS idx_event_rule_fires_rule ON event_rule_fires(rule_id)",
 )
 
@@ -1449,7 +1451,7 @@ def pg_delete_organization(org_id: str, mode: str = "archive", dsn: Optional[str
                 )
                 if not cur.fetchone():
                     continue
-                cur.execute(f"DELETE FROM {table} WHERE organization_id = %s", (oid,))
+                cur.execute(f"DELETE FROM {table} WHERE organization_id = %s", (oid,))  # nosec B608  # table comes from the fixed tables list above; the org id is bound
                 counts[table] = int(cur.rowcount or 0)
             cur.execute("DELETE FROM organizations WHERE id = %s", (oid,))
             counts["organizations"] = int(cur.rowcount or 0)
@@ -1821,7 +1823,7 @@ def pg_list_assets(
         WHERE {' AND '.join(clauses)}
         ORDER BY a.updated_at DESC, a.asset_key DESC
         LIMIT %s
-    """
+    """  # nosec B608  # joins and WHERE clauses are fixed strings chosen in code; every filter value is bound
     with pg_product_conn(dsn) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
@@ -2048,7 +2050,7 @@ def pg_latest_scan_facts_for_org(org_id: str, limit: int = 5000, dsn: Optional[s
                 ) newest{where}
                 ORDER BY scanned_at DESC
                 LIMIT %s
-                """,
+                """,  # nosec B608  # columns are the _SCAN_FACT_COLUMNS constant and where is fixed ILIKE text; org id, pattern and limit are bound
                 (str(org_id or "").strip() or DEFAULT_ORG_ID, *params,
                  max(1, min(int(limit or 5000), 50000))),
             )
@@ -2320,7 +2322,7 @@ def pg_update_scan_job(
     vals.extend([str(org_id or "").strip(), str(scan_id or "").strip()])
     with pg_product_conn(dsn) as conn:
         with conn.cursor() as cur:
-            cur.execute(f"UPDATE scans SET {', '.join(sets)} WHERE organization_id = %s AND id = %s", vals)
+            cur.execute(f"UPDATE scans SET {', '.join(sets)} WHERE organization_id = %s AND id = %s", vals)  # nosec B608  # SET items are fixed 'column = %s' strings; all values are bound
             if cur.rowcount == 0:
                 logger.warning("scan row missing during job update; inserting stub row for %s", scan_id)
                 _insert_scan_stub(
@@ -2647,7 +2649,7 @@ def pg_list_scan_results(
                 WHERE {where}
                 ORDER BY sr.quantum_score DESC, sr.findings_count DESC
                 LIMIT %s
-                """,
+                """,  # nosec B608  # WHERE is built from fixed clause strings; every filter value is bound
                 params,
             )
             return [_row_to_scan_result_dict(r) or {} for r in _fetchall_dicts(cur)]
@@ -2782,7 +2784,7 @@ def pg_list_validation_jobs(
         WHERE {' AND '.join(clauses)}
         ORDER BY created_at DESC, id DESC
         LIMIT %s
-    """
+    """  # nosec B608  # WHERE is built from fixed clause strings; every filter value is bound
     with pg_product_conn(dsn) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
@@ -2864,7 +2866,7 @@ def pg_update_validation_job(
     with pg_product_conn(dsn) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                f"UPDATE validation_jobs SET {', '.join(sets)} WHERE organization_id = %s AND id = %s",
+                f"UPDATE validation_jobs SET {', '.join(sets)} WHERE organization_id = %s AND id = %s",  # nosec B608  # SET items are fixed 'column = %s' strings; all values are bound
                 params,
             )
     return pg_get_validation_job(org_id, validation_job_id, dsn=dsn)
@@ -3051,7 +3053,7 @@ def pg_list_remediations(
         WHERE {' AND '.join(clauses)}
         ORDER BY created_at DESC, id DESC
         LIMIT %s
-    """
+    """  # nosec B608  # WHERE is built from fixed clause strings; every filter value is bound
     with pg_product_conn(dsn) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
@@ -3166,7 +3168,7 @@ def pg_list_migration_tasks(
         WHERE {' AND '.join(clauses)}
         ORDER BY created_at DESC, id DESC
         LIMIT %s
-    """
+    """  # nosec B608  # WHERE is built from fixed clause strings; every filter value is bound
     with pg_product_conn(dsn) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
@@ -3752,7 +3754,7 @@ def pg_list_audit_logs(
                 WHERE {' AND '.join(clauses)}
                 ORDER BY id DESC
                 LIMIT %s
-                """,
+                """,  # nosec B608  # WHERE is built from fixed clause strings; every filter value is bound
                 params,
             )
             rows = _fetchall_dicts(cur)
@@ -3874,7 +3876,7 @@ def pg_list_flight_recorder_events(
                 WHERE {' AND '.join(clauses)}
                 ORDER BY id DESC
                 LIMIT %s
-                """,
+                """,  # nosec B608  # WHERE column names are the fixed filters dict keys; every value is bound
                 params,
             )
             rows = _fetchall_dicts(cur)
@@ -4928,12 +4930,12 @@ def _build_upsert_sql(spec: TableSpec) -> str:
         target = ", ".join(spec.conflict_target)
         if spec.update_columns:
             updates = ", ".join(f"{col}=EXCLUDED.{col}" for col in spec.update_columns)
-            conflict_clause = f"ON CONFLICT ({target}) DO UPDATE SET {updates}"
+            conflict_clause = f"ON CONFLICT ({target}) DO UPDATE SET {updates}"  # nosec B608  # names come from the CORE_TABLE_SPECS constant
         else:
             conflict_clause = f"ON CONFLICT ({target}) DO NOTHING"
     else:
         conflict_clause = ""
-    return f"INSERT INTO {spec.name} ({cols}) VALUES %s {conflict_clause}"
+    return f"INSERT INTO {spec.name} ({cols}) VALUES %s {conflict_clause}"  # nosec B608  # table and column names come from the CORE_TABLE_SPECS constant; rows go in as bound values
 
 
 def _reset_sequence(cur, table: str, column: str) -> None:
@@ -4944,7 +4946,7 @@ def _reset_sequence(cur, table: str, column: str) -> None:
             GREATEST(COALESCE((SELECT MAX({column}) FROM {table}), 0), 1),
             true
         )
-        """,
+        """,  # nosec B608  # table and column come from CORE_TABLE_SPECS; also passed as bound parameters
         (table, column),
     )
 
@@ -4973,7 +4975,7 @@ def migrate_sqlite_core_to_postgres(
                     stats["tables"][spec.name] = {"copied": 0, "skipped": True}
                     continue
 
-                rows = src.execute(f"SELECT {', '.join(cols)} FROM {spec.name}").fetchall()
+                rows = src.execute(f"SELECT {', '.join(cols)} FROM {spec.name}").fetchall()  # nosec B608  # table and columns come from CORE_TABLE_SPECS, filtered to columns SQLite reports
                 if not rows:
                     stats["tables"][spec.name] = {"copied": 0, "skipped": False}
                     continue

@@ -800,7 +800,7 @@ def _exec_search_findings(org_id: str, host_pattern: str = "", algorithm: str = 
                 params.append(risk_level)
             params.append(min(limit, 50))
             rows = _rows(c.execute(
-                f"SELECT host, port, algorithm, tls_version, risk_level, pq_safe, "
+                f"SELECT host, port, algorithm, tls_version, risk_level, pq_safe, "  # nosec B608  # WHERE clauses are fixed "col LIKE ?" / "col=?" literals; search values are bound
                 f"cert_subject, cert_not_after, scanned_at "
                 f"FROM scan_results WHERE {' AND '.join(clauses)} "
                 f"ORDER BY scanned_at DESC LIMIT ?",
@@ -821,7 +821,7 @@ def _exec_list_remediations(org_id: str, status: str = "all", limit: int = 15) -
                 params.append(status)
             params.append(min(limit, 50))
             rows = _rows(c.execute(
-                f"SELECT id, title, status, priority, asset_key, algorithm, "
+                f"SELECT id, title, status, priority, asset_key, algorithm, "  # nosec B608  # clause is a fixed org/status filter literal; org_id and status are bound
                 f"assignee, due_date, created_at FROM remediations "
                 f"WHERE {clause} ORDER BY created_at DESC LIMIT ?",
                 params
@@ -861,7 +861,7 @@ def _exec_get_vendors(org_id: str, vendor_name: str = "", limit: int = 10) -> Li
                         params.append(f"%{vendor_name}%")
                     params.append(min(limit, 30))
                     rows = _rows(c.execute(
-                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?",
+                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?",  # nosec B608  # tbl from the fixed vendor table tuple, clause from _org_clause literals; values are bound
                         params
                     ).fetchall())
                     return rows
@@ -877,7 +877,7 @@ def _exec_get_policy_violations(org_id: str, limit: int = 20) -> List[Dict[str, 
             for tbl in ("policy_violations", "policy_events", "event_rules_log"):
                 if tbl in tables:
                     rows = _rows(c.execute(
-                        f"SELECT * FROM {tbl} WHERE {_org_clause(c, tbl)} "
+                        f"SELECT * FROM {tbl} WHERE {_org_clause(c, tbl)} "  # nosec B608  # tbl from the fixed policy table tuple, filter from _org_clause literals; values are bound
                         f"ORDER BY created_at DESC LIMIT ?",
                         (org_id, min(limit, 50))
                     ).fetchall())
@@ -924,7 +924,7 @@ def _exec_get_dev_requests(org_id: str, status: str = "all", limit: int = 15) ->
                 params.append(status)
             params.append(min(limit, 50))
             rows = _rows(c.execute(
-                f"SELECT id, title, finding_ref, team, priority, status, "
+                f"SELECT id, title, finding_ref, team, priority, status, "  # nosec B608  # clause is a fixed org/status filter literal; org_id and status are bound
                 f"created_at FROM dev_remediation_requests WHERE {clause} "
                 f"ORDER BY created_at DESC LIMIT ?",
                 params
@@ -1181,7 +1181,7 @@ def _gh(method: str, path: str, body: Any = None, _token: str = "") -> Any:
         "User-Agent": "pq-scout/1.0",
     })
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310  # URL always starts with the constant https://api.github.com base
             raw = resp.read().decode()
             return json.loads(raw) if raw.strip() else {}
     except urllib.error.HTTPError as e:
@@ -1514,7 +1514,7 @@ def _exec_get_telemetry(org_id: str, limit: int = 20, event_type: str = "") -> L
                         params.append(event_type)
                     params.append(min(limit, 50))
                     return _rows(c.execute(
-                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?", params
+                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?", params  # nosec B608  # tbl from the fixed telemetry table tuple, clause from _org_clause literals; values are bound
                     ).fetchall())
         return [{"info": "No telemetry events found."}]
     except Exception as exc:
@@ -1534,7 +1534,7 @@ def _exec_get_audit_log(org_id: str, limit: int = 20, user_filter: str = "") -> 
                         params.append(f"%{user_filter}%")
                     params.append(min(limit, 100))
                     return _rows(c.execute(
-                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?", params
+                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?", params  # nosec B608  # tbl from the fixed audit table tuple, clause is a fixed LIKE ? literal; filter is bound
                     ).fetchall())
         return [{"info": "Audit log not available."}]
     except Exception as exc:
@@ -1574,7 +1574,7 @@ def _exec_update_remediation(remediation_id: str, status: str = "", notes: str =
             return {"error": "No fields to update."}
         params.append(remediation_id)
         with _db() as c:
-            c.execute(f"UPDATE remediations SET {', '.join(updates)} WHERE id=?", params)
+            c.execute(f"UPDATE remediations SET {', '.join(updates)} WHERE id=?", params)  # nosec B608  # updates holds only fixed "status=?"/"notes=?"/"assignee=?" literals; values are bound
             c.commit()
         return {"id": remediation_id, "updated": updates, "status": status or "unchanged"}
     except Exception as exc:
@@ -1668,7 +1668,7 @@ def _exec_get_cloud_assets(org_id: str, provider: str = "all") -> List[Dict[str,
                         clause += " AND provider=?"
                         params.append(provider)
                     return _rows(c.execute(
-                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT 50", params
+                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT 50", params  # nosec B608  # tbl from the fixed cloud table tuple, clause from _org_clause literals; provider is bound
                     ).fetchall())
         return [{"info": "No cloud assets discovered yet. Run cloud discovery from the Infrastructure section."}]
     except Exception as exc:
@@ -1688,7 +1688,7 @@ def _exec_get_secret_findings(org_id: str, limit: int = 15, severity: str = "all
                         params.append(severity)
                     params.append(min(limit, 50))
                     return _rows(c.execute(
-                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?", params
+                        f"SELECT * FROM {tbl} WHERE {clause} ORDER BY created_at DESC LIMIT ?", params  # nosec B608  # tbl from the fixed secrets table tuple, clause from _org_clause literals; severity is bound
                     ).fetchall())
         return [{"info": "No secrets findings. Run a secrets scan from the Scanning section."}]
     except Exception as exc:

@@ -92,7 +92,7 @@ def default_policy():
 
 def _row(conn, org, lock=False):
     suffix = " FOR UPDATE" if lock and store.postgres_enabled() else ""
-    return conn.execute("SELECT * FROM ai_privacy_policy WHERE organization_id=?" + suffix, (org,)).fetchone()
+    return conn.execute("SELECT * FROM ai_privacy_policy WHERE organization_id=?" + suffix, (org,)).fetchone()  # nosec B608  # suffix is the literal " FOR UPDATE" or ""; org is bound
 
 
 def policy(org):

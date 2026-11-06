@@ -168,7 +168,7 @@ def update_org(
             return {"ok": True, "org_id": org_id, "changed": 0}
         updates["updated_at"] = _now()
         set_clause = ", ".join(f"{k}=?" for k in updates)
-        conn.execute(f"UPDATE admin_orgs SET {set_clause} WHERE id=?", (*updates.values(), org_id))
+        conn.execute(f"UPDATE admin_orgs SET {set_clause} WHERE id=?", (*updates.values(), org_id))  # nosec B608  # SET keys are the literal column names assigned above; values are bound
         _audit(conn, org_id, actor, "update_org", "org", org_id, json.dumps(updates))
         conn.commit()
     return {"ok": True, "org_id": org_id, "changed": len(updates)}
@@ -199,7 +199,7 @@ def list_orgs(status_filter: str = "", org_id: str = "") -> List[Dict[str, Any]]
         params.append(str(org_id))
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with feature_conn() as conn:
-        rows = conn.execute(f"SELECT * FROM admin_orgs{where} ORDER BY created_at DESC", tuple(params)).fetchall()
+        rows = conn.execute(f"SELECT * FROM admin_orgs{where} ORDER BY created_at DESC", tuple(params)).fetchall()  # nosec B608  # WHERE is built from fixed column conditions; values are bound
     return [dict(r) for r in rows]
 
 
@@ -456,18 +456,18 @@ def platform_overview(org_id: str = "") -> Dict[str, Any]:
     org_where, org_args = (" WHERE id=?", (scope,)) if scope else ("", ())
     tenant_where, tenant_args = (" WHERE org_id=?", (scope,)) if scope else ("", ())
     with feature_conn() as conn:
-        total_orgs   = conn.execute(f"SELECT COUNT(*) FROM admin_orgs{org_where}", org_args).fetchone()[0]
+        total_orgs   = conn.execute(f"SELECT COUNT(*) FROM admin_orgs{org_where}", org_args).fetchone()[0]  # nosec B608  # org_where is a constant " WHERE id=?" or ""; org id is bound
         active_orgs  = conn.execute(
-            "SELECT COUNT(*) FROM admin_orgs WHERE status='active'" + (" AND id=?" if scope else ""), org_args
+            "SELECT COUNT(*) FROM admin_orgs WHERE status='active'" + (" AND id=?" if scope else ""), org_args  # nosec B608  # only a constant " AND id=?" is appended; org id is bound
         ).fetchone()[0]
         total_users  = conn.execute(
-            "SELECT COUNT(*) FROM admin_users WHERE status='active'" + (" AND org_id=?" if scope else ""), org_args
+            "SELECT COUNT(*) FROM admin_users WHERE status='active'" + (" AND org_id=?" if scope else ""), org_args  # nosec B608  # only a constant " AND org_id=?" is appended; org id is bound
         ).fetchone()[0]
         total_invites= conn.execute(
-            "SELECT COUNT(*) FROM admin_invitations WHERE accepted=0" + (" AND org_id=?" if scope else ""), org_args
+            "SELECT COUNT(*) FROM admin_invitations WHERE accepted=0" + (" AND org_id=?" if scope else ""), org_args  # nosec B608  # only a constant " AND org_id=?" is appended; org id is bound
         ).fetchone()[0]
         by_plan = {}
-        for row in conn.execute(f"SELECT plan, COUNT(*) FROM admin_orgs{org_where} GROUP BY plan", org_args).fetchall():
+        for row in conn.execute(f"SELECT plan, COUNT(*) FROM admin_orgs{org_where} GROUP BY plan", org_args).fetchall():  # nosec B608  # org_where is a constant " WHERE id=?" or ""; org id is bound
             by_plan[row[0]] = row[1]
         try:
             if scope:
@@ -478,7 +478,7 @@ def platform_overview(org_id: str = "") -> Dict[str, Any]:
             total_scans = 0
         recent_audit = conn.execute(
             f"SELECT actor_email,action,target_type,target_id,created_at FROM admin_audit_log{tenant_where} "
-            "ORDER BY id DESC LIMIT 20", tenant_args
+            "ORDER BY id DESC LIMIT 20", tenant_args  # nosec B608  # tenant_where is a constant " WHERE org_id=?" or ""; org id is bound
         ).fetchall()
 
     return {

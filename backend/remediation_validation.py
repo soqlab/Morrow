@@ -92,7 +92,7 @@ def _github_api(method: str, url: str, token: str, body: Optional[Dict[str, Any]
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url=url, data=data, method=method.upper(), headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:  # nosec B310  # both callers pass a fixed https://api.github.com URL
             raw = resp.read()
             try:
                 payload = json.loads(raw.decode("utf-8")) if raw else {}
@@ -244,6 +244,7 @@ def _run_docker_terraform_command(repo_root: str, work_dir: str, terraform_args:
 
     rel_work = os.path.relpath(work_dir, repo_root).replace("\\", "/")
     container_workdir = "/workspace" if rel_work in ("", ".") else f"/workspace/{rel_work}"
+    container_tmpfs = "/tmp:rw,noexec,nosuid,size=64m"  # nosec B108  # docker --tmpfs spec for the container's own /tmp, not a host temp file
     cmd = [
         docker_bin,
         "run",
@@ -263,7 +264,7 @@ def _run_docker_terraform_command(repo_root: str, work_dir: str, terraform_args:
         "--security-opt",
         "no-new-privileges",
         "--tmpfs",
-        "/tmp:rw,noexec,nosuid,size=64m",
+        container_tmpfs,
         "-e",
         "TF_IN_AUTOMATION=1",
         "-e",

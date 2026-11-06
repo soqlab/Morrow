@@ -138,7 +138,7 @@ def update_webhook(conn: sqlite3.Connection, wh_id: str, org_id: str,
     if not sets:
         return get_webhook(conn, wh_id)
     vals.extend([wh_id, org_id])
-    conn.execute(f"UPDATE morrow_webhooks SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)
+    conn.execute(f"UPDATE morrow_webhooks SET {','.join(sets)} WHERE id=? AND organization_id=?", vals)  # nosec B608  # sets holds only literal "col=?" strings; values are bound
     conn.commit()
     return get_webhook(conn, wh_id)
 

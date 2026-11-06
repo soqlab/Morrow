@@ -310,7 +310,7 @@ class PostgresConnectionShim:
         if not updates:
             return translated.rstrip().rstrip(";") + f" ON CONFLICT ({conflict}) DO NOTHING"
         assignments = ", ".join(f'"{c}" = EXCLUDED."{c}"' for c in updates)
-        return translated.rstrip().rstrip(";") + f" ON CONFLICT ({conflict}) DO UPDATE SET {assignments}"
+        return translated.rstrip().rstrip(";") + f" ON CONFLICT ({conflict}) DO UPDATE SET {assignments}"  # nosec B608  # key names from pg_index, columns parsed from the caller's own INSERT text; values stay bound
 
     # -- sqlite3.Connection surface --------------------------------------- #
 

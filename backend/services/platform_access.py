@@ -293,7 +293,7 @@ def password_accounts(conn: Any, organization_id: str = "", query: str = "", lim
     params.append(max(1, min(int(limit or 500), 2000)))
     try:
         rows = conn.execute(
-            "SELECT id, email, full_name, role, org_id, is_active, created_at, last_login_at FROM morrow_users"
+            "SELECT id, email, full_name, role, org_id, is_active, created_at, last_login_at FROM morrow_users"  # nosec B608  # where is built from literal clauses with ? placeholders; values are bound
             + where + " ORDER BY created_at DESC LIMIT ?",
             tuple(params),
         ).fetchall()

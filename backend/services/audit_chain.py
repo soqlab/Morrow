@@ -54,7 +54,7 @@ def iter_entries(org_id: Optional[str] = None) -> Iterator[Dict[str, Any]]:
 
         with pg_product_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute(f"SELECT {_COLUMNS} FROM audit_logs WHERE organization_id = %s ORDER BY id ASC",
+                cur.execute(f"SELECT {_COLUMNS} FROM audit_logs WHERE organization_id = %s ORDER BY id ASC",  # nosec B608  # _COLUMNS is a module constant; org id is bound
                             (org or DEFAULT_ORG_ID,))
                 for row in cur:
                     item = dict(row)
@@ -73,7 +73,7 @@ def iter_entries(org_id: Optional[str] = None) -> Iterator[Dict[str, Any]]:
     with closing(db.get_connection()) as conn:
         db._ensure_sprint13_tables(conn)
         conn.row_factory = sqlite3.Row
-        for row in conn.execute(f"SELECT {_COLUMNS} FROM audit_logs WHERE organization_id = ? ORDER BY id ASC",
+        for row in conn.execute(f"SELECT {_COLUMNS} FROM audit_logs WHERE organization_id = ? ORDER BY id ASC",  # nosec B608  # _COLUMNS is a module constant; org id is bound
                                 (org,)):
             item = dict(row)
             item["id"] = int(item.get("id") or 0)

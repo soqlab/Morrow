@@ -327,21 +327,28 @@ def _b64url(data: bytes) -> str:
 # ── OIDC ─────────────────────────────────────────────────────────────────────
 
 
+def _require_http_url(url: str) -> None:
+    if urllib.parse.urlsplit(str(url or "")).scheme.lower() not in ("http", "https"):
+        raise OperatorAuthError(502, "sso_discovery_failed", "The identity provider URL must use http or https.")
+
+
 def http_get_json(url: str) -> Dict[str, Any]:
     """Fetch JSON. Tests replace this function; production uses urllib with a short timeout."""
+    _require_http_url(url)
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "morrow-admin-sso"})
-    with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 - https issuer configured by the operator
+    with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310  # nosec B310  # scheme checked to be http/https just above
         return json.loads(resp.read().decode("utf-8") or "{}")
 
 
 def http_post_form(url: str, form: Dict[str, str], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    _require_http_url(url)
     body = urllib.parse.urlencode(form).encode("ascii")
     req = urllib.request.Request(url, data=body, method="POST", headers={
         "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded",
         "User-Agent": "morrow-admin-sso", **(headers or {}),
     })
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310  # nosec B310  # scheme checked to be http/https above
             return json.loads(resp.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         try:
@@ -563,7 +570,7 @@ def create_session(operator: str, role: str, auth_method: str, *, email: str = "
     columns = list(row)
     with feature_conn() as conn:
         conn.execute(
-            f"INSERT INTO platform_operator_sessions ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",
+            f"INSERT INTO platform_operator_sessions ({', '.join(columns)}) VALUES ({', '.join('?' for _ in columns)})",  # nosec B608  # column names are the literal keys of row above; values are bound
             tuple(row[c] for c in columns),
         )
         conn.commit()
@@ -1014,7 +1021,7 @@ def verify_mfa(identity: str, code: str = "", recovery_code: str = "", *, confir
     assignments = ", ".join(f"{k} = ?" for k in fields)
     with feature_conn() as conn:
         # The last_step guard makes a concurrent replay of the same code lose the race.
-        cur = conn.execute(f"UPDATE platform_operator_mfa SET {assignments} WHERE identity = ? AND last_step < ?",
+        cur = conn.execute(f"UPDATE platform_operator_mfa SET {assignments} WHERE identity = ? AND last_step < ?",  # nosec B608  # column names are literal keys of fields above; values are bound
                            (*fields.values(), identity, step))
         conn.commit()
     if int(cur.rowcount or 0) != 1:

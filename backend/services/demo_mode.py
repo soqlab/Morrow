@@ -229,19 +229,19 @@ def purge_workspace(org_id: str) -> int:
                     cols = {r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')}
                     for c in ORG_COLUMNS:
                         if c in cols:
-                            deleted += conn.execute(f'DELETE FROM "{t}" WHERE "{c}"=?', (org_id,)).rowcount
+                            deleted += conn.execute(f'DELETE FROM "{t}" WHERE "{c}"=?', (org_id,)).rowcount  # nosec B608  # t is from the app's own sqlite_master schema, c from the ORG_COLUMNS constant; org_id is bound
                     for c in ("user_id", "actor_id", "subject_id"):
                         if c in cols and user_ids:
                             marks = ",".join("?" * len(user_ids))
-                            deleted += conn.execute(f'DELETE FROM "{t}" WHERE "{c}" IN ({marks})', user_ids).rowcount
+                            deleted += conn.execute(f'DELETE FROM "{t}" WHERE "{c}" IN ({marks})', user_ids).rowcount  # nosec B608  # t is from the app's own sqlite_master schema, c a fixed literal, marks only "?"; ids are bound
                     if t in ("organizations", "admin_orgs") and "id" in cols:
-                        deleted += conn.execute(f'DELETE FROM "{t}" WHERE id=?', (org_id,)).rowcount
+                        deleted += conn.execute(f'DELETE FROM "{t}" WHERE id=?', (org_id,)).rowcount  # nosec B608  # t is restricted to "organizations"/"admin_orgs" by the check above; org_id is bound
                 # Anything still naming the workspace (cross-tenant rollups keep org ids inside
                 # JSON payloads) goes too. Demo ids contain no LIKE wildcards.
                 for t in tables:
                     for c in [r[1] for r in conn.execute(f'PRAGMA table_info("{t}")')]:
                         deleted += conn.execute(
-                            f'DELETE FROM "{t}" WHERE CAST("{c}" AS TEXT) LIKE ?', (f"%{org_id}%",)).rowcount
+                            f'DELETE FROM "{t}" WHERE CAST("{c}" AS TEXT) LIKE ?', (f"%{org_id}%",)).rowcount  # nosec B608  # t and c are names from the app's own sqlite schema (sqlite_master/PRAGMA); the ORG_RE-checked id is bound
 
                 for _name, sql in guards:
                     conn.execute(sql)
@@ -399,7 +399,7 @@ def _seed(org_id: str, token: str) -> None:
                     fields["drift_status"] = "clear"
                     fields["last_drift_checked_at"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
                 sets = ", ".join(f"{k}=?" for k in fields)
-                conn.execute(f"UPDATE remediations SET {sets} WHERE id=?", (*fields.values(), rid))
+                conn.execute(f"UPDATE remediations SET {sets} WHERE id=?", (*fields.values(), rid))  # nosec B608  # sets is built from the hard-coded keys of fields above; values are bound
             conn.commit()
     finally:
         dbmod.reset_current_organization_id(ctx)

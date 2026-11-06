@@ -401,7 +401,7 @@ def period_agg(r: Reader, table: str, ts_col: str, start: datetime, end: datetim
                where: str = "", params: Sequence[Any] = ()) -> Dict[str, Any]:
     kind = r.ts_kind(table, ts_col)
     select = ", ".join(f"{expr} AS {name}" for name, expr in exprs.items())
-    sql = f"SELECT {select} FROM {table} WHERE {ts_col} >= ? AND {ts_col} < ?{_where(where)}"
+    sql = f"SELECT {select} FROM {table} WHERE {ts_col} >= ? AND {ts_col} < ?{_where(where)}"  # nosec B608  # period_agg: table, ts_col and exprs/where come from code constants at every caller; time bounds and filter values are bound
     return r.one(table, sql, [ts_bound(kind, start), ts_bound(kind, end), *params])
 
 
@@ -412,7 +412,7 @@ def bucket_agg(r: Reader, table: str, ts_col: str, win: Window, exprs: Dict[str,
     kind = r.ts_kind(table, ts_col)
     bexpr = bucket_sql(kind, ts_col, win.bucket)
     select = ", ".join(f"{expr} AS {name}" for name, expr in exprs.items())
-    sql = (f"SELECT {bexpr} AS b, {select} FROM {table} WHERE {ts_col} >= ? AND {ts_col} < ?{_where(where)} "
+    sql = (f"SELECT {bexpr} AS b, {select} FROM {table} WHERE {ts_col} >= ? AND {ts_col} < ?{_where(where)} "  # nosec B608  # bucket_agg: table, ts_col and exprs/where come from code constants at every caller; time bounds and filter values are bound; bexpr is bucket_sql output
            f"GROUP BY {bexpr}")
     out: Dict[str, Dict[str, Any]] = {}
     for lo, hi in (ranges if ranges is not None else [(win.start, win.end)]):
@@ -425,14 +425,14 @@ def bucket_agg(r: Reader, table: str, ts_col: str, win: Window, exprs: Dict[str,
 
 def count_before(r: Reader, table: str, ts_col: str, before: datetime, where: str = "", params: Sequence[Any] = ()) -> int:
     kind = r.ts_kind(table, ts_col)
-    row = r.one(table, f"SELECT COUNT(*) AS n FROM {table} WHERE {ts_col} < ?{_where(where)}",
+    row = r.one(table, f"SELECT COUNT(*) AS n FROM {table} WHERE {ts_col} < ?{_where(where)}",  # nosec B608  # count_before: table, ts_col and exprs/where come from code constants at every caller; time bounds and filter values are bound
                 [ts_bound(kind, before), *params])
     return _num(row.get("n"))
 
 
 def count_all(r: Reader, table: str, where: str = "", params: Sequence[Any] = ()) -> int:
     r.require(table)
-    row = r.one(table, f"SELECT COUNT(*) AS n FROM {table}{' WHERE ' + where if where else ''}", params)
+    row = r.one(table, f"SELECT COUNT(*) AS n FROM {table}{' WHERE ' + where if where else ''}", params)  # nosec B608  # count_all: table and where are literals at every caller (_in_list only gets module constants); values are bound
     return _num(row.get("n"))
 
 
@@ -449,15 +449,15 @@ def active_users_sql(org_filter: bool, bucket_expr: Optional[str] = None, who: s
     req_col = "actor_id" if who == "user" else "organization_id"
     b = f"{bucket_expr} AS b, " if bucket_expr else ""
     inner = (
-        f"SELECT {b}{auth_col} AS u FROM platform_auth_events WHERE created_at >= ? AND created_at < ? "
+        f"SELECT {b}{auth_col} AS u FROM platform_auth_events WHERE created_at >= ? AND created_at < ? "  # nosec B608  # column names picked from two literals by `who`; _IN_SUCCESS is a constant; bucket_expr is bucket_sql output; values are bound
         f"AND event_type IN {_IN_SUCCESS} AND {auth_col} <> ''{org_sql} "
         f"UNION ALL "
         f"SELECT {b}{req_col} AS u FROM platform_request_events WHERE created_at >= ? AND created_at < ? "
         f"AND authenticated = 1 AND {req_col} <> ''{org_sql}"
     )
     if bucket_expr:
-        return f"SELECT b, COUNT(DISTINCT u) AS value FROM ({inner}) x GROUP BY b"
-    return f"SELECT COUNT(DISTINCT u) AS value FROM ({inner}) x"
+        return f"SELECT b, COUNT(DISTINCT u) AS value FROM ({inner}) x GROUP BY b"  # nosec B608  # inner is the constant-built query above
+    return f"SELECT COUNT(DISTINCT u) AS value FROM ({inner}) x"  # nosec B608  # inner is the constant-built query above
 
 
 def active_ids_sql(org_filter: bool, who: str = "user") -> str:
@@ -746,11 +746,11 @@ def journal_active(jv: JournalView, start: datetime, end: datetime, org: Optiona
 def _active_pairs_sql(select: str) -> str:
     """Platform-wide active users and organizations in one pass (the rule of active_users_sql, with the
     non-empty tests moved into the aggregate). Placeholders: start, end twice."""
-    inner = (f"SELECT user_id AS u, organization_id AS o FROM platform_auth_events WHERE created_at >= ? AND created_at < ? "
+    inner = (f"SELECT user_id AS u, organization_id AS o FROM platform_auth_events WHERE created_at >= ? AND created_at < ? "  # nosec B608  # only the _IN_SUCCESS constant is interpolated; time bounds are bound
              f"AND event_type IN {_IN_SUCCESS} UNION ALL "
              f"SELECT actor_id AS u, organization_id AS o FROM platform_request_events WHERE created_at >= ? AND created_at < ? "
              f"AND authenticated = 1")
-    return f"SELECT {select} FROM ({inner}) x"
+    return f"SELECT {select} FROM ({inner}) x"  # nosec B608  # select is a literal at both callers; inner is built from constants
 
 
 def journal_active_pair(jv: JournalView, start: datetime, end: datetime, current: bool) -> Tuple[Optional[int], Optional[int]]:
@@ -865,7 +865,7 @@ def journal_p95_fast(jv: JournalView, p: FastPlan, start: datetime, end: datetim
             upper = ur.LATENCY_BOUNDS[i] if i < len(ur.LATENCY_BOUNDS) else None
             cond = " AND ".join(c for c in ((f"duration_ms > {lower}" if lower is not None else ""),
                                             (f"duration_ms <= {upper}" if upper is not None else "")) if c)
-            found = jv.r.rows("platform_request_events", "SELECT duration_ms AS d FROM platform_request_events "
+            found = jv.r.rows("platform_request_events", "SELECT duration_ms AS d FROM platform_request_events "  # nosec B608  # cond uses integer bounds from usage_rollups.LATENCY_BOUNDS; time bounds are bound
                                                          f"WHERE created_at >= ? AND created_at < ? AND {cond}",
                               [ts_bound("iso", start), ts_bound("iso", end)])
             values = sorted(float(row["d"]) for row in found if row.get("d") is not None)
@@ -1486,13 +1486,13 @@ def latency_stats(r: Reader, start: datetime, end: datetime, bucket: Optional[st
     params = [ts_bound("iso", start), ts_bound("iso", end)] + ([org] if org is not None else [])
     if backend_for("platform_request_events") == "pg":
         overall = r.one("platform_request_events",
-                        "SELECT percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95 FROM platform_request_events "
+                        "SELECT percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95 FROM platform_request_events "  # nosec B608  # org_sql is a fixed placeholder clause; values are bound
                         f"WHERE created_at >= ? AND created_at < ?{org_sql}", params)
         out: Dict[str, Dict[str, Any]] = {}
         if bucket:
             bexpr = bucket_sql("iso", "created_at", bucket)
             for row in r.rows("platform_request_events",
-                              f"SELECT {bexpr} AS b, percentile_disc(0.5) WITHIN GROUP (ORDER BY duration_ms) AS p50, "
+                              f"SELECT {bexpr} AS b, percentile_disc(0.5) WITHIN GROUP (ORDER BY duration_ms) AS p50, "  # nosec B608  # bexpr is bucket_sql output for a fixed column; org_sql is a fixed placeholder clause; values are bound
                               "percentile_disc(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95 FROM platform_request_events "
                               f"WHERE created_at >= ? AND created_at < ?{org_sql} GROUP BY {bexpr}", params):
                 label = bucket_label("iso", row["b"], bucket)
@@ -1502,7 +1502,7 @@ def latency_stats(r: Reader, start: datetime, end: datetime, bucket: Optional[st
     r.require("platform_request_events", "duration_ms", "created_at")
     width = 13 if bucket == "hour" else 10
     conn = r._conn("sqlite")
-    cur = conn.execute(f"SELECT SUBSTR(created_at, 1, {width}) AS b, duration_ms FROM platform_request_events "
+    cur = conn.execute(f"SELECT SUBSTR(created_at, 1, {width}) AS b, duration_ms FROM platform_request_events "  # nosec B608  # width is the int 13 or 10; org_sql is a fixed placeholder clause; values are bound
                        f"WHERE created_at >= ? AND created_at < ?{org_sql}", params)
     groups: Dict[str, List[float]] = {}
     everything: List[float] = []
@@ -1530,7 +1530,7 @@ def latency_stats_split(r: Reader, before: datetime, split: datetime, end: datet
     r.require("platform_request_events", "duration_ms", "created_at")
     width = 13 if bucket == "hour" else 10
     split_key = ts_bound("iso", split)[:width]
-    cur = r._conn("sqlite").execute(f"SELECT SUBSTR(created_at, 1, {width}) AS b, duration_ms FROM platform_request_events "
+    cur = r._conn("sqlite").execute(f"SELECT SUBSTR(created_at, 1, {width}) AS b, duration_ms FROM platform_request_events "  # nosec B608  # width is the int 13 or 10; time bounds are bound
                                     "WHERE created_at >= ? AND created_at < ?", [ts_bound("iso", before), ts_bound("iso", end)])
     earlier: List[float] = []
     everything: List[float] = []
@@ -1571,7 +1571,7 @@ def routes_by_errors(jv: JournalView) -> List[Dict[str, Any]]:
         days = jv.rolled_run(max(win.start, ur.day_ceil(jv.traffic_cut), jv.retained_floor()), ur.day_floor(win.now))
     if days is None:
         rows = r.rows("platform_request_events",
-                      f"SELECT path AS route, {_ROUTE_COUNTS} FROM platform_request_events WHERE created_at >= ? AND created_at < ? "
+                      f"SELECT path AS route, {_ROUTE_COUNTS} FROM platform_request_events WHERE created_at >= ? AND created_at < ? "  # nosec B608  # _ROUTE_COUNTS is a module constant; time bounds are bound
                       "GROUP BY path HAVING SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END) > 0 "
                       "ORDER BY errors DESC, requests DESC, path LIMIT 10",
                       [ts_bound("iso", win.start), ts_bound("iso", win.end)])
@@ -1582,7 +1582,7 @@ def routes_by_errors(jv: JournalView) -> List[Dict[str, Any]]:
         if hi <= lo:
             continue
         for row in r.rows("platform_request_events",
-                          f"SELECT path AS route, {_ROUTE_COUNTS} FROM platform_request_events WHERE created_at >= ? AND created_at < ? "
+                          f"SELECT path AS route, {_ROUTE_COUNTS} FROM platform_request_events WHERE created_at >= ? AND created_at < ? "  # nosec B608  # _ROUTE_COUNTS is a module constant; time bounds are bound
                           "GROUP BY path", [ts_bound("iso", lo), ts_bound("iso", hi)]):
             t = totals.setdefault(str(row["route"]), [0, 0, 0])
             t[0], t[1], t[2] = t[0] + _num(row["requests"]), t[1] + _num(row["errors"]), t[2] + _num(row["client_errors"])
@@ -1611,7 +1611,7 @@ def orgs_by_activity(r: Reader, win: Window, c: Collector, jv: Optional[JournalV
 
     def grouped(table: str, extra: str = "", start: Optional[datetime] = None, end: Optional[datetime] = None) -> List[Dict[str, Any]]:
         kind = r.ts_kind(table, "created_at")
-        return r.rows(table, f"SELECT organization_id AS org, COUNT(*) AS n, MAX(created_at) AS last FROM {table} "
+        return r.rows(table, f"SELECT organization_id AS org, COUNT(*) AS n, MAX(created_at) AS last FROM {table} "  # nosec B608  # table and extra are literals/_IN_SUCCESS at every caller; time bounds are bound
                              f"WHERE created_at >= ? AND created_at < ?{_where(extra)} GROUP BY organization_id",
                       [ts_bound(kind, start or win.start), ts_bound(kind, end or win.end)])
 
@@ -1666,7 +1666,7 @@ def orgs_by_activity(r: Reader, win: Window, c: Collector, jv: Optional[JournalV
                 for i in range(0, len(oids), 200):
                     chunk = oids[i:i + 200]
                     merge(c.run("organizations_by_activity." + ("requests" if table == "platform_request_events" else "logins"),
-                                lambda: r.rows(table, f"SELECT organization_id AS org, MAX(created_at) AS last FROM {table} "
+                                lambda: r.rows(table, f"SELECT organization_id AS org, MAX(created_at) AS last FROM {table} "  # nosec B608  # table and extra come from a fixed tuple; org ids go in as ? placeholders
                                                       f"WHERE created_at >= ? AND created_at < ?{_where(extra)} AND organization_id IN "
                                                       f"({', '.join('?' for _ in chunk)}) GROUP BY organization_id",
                                                [ts_bound("iso", start), ts_bound("iso", start + timedelta(days=1)), *chunk]), [])
@@ -1739,7 +1739,7 @@ def feature_usage(r: Reader, win: Window, c: Collector, org: Optional[str] = Non
                 where = " AND ".join(x for x in (not_empty, extra, org_sql) if x)
                 oparams = [org] if org is not None else []
                 bexpr = bucket_sql(kind, ts_col, win.bucket)
-                rows = r.rows(table, f"SELECT {org_col} AS org, {bexpr} AS b, COUNT(*) AS n FROM {table} "
+                rows = r.rows(table, f"SELECT {org_col} AS org, {bexpr} AS b, COUNT(*) AS n FROM {table} "  # nosec B608  # table, columns and extra come from the FEATURES constant; org and time bounds are bound
                                      f"WHERE {ts_col} >= ? AND {ts_col} < ? AND {where} GROUP BY {org_col}, {bexpr}",
                               [ts_bound(kind, win.start), ts_bound(kind, win.end), *oparams])
                 for row in rows:
@@ -1751,12 +1751,12 @@ def feature_usage(r: Reader, win: Window, c: Collector, org: Optional[str] = Non
                     if lab:
                         buckets[lab] = buckets.get(lab, 0) + n
                 if keeps_history and previous is not None:
-                    prow = r.one(table, f"SELECT COUNT(*) AS n FROM {table} WHERE {ts_col} >= ? AND {ts_col} < ? AND {where}",
+                    prow = r.one(table, f"SELECT COUNT(*) AS n FROM {table} WHERE {ts_col} >= ? AND {ts_col} < ? AND {where}",  # nosec B608  # table, columns and extra come from the FEATURES constant; org and time bounds are bound
                                  [ts_bound(kind, win.prev_start), ts_bound(kind, win.prev_end), *oparams])
                     previous += _num(prow.get("n"))
                 else:
                     previous = None
-                mrow = r.one(table, f"SELECT MAX({ts_col}) AS m FROM {table} WHERE {where}", oparams)
+                mrow = r.one(table, f"SELECT MAX({ts_col}) AS m FROM {table} WHERE {where}", oparams)  # nosec B608  # table, columns and extra come from the FEATURES constant; org is bound
                 seen = parse_ts(mrow.get("m"))
                 if seen and (last_used is None or seen > last_used):
                     last_used = seen
@@ -1900,7 +1900,7 @@ def customer(organization_id: str, range_key: str) -> Optional[Dict[str, Any]]:
         def remediations():
             r.require("remediations", "status", "organization_id")
             row2 = r.one("remediations",
-                         f"SELECT SUM(CASE WHEN status IN {_in_list(CLOSED_REMEDIATION_STATUSES)} THEN 1 ELSE 0 END) AS closed, "
+                         f"SELECT SUM(CASE WHEN status IN {_in_list(CLOSED_REMEDIATION_STATUSES)} THEN 1 ELSE 0 END) AS closed, "  # nosec B608  # _in_list only gets the CLOSED_REMEDIATION_STATUSES constant; org id is bound
                          "COUNT(*) AS total FROM remediations WHERE organization_id = ?", [oid])
             closed = _num(row2.get("closed"))
             k["open_remediations"] = kpi("Open remediations", "remediations.status", _num(row2.get("total")) - closed, None)
@@ -2026,7 +2026,7 @@ def customer_members(r: Reader, oid: str, win: Window, k: Dict[str, Any], c: Col
     if not found_source:
         raise SourceMissing("Neither organization_memberships nor morrow_users exists.")
     if r.has("platform_auth_events", "organization_id", "user_id"):
-        for row in r.rows("platform_auth_events", "SELECT user_id, MAX(created_at) AS last FROM platform_auth_events "
+        for row in r.rows("platform_auth_events", "SELECT user_id, MAX(created_at) AS last FROM platform_auth_events "  # nosec B608  # only the _IN_SUCCESS constant is interpolated; org id is bound
                                                   f"WHERE organization_id = ? AND event_type IN {_IN_SUCCESS} AND user_id <> '' "
                                                   "GROUP BY user_id", [oid]):
             entry = people.get(str(row["user_id"]))
@@ -2142,7 +2142,7 @@ def search(q: str, limit: int, include_operators: bool, operators: Callable[[], 
         if not r.has(table, *columns):
             return
         try:
-            rows = r.rows(table, f"SELECT {select} FROM {table} WHERE {_like_where(columns)}{order} LIMIT ?",
+            rows = r.rows(table, f"SELECT {select} FROM {table} WHERE {_like_where(columns)}{order} LIMIT ?",  # nosec B608  # table, select, columns and order are literals at every run() call; the search pattern and limit are bound
                           [pattern] * len(columns) + [limit])
         except Exception as exc:
             unavailable.append({"metric": f"search.{kind}", "reason": f"Query failed: {exc.__class__.__name__}"})
@@ -2165,7 +2165,7 @@ def search(q: str, limit: int, include_operators: bool, operators: Callable[[], 
 
         if r.has("morrow_users", "id", "email", "full_name"):
             try:
-                for x in r.rows("morrow_users", f"SELECT id, email, full_name, role, org_id FROM morrow_users WHERE "
+                for x in r.rows("morrow_users", f"SELECT id, email, full_name, role, org_id FROM morrow_users WHERE "  # nosec B608  # column names are literals passed to _like_where; the search pattern and limit are bound
                                              f"{_like_where(('email', 'full_name', 'id'))} LIMIT ?", [pattern] * 3 + [limit]):
                     seen_users.add((str(x.get("org_id") or ""), str(x["id"])))
                     results.append((_rank(ql, x.get("email"), x.get("full_name"), x.get("id")), 1,
@@ -2176,7 +2176,7 @@ def search(q: str, limit: int, include_operators: bool, operators: Callable[[], 
         if r.has("organization_memberships", "user_id", "email", "display_name"):
             try:
                 for x in r.rows("organization_memberships",
-                                f"SELECT user_id, email, display_name, role, organization_id FROM organization_memberships WHERE "
+                                f"SELECT user_id, email, display_name, role, organization_id FROM organization_memberships WHERE "  # nosec B608  # column names are literals passed to _like_where; the search pattern and limit are bound
                                 f"{_like_where(('email', 'display_name', 'user_id'))} LIMIT ?", [pattern] * 3 + [limit]):
                     key = (str(x.get("organization_id") or ""), str(x["user_id"]))
                     if key in seen_users:
@@ -2304,7 +2304,7 @@ def notifications(hooks: Dict[str, Callable[[], Any]], now: Optional[datetime] =
             r.require("platform_auth_events", "event_type", "created_at")
             hour_ago, day_before = now - timedelta(hours=1), now - timedelta(hours=25)
             row = r.one("platform_auth_events",
-                        f"SELECT SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS last_hour, "
+                        f"SELECT SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS last_hour, "  # nosec B608  # only the _IN_FAILURE constant is interpolated; time bounds are bound
                         f"SUM(CASE WHEN created_at < ? THEN 1 ELSE 0 END) AS prior "
                         f"FROM platform_auth_events WHERE created_at >= ? AND created_at < ? AND event_type IN {_IN_FAILURE}",
                         [ts_bound("iso", hour_ago), ts_bound("iso", hour_ago), ts_bound("iso", day_before),

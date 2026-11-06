@@ -47,6 +47,9 @@ def _min_severity() -> int:
 
 
 def _post(webhook_url: str, payload: Dict[str, Any]) -> bool:
+    # The webhook URL is user-configured: refuse file:// and every scheme but http(s).
+    if not str(webhook_url).lower().startswith(("https://", "http://")):
+        return False
     data = json.dumps(payload).encode()
     req = urllib.request.Request(
         webhook_url, data=data,
@@ -54,7 +57,7 @@ def _post(webhook_url: str, payload: Dict[str, Any]) -> bool:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310  # scheme checked to http/https above
             return resp.status == 200
     except Exception:
         return False

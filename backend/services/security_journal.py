@@ -183,7 +183,7 @@ def _insert(kind, values):
     try:
         init_tables()
         with store.feature_conn() as conn:
-            conn.execute(f"INSERT INTO {table} ({','.join(values)}) VALUES ({','.join('?' for _ in values)})", tuple(values.values()))
+            conn.execute(f"INSERT INTO {table} ({','.join(values)}) VALUES ({','.join('?' for _ in values)})", tuple(values.values()))  # nosec B608  # table is one of two constants; columns are the fixed keys of the row dicts built here; values are bound
             conn.commit()
         mark_success(kind)
     except Exception as exc:
@@ -289,7 +289,7 @@ def flush_pending():
         if not rows or key != _key():
             return 0
         columns = list(rows[0])
-        sql = f"INSERT INTO platform_request_events ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})"
+        sql = f"INSERT INTO platform_request_events ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})"  # nosec B608  # columns are the fixed keys from _request_row; values are bound
         try:
             from services.tenant_scope import platform_scope
 
@@ -320,7 +320,7 @@ def auth_events(*, organization_id="", user_id="", limit=200, since_iso="", even
     if since_iso:
         clauses.append("created_at>=?"); params.append(since_iso)
     with store.feature_conn() as conn:
-        rows = conn.execute(f"SELECT * FROM platform_auth_events WHERE {' AND '.join(clauses)} ORDER BY created_at DESC,id DESC LIMIT ?",
+        rows = conn.execute(f"SELECT * FROM platform_auth_events WHERE {' AND '.join(clauses)} ORDER BY created_at DESC,id DESC LIMIT ?",  # nosec B608  # clauses are fixed literals over hard-coded column names; filter values are bound
                             (*params, max(1, min(2000, int(limit))))).fetchall()
     return [dict(row) for row in rows]
 
@@ -335,7 +335,7 @@ def request_events(*, limit=200, source_ip="", path_prefix=""):
         # Prefix matching is literal; SQL wildcards in a user-entered filter must not broaden it.
         clauses.append("substr(path,1,?)=?"); params.extend([len(path_prefix), path_prefix])
     with store.feature_conn() as conn:
-        rows = conn.execute(f"SELECT * FROM platform_request_events WHERE {' AND '.join(clauses)} ORDER BY created_at DESC,id DESC LIMIT ?",
+        rows = conn.execute(f"SELECT * FROM platform_request_events WHERE {' AND '.join(clauses)} ORDER BY created_at DESC,id DESC LIMIT ?",  # nosec B608  # clauses are fixed literals; source_ip and path prefix are bound
                             (*params, max(1, min(5000, int(limit))))).fetchall()
     return [{**dict(row), "ip_hash": "", "authenticated": bool(row["authenticated"])} for row in rows]
 
@@ -371,7 +371,7 @@ def health(*, verify_writes=False):
             if verify_writes:
                 # Exercise INSERT privileges without manufacturing a login or traffic event.
                 for table in ("platform_auth_events", "platform_request_events"):
-                    conn.execute(f"INSERT INTO {table} SELECT * FROM {table} WHERE 1=0")
+                    conn.execute(f"INSERT INTO {table} SELECT * FROM {table} WHERE 1=0")  # nosec B608  # table iterates over two hard-coded journal table names
                 conn.commit()
                 insert_permission_verified = True
     except Exception:
@@ -424,10 +424,10 @@ def _delete_batch(conn, table, cutoff, size):
     TEXT primary key, so the delete goes straight to the row instead of probing the PK index for
     every one of thousands of random uuids."""
     if store.postgres_enabled():
-        sql = (f"DELETE FROM {table} WHERE ctid IN "
+        sql = (f"DELETE FROM {table} WHERE ctid IN "  # nosec B608  # table comes only from prune()'s two hard-coded journal tables; cutoff and size are bound
                f"(SELECT ctid FROM {table} WHERE created_at < ? ORDER BY created_at LIMIT ?)")
     else:
-        sql = (f"DELETE FROM {table} WHERE rowid IN "
+        sql = (f"DELETE FROM {table} WHERE rowid IN "  # nosec B608  # table comes only from prune()'s two hard-coded journal tables; cutoff and size are bound
                f"(SELECT rowid FROM {table} WHERE created_at < ? ORDER BY created_at LIMIT ?)")
     return int(conn.execute(sql, (cutoff, int(size))).rowcount or 0)
 

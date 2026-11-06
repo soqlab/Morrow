@@ -371,7 +371,7 @@ def trigger_observatory_scan(
         if asset_keys:
             placeholders = ",".join("?" * len(asset_keys))
             baselines = [dict(r) for r in conn.execute(
-                f"SELECT asset_key, host, port FROM observatory_baselines WHERE org_id = ? AND asset_key IN ({placeholders}) LIMIT ?",
+                f"SELECT asset_key, host, port FROM observatory_baselines WHERE org_id = ? AND asset_key IN ({placeholders}) LIMIT ?",  # nosec B608  # only a ? placeholder list is interpolated; asset keys are bound
                 [org_id] + asset_keys + [max_assets]
             ).fetchall()]
         else:

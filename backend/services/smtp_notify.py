@@ -399,6 +399,12 @@ def send_slack(
         _log(conn, org_id, "slack", event_type, subject, "failed", err)
         return {"status": "failed", "error": err}
 
+    # User-configured URL, and the response body is echoed into the error: http(s) only, never file://.
+    if not str(webhook_url).lower().startswith(("https://", "http://")):
+        err = "Slack webhook URL must be http(s)"
+        _log(conn, org_id, "slack", event_type, subject, "failed", err)
+        return {"status": "failed", "error": err}
+
     payload = _build_slack_payload(subject, message, event_type, severity)
     payload_bytes = json.dumps(payload).encode("utf-8")
 
@@ -410,7 +416,7 @@ def send_slack(
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310  # scheme checked to http/https above
             body = resp.read().decode("utf-8", errors="ignore")
             if body.strip().lower() != "ok":
                 err = f"Unexpected Slack response: {body[:200]}"

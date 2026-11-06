@@ -317,7 +317,7 @@ def scan_github_repo(
         url = f"https://api.github.com/repos/{repo_full_name}/{path}"
         try:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=12) as resp:  # nosec B310  # fixed https://api.github.com base; only the path varies
                 return json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             if e.code != 404:
