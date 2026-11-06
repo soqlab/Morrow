@@ -23,8 +23,7 @@
 #   BUILDER      buildx builder to use; created from the pinned BuildKit if it does not exist
 #                (default morrow-repro).
 #
-# Needs: git, Docker with buildx 0.13 or later, a Linux or macOS shell (on Windows use WSL: a
-# Windows build context does not carry Unix file modes).
+# Needs: git, a POSIX shell (Git Bash on Windows works), Docker with buildx 0.13 or later.
 set -eu
 usage() { echo "usage: $0 <all-in-one|api> <version> [--push]" >&2; exit 2; }
 [ $# -ge 2 ] || usage
@@ -51,14 +50,15 @@ SOURCE_DATE_EPOCH="$(git -C "$root" log -1 --format=%ct "$commit")"
 export SOURCE_DATE_EPOCH
 
 mkdir -p "$out"
-out="$(cd "$out" && pwd)"
-ctx="$(mktemp -d)"
-trap 'rm -rf "$ctx"' EXIT INT TERM
-# tar.umask=0022: files 0644, executables 0755, as a Linux checkout has them. git archive of a
-# commit stamps every entry with the commit time.
-git -C "$root" -c tar.umask=0022 -c core.autocrlf=false archive --format=tar "$commit" ${subdir:+"$subdir"} \
-  | tar -xpf - -C "$ctx"
-context="$ctx${subdir:+/$subdir}"
+out="$(cd "$out" && { pwd -W 2>/dev/null || pwd; })"  # pwd -W: a Windows path for Docker under Git Bash
+# The context is a tar of the commit streamed to BuildKit on stdin: never the working tree, and the
+# same file modes (tar.umask=0022: 0644, executables 0755) and line endings on every OS, Windows
+# included. For the api image it is the backend/ tree; git stamps a tree's entries with the current
+# time, which rewrite-timestamp below clamps to SOURCE_DATE_EPOCH like every other file.
+if [ -n "$subdir" ]; then treeish="$commit:$subdir"; else treeish="$commit"; fi
+ctxtar="$(mktemp)"
+trap 'rm -f "$ctxtar"' EXIT INT TERM
+git -C "$root" -c tar.umask=0022 -c core.autocrlf=false archive --format=tar "$treeish" > "$ctxtar"
 
 if ! docker buildx inspect "$builder" >/dev/null 2>&1; then
   docker buildx create --name "$builder" --driver docker-container \
@@ -81,7 +81,7 @@ echo "Building $ref from $commit (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH)" >&2
 docker buildx build \
   --builder "$builder" \
   --platform linux/amd64 \
-  --file "$context/$dockerfile" \
+  --file "$dockerfile" \
   --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
   --label "org.opencontainers.image.source=$source_url" \
   --label "org.opencontainers.image.revision=$commit" \
@@ -92,7 +92,7 @@ docker buildx build \
   --no-cache \
   --metadata-file "$meta" \
   "$@" \
-  "$context"
+  - < "$ctxtar"
 
 digest="$(sed -n 's/.*"containerimage.digest": *"\(sha256:[0-9a-f]*\)".*/\1/p' "$meta" | head -1)"
 [ -n "$digest" ] || { echo "No image digest in $meta" >&2; exit 1; }

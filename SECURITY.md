@@ -150,6 +150,28 @@ work with any scanner, for example `grype sbom:morrow-1.2.3-image.cdx.json`.
 For an air-gapped install, run these checks on the machine with internet access before copying the
 bundle inside. `images.tar.gz` inside the bundle is also covered by the bundle's own `SHA256SUMS`.
 
+If you prefer [cosign](https://github.com/sigstore/cosign) (2.5 or later) to the GitHub CLI, the
+same attestations verify against the workflow identity:
+
+```sh
+cosign verify-attestation ghcr.io/soqlab/morrow@sha256:<digest from IMAGES.txt> \
+  --new-bundle-format --type slsaprovenance1 \
+  --certificate-identity "https://github.com/soqlab/Morrow/.github/workflows/release.yml@refs/tags/v1.2.3" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+**Rebuild it yourself.** Releases after 0.7.0 are reproducible: rebuilding the tag from source gives
+the same image digests and byte-identical SBOMs and bundle, so you can check that the published
+images are what the source produces, not only who signed them:
+
+```sh
+git checkout v1.2.3 && sh scripts/release/reproduce.sh v1.2.3
+```
+
+[docs/REPRODUCIBLE_BUILDS.md](docs/REPRODUCIBLE_BUILDS.md) has what is pinned, how to investigate a
+mismatch, and what is not reproducible yet. The same rebuild runs in CI after every release
+(`.github/workflows/reproduce.yml`).
+
 ## What the platform does to protect itself
 
 Not a certification claim, just what is implemented, so you know where to look:
