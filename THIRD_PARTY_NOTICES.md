@@ -136,9 +136,13 @@ Copied into this repository verbatim rather than installed as a dependency:
 | `backend/schemas/cyclonedx/bom-1.6.schema.json` | CycloneDX 1.6 JSON Schema | Apache-2.0, © OWASP Foundation |
 | `backend/schemas/cyclonedx/jsf-0.82.schema.json` | JSON Signature Format schema, developed by Anders Rundgren as part of the OpenKeyStore project | Apache-2.0 |
 | `backend/schemas/cyclonedx/spdx.schema.json` | SPDX licence-list enumeration, as redistributed by CycloneDX | Apache-2.0; the SPDX licence list itself is CC-BY-3.0 |
+| `backend/tests/fixtures/cbomkit/kafka-cbom.json`, `keycloak-cbom.json` | Example CBOMs produced by IBM's CBOMkit, copied from `example/` in https://github.com/cbomkit/cbomkit (commit ca2968f). Test data only | Apache-2.0, © IBM / the CBOMkit authors |
 
 These are vendored deliberately so that `backend/test_cbom_conformance.py` validates CBOM output
-against the official schema on every test run, with no network access.
+against the official schema on every test run, with no network access. The same schema validates
+imported CBOMs at runtime (`backend/services/sbom_import.py`), using `jsonschema` (MIT), which is
+therefore a runtime dependency; its dependencies `referencing`, `rpds-py`, `attrs` and
+`jsonschema-specifications` are MIT as well.
 
 ---
 
@@ -184,7 +188,8 @@ Not part of the shipped application and not redistributed.
 
 | Tool | Licence | Note |
 |---|---|---|
-| `pytest`, `ruff`, `jsonschema` | MIT | |
+| `pytest`, `ruff` | MIT | |
+| strongSwan (`alpine:edge` package), built by `backend/tests/fixtures/strongswan/Dockerfile` | GPL-2.0-or-later | A local IKEv2 responder for `test_ike_scanner_strongswan.py`; built on the tester's machine, never shipped or vendored |
 | `httpx` | BSD-3-Clause | |
 | `moto`, `responses`, `bandit`, `pip-audit`, `playwright` | Apache-2.0 | |
 | `axe-core` | **MPL-2.0** | Accessibility checks in `.tools/video/`, which is git-ignored |

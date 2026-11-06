@@ -34,6 +34,9 @@ anthropic==1.2.0
 google-cloud-storage==3.4.1
 azure-storage-blob==12.30.0
 slowapi==0.1.9
+# Validates imported CBOM documents (services/sbom_import.py) against the vendored CycloneDX 1.6
+# schema in schemas/cyclonedx/. Previously a dev-only dependency used by test_cbom_conformance.py.
+jsonschema==4.26.0
 
 # SAML SSO
 python3-saml==1.16.0

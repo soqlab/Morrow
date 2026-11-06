@@ -5517,7 +5517,8 @@ function cbomQuantum(c) {
 }
 
 VIEWS.cbom = async (host) => {
-  const [cbom, imports, hook] = await all(["/cbom", "/sbom/imports", "/cbom/webhook/ingests"]);
+  const [cbom, imports, hook, inv] = await all(["/cbom", "/sbom/imports", "/cbom/webhook/ingests", "/v1/crypto-inventory?limit=200"]);
+  const invList = inv.ok ? rows(inv.data, "assets") : [];
   const C = cbom.ok ? cbom.data : null;
   const comps = C?.components || [];
   const counts = { classical: 0, pq: 0, na: 0 };
@@ -5539,6 +5540,7 @@ VIEWS.cbom = async (host) => {
       <a class="btn sm" href="${H(S.base)}/cbom.csv" target="_blank" rel="noopener">${I.dl}Download CSV</a>
       ${actBtn("Ingest CBOM", "cbomIngest", { cls: "btn sm", icon: I.plus })}
       ${actBtn("Import SBOM", "sbomImport", { cls: "btn sm", icon: I.plus })}
+      ${actBtn("Import CBOMkit CBOM", "cbomkitImport", { cls: "btn sm", icon: I.plus })}
       ${actBtn("Webhook setup", "cbomHook", { cls: "btn sm" })}
       <span class="grow"></span>
       ${C ? `<span class="liveMeta">Serial …${H(String(C.serialNumber || "").slice(-12))} · generated ${H(AGO(C.metadata?.timestamp))}</span>` : ""}
@@ -5584,6 +5586,15 @@ VIEWS.cbom = async (host) => {
         { h: "", w: "1%", f: r => actBtn("Delete", "sbomDel", { cls: "btn xs danger", data: { id: r.id } }) },
       ], importList) : `<p class="qtMsg" style="margin:0">No SBOMs imported yet. Import a CycloneDX or SPDX document to map third-party components against this bill of materials.</p>`,
         { icon: I.box, flush: importList.length > 0, act: actBtn("Import", "sbomImport", { cls: "btn xs", icon: I.plus }) }), "/sbom/imports")}
+      ${bind(inv, () => card("Imported crypto inventory", invList.length ? table([
+        { h: "Asset", f: a => `<b>${H(a.name)}</b><span class="sub mono">${H(a.algorithm || a.asset_type)}</span>` },
+        { h: "Type", f: a => pill(a.asset_type) },
+        { h: "Sources", f: a => `<span class="m">${H((a.sources || []).join(", "))}</span>` },
+        { h: "Seen", num: true, f: a => NUM(a.occurrence_count ?? 0) },
+        { h: "Quantum status", f: a => { const q = CBOM_Q[a.pq_safe ? "pq" : a.quantum_vulnerable ? "classical" : "na"]; return `<span class="tierChip ${q[1]}"><i></i>${H(q[0])}</span>`; } },
+      ], invList, { max: "380px" }) : `<p class="qtMsg" style="margin:0">Nothing imported yet. Import a CBOM produced by CBOMkit (CycloneDX 1.6) to add the algorithms, keys and protocols it found in source code.</p>`,
+        { icon: I.layers, flush: invList.length > 0, sub: `${NUM(invList.length)} deduplicated asset${invList.length === 1 ? "" : "s"}`,
+          act: actBtn("Import", "cbomkitImport", { cls: "btn xs", icon: I.plus }) }), "/v1/crypto-inventory")}
       ${bind(hook, () => card("Webhook ingests", ingests.length ? `
         <div class="ingSum"><b>${NUM(ingests.length)}</b>ingest${ingests.length === 1 ? "" : "s"} · ${NUM(distinctDocs)} distinct document${distinctDocs === 1 ? "" : "s"} · last ${H(when(ingests[0].created_at))}</div>
         ${ingests.every(i => !Number(i.components)) ? `<p class="ingWarn">None of these documents contained components. Check the payload your pipeline sends.</p>` : ""}
@@ -5625,6 +5636,24 @@ ACTIONS.sbomImportGo = async () => {
   const r = await safe("/sbom/import", { method: "POST", body: { sbom: doc, source: $("#sbSrc").value || "manual" } });
   if (!r.ok) return err(r.err);
   $("#overlay").innerHTML = ""; ok("SBOM imported"); retry();
+};
+ACTIONS.cbomkitImport = () => modal("Import a CBOMkit CBOM", `
+  <div class="field"><label for="ckFile">CBOM file (CycloneDX 1.6 JSON, as written by CBOMkit)</label><input class="inp" id="ckFile" type="file" accept=".json,application/json"></div>
+  <div class="field" style="margin-top:12px"><label for="ckIn">…or paste the document</label><textarea class="inp" id="ckIn" style="min-height:180px" placeholder='{"bomFormat":"CycloneDX","specVersion":"1.6","components":[…]}'></textarea></div>
+  <p class="qtMsg">The document is validated against the CycloneDX 1.6 schema. Assets already in the inventory are merged, not duplicated.</p>`,
+  `<button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="cbomkitImportGo" type="button">Import</button>`);
+ACTIONS.cbomkitImportGo = async () => {
+  const f = $("#ckFile")?.files?.[0];
+  const text = f ? await f.text() : $("#ckIn").value;
+  if (!text.trim()) return err("Choose a file or paste a CBOM");
+  try { JSON.parse(text); } catch { return err("Invalid JSON"); }
+  const name = encodeURIComponent((f && f.name) || "cbomkit-cbom.json");
+  const r = await safe(`/v1/cbom/import?source=cbomkit&filename=${name}`, { method: "POST", body: text, timeout: 120000 });
+  if (!r.ok) return err(r.err, "CBOM not imported");
+  const d = r.data || {};
+  $("#overlay").innerHTML = "";
+  ok(`${NUM(d.inventory_assets ?? 0)} assets · ${NUM(d.new_inventory_assets ?? 0)} new · ${NUM(d.deduplicated_inventory_assets ?? 0)} already known`, "CBOM imported");
+  retry();
 };
 ACTIONS.sbomDel = async (b) => {
   const r = await safe(`/sbom/imports/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" });
@@ -7154,7 +7183,7 @@ VIEWS.scanners = async (host) => {
 
     <div class="row" style="margin:16px 0">
       <div class="tabs" data-tabs="sn">
-        ${[["sast", "Source (SAST)"], ["secrets", "Secrets"], ["deps", "Dependencies"], ["bin", "Binaries"], ["mob", "Mobile / IoT"], ["iac", "Infrastructure as code"], ["dev", "Developer portal"]]
+        ${[["sast", "Source (SAST)"], ["secrets", "Secrets"], ["deps", "Dependencies"], ["bin", "Binaries"], ["mob", "Mobile / IoT"], ["vpn", "VPN (IKEv2)"], ["iac", "Infrastructure as code"], ["dev", "Developer portal"]]
           .map(([k, l], i) => `<button class="tab ${i ? "" : "on"}" data-key="${k}">${l}</button>`).join("")}
       </div>
     </div>
@@ -7286,6 +7315,20 @@ VIEWS.scanners = async (host) => {
         { icon: I.file, sub: "Catch weak TLS policies and classical-only crypto before deployment" })}
     </div>
 
+    <div data-pane="sn" data-key="vpn" hidden>
+      ${card("Scan an IPsec VPN gateway", `
+        <div class="field"><label for="ikeTg">Gateways, one per line (host, host:500 or host:4500 for NAT-T)</label>
+          <textarea class="inp mono" id="ikeTg" style="min-height:96px" placeholder="vpn.example.com&#10;gw.example.com:4500"></textarea></div>
+        <label class="chk" style="margin-top:10px"><input type="checkbox" id="ikeV1" checked>Also check whether IKEv1 is still accepted</label>
+        <div class="row" style="margin-top:12px">${actBtn("Scan VPN", "ikeScan", { cls: "btn sm pri", icon: I.play })}</div>
+        <div class="banner info" style="margin-top:12px">${I.info}<div><span class="bx">
+          Sends unauthenticated IKE_SA_INIT offers only: no credentials, no tunnel. Reports the encryption, PRF, integrity and
+          key-exchange transforms the gateway accepts, including RFC 9370 additional key exchanges with ML-KEM.
+          Up to ten gateways per run, about a minute each; hosts must be under your verified domains.</span></div></div>`,
+        { icon: I.network, sub: "IKEv2 proposals and post-quantum key exchange" })}
+      <div style="height:14px"></div><div id="ikeOut"></div>
+    </div>
+
     <div data-pane="sn" data-key="dev" hidden>
       <div class="g g-2-1">
         ${bind(dev, (d) => card("Findings assigned to developers", table([
@@ -7356,6 +7399,39 @@ ACTIONS.binScan  = async () => scanOut("#binOut", await safe("/binary/scan", { m
 ACTIONS.mobScan  = async () => scanOut("#mobOut", await safe("/mobile-iot/scan", { method: "POST", body: { path: $("#moPath").value, platform: $("#moPlat").value } }), "/mobile-iot/scan", "Mobile / IoT scan");
 ACTIONS.iacCheck = async () => scanOut("#iacOut", await safe("/iac/security/check", { method: "POST", body: { content: $("#iacBody").value } }), "/iac/security/check", "IaC findings");
 ACTIONS.mobDel   = async (b) => { const r = await safe(`/mobile-iot/scans/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" }); r.ok ? (ok("Scan deleted"), retry()) : err(r.err); };
+/* IKEv2 / IPsec VPN scan (ike_scanner.py via /v1/scan/ike). One card per gateway. */
+ACTIONS.ikeScan = async () => {
+  const targets = ($("#ikeTg")?.value || "").split(/[\s,]+/).map(s => s.trim()).filter(Boolean).slice(0, 10);
+  if (!targets.length) return err("Add at least one VPN gateway");
+  const box = $("#ikeOut"); if (!box) return;
+  box.innerHTML = `<p class="qtMsg">Scanning ${NUM(targets.length)} gateway${targets.length === 1 ? "" : "s"}… about a minute each.</p>`;
+  const r = await safe("/v1/scan/ike", { method: "POST", body: { targets, probe_ikev1: !!$("#ikeV1")?.checked }, timeout: 660000 });
+  const names = xs => (xs || []).map(x => x.name).join(", ") || "—";
+  box.innerHTML = bind(r, (d) => rows(d, "results").map(x => {
+    const sel = x.selected_proposal || {};
+    const addke = Object.entries(x.accepted_additional_key_exchange || {}).map(([k, v]) => `${k}: ${names(v)}`).join(" · ") || "none";
+    const body = x.error && !x.responded ? `<div class="banner warn">${I.alert}<div><span class="bx">${H(x.error)}</span></div></div>` : `
+      <dl class="qtFacts cbomFacts">
+        <div><dt>Quantum risk</dt><dd>${pill(x.quantum_risk_level)}</dd></div>
+        <div><dt>Post-quantum key exchange</dt><dd>${H((x.pq_key_exchange || []).join(", ") || "none")}${x.pq_required ? " (required)" : x.pq_ready ? " (optional)" : ""}</dd></div>
+        <div><dt>Selected proposal</dt><dd class="m">${H(Object.values(sel).map(v => v.name).join(" / ") || "—")}</dd></div>
+        <div><dt>Additional key exchanges</dt><dd class="m">${H(addke)}</dd></div>
+        <div><dt>Key exchange</dt><dd class="m">${H(names(x.accepted_key_exchange))}</dd></div>
+        <div><dt>Encryption</dt><dd class="m">${H(names(x.accepted_encryption))}</dd></div>
+        <div><dt>PRF / integrity</dt><dd class="m">${H(names(x.accepted_prf))} · ${H(names(x.accepted_integrity))}</dd></div>
+        <div><dt>IKEv1</dt><dd>${x.ikev1?.probed ? (x.ikev1.enabled ? "accepted" : "not accepted") : "not checked"}</dd></div>
+      </dl>
+      ${x.error ? `<p class="qtMsg">${H(x.error)}</p>` : ""}
+      ${(x.findings || []).length ? table([
+        { h: "Severity", f: f => pill(f.severity) },
+        { h: "Rule", f: f => `<span class="m">${H(f.rule_id)}</span>` },
+        { h: "Finding", f: f => `<b>${H(f.title)}</b><span class="sub">${H(f.fix || "")}</span>` },
+      ], x.findings) : ""}`;
+    return card(`${x.host}:${x.port ?? 500}`, body, { icon: I.network, sub: `${NUM(x.probes_sent ?? 0)} probes${x.nat_t ? " · NAT-T" : ""}`,
+      act: `<button class="btn xs" data-copy='${H(JSON.stringify(x))}'>Copy JSON</button>` });
+  }).join(`<div style="height:12px"></div>`) || emptyBox("No results", I.network), "/v1/scan/ike");
+  wire(box);
+};
 ACTIONS.devStats = async () => {
   const box = $("#devStats"); if (!box) return;
   const r = await safe("/dev/stats");
@@ -9763,7 +9839,7 @@ ACTIONS.retRun    = async () => adOut("#isoOut", await safe("/platform/retention
 const CATALOG = [
   ["Core", ["/health", "/health/deep", "/health/full", "/healthz", "/status", "/metrics/trends", "/", "/auth/context", "/auth/config", "/auth/memberships", "/auth/users"]],
   ["Scans & assets", ["/scans", "/assets", "/baselines", "/collections", "/repositories", "/tags", "/search?q=example", "/scan-schedules", "/schedules"]],
-  ["Inventory & CBOM", ["/cbom", "/cbom.csv", "/cbom/webhook/setup", "/cbom/webhook/ingests", "/sbom/imports", "/security-graph", "/timeline/data"]],
+  ["Inventory & CBOM", ["/cbom", "/cbom.csv", "/cbom/webhook/setup", "/cbom/webhook/ingests", "/sbom/imports", "/crypto-inventory", "/security-graph", "/timeline/data"]],
   ["Quantum Airlock", ["/airlock/architecture", "/airlock/enterprise-readiness", "/airlock/policy", "/airlock/agent-package", "/airlock/evidence", "/airlock/flight-recorder", "/airlock/flight-recorder/submit", "/airlock/change-simulator", "/airlock/remediation-pr-factory", "/trust-passport", "/trust-passport/share", "/privacy-cbom/fingerprint", "/remediation/proof-package", "/firmware/proof", "/compliance-ledger/credential", "/crypto-kill-switch/policy", "/runtime-handshake/proof", "/vendor-trust/passport", "/sovereign-copilot/redaction-policy", "/sovereign-copilot/redact"]],
   ["Autonomous Mesh", ["/autonomous-mesh/blueprint", "/autonomous-mesh/capability-truth", "/autonomous-mesh/ebpf-package", "/binary/entropy-hunt", "/autonomous-mesh/contagion/multi-hop", "/q-intel/dynamic-countdown", "/autopilot/multi-variant-pr", "/autopilot/canary-traffic-shift", "/hardware/hsm-virtualization", "/hardware/hsm-collector-package", "/hardware/crypto-bridge/collector-package", "/hardware/crypto-drift/observations", "/hardware/crypto-drift/enforce", "/crypto-anomaly/detect", "/crypto-anomaly/siem-package", "/zk-compliance/continuous-proof", "/insurance/underwriting-export", "/insurance/proof-of-agility", "/insurance/proof-of-agility/verify"]],
   ["Quantum risk", ["/hndl/dashboard", "/hndl/timeline", "/hndl-canaries", "/qday/countdown", "/qday-forecast", "/qday-forecast/milestones", "/qday-forecast/threat-actors", "/q-intel/feed", "/q-intel/model", "/dark-matter/map", "/quantum-sim/graph", "/contagion/graph", "/blast-radius/graph", "/blast-radius/custom-edges", "/blast-radius/export"]],

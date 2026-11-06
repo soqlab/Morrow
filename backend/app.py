@@ -767,6 +767,7 @@ from routers.evidence import create_evidence_router
 from routers.governance import create_governance_router
 from routers.workfeed import create_workfeed_router
 from routers.readiness import create_readiness_router
+from routers.discovery import create_discovery_router
 from routers.agent import create_agent_router
 from routers.security_intent import create_security_intent_router
 from routers.gateway import create_gateway_router
@@ -11314,6 +11315,7 @@ app.include_router(create_governance_router(_require_role))
 app.include_router(create_workfeed_router(_require_role))
 app.include_router(create_readiness_router(_require_role))
 app.include_router(create_security_intent_router(_require_role))
+app.include_router(create_discovery_router(_require_role, lambda r, t: _refuse_unverified_targets(r, t), lambda r: _org(r), lambda: _db(), lambda c: _w15_ensure(c), limiter))
 app.include_router(create_gateway_router(_require_role))
 
 # /v1 mounts — same routers, versioned prefix for new integrations
