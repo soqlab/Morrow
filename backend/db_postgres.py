@@ -3918,7 +3918,16 @@ def _row_to_webhook_dict(row: Optional[Dict[str, Any]], include_secret: bool = F
         out["timeout_seconds"] = int(out.get("timeout_seconds") or 10)
     except Exception:
         out["timeout_seconds"] = 10
-    out["secret"] = str(out.get("secret") or "") if include_secret else ""
+    secret = str(out.pop("secret", "") or "")
+    if include_secret:
+        out["secret"] = secret
+    else:
+        # Same shape as db.list_webhooks on SQLite: no secret field at all, only whether one is set.
+        # This returned "secret": "" and no has_secret, so GET /integrations/webhooks on Postgres
+        # told the console every webhook was unsigned.
+        has_secret = bool(secret or out.get("credential_id"))
+        out["has_secret"] = has_secret
+        out["secret_masked"] = "********" if has_secret else ""
     return out
 
 
