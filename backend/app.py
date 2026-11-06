@@ -11530,14 +11530,38 @@ def _conf_weight(conf: str) -> int:
     return 0
 
 
-def _enrich_result_with_asset(result: Dict[str, Any]) -> Dict[str, Any]:
-    """Attach inventory + baseline info to a scan result."""
+_NOT_PREFETCHED = object()
+
+
+def _result_asset_key(result: Dict[str, Any]) -> str:
     host = result.get("host") or ""
     port = result.get("port") if result.get("port") is not None else 443
-    ak = f"{host}:{port}"
+    return f"{host}:{port}"
+
+
+def _enrich_results_with_assets(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """_enrich_result_with_asset for a whole scan: two statements, not three to four per result.
+
+    /scans/{id}/results and /fix-next enriched each of a scan's (up to 200) results with its own
+    get_asset + get_baseline; on Postgres that is ~600 pooled round trips per request (7-11 s at
+    10,000 assets in the scale test).
+    """
+    from db import get_assets_for_keys, get_baselines_for_assets
+
+    keys = [_result_asset_key(r) for r in results]
+    assets = get_assets_for_keys(keys)
+    baselines = get_baselines_for_assets(keys)
+    return [_enrich_result_with_asset(dict(r), asset=assets.get(k), baseline=baselines.get(k))
+            for r, k in zip(results, keys)]
+
+
+def _enrich_result_with_asset(result: Dict[str, Any], asset: Any = _NOT_PREFETCHED,
+                              baseline: Any = _NOT_PREFETCHED) -> Dict[str, Any]:
+    """Attach inventory + baseline info to a scan result."""
+    ak = _result_asset_key(result)
     result["asset_key"] = ak
 
-    a = get_asset(ak)
+    a = get_asset(ak) if asset is _NOT_PREFETCHED else asset
     if a:
         result["asset"] = a
         # also flatten common fields for UI convenience
@@ -11553,7 +11577,7 @@ def _enrich_result_with_asset(result: Dict[str, Any]) -> Dict[str, Any]:
         result["repository_name"] = ""
         result["repository_html_url"] = ""
 
-    b = get_baseline(ak)
+    b = get_baseline(ak) if baseline is _NOT_PREFETCHED else baseline
     if b:
         result["baseline_scan_id"] = b.get("baseline_scan_id")
         result["baseline_set_at"] = b.get("set_at")
@@ -12488,7 +12512,7 @@ def get_scan_results(scan_id: str):
     # Enrich with asset inventory/baseline. Once: this line was duplicated, and
     # _enrich_result_with_asset issues two queries per result, so every scan's results were
     # costing twice the round trips they needed for an identical answer.
-    results = [_enrich_result_with_asset(dict(r)) for r in results]
+    results = _enrich_results_with_assets(results)
     summary = scan.get("summary") or (summarize_results(results) if results else {})
 
     return ScanWithResults(
@@ -12906,7 +12930,7 @@ def api_fix_next(
         raise HTTPException(status_code=404, detail="scan not found")
 
     results = scan.get("results") or []
-    results = [_enrich_result_with_asset(dict(r)) for r in results]
+    results = _enrich_results_with_assets(results)
 
     # Optional filter by inventory fields/tag
     items = []

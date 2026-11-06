@@ -1622,6 +1622,33 @@ class TestNewestRowPerAssetStopsAtTheLimit(_InventoryFixture):
         self.assertIn("idx_scan_results_org_scanned", plan)
 
 
+class TestScanResultEnrichmentIsBatched(_InventoryFixture):
+    """/scans/{id}/results and /fix-next looked up the asset and the baseline of every result
+    separately (3-4 statements each); on Postgres that was 7-11 s per request at 10,000 assets."""
+
+    def test_same_answer_with_a_constant_number_of_statements(self):
+        import app
+
+        self.db.set_baseline("h3.org-a:443", "scan-org-a-3-1")
+        results = [{"host": "h%d.org-a" % n, "port": 443, "findings": []} for n in range(self.ASSETS)]
+        results.append({"host": "unknown.example", "port": 8443})
+        expected = [app._enrich_result_with_asset(dict(r)) for r in results]
+        with _TracedSqlite(self.db) as traced:
+            got = app._enrich_results_with_assets(results)
+        self.assertEqual(got, expected)
+        self.assertLessEqual(len(traced.selects()), 2, traced.selects())
+        self.assertEqual(got[3]["baseline_scan_id"], "scan-org-a-3-1")
+        self.assertIsNone(got[-1]["asset"])
+
+    def test_the_endpoints_use_the_batch(self):
+        import inspect
+
+        import app
+
+        for handler in (app.get_scan_results, app.api_fix_next):
+            self.assertIn("_enrich_results_with_assets(results)", inspect.getsource(handler))
+
+
 class TestRemediationListLooksUpRepositoriesOnce(_InventoryFixture):
     """Each listed remediation fetched its repository separately: 500 extra queries on every
     /crypto-agility call and 2,000 on /migration-velocity."""

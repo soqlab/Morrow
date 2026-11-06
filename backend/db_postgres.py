@@ -1773,11 +1773,15 @@ def pg_list_assets(
     dsn: Optional[str] = None,
     after: Optional[tuple] = None,
     max_limit: int = 5000,
+    asset_keys: Optional[Sequence[str]] = None,
 ) -> List[Dict[str, Any]]:
     ensure_postgres_core_schema(dsn)
     params: List[Any] = [str(org_id or "").strip() or DEFAULT_ORG_ID]
     joins = ""
     clauses = ["a.organization_id = %s"]
+    if asset_keys is not None:
+        clauses.append("a.asset_key = ANY(%s)")
+        params.append(sorted({str(k) for k in asset_keys}))
     if after:
         # Keyset cursor: the (updated_at, asset_key) of the last row of the previous page.
         clauses.append("(a.updated_at, a.asset_key) < (%s::timestamptz, %s)")
@@ -2379,6 +2383,28 @@ def pg_get_baseline(org_id: str, asset_key_str: str, dsn: Optional[str] = None) 
     return out
 
 
+def pg_get_baselines_for_assets(org_id: str, asset_keys: Sequence[str], dsn: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
+    """pg_get_baseline for many assets in one statement, keyed by asset_key."""
+    keys = sorted({str(k or "").strip() for k in asset_keys} - {""})
+    if not keys:
+        return {}
+    ensure_postgres_core_schema(dsn)
+    with pg_product_conn(dsn) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT asset_key, baseline_scan_id, set_at FROM baselines"
+                " WHERE organization_id = %s AND asset_key = ANY(%s)",
+                (str(org_id or "").strip() or DEFAULT_ORG_ID, keys),
+            )
+            rows = _fetchall_dicts(cur)
+    out = {}
+    for row in rows:
+        row = dict(row)
+        row["set_at"] = _iso_utc(row.get("set_at"))
+        out[row["asset_key"]] = row
+    return out
+
+
 def pg_list_baselines(org_id: str, limit: int = 500, dsn: Optional[str] = None) -> List[Dict[str, Any]]:
     ensure_postgres_core_schema(dsn)
     with pg_product_conn(dsn) as conn:
@@ -2844,7 +2870,8 @@ def pg_update_validation_job(
     return pg_get_validation_job(org_id, validation_job_id, dsn=dsn)
 
 
-def _row_to_remediation_dict(row: Optional[Dict[str, Any]], dsn: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def _row_to_remediation_dict(row: Optional[Dict[str, Any]], dsn: Optional[str] = None,
+                             repos: Optional[Dict[int, Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
     if not row:
         return None
     out = dict(row)
@@ -2873,7 +2900,10 @@ def _row_to_remediation_dict(row: Optional[Dict[str, Any]], dsn: Optional[str] =
     except Exception:
         out["drift_followup_remediation_id"] = 0
     out["origin_kind"] = str(out.get("origin_kind") or "").strip().lower()
-    repo = pg_get_repository_by_id(str(out.get("organization_id") or DEFAULT_ORG_ID), out["repo_id"], dsn=dsn) if out["repo_id"] else None
+    if repos is not None:
+        repo = repos.get(out["repo_id"]) if out["repo_id"] else None
+    else:
+        repo = pg_get_repository_by_id(str(out.get("organization_id") or DEFAULT_ORG_ID), out["repo_id"], dsn=dsn) if out["repo_id"] else None
     out["repository_name"] = (repo or {}).get("name", "")
     out["repository_html_url"] = (repo or {}).get("html_url", "")
     out["drift_status"] = str(out.get("drift_status") or "").strip().lower()
@@ -3025,7 +3055,17 @@ def pg_list_remediations(
     with pg_product_conn(dsn) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
-            return [_row_to_remediation_dict(r, dsn=dsn) or {} for r in _fetchall_dicts(cur)]
+            rows = _fetchall_dicts(cur)
+            # One lookup for every linked repository instead of a pooled round trip per row:
+            # /crypto-agility and /migration-velocity took ~30 s at 10,000 assets on Postgres.
+            repo_ids = sorted({int(r.get("repo_id") or 0) for r in rows} - {0})
+            repos: Dict[int, Dict[str, Any]] = {}
+            if repo_ids:
+                cur.execute("SELECT id, name, html_url FROM repositories WHERE organization_id = %s AND id = ANY(%s)",
+                            (str(org_id or "").strip() or DEFAULT_ORG_ID, repo_ids))
+                for r in _fetchall_dicts(cur):
+                    repos[int(r["id"])] = {"name": r.get("name") or "", "html_url": r.get("html_url") or ""}
+            return [_row_to_remediation_dict(r, dsn=dsn, repos=repos) or {} for r in rows]
 
 
 def _row_to_migration_task_dict(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:

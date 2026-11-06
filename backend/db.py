@@ -46,6 +46,7 @@ from db_postgres import (
     pg_get_repository_by_name,
     pg_get_asset_history,
     pg_get_baseline,
+    pg_get_baselines_for_assets,
     pg_get_schedule,
     pg_get_webhook_public,
     pg_get_integration_setting,
@@ -2185,6 +2186,7 @@ def list_assets(
     limit: int = 2000,
     cursor: Optional[str] = None,
     _max_limit: int = 5000,
+    asset_keys: Optional[Sequence[str]] = None,
 ) -> List[Dict[str, Any]]:
     """One page of the inventory, newest first, ordered by (updated_at, asset_key) descending.
 
@@ -2205,6 +2207,7 @@ def list_assets(
             limit=limit,
             after=after,
             max_limit=_max_limit,
+            asset_keys=asset_keys,
         )
     limit = max(1, min(int(limit or 2000), int(_max_limit)))
     # Tags and the repository used to be two more queries per row (plus the schema checks
@@ -2225,6 +2228,10 @@ def list_assets(
     if after:
         wh.append("(a.updated_at, a.asset_key) < (?, ?)")
         params.extend([str(after[0]), str(after[1])])
+    if asset_keys is not None:
+        keys = sorted({str(k) for k in asset_keys})
+        wh.append("a.asset_key IN (SELECT value FROM json_each(?))")
+        params.append(json.dumps(keys))
 
     if tag:
         sql += " JOIN asset_tags t ON t.asset_key = a.asset_key AND t.organization_id = a.organization_id"
@@ -2269,6 +2276,32 @@ def list_assets(
             "tags": sorted(row[12].split("\x1f")) if row[12] else [],
         })
     return out
+
+
+def get_assets_for_keys(asset_keys: Sequence[str]) -> Dict[str, Dict[str, Any]]:
+    """get_asset() for many keys in one statement (missing keys are absent), keyed by asset_key."""
+    keys = sorted({str(k or "").strip() for k in asset_keys} - {""})
+    if not keys:
+        return {}
+    rows = list_assets(limit=len(keys), asset_keys=keys, _max_limit=max(5000, len(keys)))
+    return {r["asset_key"]: r for r in rows}
+
+
+def get_baselines_for_assets(asset_keys: Sequence[str]) -> Dict[str, Dict[str, Any]]:
+    """get_baseline() for many keys in one statement, keyed by asset_key."""
+    keys = sorted({str(k or "").strip() for k in asset_keys} - {""})
+    if not keys:
+        return {}
+    org_id = current_organization_id()
+    if postgres_main_db_requested():
+        return pg_get_baselines_for_assets(org_id, keys)
+    with closing(get_connection()) as conn:
+        rows = conn.execute(
+            "SELECT asset_key, baseline_scan_id, set_at FROM baselines"
+            " WHERE organization_id = ? AND asset_key IN (SELECT value FROM json_each(?))",
+            (org_id, json.dumps(keys)),
+        ).fetchall()
+    return {r[0]: {"asset_key": r[0], "baseline_scan_id": r[1], "set_at": r[2]} for r in rows}
 
 
 def asset_page_cursor(asset: Dict[str, Any]) -> str:
