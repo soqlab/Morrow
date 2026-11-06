@@ -470,6 +470,10 @@ body[data-motion="paused"] .st-track,
 body[data-motion="paused"] .ticker-track { animation-play-state: paused; }
 
 @media (max-width: 760px) { .site-header { padding: 0 20px; } }
+/* Below ~420px the wordmark, both calls to action and the menu button do not fit in one row, and
+   the menu button was pushed past the right edge of a 320px screen. The hero's own "Sign up free"
+   link sits directly below, so the header keeps Sign in and the menu. */
+@media (max-width: 420px) { .header-signup { display: none; } }
 @media (prefers-reduced-motion: reduce) { .st-track { animation: none; } }
 
 /* ==========================================================================
