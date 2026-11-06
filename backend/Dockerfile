@@ -23,7 +23,7 @@ RUN apt-get update \
     && unzip /tmp/tofu.zip tofu -d /usr/local/bin \
     && rm -f /tmp/tofu.zip \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --upgrade pip==26.2 setuptools==83.0.0 wheel==0.48.0 \
+    && pip install --no-cache-dir --upgrade pip==26.2 setuptools==84.1.0 wheel==0.48.0 \
     && pip install --no-cache-dir -r /app/requirements.txt \
     && if [ "$INSTALL_DEV_DEPS" = "true" ]; then pip install --no-cache-dir -r /app/requirements-dev.txt; fi \
     && adduser --disabled-password --gecos "" --uid 1001 appuser

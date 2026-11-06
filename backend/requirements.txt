@@ -17,7 +17,7 @@ celery==5.6.2
 redis==7.1.0
 python-multipart==0.0.32
 requests==2.34.2
-dnspython==2.8.0
+dnspython==2.9.0
 psycopg2-binary==2.9.11
 google-cloud-asset==4.4.0
 google-cloud-resource-manager==1.16.0
@@ -49,9 +49,9 @@ azure-identity==1.25.3
 # Must track the FastAPI version: instrumentation 0.50b0 and earlier read scope["route"].path,
 # which raises AttributeError on FastAPI 0.141 ('_IncludedRouter' object has no attribute
 # 'path') and fails every instrumented request. Upgrade these together with fastapi.
-opentelemetry-sdk==1.44.0
-opentelemetry-instrumentation-fastapi==0.65b0
-opentelemetry-exporter-otlp-proto-grpc==1.44.0
+opentelemetry-sdk==1.45.1
+opentelemetry-instrumentation-fastapi==0.66b1
+opentelemetry-exporter-otlp-proto-grpc==1.45.1
 
 # Transitive dependencies pinned for security only.
 #
@@ -65,8 +65,8 @@ opentelemetry-exporter-otlp-proto-grpc==1.44.0
 # Raise these floors when a newer advisory lands; they are not held back by anything.
 urllib3==2.8.0
 protobuf==5.29.6
-pyasn1==0.6.4
-pillow==12.3.0
+pyasn1==0.6.5
+pillow==13.0.0
 # Imported by routers/evidence.py and services/invoicing.py to build the PDF compliance
 # report and PDF invoices. It was missing from this file, so a clean `pip install -r
 # requirements.txt` produced a venv where both of those exports raised ImportError at the
@@ -74,6 +74,6 @@ pillow==12.3.0
 reportlab==4.5.1
 python-dotenv==1.2.2
 # Security pins from the installed-dependency audit, including transitives.
-aiohttp==3.14.3
+aiohttp==3.14.4
 anyio==4.14.2
 click==8.3.3
