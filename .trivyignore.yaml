@@ -9,3 +9,9 @@ misconfigurations:
       No USER line on purpose: Render mounts the persistent disk at /data owned by root, so
       start.sh starts as root only to chown /data and then launches Redis, the Celery worker and
       the API as appuser with setpriv. No long-running process runs as root.
+  - id: DS-0002
+    paths:
+      - "backend/tests/fixtures/strongswan/Dockerfile"
+    statement: >-
+      Test fixture only, never deployed: a strongSwan responder that ike_scanner tests probe. charon
+      binds UDP 500/4500 and installs kernel IPsec policy, which needs root.

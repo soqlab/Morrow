@@ -140,6 +140,10 @@ jobs:
       MORROW_ENVIRONMENT: local
       MORROW_AUTH_REQUIRED: "0"
       MORROW_DEFAULT_ROLE: admin
+      # One browser drives every console view from one IP, well past the per-IP limit of 240 a
+      # minute, and then fails on 429s instead of on the UI. The limiter has its own tests.
+      MORROW_RATE_LIMIT_MAX_REQUESTS: "100000"
+      MORROW_RATE_LIMIT_DEFAULT: 100000/minute
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
