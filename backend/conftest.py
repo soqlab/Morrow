@@ -152,6 +152,29 @@ def _restore_database_selection_between_modules():
 
 
 @pytest.fixture(autouse=True)
+def _fresh_rate_limit_window():
+    """Start every test with an empty per-organization rate-limit window.
+
+    With a Redis URL set (the Postgres CI job) the counter lives in Redis, keyed by organization and
+    minute, so every test in the same minute shares it. Whichever test made request 241 got a 429:
+    test_feedback did on CI, for no reason of its own.
+    """
+    import sys
+    app_mod = sys.modules.get("app")
+    if app_mod is not None:
+        app_mod._requests_by_org.clear()
+        client = getattr(app_mod, "_REDIS_RATE_CLIENT", None)
+        if client is not None:
+            try:
+                keys = list(client.scan_iter(match="morrow:rate:*", count=500))
+                if keys:
+                    client.delete(*keys)
+            except Exception:
+                pass  # Redis gone: the limiter falls back to memory, cleared above.
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _restore_global_module_state():
     """Undo process-global state that a test leaves behind, so it cannot cascade into other suites.
 
