@@ -284,6 +284,12 @@ async function main() {
     await noScriptContext.close();
     assert.deepEqual(errors, []);
     console.log("PASS: animated no-WebGL fallback, fallback pause, readable no-JavaScript content, no JS errors.");
-  } finally { await browser.close(); }
+  } finally {
+    // A page left with an installed fake clock and a held route can keep browser.close() waiting
+    // indefinitely, so the run printed its last PASS and then hung until the job timed out.
+    await Promise.race([browser.close(), new Promise(resolve => setTimeout(resolve, 10000))]);
+  }
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+// Exit explicitly: anything still holding the event loop (a stuck close, an open route handler)
+// must not turn a finished run into a hang.
+main().then(() => process.exit(process.exitCode || 0), error => { console.error(error); process.exit(1); });
