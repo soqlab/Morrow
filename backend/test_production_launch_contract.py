@@ -213,8 +213,9 @@ def test_strict_preflight_supports_ai_off_and_verified_redis_tls(tmp_path, chang
     }
     target = tmp_path / "launch.env"
     target.write_text("\n".join(f"{key}={value}" for key, value in conf.items()), encoding="utf-8")
-    # The preflight accepts paths relative to the repository root.
-    result = _ps("prod-preflight.ps1", "-EnvFile", os.path.relpath(target, ROOT), "-Strict", "-Json")
+    # An absolute path: a relative one cannot reach tmp_path when it is on another drive than the
+    # checkout, as on the hosted Windows runners (checkout on D:, temp on C:).
+    result = _ps("prod-preflight.ps1", "-EnvFile", str(target), "-Strict", "-Json")
     report = json.loads(result.stdout.decode("utf-8-sig"))
     assert "ai_provider" not in {item["check"] for item in report["checks"]}
     if expected:

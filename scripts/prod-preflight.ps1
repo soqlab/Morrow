@@ -6,7 +6,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$EnvPath = Join-Path $RepoRoot $EnvFile
+# A relative -EnvFile is taken from the repository root; an absolute one is used as given.
+$EnvPath = if ([System.IO.Path]::IsPathRooted($EnvFile)) { $EnvFile } else { Join-Path $RepoRoot $EnvFile }
 $Findings = New-Object System.Collections.Generic.List[object]
 
 function Add-Finding {
