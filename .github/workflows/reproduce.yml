@@ -1,0 +1,93 @@
+# Independent rebuild of a published release: checks that the tag, built again from source on a
+# fresh runner with no cache, gives exactly the published files -- both image digests, the three
+# SBOMs and the offline bundle. Each mismatch is an ::error annotation and fails the run.
+#
+# Runs after every release (called from release.yml), and on demand for any tag:
+#   gh workflow run reproduce.yml -f tag=v1.2.3
+#
+# It compares against the release's IMAGES.txt and SHA256SUMS only; nothing published is pulled
+# or reused, so a match means the published bytes are what the source produces. Anyone can run
+# the same check locally: scripts/release/reproduce.sh, see docs/REPRODUCIBLE_BUILDS.md.
+
+name: Reproduce release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to rebuild (vX.Y.Z)
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  reproduce:
+    name: Rebuild ${{ inputs.tag }} and compare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # check out the tag and read the release assets
+    timeout-minutes: 60
+    steps:
+      - name: Check the tag is a plain version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || {
+            echo "::error::Tag $TAG is not vMAJOR.MINOR.PATCH[-pre]"; exit 1; }
+
+      # The scripts and pins come from the tag itself: a release is reproduced with the tools it
+      # was built with.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+
+      - name: Published digests and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p published
+          gh release download "$TAG" --pattern IMAGES.txt --pattern SHA256SUMS --dir published
+          cat published/IMAGES.txt published/SHA256SUMS
+
+      - name: Rebuild and compare
+        env:
+          TAG: ${{ inputs.tag }}
+          PUBLISHED_DIR: published
+          OUT_DIR: reproduced
+          MORROW_REPO: ${{ github.repository }}
+        run: |
+          set -o pipefail
+          sh scripts/release/reproduce.sh "$TAG" | tee report.txt
+          { echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      # The small files always, so a mismatch can be diffed against the published ones (the image
+      # archives as well when it failed: diffoscope or `tar -tvf` on them shows which layer differs).
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: reproduced-${{ inputs.tag }}
+          path: |
+            report.txt
+            reproduced/build/IMAGES.txt
+            reproduced/build/*.cdx.json
+            reproduced/build/*.metadata.json
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: reproduced-${{ inputs.tag }}-images
+          path: |
+            reproduced/build/*.oci.tar
+            reproduced/build/morrow-offline-*.tar.gz
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
