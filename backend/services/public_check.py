@@ -326,6 +326,17 @@ def init_tables() -> None:
     with _TABLES_LOCK:
         if identity in _TABLES_READY:
             return
+        # No SQL comments in this script: on Postgres the feature store splits it on ";", and a
+        # ";" inside a comment left an unterminated /* ... */ that failed every public check.
+        #
+        # public_check_observations and public_check_domains are the permanent record behind
+        # /r/{domain}. public_check_results is a cache with a TTL, which is what keeps the
+        # per-domain check budget honest; these two tables are the opposite requirement -- a
+        # result that stays put so a shared link, a badge or a citation still resolves years
+        # later. Separate tables rather than a longer TTL, because the two lifetimes are
+        # unrelated. idx_public_check_obs_dedupe makes an unchanged endpoint extend last_seen_at
+        # on its existing row instead of appending a duplicate, so the history reads as a list of
+        # changes rather than one row per visit.
         with feature_conn() as conn:
             conn.executescript(
                 """
@@ -351,11 +362,6 @@ def init_tables() -> None:
                     ON public_check_log (created_at);
                 CREATE INDEX IF NOT EXISTS idx_public_check_log_domain
                     ON public_check_log (domain, created_at);
-                /* The permanent record behind /r/{domain}. public_check_results above is a
-                   cache with a TTL, which is what keeps the per-domain check budget honest;
-                   these two tables are the opposite requirement -- a result that stays put so
-                   a shared link, a badge or a citation still resolves years later. Separate
-                   tables rather than a longer TTL, because the two lifetimes are unrelated. */
                 CREATE TABLE IF NOT EXISTS public_check_observations (
                     id           INTEGER PRIMARY KEY AUTOINCREMENT,
                     domain       TEXT NOT NULL,
@@ -369,9 +375,6 @@ def init_tables() -> None:
                 );
                 CREATE INDEX IF NOT EXISTS idx_public_check_obs_domain
                     ON public_check_observations (domain, observed_at DESC);
-                /* An unchanged endpoint extends last_seen_at on the existing row instead of
-                   appending a duplicate, so the history reads as a list of changes rather than
-                   one row per visit. */
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_public_check_obs_dedupe
                     ON public_check_observations (domain, content_hash, source);
                 CREATE TABLE IF NOT EXISTS public_check_domains (
