@@ -59,6 +59,10 @@ def client_and_repo():
         "http_status": 201,
         "json": {"html_url": "https://github.com/acme/demo/pull/1"},
     }
+    # These calls carry no identity. Signed-out callers are viewers by default, and the
+    # remediation routes need an operator or admin, so act as an admin for this module only.
+    original_default_role = fastapi_app.DEFAULT_USER_ROLE
+    fastapi_app.DEFAULT_USER_ROLE = "admin"
     original_execute_validation_job = fastapi_app.execute_validation_job
     fastapi_app.execute_validation_job = lambda validation_job_id, *_a, **_k: (
         update_validation_job(
@@ -78,6 +82,7 @@ def client_and_repo():
         yield client, repo
 
     fastapi_app.execute_validation_job = original_execute_validation_job
+    fastapi_app.DEFAULT_USER_ROLE = original_default_role
     # Put the database selection back. This fixture is module-scoped, so its teardown runs
     # after the per-test cleanup in conftest; without this, MORROW_SCANNER_DB keeps pointing at
     # this (now deleted) file for every module that runs afterwards.

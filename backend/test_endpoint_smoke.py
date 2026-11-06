@@ -72,6 +72,10 @@ def probe():
     was_key = application._PLATFORM_ADMIN_KEY
     was_enabled = getattr(application.limiter, "enabled", True)
     was_max = application.RATE_LIMIT_MAX_REQUESTS
+    # MORROW_DEFAULT_ROLE above only counts when this file is the first to import app; after any
+    # other suite the module is loaded already and signed-out calls are viewers. Set it directly.
+    was_role = application.DEFAULT_USER_ROLE
+    application.DEFAULT_USER_ROLE = "admin"
 
     application._PLATFORM_ADMIN_KEY = "smoke-key"
     # There are two limiters and both must be lifted, or the probe answers 429
@@ -107,6 +111,7 @@ def probe():
     application._PLATFORM_ADMIN_KEY = was_key
     application.limiter.enabled = was_enabled
     application.RATE_LIMIT_MAX_REQUESTS = was_max
+    application.DEFAULT_USER_ROLE = was_role
     # Restoring the limit is not enough: the sliding window keeps a timestamp per
     # request, and this probe adds well over a thousand. Left in place, the very
     # next test to call the API gets a 429 and fails for a reason that has
