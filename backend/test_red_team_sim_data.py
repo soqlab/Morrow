@@ -28,6 +28,10 @@ def seeded(monkeypatch):
     path = os.path.join(tempfile.mkdtemp(), "rt.db")
     monkeypatch.setenv("MORROW_SCANNER_DB", path)
     monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
+    # The rows below are written straight into this SQLite file, so the reader must use it too;
+    # under MORROW_MAIN_DB_BACKEND=postgres (the Postgres CI job) init_db() never created
+    # scan_results here and the simulation read Postgres instead.
+    monkeypatch.setenv("MORROW_MAIN_DB_BACKEND", "sqlite")
 
     import importlib
     import db

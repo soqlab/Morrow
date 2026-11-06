@@ -31,6 +31,11 @@ class TestWebhookContractV1(unittest.TestCase):
         # Remember the prior value so tearDown can put it back exactly (including "unset").
         self._prev_db_env = os.environ.get("MORROW_SCANNER_DB")
         os.environ["MORROW_SCANNER_DB"] = self.db_path
+        # The assertions read webhook_events straight from that SQLite file, so the writes must go
+        # there too: in the CI job that sets MORROW_MAIN_DB_BACKEND=postgres they went to Postgres
+        # and this file never had the table.
+        self._prev_backend_env = os.environ.get("MORROW_MAIN_DB_BACKEND")
+        os.environ["MORROW_MAIN_DB_BACKEND"] = "sqlite"
 
         # Reload so module-level DB_PATH picks up the env var.
         import db
@@ -82,6 +87,10 @@ class TestWebhookContractV1(unittest.TestCase):
             os.environ.pop("MORROW_SCANNER_DB", None)
         else:
             os.environ["MORROW_SCANNER_DB"] = self._prev_db_env
+        if self._prev_backend_env is None:
+            os.environ.pop("MORROW_MAIN_DB_BACKEND", None)
+        else:
+            os.environ["MORROW_MAIN_DB_BACKEND"] = self._prev_backend_env
         import db
         import events
         importlib.reload(db)

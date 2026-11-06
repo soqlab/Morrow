@@ -40,8 +40,13 @@ class TestClaimLease(unittest.TestCase):
         self.tmp = tempfile.NamedTemporaryFile(delete=False)
         self.tmp.close()
 
+        # This exercises the SQLite claim path (BEGIN IMMEDIATE + claim marks) against a file it
+        # builds itself, so it must not follow MORROW_MAIN_DB_BACKEND=postgres in the CI job: there
+        # claim_due_webhook_events goes to Postgres, which holds none of these rows.
         # IMPORTANT: set env BEFORE importing db
+        self._saved_env = {k: os.environ.get(k) for k in ("MORROW_SCANNER_DB", "MORROW_MAIN_DB_BACKEND")}
         os.environ["MORROW_SCANNER_DB"] = self.tmp.name
+        os.environ["MORROW_MAIN_DB_BACKEND"] = "sqlite"
         _mk_db(self.tmp.name)
 
         import db as _db
@@ -61,6 +66,11 @@ class TestClaimLease(unittest.TestCase):
             conn.close()
 
     def tearDown(self):
+        for key, value in self._saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
         try:
             os.unlink(self.tmp.name)
         except Exception:

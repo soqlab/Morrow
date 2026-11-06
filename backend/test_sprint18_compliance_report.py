@@ -1,5 +1,6 @@
 import os
 import tempfile
+import uuid
 from datetime import datetime
 
 import pytest
@@ -24,6 +25,12 @@ from db import (
 )
 
 
+# Its own organization: the report counts every remediation the organization has, and on a shared
+# Postgres database (the Postgres CI job) the default organization already holds the rows other
+# test modules created, so the totals asserted below were never this fixture's alone.
+REPORT_ORG = "org-compliance-report-" + uuid.uuid4().hex[:12]
+
+
 @pytest.fixture(scope="module")
 def client_and_report_data():
     tmp_db = tempfile.NamedTemporaryFile(delete=False)
@@ -34,7 +41,7 @@ def client_and_report_data():
     fastapi_app.app.router.on_shutdown.clear()
 
     init_db()
-    token = set_current_organization_id(fastapi_app.DEFAULT_ORG_ID)
+    token = set_current_organization_id(REPORT_ORG)
     try:
         repo = upsert_repository("acme/compliance-demo", "https://github.com/acme/compliance-demo")
         ak = asset_key("critical.example", 443)
@@ -113,7 +120,7 @@ def client_and_report_data():
             actor_role="admin",
             action="organization.compliance_report",
             resource_type="organization",
-            resource_id=fastapi_app.DEFAULT_ORG_ID,
+            resource_id=REPORT_ORG,
             decision="allow",
             reason="",
             details={"seed": True},
@@ -141,12 +148,12 @@ def test_org_compliance_report_json(client_and_report_data):
 
     resp = client.get(
         "/org/compliance-report?format=json&audit_limit=10",
-        headers={"x-user-id": "sec-admin", "x-user-role": "admin"},
+        headers={"x-user-id": "sec-admin", "x-user-role": "admin", "x-org-id": REPORT_ORG},
     )
     assert resp.status_code == 200
     body = resp.json()
 
-    assert body["organization"]["id"] == fastapi_app.DEFAULT_ORG_ID
+    assert body["organization"]["id"] == REPORT_ORG
     assert body["summary"]["remediations_total"] == 2
     assert body["summary"]["validated_total"] == 1
     assert body["summary"]["validated_passed_total"] == 1
@@ -172,6 +179,6 @@ def test_org_compliance_report_denies_viewer(client_and_report_data):
 
     resp = client.get(
         "/org/compliance-report",
-        headers={"x-user-id": "viewer-user", "x-user-role": "viewer"},
+        headers={"x-user-id": "viewer-user", "x-user-role": "viewer", "x-org-id": REPORT_ORG},
     )
     assert resp.status_code == 403

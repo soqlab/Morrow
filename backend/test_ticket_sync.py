@@ -55,19 +55,27 @@ def _jira_sig(secret, body):
 
 @pytest.fixture(scope="module")
 def env():
-    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    tmp.close()
-    previous = os.environ.get("MORROW_SCANNER_DB")
-    os.environ["MORROW_SCANNER_DB"] = tmp.name
-    fastapi_app.app.router.on_startup.clear()
-    fastapi_app.app.router.on_shutdown.clear()
-    db.init_db()
-    with TestClient(fastapi_app.app) as client:
-        yield client
-    if previous is None:
-        os.environ.pop("MORROW_SCANNER_DB", None)
-    else:
-        os.environ["MORROW_SCANNER_DB"] = previous
+    # These tests assert the "no task broker" outcome (rescan not queued, reason reported). The
+    # broker probe connects to CELERY_BROKER_URL / REDIS_URL, else localhost:6379, so with the
+    # Redis service in the Postgres CI job, or Redis on a developer machine, a rescan really was
+    # handed to Celery. Point it at a port nothing listens on and drop the cached probe result.
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setenv("CELERY_BROKER_URL", "redis://127.0.0.1:1/0")
+        mp.delenv("REDIS_URL", raising=False)
+        mp.setitem(fastapi_app._broker_probe, "at", float("-inf"))
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        tmp.close()
+        previous = os.environ.get("MORROW_SCANNER_DB")
+        os.environ["MORROW_SCANNER_DB"] = tmp.name
+        fastapi_app.app.router.on_startup.clear()
+        fastapi_app.app.router.on_shutdown.clear()
+        db.init_db()
+        with TestClient(fastapi_app.app) as client:
+            yield client
+        if previous is None:
+            os.environ.pop("MORROW_SCANNER_DB", None)
+        else:
+            os.environ["MORROW_SCANNER_DB"] = previous
 
 
 def _admin(org):

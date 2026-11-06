@@ -50,6 +50,12 @@ def isolated_store(tmp_path, monkeypatch):
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "")
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_CT_MIN_INTERVAL_SECONDS", "0")
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_ENABLED", "1")
+    # The limiter keeps its counters in Redis whenever REDIS_URL or CELERY_BROKER_URL is set, as in
+    # the CI job that runs a Redis service. _limits.reset() clears only the in-process counters, so
+    # there every test inherited the previous tests' checks and was refused with a 429. These tests
+    # are about the limits themselves; the Redis backend is covered by test_redis_integration.py.
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     _check._TABLES_READY.clear()
     _limits.reset()
     _check._ct_last_call[0] = 0.0

@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import tempfile
 import unittest
 import importlib
@@ -49,17 +48,18 @@ class TestIntegrationSecretsHardening(unittest.TestCase):
         else:
             os.environ["MORROW_SCANNER_DB"] = self._prev_db_env
 
+    # Read the stored row through db.list_webhooks rather than straight from the SQLite file, so the
+    # assertions hold on whichever backend stores webhooks: under MORROW_MAIN_DB_BACKEND=postgres
+    # (the Postgres CI job) the SQLite file has no webhook rows at all.
+    def _stored_webhook(self, webhook_id: int) -> dict:
+        rows = self.db.list_webhooks(limit=500, include_secret=True)
+        return next((r for r in rows if int(r.get("id") or 0) == int(webhook_id)), {})
+
     def _db_webhook_secret(self, webhook_id: int) -> str:
-        conn = sqlite3.connect(self.db_path)
-        row = conn.execute("SELECT secret FROM webhooks WHERE id=?", (int(webhook_id),)).fetchone()
-        conn.close()
-        return str(row[0] or "") if row else ""
+        return str(self._stored_webhook(webhook_id).get("secret") or "")
 
     def _db_webhook_credential_id(self, webhook_id: int) -> int:
-        conn = sqlite3.connect(self.db_path)
-        row = conn.execute("SELECT credential_id FROM webhooks WHERE id=?", (int(webhook_id),)).fetchone()
-        conn.close()
-        return int(row[0] or 0) if row else 0
+        return int(self._stored_webhook(webhook_id).get("credential_id") or 0)
 
     def test_secret_not_returned_after_save_and_list(self):
         r = self.client.post("/integrations/webhooks", json={

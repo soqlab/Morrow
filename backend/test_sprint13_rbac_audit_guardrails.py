@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as fastapi_app
+from db_postgres import postgres_main_db_requested, product_database_url
 from db import (
     append_audit_log,
     create_remediation,
@@ -153,6 +154,20 @@ def test_audit_log_is_immutable():
         details={"k": "v"},
     )
     rid = int(row["id"])
+    if postgres_main_db_requested():
+        # The row went to Postgres (the Postgres CI job), so the trigger to prove is the Postgres one;
+        # an UPDATE against the SQLite file would match no row and prove nothing.
+        import psycopg2
+
+        conn = psycopg2.connect(product_database_url())
+        try:
+            with pytest.raises(psycopg2.Error, match="audit_logs is immutable"):
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE audit_logs SET reason=%s WHERE id=%s", ("tamper", rid))
+        finally:
+            conn.rollback()
+            conn.close()
+        return
     with get_connection() as conn:
         with pytest.raises(sqlite3.DatabaseError):
             conn.execute("UPDATE audit_logs SET reason=? WHERE id=?", ("tamper", rid))

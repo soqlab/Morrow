@@ -29,6 +29,10 @@ EXTERNAL_OR_STREAMING = (
     "/observatory/run", "/scan", "/qday/live", "/q-intel/refresh",
     "/runtime-handshake", "/cloud-discovery", "/integrations/cloudflare",
     "/telemetry/stream", "/agent", "/assistant", "/sovereign-copilot",
+    # Posts a test message to the organization's saved Slack webhook. With none saved it answers
+    # 400; once any earlier test has saved one (a shared Postgres database keeps it) it makes a
+    # real outbound call, and 502 is its correct answer for an unreachable webhook.
+    "/integrations/slack/test",
 )
 
 # A 503 that names an unconfigured optional dependency is correct behaviour, not

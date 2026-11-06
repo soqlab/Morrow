@@ -1795,8 +1795,11 @@ def test_the_chat_endpoint_falls_back_to_rules_when_the_model_only_errors(tmp_pa
     conf = {**ai_privacy.default_policy(), "mode": "approved_external", "provider": "openai",
             "workflows": ["assistant"], "free_text": True}
     org = current_organization_id()
-    reviewed = ai_privacy.review(conf, 0)
-    ai_privacy.change_policy(org, conf, 0, reviewed["review_hash"], "test-admin")
+    # The policy's current version, not 0: on a shared Postgres database (the Postgres CI job)
+    # earlier tests have already changed this organization's policy.
+    version = ai_privacy.policy(org)["version"]
+    reviewed = ai_privacy.review(conf, version)
+    ai_privacy.change_policy(org, conf, version, reviewed["review_hash"], "test-admin")
 
     async def only_an_error(message, history, org_id, user_id=None):
         yield "data: " + json.dumps({"type": "error", "text": "Rate limited by the provider."}) + "\n\n"

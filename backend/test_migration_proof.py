@@ -27,6 +27,7 @@ from db import (
     set_current_organization_id,
 )
 from services import proof_signing
+from db_postgres import postgres_main_db_requested, product_database_url
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VERIFIER_PATH = os.path.join(REPO_ROOT, "scripts", "verify_migration_proof.py")
@@ -373,16 +374,28 @@ def test_journal_verification_route_detects_tampering(client, issued):
     assert r.status_code == 200 and r.json()["ok"] is True and r.json()["entries_checked"] > 0
     assert client.get("/audit/journal/verify", headers=_headers(ORG_A, "viewer")).status_code == 403
     target = issued["response"]["proof"]["document"]["journal"]["entries"][0]["id"]
-    with sqlite3.connect(os.environ["MORROW_SCANNER_DB"]) as conn:
-        conn.execute("DROP TRIGGER IF EXISTS trg_audit_logs_no_update")
-        conn.execute("UPDATE audit_logs SET reason='edited by a DBA' WHERE id=?", (target,))
+    on_postgres = postgres_main_db_requested()
+    if on_postgres:
+        # The journal is in Postgres (the Postgres CI job): edit it there, as a DBA would, by
+        # switching the immutability trigger off for one statement.
+        import psycopg2
+
+        with psycopg2.connect(product_database_url()) as pg, pg.cursor() as cur:
+            cur.execute("ALTER TABLE audit_logs DISABLE TRIGGER trg_audit_logs_no_update")
+            cur.execute("UPDATE audit_logs SET reason='edited by a DBA' WHERE id=%s", (target,))
+            cur.execute("ALTER TABLE audit_logs ENABLE TRIGGER trg_audit_logs_no_update")
+    else:
+        with sqlite3.connect(os.environ["MORROW_SCANNER_DB"]) as conn:
+            conn.execute("DROP TRIGGER IF EXISTS trg_audit_logs_no_update")
+            conn.execute("UPDATE audit_logs SET reason='edited by a DBA' WHERE id=?", (target,))
     try:
         body = client.get("/audit/journal/verify", headers=_headers(ORG_A)).json()
         assert body["ok"] is False and body["breaks"][0]["id"] == target
         # And no new proof is signed over a broken chain.
         assert _issue(client, ORG_A, issued["rid"]).status_code == 409
     finally:
-        init_db()  # recreates the immutability trigger
+        if not on_postgres:
+            init_db()  # recreates the immutability trigger
 
 
 def test_legacy_hs256_endpoints_still_work(client):
