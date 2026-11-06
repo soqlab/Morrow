@@ -1604,6 +1604,24 @@ class TestSearchMatchesInTheDatabase(_InventoryFixture):
         self.assertIn("text_query=term", src)
 
 
+class TestNewestRowPerAssetStopsAtTheLimit(_InventoryFixture):
+    """Every report reads the newest scan_results row per asset. The ROW_NUMBER() window ranked the
+    tenant's entire history and sorted it before LIMIT applied: 30 s per report at 100,000 assets.
+    The query must walk an index newest-first and stop, i.e. need no temporary sort."""
+
+    def test_the_plan_needs_no_sort(self):
+        with _TracedSqlite(self.db) as traced:
+            self.db.latest_scan_facts_for_org(limit=5)
+        statement = traced.selects()[0]
+        self.assertNotIn("ROW_NUMBER", statement.upper())
+        conn = sqlite3.connect(os.environ["MORROW_SCANNER_DB"])
+        params = ("org-a", 5) if "?" in statement else ()
+        plan = " | ".join(r[3] for r in conn.execute("EXPLAIN QUERY PLAN " + statement, params))
+        conn.close()
+        self.assertNotIn("TEMP B-TREE", plan, plan)
+        self.assertIn("idx_scan_results_org_scanned", plan)
+
+
 class TestRemediationListLooksUpRepositoriesOnce(_InventoryFixture):
     """Each listed remediation fetched its repository separately: 500 extra queries on every
     /crypto-agility call and 2,000 on /migration-velocity."""

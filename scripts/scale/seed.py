@@ -207,6 +207,8 @@ def main() -> int:
     sql = "UPDATE remediations SET created_at=?, updated_at=?, merged_at=?, closed_at=? WHERE id=?"
     if args.postgres:
         import db_postgres
+        # The lifecycle columns are TIMESTAMPTZ there: "not yet" is NULL, not ''.
+        params = [tuple(v or None for v in p[:4]) + (p[4],) for p in params]
         with db_postgres.pg_product_conn(args.postgres) as conn:
             with conn.cursor() as cur:
                 cur.executemany(sql.replace("?", "%s"), params)
