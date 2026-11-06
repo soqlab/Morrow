@@ -104,6 +104,10 @@ def _init() -> None:
 def init_tables() -> None:
     """Create this module's tables now (db_postgres.apply_deferred_schemas, registered in app.py),
     so a fresh Postgres deployment has them before the RLS plan is applied, not on first use."""
+    # Always run the (idempotent) DDL: the ready flag is per process, not per database, so after
+    # another database was initialised it would skip the one being prepared now.
+    global _ready
+    _ready = False
     _init()
 
 
