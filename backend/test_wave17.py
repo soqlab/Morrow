@@ -73,7 +73,8 @@ def test_cbom_webhook_setup_returns_secret_and_endpoint():
         res = client.get("/v1/cbom/webhook/setup", headers=HEADERS)
     assert res.status_code == 200
     body = res.json()
-    assert body["secret"]
+    # Setup is read-only: it reports signing status and never creates or returns a key.
+    assert "secret" not in body and body["signing_required"] is False
     assert "/cbom/ingest" in body["endpoint"]
     assert "github_actions_step" in body
 

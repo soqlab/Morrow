@@ -192,6 +192,27 @@ All API routes also accept the `/v1` prefix through compatibility middleware, fo
 - `GET /tags`
   - list distinct tags
 
+### CBOM / SBOM imports and CI ingest
+
+- `POST /sbom/import` (analyst, admin, owner): multipart upload, field `file` (CycloneDX JSON).
+- `POST /v1/cbom/import?source=cbomkit|cbom&filename=` (analyst, admin, owner): a CycloneDX 1.6 CBOM
+  (e.g. CBOMkit output) as a multipart `file` or the raw JSON body; schema-validated, size-limited,
+  merged into the deduplicated inventory.
+- `GET /v1/crypto-inventory?source=&asset_type=&limit=`: the organization's deduplicated crypto inventory.
+- `POST /v1/cbom/ingest` (operator, admin): push a CBOM as the signed-in user. The organization is the
+  caller's; a request whose `X-Org-Id` names another organization is refused (403).
+- `POST /v1/runtime/cbom/ingest`: push from CI. Credential: `Authorization: Bearer mci_...` (or
+  `X-Morrow-Ingest-Token`), a per-organization CBOM ingest token stored as a salted HMAC; the
+  organization is the token's and `X-Org-Id` is ignored. No user session is accepted here.
+- `GET|POST /v1/cbom/ingest-tokens`, `DELETE /v1/cbom/ingest-tokens/{id}` (admin): manage CI tokens;
+  the secret is returned once, at creation.
+- `POST|DELETE /v1/cbom/webhook/signing-key` (admin): create/rotate or remove the signing key. While
+  one exists, both ingest routes require `X-Morrow-Signature: sha256=<hex HMAC-SHA256 of the body>`
+  and refuse unsigned or wrongly signed documents (401).
+- `GET /v1/cbom/webhook/setup` (admin): endpoints, signing status and a GitHub Actions step that reads
+  `MORROW_CBOM_INGEST_TOKEN` and `MORROW_CBOM_SIGNING_KEY` from repository secrets. Read-only.
+- `GET /v1/cbom/webhook/ingests` (viewer and up): recent ingests for the caller's organization.
+
 ## 8. Repositories
 
 - `GET /repositories`

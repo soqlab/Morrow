@@ -1573,11 +1573,13 @@ function headers(json = false) {
 async function rawFetch(path, { method, body, timeout }) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeout);
+  /* A FormData body is a multipart upload: the browser sets Content-Type with its boundary. */
+  const form = typeof FormData !== "undefined" && body instanceof FormData;
   try {
     return await fetch(S.base + path, {
       method,
-      headers: headers(body !== undefined),
-      body: body === undefined ? undefined : (typeof body === "string" ? body : JSON.stringify(body)),
+      headers: headers(body !== undefined && !form),
+      body: body === undefined ? undefined : (form || typeof body === "string" ? body : JSON.stringify(body)),
       signal: ctl.signal,
     });
   } finally { clearTimeout(timer); }
@@ -5538,9 +5540,8 @@ VIEWS.cbom = async (host) => {
     <div class="cbomTools">
       <a class="btn sm pri" href="${H(S.base)}/cbom" target="_blank" rel="noopener">${I.dl}Download JSON</a>
       <a class="btn sm" href="${H(S.base)}/cbom.csv" target="_blank" rel="noopener">${I.dl}Download CSV</a>
-      ${actBtn("Ingest CBOM", "cbomIngest", { cls: "btn sm", icon: I.plus })}
+      ${actBtn("Import CBOM", "cbomkitImport", { cls: "btn sm", icon: I.plus })}
       ${actBtn("Import SBOM", "sbomImport", { cls: "btn sm", icon: I.plus })}
-      ${actBtn("Import CBOMkit CBOM", "cbomkitImport", { cls: "btn sm", icon: I.plus })}
       ${actBtn("Webhook setup", "cbomHook", { cls: "btn sm" })}
       <span class="grow"></span>
       ${C ? `<span class="liveMeta">Serial …${H(String(C.serialNumber || "").slice(-12))} · generated ${H(AGO(C.metadata?.timestamp))}</span>` : ""}
@@ -5618,37 +5619,37 @@ VIEWS.cbom = async (host) => {
     ], C.vulnerabilities), { flush: true, lift: false })) : ""}`;
   navBadge("cbom", comps.length || "");
 };
-ACTIONS.cbomIngest = () => modal("Ingest a CBOM", `
-  <div class="field"><label for="cbIn">CycloneDX JSON</label><textarea class="inp" id="cbIn" style="min-height:200px" placeholder='{"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}'></textarea></div>`,
-  `<button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="cbomIngestGo" type="button">Ingest</button>`);
-ACTIONS.cbomIngestGo = async () => {
-  let body; try { body = JSON.parse($("#cbIn").value); } catch { return err("Invalid JSON"); }
-  const r = await safe("/cbom/ingest", { method: "POST", body });
-  if (!r.ok) return err(r.err);
-  $("#overlay").innerHTML = ""; ok("CBOM ingested"); retry();
-};
+/* "Import SBOM": /sbom/import takes a multipart upload in the "file" field, not a JSON body. */
 ACTIONS.sbomImport = () => modal("Import an SBOM", `
-  <div class="field"><label for="sbIn">SBOM document (CycloneDX or SPDX JSON)</label><textarea class="inp" id="sbIn" style="min-height:200px"></textarea></div>
-  <div class="field" style="margin-top:12px"><label for="sbSrc">Source label</label><input class="inp" id="sbSrc" placeholder="ci-pipeline"></div>`,
+  <div class="field"><label for="sbFile">SBOM file (CycloneDX JSON)</label><input class="inp" id="sbFile" type="file" accept=".json,application/json"></div>
+  <div class="field" style="margin-top:12px"><label for="sbIn">…or paste the document</label><textarea class="inp" id="sbIn" style="min-height:180px"></textarea></div>`,
   `<button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="sbomImportGo" type="button">Import</button>`);
 ACTIONS.sbomImportGo = async () => {
-  let doc; try { doc = JSON.parse($("#sbIn").value); } catch { return err("Invalid JSON"); }
-  const r = await safe("/sbom/import", { method: "POST", body: { sbom: doc, source: $("#sbSrc").value || "manual" } });
-  if (!r.ok) return err(r.err);
-  $("#overlay").innerHTML = ""; ok("SBOM imported"); retry();
+  const f = $("#sbFile")?.files?.[0];
+  const text = f ? await f.text() : $("#sbIn").value;
+  if (!text.trim()) return err("Choose a file or paste an SBOM");
+  try { JSON.parse(text); } catch { return err("Invalid JSON"); }
+  const form = new FormData();
+  form.append("file", new Blob([text], { type: "application/json" }), (f && f.name) || "sbom.json");
+  const r = await safe("/sbom/import", { method: "POST", body: form, timeout: 120000 });
+  if (!r.ok) return err(r.err, "SBOM not imported");
+  $("#overlay").innerHTML = ""; ok(`${NUM(r.data?.crypto_component_count ?? 0)} cryptographic components found`, "SBOM imported"); retry();
 };
-ACTIONS.cbomkitImport = () => modal("Import a CBOMkit CBOM", `
-  <div class="field"><label for="ckFile">CBOM file (CycloneDX 1.6 JSON, as written by CBOMkit)</label><input class="inp" id="ckFile" type="file" accept=".json,application/json"></div>
+ACTIONS.cbomkitImport = () => modal("Import a CBOM", `
+  <div class="field"><label for="ckFile">CBOM file (CycloneDX 1.6 JSON, e.g. as written by CBOMkit)</label><input class="inp" id="ckFile" type="file" accept=".json,application/json"></div>
   <div class="field" style="margin-top:12px"><label for="ckIn">…or paste the document</label><textarea class="inp" id="ckIn" style="min-height:180px" placeholder='{"bomFormat":"CycloneDX","specVersion":"1.6","components":[…]}'></textarea></div>
-  <p class="qtMsg">The document is validated against the CycloneDX 1.6 schema. Assets already in the inventory are merged, not duplicated.</p>`,
+  <div class="field" style="margin-top:12px"><label for="ckSrc">Produced by</label>
+    <select class="inp" id="ckSrc"><option value="cbomkit">CBOMkit</option><option value="cbom">Another CycloneDX 1.6 tool</option></select></div>
+  <p class="qtMsg">The document is validated against the CycloneDX 1.6 schema. Assets already in the inventory are merged, not duplicated. CI pipelines push to the webhook instead (Webhook setup).</p>`,
   `<button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="cbomkitImportGo" type="button">Import</button>`);
 ACTIONS.cbomkitImportGo = async () => {
   const f = $("#ckFile")?.files?.[0];
   const text = f ? await f.text() : $("#ckIn").value;
   if (!text.trim()) return err("Choose a file or paste a CBOM");
   try { JSON.parse(text); } catch { return err("Invalid JSON"); }
-  const name = encodeURIComponent((f && f.name) || "cbomkit-cbom.json");
-  const r = await safe(`/v1/cbom/import?source=cbomkit&filename=${name}`, { method: "POST", body: text, timeout: 120000 });
+  const name = encodeURIComponent((f && f.name) || "cbom.json");
+  const src = $("#ckSrc")?.value === "cbom" ? "cbom" : "cbomkit";
+  const r = await safe(`/v1/cbom/import?source=${src}&filename=${name}`, { method: "POST", body: text, timeout: 120000 });
   if (!r.ok) return err(r.err, "CBOM not imported");
   const d = r.data || {};
   $("#overlay").innerHTML = "";
@@ -5659,10 +5660,39 @@ ACTIONS.sbomDel = async (b) => {
   const r = await safe(`/sbom/imports/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" });
   r.ok ? (ok("Import deleted"), retry()) : err(r.err);
 };
+/* CBOM webhook (routers/cbom_ingest.py): CI posts to /v1/runtime/cbom/ingest with a per-org ingest
+   token; an optional signing key makes signatures mandatory. Setup is read-only; secrets appear once. */
 ACTIONS.cbomHook = async () => {
   const r = await safe("/cbom/webhook/setup");
-  r.ok ? drawer("CBOM webhook setup", "/cbom/webhook/setup", autoKV(r.data)
-    + `<div style="height:14px"></div><pre class="out">${H(JSON.stringify(r.data, null, 2))}</pre>`) : err(r.err);
+  if (!r.ok) return err(r.err);
+  const d = r.data || {};
+  drawer("CBOM webhook setup", "/cbom/webhook/setup", `
+    <dl class="qtFacts cbomFacts">
+      <div><dt>CI endpoint</dt><dd class="m">${H(d.endpoint || "")}</dd></div>
+      <div><dt>Signed uploads</dt><dd>${d.signing_required ? "required" : "not required (no signing key)"}</dd></div>
+      <div><dt>Active ingest tokens</dt><dd>${NUM((d.ingest_tokens || []).length)}</dd></div>
+    </dl>
+    <div class="row" style="margin:12px 0;gap:8px">
+      ${actBtn("Create ingest token", "cbomTokenNew", { cls: "btn sm pri", icon: I.key })}
+      ${actBtn(d.signing_required ? "Rotate signing key" : "Create signing key", "cbomSignKey", { cls: "btn sm", icon: I.lock })}
+    </div>
+    <div id="cbomSecret"></div>
+    <label class="vendLabel">GitHub Actions step</label><pre class="out">${H(d.github_actions_step || "")}</pre>
+    <ul class="qtMsg">${(d.next_steps || []).map(s => `<li>${H(s)}</li>`).join("")}</ul>`);
+};
+const cbomShowSecret = (title, secret, note) => {
+  const box = $("#cbomSecret"); if (!box) return;
+  box.innerHTML = `<div class="banner warn">${I.key}<div><span class="bx"><b>${H(title)}</b> — ${H(note || "Shown once.")}</span>
+    <pre class="out">${H(secret)}</pre><button class="btn xs" data-copy='${H(secret)}'>Copy</button></div></div>`;
+  wire(box);
+};
+ACTIONS.cbomTokenNew = async () => {
+  const r = await safe("/cbom/ingest-tokens", { method: "POST", body: { name: "ci" } });
+  r.ok ? cbomShowSecret("MORROW_CBOM_INGEST_TOKEN", r.data.secret, r.data.note) : err(r.err);
+};
+ACTIONS.cbomSignKey = async () => {
+  const r = await safe("/cbom/webhook/signing-key", { method: "POST" });
+  r.ok ? cbomShowSecret("MORROW_CBOM_SIGNING_KEY", r.data.secret, r.data.note) : err(r.err);
 };
 ACTIONS.supplyScan = async () => {
   const box = $("#supplyOut");

@@ -33,6 +33,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Runtime startup warnings for: missing Redis password, missing Sentry DSN, insecure auth mode
 - `SECURITY.md` responsible disclosure policy
 
+### Security
+- CBOM webhook ingest (`POST /v1/cbom/ingest`) took its organization from the client's `X-Org-Id` header, ran no role check, and checked a signature only when one was sent. It now requires an operator or admin session and refuses a conflicting `X-Org-Id`; CI pushes go to `POST /v1/runtime/cbom/ingest` with a per-organization ingest token (salted hash at rest) that alone names the organization; and once an organization has a signing key, unsigned or wrongly signed documents are refused. `GET /v1/cbom/webhook/setup` is admin-only and read-only (it used to create and show the key to any caller); keys are created explicitly (`POST /v1/cbom/webhook/signing-key`). The generated GitHub Actions step reads credentials from repository secrets instead of embedding the key
+
+### Fixed
+- Console "Import SBOM" posted a JSON body to `/sbom/import`, which takes a multipart file upload, so every import failed; it now uploads the file
+
 ### Changed
 - `redis.conf` no longer contains a hardcoded `requirepass` value
 - `.env.production.example` extended with `REDIS_PASSWORD`, `OTEL_*`, `SENTRY_DSN`, `MORROW_SECRET_BACKEND`

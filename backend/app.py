@@ -714,14 +714,7 @@ from services.dep_scanner import (
     scan_lockfile as _dep_scan_file,
     scan_multiple as _dep_scan_multi,
 )
-from services.cbom_webhook import (
-    init_tables as _cbomwh_init,
-    get_or_create_secret as _cbomwh_secret,
-    verify_signature as _cbomwh_verify_sig,
-    ingest_cbom as _cbomwh_ingest,
-    list_ingests as _cbomwh_list,
-    github_actions_step as _cbomwh_gh_step,
-)
+from services.cbom_webhook import init_tables as _cbomwh_init
 from services.push_notify import (
     init_tables as _push_init,
     upsert_webhook as _push_upsert_wh,
@@ -2335,6 +2328,9 @@ def _auth_public_path(path: str) -> bool:
         return True
     # Log-shipper ingest: the per-org ingest token is the credential (routers/passive_discovery.py).
     if p == "/v1/runtime/passive/ingest":
+        return True
+    # CBOM push from CI: the per-org CBOM ingest token is the credential (routers/cbom_ingest.py).
+    if p == "/v1/runtime/cbom/ingest":
         return True
     return False
 
@@ -11344,6 +11340,8 @@ app.include_router(_crypto_switch_router, prefix="/v1")
 # Passive TLS discovery from proxy logs; routes carry their own /v1 paths (routers/passive_discovery.py).
 from routers.passive_discovery import create_passive_discovery_router  # noqa: E402
 app.include_router(create_passive_discovery_router(_require_role))
+from routers.cbom_ingest import create_cbom_ingest_router  # noqa: E402
+app.include_router(create_cbom_ingest_router(_require_role, lambda r: _org(r), lambda: _db(), limiter))
 
 from routers.migration_proof import create_migration_proof_router  # noqa: E402
 app.include_router(create_migration_proof_router(_require_role))
@@ -24327,50 +24325,7 @@ def api_dep_scan_signatures():
     }
 
 
-# ============================================================
-# Wave 17 — CBOM CI/CD Webhook Receiver
-# ============================================================
-
-@app.get("/v1/cbom/webhook/setup")
-@app.get("/cbom/webhook/setup")
-def api_cbomwh_setup(request: Request):
-    org_id = _org(request)
-    with _db() as db:
-        _cbomwh_init(db)
-        secret = _cbomwh_secret(db, org_id)
-    base = str(request.base_url).rstrip("/")
-    step = _cbomwh_gh_step(org_id, base, secret)
-    return {"secret": secret, "endpoint": f"{base}/v1/cbom/ingest", "github_actions_step": step}
-
-
-@app.post("/v1/cbom/ingest")
-@app.post("/cbom/ingest")
-async def api_cbomwh_ingest(request: Request):
-    body_bytes = await request.body()
-    org_id = request.headers.get("X-Org-Id") or _org(request)
-    sig_header = request.headers.get("X-Morrow-Signature", "")
-    with _db() as db:
-        _cbomwh_init(db)
-        secret = _cbomwh_secret(db, org_id)
-        if sig_header and not _cbomwh_verify_sig(secret, body_bytes, sig_header):
-            from fastapi import HTTPException
-            raise HTTPException(status_code=401, detail="Invalid signature")
-        try:
-            payload = json.loads(body_bytes)
-        except Exception:
-            from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="Invalid JSON")
-        result = _cbomwh_ingest(db, org_id, payload)
-    return result
-
-
-@app.get("/v1/cbom/webhook/ingests")
-@app.get("/cbom/webhook/ingests")
-def api_cbomwh_list(request: Request, limit: int = 20):
-    org_id = _org(request)
-    with _db() as db:
-        _cbomwh_init(db)
-        return {"ingests": _cbomwh_list(db, org_id, limit)}
+# Wave 17 CBOM CI/CD webhook receiver: routes are in routers/cbom_ingest.py.
 
 
 # ============================================================
