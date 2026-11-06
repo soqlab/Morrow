@@ -79,6 +79,7 @@ const CONSOLE_VIEWS = [
   ["g-trust-passport", "Passport Guide"],
   // The Administrator Guide is operator-only: it is hidden unless the server accepts this tab's
   // platform key, and this browser session carries none.
+  ["data-control", "Data Control"],
   ["airlock", "Quantum Airlock"],
   ["gateway", "Website Gateway"],
   ["remediation", "Remediation"],

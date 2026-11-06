@@ -9517,7 +9517,7 @@ VIEWS.admin = async (host) => {
     </div>`;
   ACTIONS.invLoad();
   ACTIONS.supportAccessLoad();
-  ACTIONS.  navBadge("admin", (S.warns || []).length || "");
+  navBadge("admin", (S.warns || []).length || "");
 };
 /* ---- Vendor support access: the customer's own control over "view as customer", and its history. ---- */
 ACTIONS.supportAccessLoad = async () => {
