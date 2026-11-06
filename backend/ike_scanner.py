@@ -548,7 +548,9 @@ class _Prober:
 
 def _nat_hash(spi_i: bytes, ip: str, port: int) -> bytes:
     packed = socket.inet_pton(socket.AF_INET6 if ":" in ip else socket.AF_INET, ip)
-    return hashlib.sha1(spi_i + b"\x00" * 8 + packed + struct.pack(">H", port)).digest()
+    # RFC 7296 section 2.23 fixes NAT_DETECTION hashes as SHA-1; they detect address rewriting
+    # and protect nothing.
+    return hashlib.sha1(spi_i + b"\x00" * 8 + packed + struct.pack(">H", port), usedforsecurity=False).digest()
 
 
 class _Session:

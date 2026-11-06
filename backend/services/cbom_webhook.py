@@ -194,7 +194,7 @@ def create_token(db, organization_id: str, name: str, created_by: str = "") -> T
 
 def get_token(db, token_id: str, organization_id: str) -> Optional[Dict[str, Any]]:
     cur = db.execute(
-        f"SELECT {_TOKEN_COLUMNS} FROM cbom_ingest_tokens WHERE id = ? AND organization_id = ?",
+        f"SELECT {_TOKEN_COLUMNS} FROM cbom_ingest_tokens WHERE id = ? AND organization_id = ?",  # nosec B608  # _TOKEN_COLUMNS is a module constant; values are bound
         (str(token_id or ""), str(organization_id or "")),
     )
     row = cur.fetchone()
@@ -203,7 +203,7 @@ def get_token(db, token_id: str, organization_id: str) -> Optional[Dict[str, Any
 
 def list_tokens(db, organization_id: str) -> List[Dict[str, Any]]:
     cur = db.execute(
-        f"SELECT {_TOKEN_COLUMNS} FROM cbom_ingest_tokens WHERE organization_id = ? ORDER BY created_at DESC LIMIT 500",
+        f"SELECT {_TOKEN_COLUMNS} FROM cbom_ingest_tokens WHERE organization_id = ? ORDER BY created_at DESC LIMIT 500",  # nosec B608  # _TOKEN_COLUMNS is a module constant; values are bound
         (str(organization_id or ""),),
     )
     cols = [d[0] for d in cur.description]
