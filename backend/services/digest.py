@@ -25,11 +25,18 @@ from typing import Any, Dict, List, Optional
 
 # ── DB ─────────────────────────────────────────────────────────────────────────
 
-_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "morrow.db")
+def _db_path() -> str:
+    # The main SQLite file (MORROW_SCANNER_DB, else /data/morrow.db in a container), as the feature
+    # store resolves it. This used to be a morrow.db beside the code, which in a container is
+    # outside the data volume (so digest settings were lost on every redeploy) and cannot be
+    # written at all on a read-only root filesystem.
+    from db import DB_PATH
+
+    return os.environ.get("MORROW_SCANNER_DB", DB_PATH)
 
 
 def _db() -> sqlite3.Connection:
-    return sqlite3.connect(_DB_PATH, check_same_thread=False)
+    return sqlite3.connect(_db_path(), check_same_thread=False)
 
 
 def _ensure_tables() -> None:

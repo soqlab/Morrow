@@ -29,7 +29,7 @@ locals {
   }
 
   database_url = format(
-    "postgresql://%s:%s@%s:5432/%s",
+    "postgresql://%s:%s@%s:5432/%s?sslmode=require",
     local.sql_user_name,
     urlencode(random_password.cloud_sql_password.result),
     google_sql_database_instance.vault.private_ip_address,
@@ -145,6 +145,8 @@ resource "google_sql_database_instance" "vault" {
       ipv4_enabled                                  = false
       private_network                               = google_compute_network.platform.id
       enable_private_path_for_google_cloud_services = true
+      # Refuse unencrypted connections; DATABASE_URL below asks for TLS with sslmode=require.
+      ssl_mode = "ENCRYPTED_ONLY"
     }
 
     backup_configuration {

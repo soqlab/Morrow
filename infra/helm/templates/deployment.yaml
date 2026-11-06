@@ -45,23 +45,27 @@ spec:
                 name: {{ include "morrow.fullname" . }}
             - secretRef:
                 name: {{ include "morrow.fullname" . }}
-          {{- if .Values.persistence.enabled }}
           volumeMounts:
             - name: data
               mountPath: /data
-          {{- end }}
+            - name: tmp
+              mountPath: /tmp
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      {{- if .Values.persistence.enabled }}
       volumes:
         - name: data
+          {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "morrow.fullname" . }}-data
-      {{- end }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

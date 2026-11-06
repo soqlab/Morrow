@@ -1,0 +1,11 @@
+# Trivy findings reviewed and accepted, read by the Dockerfile and IaC scan in
+# .github/workflows/security.yml (trivyignores input). Each entry is scoped to one file and says why
+# it is a false positive. Fix the configuration instead whenever that is possible.
+misconfigurations:
+  - id: DS-0002
+    paths:
+      - "deploy/render-hosted/Dockerfile"
+    statement: >-
+      No USER line on purpose: Render mounts the persistent disk at /data owned by root, so
+      start.sh starts as root only to chown /data and then launches Redis, the Celery worker and
+      the API as appuser with setpriv. No long-running process runs as root.

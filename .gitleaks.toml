@@ -30,7 +30,7 @@ paths = ['''^backend/test_check_integrations\.py$''']
 regexes = ['''^kRQ7wRwQ2n0Xy0lGZnMS7O8u4WQsL1ZFQK1cQpJ1n3M=$''']
 
 [[allowlists]]
-description = """Vendor documentation samples in the (since removed) certificate-manager and KMS sync \
+description = """Vendor documentation samples in the certificate-manager and KMS inventory sync \
 tests: the AWS docs example credential pair, a sample Venafi API key and token, an AWS KMS key \
 material id, an Azure skiptoken and a truncated JWT header. None was ever a live credential."""
 targetRules = ["generic-api-key"]

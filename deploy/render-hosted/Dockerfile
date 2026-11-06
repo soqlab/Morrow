@@ -42,5 +42,6 @@ RUN sed -i 's/\r$//' /app/entrypoint.sh /app/render-start.sh \
 
 # No USER line: start.sh runs as root only to hand the Render disk at /data to appuser, then
 # drops to appuser for every process it starts.
+# Trivy's DS-0002 (no USER line) is ignored for this file in .trivyignore.yaml for that reason.
 EXPOSE 8000
 ENTRYPOINT ["/app/render-start.sh"]

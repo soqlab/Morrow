@@ -137,3 +137,5 @@ jobs:
           exit-code: "1"
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          # Reviewed false positives, each scoped to one file with the reason.
+          trivyignores: .trivyignore.yaml
