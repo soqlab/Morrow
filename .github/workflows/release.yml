@@ -1,16 +1,24 @@
 # Signed release: runs when a maintainer pushes a tag such as v1.4.0.
 #
-#   1. test      the suite on Python 3.11, the version the images run.
-#   2. image     builds the two deployment images and pushes them to GHCR:
+#   1. test      the suite on Python 3.11, the version the images run, against the hashed locks.
+#   2. image     builds the two deployment images reproducibly (scripts/release/build-image.sh)
+#                and pushes them to GHCR:
 #                  ghcr.io/soqlab/morrow:<version>      deploy/render-hosted/Dockerfile (Render, offline bundle)
 #                  ghcr.io/soqlab/morrow:<version>-api  backend/Dockerfile (docker-compose.prod.yml)
 #                then writes a CycloneDX SBOM of each image and attaches two keyless Sigstore
 #                attestations to it in the registry: SLSA build provenance and the SBOM.
-#   3. python-sbom  a CycloneDX SBOM of the Python environment that requirements.txt resolves to.
+#   3. python-sbom  a CycloneDX SBOM of the Python environment backend/requirements.lock installs.
 #   4. bundle    the offline bundle (deploy/internal/make-bundle.sh) built from the image pushed in
 #                step 2, by digest, so the bundle carries the same bytes that were signed.
 #   5. release   SHA256SUMS over every file, a provenance attestation for each of them, and a
 #                GitHub Release with all of it attached.
+#   6. reproduce rebuilds the whole release on a fresh runner from the tag (reproduce.yml) and
+#                fails, with an annotation per file, unless every digest and checksum matches.
+#
+# Every file is reproducible: anyone who rebuilds the tag with scripts/release/reproduce.sh gets the
+# same image digests and the same bytes (docs/REPRODUCIBLE_BUILDS.md). All timestamps come from the
+# tagged commit (SOURCE_DATE_EPOCH), and every input is pinned: base images and tools by digest
+# (scripts/release/pins.sh), Debian packages by snapshot, Python packages by hash.
 #
 # Signing is keyless: each job that attests gets a short-lived certificate from Sigstore through
 # GitHub's OIDC token, bound to this workflow file and the tag. There is no signing key to store
@@ -67,10 +75,15 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Lock files agree with the requirement files
+        working-directory: .
+        run: python -I scripts/release/check_locks.py
+
+      # The hashed locks, the same files the images install.
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip==26.2
-          pip install -r requirements.txt -r requirements-dev.txt
+          python -m pip install --require-hashes --only-binary :all: --no-deps -r requirements-bootstrap.lock
+          pip install --require-hashes --only-binary :all: --no-deps -r requirements-dev.lock
 
       - name: Run tests
         run: pytest -q --tb=short -rf
@@ -107,42 +120,32 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
       - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      # The pinned BuildKit, a `git archive` of the tag as the context, SOURCE_DATE_EPOCH from the
+      # tagged commit and rewrite-timestamp: the image digest depends only on the commit. Both
+      # Dockerfiles download the linux_amd64 OpenTofu binary, so linux/amd64 only.
+      - name: Build and push (reproducible)
         id: build
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          # Both Dockerfiles download the linux_amd64 OpenTofu binary.
-          platforms: linux/amd64
-          push: true
-          tags: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}${{ matrix.suffix }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ steps.version.outputs.version }}
-            org.opencontainers.image.licenses=AGPL-3.0-only
-            org.opencontainers.image.title=morrow${{ matrix.suffix }}
-          # Provenance and SBOM come from the attestation steps below, signed through Sigstore.
-          provenance: false
-          sbom: false
+        env:
+          VARIANT: ${{ matrix.variant }}
+          VERSION: ${{ steps.version.outputs.version }}
+          MORROW_SOURCE_URL: https://github.com/${{ github.repository }}
+        run: |
+          sh scripts/release/build-image.sh "$VARIANT" "$VERSION" --push
+          echo "digest=$(cat "dist/repro/digest-$VARIANT.txt")" >> "$GITHUB_OUTPUT"
 
+      # The pinned syft over the archive of the image just pushed (same manifest digest), with the
+      # random serial number and the timestamp replaced by values derived from digest and commit.
       - name: Image SBOM (CycloneDX)
-        uses: anchore/sbom-action@fffec3d851af758d56fee099cf3fbf8aa8779843 # v0.24.3
-        with:
-          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
-          format: cyclonedx-json
-          output-file: morrow-${{ steps.version.outputs.version }}${{ matrix.suffix }}-image.cdx.json
-          upload-artifact: false
-          upload-release-assets: false
+        env:
+          V: ${{ steps.version.outputs.version }}${{ matrix.suffix }}
+        run: |
+          sh scripts/release/sboms.sh image "dist/repro/morrow-$V.oci.tar" "$IMAGE" "$V"             "morrow-$V-image.cdx.json"
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -165,6 +168,7 @@ jobs:
           REF: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}${{ matrix.suffix }}
           VARIANT: ${{ matrix.variant }}
         run: |
+          [ "$DIGEST" = "$(cat "dist/repro/digest-$VARIANT.txt")" ]
           echo "$DIGEST" > "digest-$VARIANT.txt"
           echo "$REF@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
 
@@ -187,29 +191,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.11"
-
-      # The runtime environment is a clean venv holding only requirements.txt, so the SBOM lists
-      # the full resolved closure (transitives included) and nothing from the tooling.
-      - name: Resolve runtime dependencies
-        run: |
-          python -m venv /tmp/runtime
-          /tmp/runtime/bin/python -m pip install --upgrade pip==26.2 setuptools==84.1.0 wheel==0.48.0
-          /tmp/runtime/bin/python -m pip install -r backend/requirements.txt
-          /tmp/runtime/bin/python -m pip check
-
+      # A clean venv holding only backend/requirements.lock, inside the pinned Python image, so the
+      # SBOM lists the full closure and nothing from the tooling; cyclonedx-bom from its own lock.
       - name: Generate CycloneDX SBOM
         env:
           TAG: ${{ github.ref_name }}
-        run: |
-          python -m venv /tmp/tools
-          /tmp/tools/bin/python -m pip install cyclonedx-bom==8.0.1
-          /tmp/tools/bin/cyclonedx-py environment \
-            --of JSON \
-            -o "morrow-${TAG#v}-python.cdx.json" \
-            /tmp/runtime/bin/python
+        run: sh scripts/release/sboms.sh python "${TAG#v}" "morrow-${TAG#v}-python.cdx.json"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -240,9 +227,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # make-bundle.sh fetches the image blobs from the registry by digest (each checked against it)
+      # and writes the bundle reproducibly; it does not use docker save.
       - name: Build the bundle from the signed image
         env:
           TAG: ${{ github.ref_name }}
+          MORROW_REGISTRY_USER: ${{ github.actor }}
+          MORROW_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           digest="$(cat image/digest-all-in-one.txt)"
           MORROW_BUNDLE_VERSION="${TAG#v}" MORROW_IMAGE="$IMAGE@$digest" \
@@ -312,3 +303,12 @@ jobs:
             --title "Morrow $version" \
             --notes-file notes.md \
             $prerelease
+
+  reproduce:
+    name: Reproduce
+    needs: release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/reproduce.yml
+    with:
+      tag: ${{ github.ref_name }}

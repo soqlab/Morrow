@@ -1,0 +1,5 @@
+# The packaging tools the images upgrade to before installing requirements.lock. Locked with hashes
+# in requirements-bootstrap.lock (scripts/release/lock-requirements.sh).
+pip==26.2
+setuptools==84.1.0
+wheel==0.48.0

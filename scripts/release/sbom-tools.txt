@@ -1,0 +1,4 @@
+# The SBOM generator for the Python dependency SBOM (scripts/release/python-sbom.sh). Locked with
+# hashes in sbom-tools.lock (scripts/release/lock-requirements.sh): a different cyclonedx-bom
+# release writes a different file, so the version is part of what makes the SBOM reproducible.
+cyclonedx-bom==8.0.1
