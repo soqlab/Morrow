@@ -168,8 +168,8 @@ def test_certificate_component(conn):
 
 # ── HTTP routes ───────────────────────────────────────────────────────────────
 
-from test_invite_landing import api, make_org  # noqa: E402,F401  (api is a fixture)
-from test_domain_verification import bearer, enforced, verify  # noqa: E402,F401
+from test_invite_landing import api_fixture, make_org  # noqa: E402,F401  (api_fixture registers the "api" fixture)
+from test_domain_verification import bearer, enforced_fixture, verify  # noqa: E402,F401  (enforced_fixture registers "enforced")
 
 
 def _upload(client, headers, data, name="kafka-cbom.json", **params):

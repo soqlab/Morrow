@@ -12,7 +12,7 @@ import pathlib
 
 import pytest
 
-from test_invite_landing import api, make_org  # noqa: F401  (api is a fixture)
+from test_invite_landing import api_fixture, make_org  # noqa: F401  (api_fixture registers the "api" fixture)
 from test_domain_verification import bearer
 
 CBOM = json.dumps({"bomFormat": "CycloneDX", "specVersion": "1.6", "metadata": {"component": {"name": "acme/app"}},

@@ -15,8 +15,8 @@ from test_invite_landing import PASSWORD, api_fixture, make_org  # noqa: F401  (
 from services import domain_verification as dv
 
 
-@pytest.fixture
-def enforced(api, monkeypatch):
+@pytest.fixture(name="enforced")
+def enforced_fixture(api, monkeypatch):
     monkeypatch.setenv("MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS", "1")
     monkeypatch.delenv("MORROW_SCAN_UNRESTRICTED_ORGS", raising=False)
     monkeypatch.setattr(dv, "_ready", False)  # each test has its own database file
