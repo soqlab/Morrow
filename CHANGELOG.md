@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-06
+
 ### Added
 - Crypto kill switch (`/crypto-switch/...`, `/ui/crypto-switch.html`): an admin declares "X is broken, switch to Y"; Morrow plans every affected asset by priority with a per-stack change (nginx, Apache, Envoy, HAProxy, OpenSSL, Go, Java), refuses fallbacks weaker than org policy, opens approved batches as pull requests, and marks assets switched only after a rescan observes Y. Dry run by default; every step audited
 - Gradual post-quantum rollout (`/pq-rollouts/...`): staged 1/10/50/100% weighted-routing configs for Envoy, Istio, nginx and HAProxy, health gates on handshake failure and HTTP error rate from the customer's Prometheus, immediate rollback config/PR and alert on a failed gate
