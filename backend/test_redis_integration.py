@@ -212,8 +212,7 @@ def test_middleware_429_carries_accurate_retry_after(rl, monkeypatch):
     name = org()
     monkeypatch.setattr(module, "enabled", lambda: True)
     monkeypatch.setattr(module, "overrides_stale", lambda: False)
-    monkeypatch.setattr(module, "billing_limits_active", lambda: False)
-    monkeypatch.setattr(module, "limits_for", lambda org_id, plan=(None, None): (2, 0))
+    monkeypatch.setattr(module, "limits_for", lambda org_id: (2, 0))
     monkeypatch.setattr(module.request_identity, "resolve", lambda request, mode: {"authenticated": True, "organization_id": name})
 
     async def call_next(_request):
