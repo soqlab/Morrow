@@ -81,7 +81,9 @@ def test_ci_token_names_the_org_and_header_is_ignored(orgs):
     # Hashed at rest: the secret appears nowhere in the database.
     with app._db() as db:
         dump = "\n".join(db.iterdump())
-    assert secret not in dump and secret.split("_")[-1] not in dump
+    # The random part may itself contain "_", so take everything after "mci_<prefix>_"; splitting on
+    # the last "_" could leave two characters that turn up in any dump by chance.
+    assert secret not in dump and secret.split("_", 2)[2] not in dump
 
     res = client.post("/v1/runtime/cbom/ingest",
                       headers={**JSON, "Authorization": f"Bearer {secret}", "X-Org-Id": "org-other"}, content=CBOM)
