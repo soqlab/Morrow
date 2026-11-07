@@ -455,8 +455,37 @@ def _tls_extension(ext_type: int, body: bytes) -> bytes:
     return _u16(ext_type) + _u16(len(body)) + body
 
 
+def _mlkem768_encapsulation_key() -> bytes:
+    """An ML-KEM-768 encapsulation key (1184 bytes) for the probe's hybrid key share.
+
+    The probe never completes the handshake, so the private half is never used. With a
+    cryptography build that has ML-KEM the key is a real one; otherwise it is a well-formed key
+    (every coefficient below q, as FIPS 203's modulus check requires) built from random values.
+    """
+    import secrets as _secrets
+
+    try:
+        from cryptography.hazmat.primitives import serialization as _ser
+        from cryptography.hazmat.primitives.asymmetric import mlkem as _mlkem
+
+        return _mlkem.MLKEM768PrivateKey.generate().public_key().public_bytes(
+            _ser.Encoding.Raw, _ser.PublicFormat.Raw)
+    except Exception:
+        out = bytearray()
+        for _ in range(768 // 2):
+            a, b = _secrets.randbelow(3329), _secrets.randbelow(3329)
+            out += bytes((a & 0xFF, (a >> 8) | ((b & 0x0F) << 4), b >> 4))
+        return bytes(out) + _secrets.token_bytes(32)
+
+
 def _build_client_hello(host: str) -> bytes:
-    """A TLS 1.3 ClientHello offering every hybrid group we know about."""
+    """A TLS 1.3 ClientHello offering every hybrid group we know about.
+
+    It carries key shares for X25519MLKEM768 and X25519, as current browsers send. With only an
+    X25519 share, a server that accepts both groups without preferring one (OpenSSL 3.5's default
+    for groups in the same tuple, e.g. nginx `ssl_ecdh_curve X25519MLKEM768:X25519`) answers with
+    X25519, and the scan reported a hybrid-capable endpoint as classical.
+    """
     import secrets as _secrets
 
     from cryptography.hazmat.primitives import serialization as _ser
@@ -465,6 +494,7 @@ def _build_client_hello(host: str) -> bytes:
     share = _x25519.X25519PrivateKey.generate().public_key().public_bytes(
         _ser.Encoding.Raw, _ser.PublicFormat.Raw
     )
+    hybrid_share = _mlkem768_encapsulation_key() + share   # X25519MLKEM768: ML-KEM ek || X25519
 
     exts = b""
     is_ip = True
@@ -488,7 +518,8 @@ def _build_client_hello(host: str) -> bytes:
     ))
     exts += _tls_extension(0x000D, _u16(len(sig_algs)) + sig_algs)    # signature_algorithms
     exts += _tls_extension(0x002B, b"\x04" + _u16(0x0304) + _u16(0x0303))  # supported_versions
-    key_share = _u16(0x001D) + _u16(len(share)) + share
+    key_share = (_u16(0x11EC) + _u16(len(hybrid_share)) + hybrid_share
+                 + _u16(0x001D) + _u16(len(share)) + share)
     exts += _tls_extension(0x0033, _u16(len(key_share)) + key_share)  # key_share
     exts += _tls_extension(0x0016, b"")                               # encrypt_then_mac
     exts += _tls_extension(0x0017, b"")                               # extended_master_secret
