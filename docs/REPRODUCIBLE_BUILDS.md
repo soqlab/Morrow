@@ -13,7 +13,7 @@ This page covers how it works, how to check a release yourself, and what is not 
 | Input | Pinned how | Where |
 |---|---|---|
 | Base image `python:3.11-slim` | by digest | `FROM` line of both Dockerfiles |
-| Debian packages (curl, unzip, ca-certificates, redis-server) | `snapshot.debian.org` at a fixed time (`DEBIAN_SNAPSHOT`) | both Dockerfiles |
+| Debian packages (curl, unzip, ca-certificates, redis-server) | the sources point at `snapshot.debian.org` at a fixed time (`DEBIAN_SNAPSHOT`) during the install, then go back to the originals | both Dockerfiles |
 | OpenTofu | version and sha256 of the zip | both Dockerfiles |
 | Python packages, transitives included | every file by sha256, installed with `--require-hashes --no-deps --only-binary :all:` | `backend/requirements*.lock` |
 | pip, setuptools, wheel in the image | by sha256 | `backend/requirements-bootstrap.lock` |
