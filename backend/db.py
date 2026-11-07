@@ -1023,7 +1023,7 @@ def _ensure_asset_scan_latest(conn: sqlite3.Connection) -> None:
             UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
             WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
         END;
-        """ % {"jd_col": _JD_SQL.format(u="asset_updated_at"), "jd_new": _JD_SQL.format(u="NEW.updated_at")}
+        """ % {"jd_col": _JD_SQL.format(u="asset_updated_at"), "jd_new": _JD_SQL.format(u="NEW.updated_at")}  # nosec B608  # constant expressions
     )
     # Newest first, as latest_scan_facts_for_org returns them.
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_scanned"
@@ -2679,6 +2679,7 @@ def upsert_asset(
     repository_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     org_id = current_organization_id()
+    _HNDL_GROUPS_CACHE.clear()
     if postgres_main_db_requested():
         return pg_upsert_asset(
             org_id,
@@ -3548,7 +3549,38 @@ def _hndl_inputs_sql(dialect: str) -> str:
     ).format(port=port, days=days, p=p)
 
 
+#: hndl_input_groups results for HNDL_GROUPS_CACHE_SECONDS: the dashboard and the timeline of one
+#: console view ask for the same grouping, and it is the one whole-estate read they make.
+_HNDL_GROUPS_CACHE: Dict[tuple, tuple] = {}
+HNDL_GROUPS_CACHE_SECONDS = float(os.getenv("MORROW_HNDL_CACHE_SECONDS", "30") or 0)
+
+
 def hndl_input_groups(now: datetime) -> List[tuple]:
+    """hndl_input_groups_uncached, reused for HNDL_GROUPS_CACHE_SECONDS within one organization and
+    calendar minute (the day counts are computed at `now`). 0 turns the cache off."""
+    import time as _time
+
+    if HNDL_GROUPS_CACHE_SECONDS <= 0:
+        return hndl_input_groups_uncached(now)
+    key = ("pg" if postgres_main_db_requested() else _current_sqlite_path(), product_database_url_if_pg(),
+           current_organization_id(), now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M"))
+    hit = _HNDL_GROUPS_CACHE.get(key)
+    if hit and _time.monotonic() - hit[0] < HNDL_GROUPS_CACHE_SECONDS:
+        return list(hit[1])
+    groups = hndl_input_groups_uncached(now)
+    if len(_HNDL_GROUPS_CACHE) > 256:
+        _HNDL_GROUPS_CACHE.clear()
+    _HNDL_GROUPS_CACHE[key] = (_time.monotonic(), tuple(groups))
+    return groups
+
+
+def product_database_url_if_pg() -> str:
+    if not postgres_main_db_requested():
+        return ""
+    return str(os.environ.get("MORROW_PRODUCT_DATABASE_URL") or os.environ.get("DATABASE_URL") or "")
+
+
+def hndl_input_groups_uncached(now: datetime) -> List[tuple]:
     """The estate's distinct HNDL pricing inputs with how many assets have each:
     [(port_s, tls_version, cipher_name, key_type, key_bits, key_exchange, days, count)].
 
@@ -3588,7 +3620,7 @@ def _sqlite_hndl_parts(now_iso: str, org_id: str, crypto: Optional[Sequence[tupl
     asset_key, updated_at, port_s, tls, cipher, kt, kb, kx, days."""
     diff = "(? - asset_updated_jd)"
     scanned = (
-        "SELECT asset_key, asset_updated_at AS updated_at, asset_port AS port_s, COALESCE(tls_version, '') AS tls, "
+        "SELECT asset_key, asset_updated_at AS updated_at, asset_port AS port_s, COALESCE(tls_version, '') AS tls, "  # nosec B608  # constant SQL text; values are bound
         "COALESCE(cipher_name, '') AS cipher, COALESCE(key_type, '') AS kt, COALESCE(key_bits, 0) AS kb, "
         "COALESCE(key_exchange, '') AS kx, "
         "CASE WHEN asset_updated_jd IS NULL THEN 365 "
@@ -3605,7 +3637,7 @@ def _sqlite_hndl_parts(now_iso: str, org_id: str, crypto: Optional[Sequence[tupl
                     "COALESCE(key_bits, 0), COALESCE(key_exchange, '')) IN (VALUES %s)" % ",".join([row] * len(crypto)))
         crypto_params = tuple(v for c in crypto for v in c)
     unscanned = (
-        "SELECT a.asset_key AS asset_key, a.updated_at AS updated_at, {port} AS port_s, '' AS tls, '' AS cipher, "
+        "SELECT a.asset_key AS asset_key, a.updated_at AS updated_at, {port} AS port_s, '' AS tls, '' AS cipher, "  # nosec B608  # constant SQL text; values are bound
         "'' AS kt, 0 AS kb, '' AS kx, {days} AS days FROM assets a "
         "WHERE a.organization_id = ? AND a.asset_key <> '' AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l "
         "WHERE l.organization_id = a.organization_id AND l.asset_key = a.asset_key)"
@@ -3649,14 +3681,23 @@ def hndl_group_members(now: datetime, ranked_groups: Sequence[tuple], limit: int
     if not pg:
         with closing(get_connection()) as conn:
             if _backfill_done(conn, ASSET_INV_BACKFILL):
-                crypto = sorted({tuple(g[1:6]) for g, _ in ranked_groups})
-                parts = _sqlite_hndl_parts(now_iso, org_id, crypto)
-                union = " UNION ALL ".join(p for p, _ in parts)
-                rows = conn.execute(
-                    f"WITH g({cols}, rnk) AS (VALUES {values}) "  # nosec B608  # fixed SQL text and placeholders
-                    f"SELECT x.asset_key, x.updated_at, {xcols} FROM ({union}) x "
-                    f"JOIN g ON {on} ORDER BY g.rnk, x.updated_at DESC, x.asset_key DESC LIMIT ?",
-                    tuple(flat) + tuple(v for _, ps in parts for v in ps) + (int(limit),)).fetchall()
+                # One rank at a time, newest first: with a single source the index is walked in
+                # /assets order and the walk stops as soon as the rank has supplied its rows.
+                rows = []
+                for rank in sorted({rk for _, rk in ranked_groups}):
+                    need = int(limit) - len(rows)
+                    if need <= 0:
+                        break
+                    groups = [tuple(g) for g, rk in ranked_groups if rk == rank]
+                    crypto = sorted({g[1:6] for g in groups})
+                    parts = _sqlite_hndl_parts(now_iso, org_id, crypto)
+                    union = " UNION ALL ".join(p for p, _ in parts)
+                    grow = "(" + ",".join("?" * len(_HNDL_GROUP_COLS)) + ")"
+                    rows += conn.execute(
+                        f"SELECT x.asset_key, x.updated_at, {xcols} FROM ({union}) x "  # nosec B608  # fixed SQL text and placeholders
+                        f"WHERE ({xcols}) IN (VALUES {','.join([grow] * len(groups))}) "
+                        f"ORDER BY x.updated_at DESC, x.asset_key DESC LIMIT ?",
+                        tuple(v for _, ps in parts for v in ps) + tuple(v for g in groups for v in g) + (need,)).fetchall()
                 keys = [r[0] for r in rows]
                 people: Dict[str, tuple] = {}
                 for start in range(0, len(keys), 500):
@@ -6041,6 +6082,7 @@ def mark_schedule_ran(schedule_id: int, run_at_iso: str, interval_minutes: int, 
 
 def save_scan_asset_summaries(scan_id: str, scanned_at_iso: str, results: list[dict]) -> None:
     org_id = current_organization_id()
+    _HNDL_GROUPS_CACHE.clear()  # this process's cached HNDL grouping is out of date now
     scanned_at_iso = scanned_at_iso or _utc_now_iso()
     if postgres_main_db_requested():
         pg_save_scan_asset_summaries(org_id, scan_id, scanned_at_iso, results)
