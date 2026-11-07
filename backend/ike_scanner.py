@@ -51,6 +51,7 @@ _PROBE_INTERVAL = 0.2    # minimum seconds between two packets to the same respo
 _MAX_PROBES = 200        # hard cap on IKE_SA_INIT datagrams per scan (COOKIE round trips count)
 _MAX_SILENT = 4          # consecutive unanswered probes before the scan gives up
 _MAX_RESPONSE = 16384    # larger datagrams are ignored, not parsed
+_MAX_COOKIE = 64         # RFC 7296 section 2.6: 1 to 64 octets; a COOKIE is echoed back verbatim
 
 # ── IANA IKEv2 registries ────────────────────────────────────────────────────
 
@@ -347,6 +348,8 @@ def parse_sa_init_response(data: bytes, spi_i: Optional[bytes] = None) -> Dict[s
             out["ke_group"] = struct.unpack_from(">H", body, 0)[0]
         elif ptype == P_NOTIFY and len(body) >= 4:
             spi_size = body[1]
+            if 4 + spi_size > len(body):
+                raise ValueError("notify SPI overruns the payload")
             ntype = struct.unpack_from(">H", body, 2)[0]
             out["notifies"].append({"type": ntype, "name": NOTIFY_NAMES.get(ntype, str(ntype)),
                                     "data": body[4 + spi_size:]})
@@ -357,17 +360,22 @@ def parse_sa_init_response(data: bytes, spi_i: Optional[bytes] = None) -> Dict[s
 
 
 def _parse_first_proposal(body: bytes) -> List[Tuple[int, int, Optional[int]]]:
+    """Transforms of the first proposal. Every length is checked against the proposal it sits
+    in: a transform that claims more bytes than remain raises ValueError, instead of its
+    attributes being read from the bytes that follow (or failing with struct.error)."""
     if len(body) < 8:
         raise ValueError("SA payload too short")
     _more, _r, plen, _num, _proto, spi_size, ntrans = struct.unpack_from(">BBHBBBB", body, 0)
+    if plen < 8 or plen > len(body):
+        raise ValueError("bad proposal length")
     off = 8 + spi_size
-    end = min(plen, len(body))
+    end = plen
     found: List[Tuple[int, int, Optional[int]]] = []
     for _ in range(ntrans):
         if off + 8 > end:
             break
         _m, _r2, tlen, ttype, _r3, tid = struct.unpack_from(">BBHBBH", body, off)
-        if tlen < 8:
+        if tlen < 8 or off + tlen > end:
             raise ValueError("bad transform length")
         keylen = None
         aoff = off + 8
@@ -389,7 +397,7 @@ def classify_response(parsed: Optional[Dict[str, Any]]) -> Tuple[str, Dict[str, 
     if parsed is None:
         return "no_response", {}
     names = {n["type"]: n for n in parsed["notifies"]}
-    if N_COOKIE in names:
+    if N_COOKIE in names and 1 <= len(names[N_COOKIE]["data"]) <= _MAX_COOKIE:
         return "cookie", {"cookie": names[N_COOKIE]["data"]}
     if parsed["transforms"]:
         return "accepted", {"transforms": parsed["transforms"]}
@@ -450,7 +458,7 @@ def parse_ikev1_response(data: bytes, icookie: bytes) -> Dict[str, Any]:
             nxt, _r, plen = struct.unpack_from(">BBH", data, off)
             if plen < 4:
                 break
-            if ptype == P_NOTIFY and plen >= 8 and struct.unpack_from(">H", data, off + 6)[0] == 5:
+            if ptype == P_NOTIFY and plen >= 8 and off + 8 <= end and struct.unpack_from(">H", data, off + 6)[0] == 5:
                 out["notify"] = "INVALID_MAJOR_VERSION"
                 return out
             off += plen
