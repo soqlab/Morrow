@@ -8909,8 +8909,20 @@ def api_dark_matter_map(request: Request):
     # cover the whole estate and key_records the newest 3,000 keys (coverage says so). This used to
     # parse the newest 30 scans' full results -- 52 MB of heap and 3-5 s at 100,000 assets -- and
     # described only those 30 scans.
-    from db import key_map_rows
-    result = _build_dark_matter_map_from_rows(key_map_rows(record_limit=3000))
+    from db import asset_scan_latest_ready, key_map_rows
+    if asset_scan_latest_ready():
+        result = _build_dark_matter_map_from_rows(key_map_rows(record_limit=3000))
+    else:
+        # The one-time backfill of an upgraded database is still running: map the newest 30 scans
+        # as before it existed.
+        from db import list_scan_rows, load_scan_row
+        from services.dark_matter import build_dark_matter_map
+        scan_results_list = []
+        for row in list_scan_rows(limit=30) or []:
+            full = load_scan_row(str(row.get("id") or ""))
+            if full and full.get("results"):
+                scan_results_list.append(full["results"])
+        result = build_dark_matter_map(scan_results_list)
     result["organization_id"] = org_id
     result["generated_at"] = _now_iso()
     result["api_version"] = "v1"
@@ -18734,6 +18746,15 @@ def _telemetry_real_kpis(org_id: str) -> Dict[str, Any]:
     Python: 10-14 s at 100,000 assets. Each counter is now a COUNT over its time window, exact
     within the window; the old ones counted only what fell inside the newest 5,000 events.
     """
+    from db import scan_headers_ready
+    token = set_current_organization_id(org_id or DEFAULT_ORG_ID)
+    try:
+        headers_ready = scan_headers_ready()
+    finally:
+        reset_current_organization_id(token)
+    if not headers_ready:
+        # The one-time scan_headers backfill of an upgraded database is still running.
+        return _telemetry_real_kpis_from_events(org_id)
     now = _utc_now()
     hour_ago = now - timedelta(hours=1)
     day_ago = now - timedelta(days=1)

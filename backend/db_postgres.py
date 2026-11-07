@@ -553,12 +553,12 @@ def _pg_asset_latest_sql() -> List[str]:
     newer = ("excluded.scanned_at > asset_scan_latest.scanned_at OR (excluded.scanned_at = asset_scan_latest.scanned_at"
              " AND excluded.result_id > asset_scan_latest.result_id)")
     upsert_new = (
-        "INSERT INTO asset_scan_latest (%s) VALUES (%s) ON CONFLICT (organization_id, asset_key) DO UPDATE SET "
+        "INSERT INTO asset_scan_latest (%s) VALUES (%s) ON CONFLICT (organization_id, asset_key) DO UPDATE SET "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "result_id = excluded.result_id, %s, search_text = excluded.search_text, %s WHERE %s"
         % (_pg_latest_cols(), _pg_latest_values("NEW."), fact_sets, clear_extras, newer)
     )
     promote_old = (
-        "INSERT INTO asset_scan_latest (%s) SELECT %s FROM scan_results sr "
+        "INSERT INTO asset_scan_latest (%s) SELECT %s FROM scan_results sr "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "WHERE sr.organization_id = OLD.organization_id AND sr.asset_key = OLD.asset_key "
         "AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l WHERE l.organization_id = OLD.organization_id "
         "AND l.asset_key = OLD.asset_key) ORDER BY sr.scanned_at DESC, sr.id DESC LIMIT 1"
@@ -644,7 +644,7 @@ def _pg_asset_latest_sql() -> List[str]:
             RETURN NULL;
         END
         $fn$
-        """,
+        """,  # nosec B608  # column lists and placeholders are module constants; values are bound
         """
         DO $do$
         BEGIN
@@ -673,8 +673,8 @@ def _pg_asset_latest_sql() -> List[str]:
             ORDER BY organization_id, asset_key, scanned_at DESC, id DESC
         ) sr
         ON CONFLICT (organization_id, asset_key) DO NOTHING
-        """,
-        f"INSERT INTO morrow_backfills (name, completed_at) VALUES ('{PG_ASSET_LATEST_FACTS_BACKFILL}', NOW()) "
+        """,  # nosec B608  # column lists and placeholders are module constants; values are bound
+        f"INSERT INTO morrow_backfills (name, completed_at) VALUES ('{PG_ASSET_LATEST_FACTS_BACKFILL}', NOW()) "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "ON CONFLICT (name) DO NOTHING",
     ]
 
@@ -2877,21 +2877,23 @@ def pg_save_scan_asset_summaries(
                 _pg_extras_update(cur, extras_rows)
 
 
-def pg_certificate_lifecycle_rows(org_id: str, now_s: str, soon: str, sev_high: str, limit: int,
+def pg_certificate_lifecycle_rows(org_id: str, now_s: str, soon: str, limit: int, after: Sequence[Any],
                                   sql: Dict[str, str], dsn: Optional[str] = None) -> Dict[str, Any]:
-    """db.certificate_lifecycle_rows for Postgres (the statements come from db._certificate_sql)."""
+    """db.certificate_lifecycle_rows for Postgres (the statements come from db._certificate_sql).
+    `after` is the (group, days, asset_key) the page starts after; (-1, 0, "") for the first page."""
     ensure_postgres_core_schema(dsn)
     org = str(org_id or "").strip() or DEFAULT_ORG_ID
     with pg_product_conn(dsn) as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql["summary"], (now_s, now_s, soon, soon, org))
             s = dict(cur.fetchone() or {})
-            cur.execute(sql["page"], (org, now_s, sev_high, soon, now_s, int(limit)))
+            cur.execute(sql["page"], (soon, now_s, org, int(after[0]), int(after[1]), str(after[2]), int(limit)))
             rows = _fetchall_dicts(cur)
     out = []
     for row in rows:
         item = dict(row)
         item["scanned_at"] = _iso_utc(item.get("scanned_at")) if item.get("scanned_at") else ""
+        item["grp"], item["dd"] = int(item["grp"]), int(item["dd"])
         out.append(item)
     summary = {k: int(s.get(k) or 0) for k in ("expired", "expiring_soon", "healthy", "unknown")}
     return {"summary": summary, "total": int(s.get("total") or 0), "rows": out}

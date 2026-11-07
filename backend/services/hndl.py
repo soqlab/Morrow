@@ -779,10 +779,17 @@ def compute_org_hndl_dashboard_for_estate(groups, members, q_day_year: Optional[
     buckets: Dict[tuple, List[tuple]] = {}
     for g, s, _ in scored:
         buckets.setdefault(_rank(s), []).append(g[:7])
-    for rank in sorted(buckets, reverse=True):
-        if len(queue) >= queue_size:
+    counts = {g[:7]: n for g, _, n in scored}
+    ranked: List[tuple] = []
+    covered = 0
+    for i, rank in enumerate(sorted(buckets, reverse=True)):
+        if covered >= queue_size:
             break
-        for row in members(buckets[rank], queue_size - len(queue)):
+        for g in buckets[rank]:
+            ranked.append((g, i))
+            covered += counts[g]
+    if ranked and queue_size > 0:
+        for row in members(ranked, queue_size):
             ak, owner, env = row[0], row[1], row[2]
             item = dict(score(_group_score_key(row[3:])))
             item["host"] = str(ak).split(":", 1)[0] or str(ak)

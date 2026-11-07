@@ -200,7 +200,9 @@ class TestNewestRowPerAssetTable(_SqliteBase):
         conn.commit()
         conn.close()
         self.db._SCHEMA_ONCE.clear()
-        self.db.init_db()  # the schema step restores the facts, the startup backfill the rest
+        self.db._BACKFILLS_DONE.clear()
+        self.db.init_db()  # the schema step restores the facts; the backfill (a thread) the rest
+        self.db.run_pending_backfills()
         conn = self.raw()
         got = {r["asset_key"]: dict(r) for r in conn.execute("SELECT * FROM asset_scan_latest WHERE organization_id='org-a'")}
         conn.close()
@@ -238,7 +240,7 @@ class TestSearchIndex(_SqliteBase):
         try:
             self.assertTrue(self.db._has_asset_search_index(conn))
             plan = " | ".join(r[3] for r in conn.execute(
-                "EXPLAIN QUERY PLAN SELECT rowid FROM asset_scan_latest_fts WHERE asset_scan_latest_fts MATCH ?",
+                "EXPLAIN QUERY PLAN SELECT rowid FROM asset_search_fts WHERE asset_search_fts MATCH ?",
                 ('"h001"',)))
         finally:
             conn.close()
@@ -315,6 +317,16 @@ class TestCertificateAndKeyMapReports(_SqliteBase):
                 self.assertEqual([{k: v for k, v in i.items() if k != "scanned_at"} for i in got["items"]],
                                  strip[:limit], (warning, limit))
                 self.assertEqual(got["inventory_coverage"]["complete"], limit >= len(assets))
+                # Walking the cursor visits the whole report once, in order.
+                walked, cursor = [], None
+                while True:
+                    page = self.db.certificate_lifecycle_rows(warning, now, limit, cursor)
+                    walked += build_certificate_lifecycle_report_from_rows(page, warning_days=warning, now=now)["items"]
+                    cursor = page["next_cursor"]
+                    if not cursor:
+                        break
+                self.assertEqual([{k: v for k, v in i.items() if k != "scanned_at"} for i in walked], strip,
+                                 (warning, limit))
         self.assertEqual(sum(expected["summary"].values()), len(assets))
         self.assertTrue(all(expected["summary"][k] for k in ("expired", "expiring_soon", "healthy", "unknown")))
 
@@ -352,6 +364,36 @@ class TestCertificateAndKeyMapReports(_SqliteBase):
             self.db.get_connection = real
         self.assertTrue(statements)
         self.assertFalse([s for s in statements if "results_json" in s or "FROM scans" in s], statements)
+
+
+class TestBackfillsDoNotBlockStartup(_SqliteBase):
+    def test_an_upgraded_database_backfills_in_the_background_and_reads_the_old_way_until_then(self):
+        conn = self.raw()
+        before = self.db.list_scan_rows(limit=100)
+        conn.execute("DELETE FROM scan_headers")
+        conn.execute("UPDATE asset_scan_latest SET map_included = NULL")
+        conn.execute("DELETE FROM morrow_backfills WHERE name <> 'asset_scan_latest_facts_v1'")
+        conn.commit()
+        conn.close()
+        self.db._BACKFILLS_DONE.clear()
+        self.assertFalse(self.db.scan_headers_ready())
+        self.assertFalse(self.db.asset_scan_latest_ready())
+        self.assertEqual(self.db.list_scan_rows(limit=100), before)  # read from scans meanwhile
+        thread = self.db.start_background_backfills()
+        self.assertIsNotNone(thread)
+        thread.join(120)
+        self.assertTrue(self.db.scan_headers_ready())
+        self.assertTrue(self.db.asset_scan_latest_ready())
+        self.assertEqual(self.db.list_scan_rows(limit=100), before)
+        self.assertEqual(self.db.backfill_progress()["state"], "done")
+
+    def test_a_database_with_nothing_to_backfill_starts_no_thread(self):
+        self.assertIsNone(self.db.start_background_backfills())
+
+    def test_a_forged_certificate_cursor_is_refused(self):
+        for bad in ("nope", "W10", "WzksMCwieCJd"):
+            with self.assertRaises(ValueError):
+                self.db.certificate_lifecycle_rows(30, datetime.now(UTC), 10, bad)
 
 
 class TestHndlCoversTheEstate(_SqliteBase):

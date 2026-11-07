@@ -577,16 +577,78 @@ def _ensure_scan_side_tables(conn: sqlite3.Connection) -> None:
         END;
         """  # nosec B608  # column lists are the module constant _SCAN_HEADER_COLUMNS
     )
-    # A database written before these tables existed: copy the headers once. Rows that already have
-    # one are skipped through the primary-key index, so this reads nothing on later starts.
     conn.execute(
-        f"""
-        INSERT OR IGNORE INTO scan_headers (scan_id, {_SCAN_HEADER_COLS_SQL})
-        SELECT id, {_SCAN_HEADER_COLS_SQL} FROM scans s
-        WHERE NOT EXISTS (SELECT 1 FROM scan_headers h WHERE h.scan_id = s.id)
-        """  # nosec B608  # column list is the module constant _SCAN_HEADER_COLUMNS
+        "CREATE TABLE IF NOT EXISTS morrow_backfills (name TEXT PRIMARY KEY, completed_at TEXT NOT NULL)"
     )
+    # A database written before these tables existed has scans without a header. Copying them reads
+    # every result blob (minutes at 100,000 assets), so it is not done here: when nothing is missing
+    # the backfill is recorded as done at once, otherwise start_background_backfills() copies them in
+    # small batches and list_scan_rows reads scans the old way until it has finished.
+    if not _backfill_done(conn, SCAN_HEADERS_BACKFILL) and not _scan_headers_missing(conn, 1):
+        _mark_backfill_done(conn, SCAN_HEADERS_BACKFILL)
     mark_schema_ensured("scan_side_tables")
+
+
+SCAN_HEADERS_BACKFILL = "scan_headers_v1"
+#: (database path, backfill name) pairs known to be complete in this process, so the readers that
+#: depend on a backfill ask the database only until it has finished.
+_BACKFILLS_DONE: set = set()
+
+
+def _backfill_done(conn: sqlite3.Connection, name: str) -> bool:
+    key = (_current_sqlite_path(), name)
+    if key in _BACKFILLS_DONE:
+        return True
+    try:
+        done = conn.execute("SELECT 1 FROM morrow_backfills WHERE name = ?", (name,)).fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+    if done:
+        _BACKFILLS_DONE.add(key)
+    return done
+
+
+def _mark_backfill_done(conn: sqlite3.Connection, name: str) -> None:
+    conn.execute("INSERT OR REPLACE INTO morrow_backfills (name, completed_at) VALUES (?, ?)", (name, _utc_now_iso()))
+    conn.commit()
+    _BACKFILLS_DONE.add((_current_sqlite_path(), name))
+
+
+def _scan_headers_missing(conn: sqlite3.Connection, limit: int) -> List[str]:
+    """Up to `limit` scan ids without a header (read from the scans primary key only)."""
+    return [r[0] for r in conn.execute(
+        "SELECT id FROM scans s WHERE NOT EXISTS (SELECT 1 FROM scan_headers h WHERE h.scan_id = s.id) LIMIT ?",
+        (int(limit),))]
+
+
+def scan_headers_ready() -> bool:
+    if postgres_main_db_requested():
+        return True
+    with closing(get_connection()) as conn:
+        return _backfill_done(conn, SCAN_HEADERS_BACKFILL)
+
+
+def backfill_scan_headers(log: Any = None, batch: int = 20) -> int:
+    """Copy the header of every scan that has none, `batch` scans per short transaction."""
+    copied = 0
+    with closing(get_connection()) as conn:
+        if _backfill_done(conn, SCAN_HEADERS_BACKFILL):
+            return 0
+        while True:
+            ids = _scan_headers_missing(conn, batch)
+            if not ids:
+                break
+            marks = ",".join("?" * len(ids))
+            conn.execute(
+                f"INSERT OR IGNORE INTO scan_headers (scan_id, {_SCAN_HEADER_COLS_SQL}) "  # nosec B608  # constant column list and placeholders
+                f"SELECT id, {_SCAN_HEADER_COLS_SQL} FROM scans WHERE id IN ({marks})", ids)
+            conn.commit()
+            copied += len(ids)
+            _BACKFILL_PROGRESS["scan_headers"] = copied
+        _mark_backfill_done(conn, SCAN_HEADERS_BACKFILL)
+    if log:
+        log("scan_headers backfill: %d scans copied" % copied)
+    return copied
 
 
 def _ensure_sprint5_tables(conn: sqlite3.Connection) -> None:
@@ -792,7 +854,7 @@ def _asset_latest_trigger_sql(present: Optional[set] = None) -> str:
                           if c != "asset_key")
     cols = _asset_latest_fact_cols_sql()
     upsert_new = (
-        "INSERT INTO asset_scan_latest (%s) VALUES (%s) "
+        "INSERT INTO asset_scan_latest (%s) VALUES (%s) "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "ON CONFLICT (organization_id, asset_key) DO UPDATE SET "
         "result_id = excluded.result_id, %s, search_text = excluded.search_text, %s "
         "WHERE excluded.scanned_at > asset_scan_latest.scanned_at "
@@ -800,7 +862,7 @@ def _asset_latest_trigger_sql(present: Optional[set] = None) -> str:
         % (cols, _asset_latest_fact_values_sql("NEW.", present), fact_sets, clear_extras)
     )
     promote_old = (
-        "INSERT INTO asset_scan_latest (%s) SELECT %s FROM scan_results sr "
+        "INSERT INTO asset_scan_latest (%s) SELECT %s FROM scan_results sr "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "WHERE sr.organization_id = OLD.organization_id AND sr.asset_key = OLD.asset_key "
         "AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l WHERE l.organization_id = OLD.organization_id "
         "AND l.asset_key = OLD.asset_key) "
@@ -841,8 +903,37 @@ def _has_asset_search_index(conn: sqlite3.Connection) -> bool:
     """Whether the trigram index exists (FTS5 with the trigram tokenizer needs SQLite 3.34+)."""
     try:
         return conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'asset_scan_latest_fts'").fetchone() is not None
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'asset_search_fts'").fetchone() is not None
     except sqlite3.Error:
+        return False
+
+
+def _sync_search_index(conn: sqlite3.Connection, batch: int = 5000) -> bool:
+    """Apply the asset_scan_latest changes recorded in asset_search_dirty to asset_search_fts.
+
+    Called by /search before it queries. False when the index cannot be brought up to date (the
+    caller then reads asset_scan_latest directly, as without an index)."""
+    try:
+        while True:
+            pending = conn.execute("SELECT rowid, row_id FROM asset_search_dirty ORDER BY rowid LIMIT ?",
+                                   (batch,)).fetchall()
+            if not pending:
+                return True
+            upto = pending[-1][0]
+            ids = sorted({r[1] for r in pending})
+            marks = ",".join("?" * len(ids))
+            conn.execute(f"DELETE FROM asset_search_fts WHERE rowid IN ({marks})", ids)  # nosec B608  # placeholders only
+            conn.execute(f"INSERT INTO asset_search_fts (rowid, search_text) SELECT rowid, search_text "  # nosec B608  # placeholders only
+                         f"FROM asset_scan_latest WHERE rowid IN ({marks})", ids)
+            conn.execute("DELETE FROM asset_search_dirty WHERE rowid <= ?", (upto,))
+            conn.commit()
+    except sqlite3.Error:
+        try:
+            conn.rollback()
+        except sqlite3.Error:
+            pass
+        import logging as _logging
+        _logging.getLogger("morrow.db").warning("search index could not be updated; searching without it", exc_info=True)
         return False
 
 
@@ -860,37 +951,52 @@ def _ensure_asset_scan_latest(conn: sqlite3.Connection) -> None:
                  " ON asset_scan_latest (organization_id, cert_expires_at, asset_key)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_key_expiry"
                  " ON asset_scan_latest (organization_id, asset_key, cert_expires_at)")
+    # The HNDL views join every asset to these columns; covering them keeps the join index-only.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_key_crypto ON asset_scan_latest"
+                 " (organization_id, asset_key, tls_version, cipher_name, key_type, key_bits, key_exchange)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_map"
                  " ON asset_scan_latest (organization_id, map_included, map_country, map_risk_score, map_key_type)")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS morrow_backfills (name TEXT PRIMARY KEY, completed_at TEXT NOT NULL)"
     )
-    # /search: a trigram full-text index over search_text, kept in sync by triggers. A trigram
-    # phrase query matches any substring of three or more characters, case-insensitively -- the
-    # "contains" that LIKE '%term%' answered by reading the newest row of every asset.
+    # /search: a trigram full-text index over search_text. A trigram phrase query matches any
+    # substring of three or more characters, case-insensitively -- the "contains" that LIKE '%term%'
+    # answered by reading the newest row of every asset.
+    #
+    # Writes never touch the index itself: a trigger on asset_scan_latest (a plain table) records
+    # the changed rowid in asset_search_dirty, and the search path applies those changes before it
+    # queries (_sync_search_index). A virtual-table write inside the scan write path could fail the
+    # scan write itself (CI saw "vtable constructor failed" from such a trigger), and search is
+    # not a reason to lose a scan.
+    for old in ("trg_asset_scan_latest_fts_ins", "trg_asset_scan_latest_fts_del", "trg_asset_scan_latest_fts_upd"):
+        conn.execute("DROP TRIGGER IF EXISTS %s" % old)  # nosec B608  # names are the literals above
+    conn.executescript(
+        """
+        -- No key: a trigger's own conflict clause yields to the triggering statement's, so a unique
+        -- row_id would make a second change to the same asset fail the scan write.
+        CREATE TABLE IF NOT EXISTS asset_search_dirty (row_id INTEGER NOT NULL);
+        CREATE TRIGGER IF NOT EXISTS trg_asset_search_dirty_ins AFTER INSERT ON asset_scan_latest BEGIN
+            INSERT INTO asset_search_dirty (row_id) VALUES (NEW.rowid);
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_asset_search_dirty_upd AFTER UPDATE OF search_text ON asset_scan_latest BEGIN
+            INSERT INTO asset_search_dirty (row_id) VALUES (NEW.rowid);
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_asset_search_dirty_del AFTER DELETE ON asset_scan_latest BEGIN
+            INSERT INTO asset_search_dirty (row_id) VALUES (OLD.rowid);
+        END;
+        """
+    )
     if _sqlite_has_fts5_trigram(conn):
+        try:
+            conn.execute("DROP TABLE IF EXISTS asset_scan_latest_fts")  # the earlier, trigger-fed form
+        except sqlite3.Error:
+            pass
         existed = conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE name = 'asset_scan_latest_fts'").fetchone() is not None
-        conn.executescript(
-            """
-            CREATE VIRTUAL TABLE IF NOT EXISTS asset_scan_latest_fts USING fts5(
-                search_text, content='asset_scan_latest', content_rowid='rowid', tokenize='trigram');
-            CREATE TRIGGER IF NOT EXISTS trg_asset_scan_latest_fts_ins AFTER INSERT ON asset_scan_latest BEGIN
-                INSERT INTO asset_scan_latest_fts (rowid, search_text) VALUES (NEW.rowid, NEW.search_text);
-            END;
-            CREATE TRIGGER IF NOT EXISTS trg_asset_scan_latest_fts_del AFTER DELETE ON asset_scan_latest BEGIN
-                INSERT INTO asset_scan_latest_fts (asset_scan_latest_fts, rowid, search_text)
-                VALUES ('delete', OLD.rowid, OLD.search_text);
-            END;
-            CREATE TRIGGER IF NOT EXISTS trg_asset_scan_latest_fts_upd AFTER UPDATE OF search_text ON asset_scan_latest BEGIN
-                INSERT INTO asset_scan_latest_fts (asset_scan_latest_fts, rowid, search_text)
-                VALUES ('delete', OLD.rowid, OLD.search_text);
-                INSERT INTO asset_scan_latest_fts (rowid, search_text) VALUES (NEW.rowid, NEW.search_text);
-            END;
-            """
-        )
+            "SELECT 1 FROM sqlite_master WHERE name = 'asset_search_fts'").fetchone() is not None
+        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS asset_search_fts USING fts5(search_text, tokenize='trigram')")
         if not existed:
-            conn.execute("INSERT INTO asset_scan_latest_fts (asset_scan_latest_fts) VALUES ('rebuild')")
+            # Every current row is indexed by the first search.
+            conn.execute("INSERT INTO asset_search_dirty (row_id) SELECT rowid FROM asset_scan_latest")
     # The scan_results half of each row is maintained by triggers, so every writer -- raw SQL
     # included -- keeps it exact: an insert replaces the asset's row when it is newer, an update of
     # the asset's current row is copied, and deleting it (retention) promotes the next newest row.
@@ -2000,7 +2106,7 @@ def init_db():
     if postgres_main_db_requested():
         ensure_postgres_core_schema()
         ensure_postgres_default_org(name="Default Organization")
-        _run_asset_latest_backfill()
+        start_background_backfills()
         return
     db_path = os.environ.get('MORROW_SCANNER_DB', DB_PATH)
     with closing(get_connection()) as conn:
@@ -2030,18 +2136,88 @@ def init_db():
         _WEBHOOK_CLAIM_COLUMNS_READY.discard(db_path)
     _schema_initialized_db_path = db_path
     _schema_initialized.set()
-    _run_asset_latest_backfill()
+    start_background_backfills()
 
 
-def _run_asset_latest_backfill() -> None:
-    """backfill_asset_scan_latest at startup. A failure is logged, not fatal: the reports that need
-    the backfilled fields show those assets as "no evidence" until it succeeds on a later start."""
+#: Progress of the one-time backfills: {"state": idle|running|done|failed, "scan_headers": scans
+#: copied, "asset_scan_latest": scans read, "total_scans": scans to read}.
+_BACKFILL_PROGRESS: Dict[str, Any] = {"state": "idle"}
+_BACKFILL_LOCK = threading.Lock()
+
+
+def backfill_progress() -> Dict[str, Any]:
+    return dict(_BACKFILL_PROGRESS)
+
+
+def _pending_backfills() -> List[str]:
+    """Which one-time backfills this database still needs. Marks the ones with nothing to do as
+    done, so a fresh or already-upgraded database starts no thread."""
+    pending = []
+    if postgres_main_db_requested():
+        if not pg_asset_scan_latest_ready():
+            pending.append(ASSET_LATEST_BACKFILL)
+        return pending
+    with closing(get_connection()) as conn:
+        _ensure_asset_scan_latest(conn)
+        if not _backfill_done(conn, SCAN_HEADERS_BACKFILL):
+            pending.append(SCAN_HEADERS_BACKFILL)
+        if not _backfill_done(conn, ASSET_LATEST_BACKFILL):
+            if conn.execute("SELECT 1 FROM asset_scan_latest WHERE map_included IS NULL LIMIT 1").fetchone():
+                pending.append(ASSET_LATEST_BACKFILL)
+            else:
+                _mark_backfill_done(conn, ASSET_LATEST_BACKFILL)
+    return pending
+
+
+def run_pending_backfills() -> None:
+    """Run the one-time backfills in this thread (scripts, tests, and the background thread)."""
+    import logging as _logging
+
+    log = _logging.getLogger("morrow.db").info
+    with _BACKFILL_LOCK:
+        _BACKFILL_PROGRESS["state"] = "running"
+        try:
+            if not postgres_main_db_requested():
+                backfill_scan_headers(log=log)
+            backfill_asset_scan_latest(log=log)
+            _BACKFILL_PROGRESS["state"] = "done"
+        except Exception:
+            _BACKFILL_PROGRESS["state"] = "failed"
+            _logging.getLogger("morrow.db").exception("one-time backfill failed; it is retried on the next start")
+
+
+def start_background_backfills() -> Optional[threading.Thread]:
+    """Start the one-time backfills of an upgraded database without holding up startup.
+
+    At 100,000 assets they read every scan's results once (658 s on a busy laptop), longer than any
+    platform health check waits. Until each has finished, the readers that depend on it take their
+    previous path: list_scan_rows reads scans, and the certificate, key-map and telemetry views
+    compute as before. A database with nothing to backfill starts no thread.
+    """
     import logging as _logging
 
     try:
-        backfill_asset_scan_latest(log=_logging.getLogger("morrow.db").info)
+        if not _pending_backfills():
+            _BACKFILL_PROGRESS["state"] = "done"
+            return None
     except Exception:
-        _logging.getLogger("morrow.db").exception("asset_scan_latest backfill failed")
+        _logging.getLogger("morrow.db").exception("could not check pending backfills")
+        return None
+    if _BACKFILL_PROGRESS.get("state") == "running":
+        return None
+    env = {k: os.environ.get(k) for k in ("MORROW_SCANNER_DB", "MORROW_MAIN_DB_BACKEND", "MORROW_PRODUCT_DATABASE_URL")}
+
+    def _run() -> None:
+        # Only for the database this process was started on (tests switch databases).
+        if any(os.environ.get(k) != v for k, v in env.items()):
+            _BACKFILL_PROGRESS["state"] = "idle"
+            return
+        run_pending_backfills()
+
+    _BACKFILL_PROGRESS["state"] = "running"
+    thread = threading.Thread(target=_run, name="morrow-backfill", daemon=True)
+    thread.start()
+    return thread
 
 
 def save_scan_row(
@@ -2232,20 +2408,33 @@ def list_scan_rows(limit: int = 20) -> List[Dict[str, Any]]:
     if postgres_main_db_requested():
         return pg_list_scan_rows(org_id, limit=limit)
     with closing(get_connection()) as conn:
-        # scan_headers, not scans: summary_json and the job_* columns sit after results_json in a
-        # scans row, so reading them from there walks every selected scan's result blob (see
-        # _ensure_scan_side_tables). Same rows, same order as the rowid subquery on scans.
-        cur = conn.execute(
-            """
-            SELECT scan_id, status, created_at, progress_json, error_text, summary_json,
-                   job_id, job_state, job_started_at, job_finished_at
-            FROM scan_headers
-            WHERE organization_id = ?
-            ORDER BY datetime(created_at) DESC
-            LIMIT ?
-            """,
-            (org_id, limit),
-        )
+        if _backfill_done(conn, SCAN_HEADERS_BACKFILL):
+            # scan_headers, not scans: summary_json and the job_* columns sit after results_json in
+            # a scans row, so reading them from there walks every selected scan's result blob (see
+            # _ensure_scan_side_tables). Same rows, same order as the rowid subquery on scans.
+            cur = conn.execute(
+                """
+                SELECT scan_id, status, created_at, progress_json, error_text, summary_json,
+                       job_id, job_state, job_started_at, job_finished_at
+                FROM scan_headers
+                WHERE organization_id = ?
+                ORDER BY datetime(created_at) DESC
+                LIMIT ?
+                """,
+                (org_id, limit),
+            )
+        else:
+            # Until the header backfill has finished (see start_background_backfills).
+            cur = conn.execute(
+                f"""
+                SELECT id, status, created_at, progress_json, error_text, summary_json,
+                       job_id, job_state, job_started_at, job_finished_at
+                FROM scans
+                WHERE rowid IN ({_NEWEST_SCAN_ROWIDS_SQL})
+                ORDER BY datetime(created_at) DESC
+                """,  # nosec B608  # the subquery is the module constant _NEWEST_SCAN_ROWIDS_SQL; org id and limit are bound
+                (org_id, limit),
+            )
         rows = cur.fetchall()
 
     out: List[Dict[str, Any]] = []
@@ -3027,21 +3216,24 @@ def latest_scan_result_for_asset(asset_key_str: str) -> Optional[Dict[str, Any]]
 
 
 def _certificate_sql(dialect: str) -> Dict[str, str]:
-    """The certificate lifecycle report over the whole inventory, in SQL.
+    """The certificate lifecycle report over the whole inventory, in SQL (the Postgres path).
 
     Every inventory asset is one item, joined to its newest scan's certificate fields
     (asset_scan_latest); classify_certificate's states map onto comparisons of the normalized expiry
     with `now` (expired: before now; expiring soon: before now + warning_days + 1 days, since
-    days_remaining is the floor of the difference; high severity: before now + 8 days).
+    days_remaining is the floor of the difference; high severity: before now + 8 days). Those
+    boundaries are whole days from `now`, so the report's order (severity, days remaining, asset
+    key) is the order of (group, days, asset key) with group 0 = expired or expiring, 1 = unknown,
+    2 = healthy -- which is what the page is keyed on.
     """
     p = "%s" if dialect == "pg" else "?"
     if dialect == "pg":
-        days = "FLOOR(EXTRACT(EPOCH FROM (c.cert_expires_at::timestamptz - %s::timestamptz)) / 86400)" % p
+        days = "FLOOR(EXTRACT(EPOCH FROM (c.cert_expires_at::timestamptz - %s::timestamptz)) / 86400)::integer" % p
     else:
         diff = "(julianday(c.cert_expires_at) - julianday(%s))" % p
         days = "(CAST(%s AS INTEGER) - (%s < CAST(%s AS INTEGER)))" % (diff, diff, diff)
     base = (
-        "SELECT a.asset_key, a.owner, a.team, a.repository_id, COALESCE(r.name, '') AS repository_name, "
+        "SELECT a.asset_key, a.owner, a.team, a.repository_id, COALESCE(r.name, '') AS repository_name, "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "l.scan_id, l.scanned_at, l.cert_expires_raw, l.cert_expires_at, l.cert_issuer, l.cert_subject "
         "FROM assets a "
         "LEFT JOIN asset_scan_latest l ON l.organization_id = a.organization_id AND l.asset_key = a.asset_key "
@@ -3049,10 +3241,8 @@ def _certificate_sql(dialect: str) -> Dict[str, str]:
         "AND a.repository_id <> 0 "
         "WHERE a.organization_id = %s AND TRIM(a.asset_key) <> ''" % p
     )
-    rank = ("CASE WHEN c.cert_expires_at IS NULL THEN 3 WHEN c.cert_expires_at < {p} THEN 0 "
-            "WHEN c.cert_expires_at < {p} THEN 1 WHEN c.cert_expires_at < {p} THEN 2 ELSE 4 END").format(p=p)
     summary = (
-        "SELECT COUNT(*) AS total, "
+        "SELECT COUNT(*) AS total, "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "COALESCE(SUM(CASE WHEN c.cert_expires_at IS NULL THEN 1 ELSE 0 END), 0) AS unknown, "
         "COALESCE(SUM(CASE WHEN c.cert_expires_at < {p} THEN 1 ELSE 0 END), 0) AS expired, "
         "COALESCE(SUM(CASE WHEN c.cert_expires_at >= {p} AND c.cert_expires_at < {p} THEN 1 ELSE 0 END), 0) AS expiring_soon, "
@@ -3060,31 +3250,64 @@ def _certificate_sql(dialect: str) -> Dict[str, str]:
         "FROM ({base}) c"
     ).format(p=p, base=base)
     page = (
-        "SELECT c.* FROM ({base}) c ORDER BY {rank}, "
-        "CASE WHEN c.cert_expires_at IS NULL THEN 99999 ELSE {days} END, c.asset_key LIMIT {p}"
-    ).format(base=base, rank=rank, days=days, p=p)
+        "SELECT z.* FROM (SELECT c.*, "  # nosec B608  # column lists and placeholders are module constants; values are bound
+        "CASE WHEN c.cert_expires_at IS NULL THEN 1 WHEN c.cert_expires_at < {p} THEN 0 ELSE 2 END AS grp, "
+        "CASE WHEN c.cert_expires_at IS NULL THEN 99999 ELSE {days} END AS dd "
+        "FROM ({base}) c) z WHERE (z.grp, z.dd, z.asset_key) > ({p}, {p}, {p}) "
+        "ORDER BY z.grp, z.dd, z.asset_key LIMIT {p}"
+    ).format(base=base, days=days, p=p)
     return {"summary": summary, "page": page}
 
 
-def certificate_lifecycle_rows(warning_days: int, now: datetime, limit: int) -> Dict[str, Any]:
-    """{"summary": {...counts over the whole inventory}, "total": n, "rows": [the `limit` most urgent]}.
+def encode_certificate_cursor(position: tuple) -> str:
+    raw = json.dumps([int(position[0]), int(position[1]), str(position[2])], separators=(",", ":"))
+    return base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
 
-    Rows come back in the report's order (severity, days remaining, asset key) with the asset's
-    inventory fields and its newest scan's certificate fields; the caller classifies each row with
-    classify_certificate(now=now), which agrees with the SQL buckets by construction.
+
+def decode_certificate_cursor(cursor: str) -> tuple:
+    """The (group, days, asset_key) after which a page starts. ValueError for anything else."""
+    try:
+        padded = str(cursor) + "=" * (-len(str(cursor)) % 4)
+        grp, dd, key = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+        if grp not in (0, 1, 2) or not isinstance(dd, int) or not isinstance(key, str):
+            raise ValueError("bad cursor")
+        return (grp, dd, key)
+    except Exception as exc:
+        raise ValueError("invalid cursor") from exc
+
+
+def certificate_lifecycle_rows(warning_days: int, now: datetime, limit: int,
+                               cursor: Optional[str] = None) -> Dict[str, Any]:
+    """{"summary": counts over the whole inventory, "total": n, "rows": one page, "next_cursor": str|None}.
+
+    Rows come in the report's order (severity, days remaining, asset key), `limit` per page, from
+    after `cursor` (the next_cursor of the previous page). Each row has the asset's inventory fields
+    and its newest scan's certificate fields; the caller classifies it with
+    classify_certificate(now=now), which agrees with the SQL buckets by construction. Days are
+    counted from `now`, so a cursor is meant for paging through one view, not for keeping.
     """
     from services.asset_posture import expiry_threshold
 
     org_id = current_organization_id()
+    after = decode_certificate_cursor(cursor) if cursor else None
     now_s = expiry_threshold(now)
     soon = expiry_threshold(now, int(warning_days) + 1)
-    high = expiry_threshold(now, 8)
-    sev_high = high if int(warning_days) >= 7 else soon
     if postgres_main_db_requested():
-        return pg_certificate_lifecycle_rows(org_id, now_s, soon, sev_high, int(limit), _certificate_sql("pg"))
-    with closing(get_connection()) as conn:
-        conn.row_factory = sqlite3.Row
-        return _sqlite_certificate_rows(conn, org_id, now, now_s, soon, sev_high, int(limit))
+        data = pg_certificate_lifecycle_rows(org_id, now_s, soon, int(limit) + 1, after or (-1, 0, ""),
+                                             _certificate_sql("pg"))
+        rows = data["rows"]
+    else:
+        with closing(get_connection()) as conn:
+            conn.row_factory = sqlite3.Row
+            data = _sqlite_certificate_rows(conn, org_id, now, now_s, soon, int(warning_days) + 1,
+                                            int(limit) + 1, after)
+        rows = data["rows"]
+    more = len(rows) > int(limit)
+    rows = rows[:int(limit)]
+    data["rows"] = rows
+    data["next_cursor"] = encode_certificate_cursor((rows[-1]["grp"], rows[-1]["dd"], rows[-1]["asset_key"])) \
+        if more and rows else None
+    return data
 
 
 #: An inventory asset (the certificate report covers the inventory, not scan rows without one).
@@ -3093,15 +3316,18 @@ _IN_INVENTORY = ("EXISTS (SELECT 1 FROM assets a WHERE a.organization_id = l.org
 
 
 def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetime, now_s: str, soon: str,
-                             sev_high: str, limit: int) -> Dict[str, Any]:
+                             w1: int, limit: int, after: Optional[tuple]) -> Dict[str, Any]:
     """certificate_lifecycle_rows on SQLite, reading indexes instead of rows.
 
-    The single join over every asset (as Postgres runs it) visited 100,000 asset rows and 100,000
+    A single join over every asset (as Postgres runs it) visits 100,000 asset rows and 100,000
     asset_scan_latest rows in key order -- random page reads, 20-70 s on a laptop short of memory.
     Here the counts come from idx_asset_scan_latest_org_expiry_key and the assets primary key alone,
-    the report's order is assembled from three ranges (expired or expiring, then unknown, then
-    healthy, as classify_certificate ranks them), and only the `limit` listed assets are read.
+    and a page is assembled from index ranges: expired or expiring certificates by expiry (group 0),
+    then assets with no known expiry by key (group 1), then healthy ones by expiry (group 2). Only the
+    listed assets are read in full.
     """
+    from services.asset_posture import expiry_threshold
+
     total = int(conn.execute("SELECT COUNT(*) FROM assets WHERE organization_id = ? AND TRIM(asset_key) <> ''",
                              (org_id,)).fetchone()[0] or 0)
     s = conn.execute(
@@ -3127,47 +3353,59 @@ def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetim
             d = day_cache[expires] = int((dt - now).total_seconds() // 86400)
         return d
 
-    def ranked(rows) -> List[tuple]:
-        out = []
-        for key, expires in rows:
-            rank = 0 if expires < now_s else 1 if expires < sev_high else 2 if expires < soon else 4
-            out.append((rank, days(expires), key))
-        return sorted(out)
+    def dated(lo: Optional[str], hi: Optional[str], n: int) -> List[tuple]:
+        """[(days, key)] of the first n dated certificates with lo <= expiry < hi, by (days, key):
+        the first n by expiry, widened to the whole of the last day so its key order is complete."""
+        clauses, params = ["l.organization_id = ?", "l.cert_expires_at IS NOT NULL"], [org_id]
+        if lo:
+            clauses.append("l.cert_expires_at >= ?")
+            params.append(lo)
+        if hi:
+            clauses.append("l.cert_expires_at < ?")
+            params.append(hi)
+        where = " AND ".join(clauses + [_IN_INVENTORY])
+        first = conn.execute(f"SELECT cert_expires_at FROM asset_scan_latest l WHERE {where} "  # nosec B608  # fixed clauses
+                             f"ORDER BY l.cert_expires_at LIMIT ?", (*params, n)).fetchall()
+        if not first or n <= 0:
+            return []
+        day_end = expiry_threshold(now, days(first[-1][0]) + 1)
+        if not hi or day_end < hi:
+            where += " AND l.cert_expires_at < ?"
+            params.append(day_end)
+        rows = conn.execute(f"SELECT asset_key, cert_expires_at FROM asset_scan_latest l WHERE {where}",  # nosec B608  # fixed clauses
+                            params).fetchall()
+        return sorted((days(e), k) for k, e in rows)[:n]
 
-    # 1. Expired and expiring: few on a healthy estate, all of them on a neglected one.
-    page = [k for _, _, k in ranked(conn.execute(
-        f"SELECT asset_key, cert_expires_at FROM asset_scan_latest l "  # nosec B608  # _IN_INVENTORY is a module constant
-        f"WHERE l.organization_id = ? AND l.cert_expires_at IS NOT NULL AND l.cert_expires_at < ? AND {_IN_INVENTORY}",
-        (org_id, soon)))][:limit]
-    # 2. Unknown (no scan, or no expiry in it), by asset key.
-    if len(page) < limit:
-        page += [r[0] for r in conn.execute(
-            "SELECT a.asset_key FROM assets a WHERE a.organization_id = ? AND TRIM(a.asset_key) <> '' "
-            "AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l INDEXED BY idx_asset_scan_latest_org_key_expiry "
+    def dated_after(position: Optional[tuple], lo: Optional[str], hi: Optional[str], n: int) -> List[tuple]:
+        if position is None:
+            return dated(lo, hi, n)
+        _, d, key = position
+        day_lo, day_hi = expiry_threshold(now, d), expiry_threshold(now, d + 1)
+        same_day = [x for x in dated(max(day_lo, lo) if lo else day_lo, min(day_hi, hi) if hi else day_hi, 10 ** 9)
+                    if x > (d, key)]
+        rest = dated(max(day_hi, lo) if lo else day_hi, hi, n - len(same_day[:n])) if len(same_day) < n else []
+        return (same_day + rest)[:n]
+
+    page: List[tuple] = []  # (grp, dd, key)
+    if after is None or after[0] == 0:
+        page += [(0, d, k) for d, k in dated_after(after, None, soon, limit)]
+    if len(page) < limit and (after is None or after[0] <= 1):
+        start_key = after[2] if after and after[0] == 1 else None
+        page += [(1, 99999, r[0]) for r in conn.execute(
+            "SELECT a.asset_key FROM assets a WHERE a.organization_id = ? AND TRIM(a.asset_key) <> '' "  # nosec B608  # column lists and placeholders are module constants; values are bound
+            + ("AND a.asset_key > ? " if start_key is not None else "")
+            + "AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l INDEXED BY idx_asset_scan_latest_org_key_expiry "  # nosec B608  # column lists and placeholders are module constants; values are bound
             "WHERE l.organization_id = a.organization_id "
             "AND l.asset_key = a.asset_key AND l.cert_expires_at IS NOT NULL) ORDER BY a.asset_key LIMIT ?",
-            (org_id, limit - len(page)))]
-    # 3. Healthy, soonest first: the first `remaining` by expiry, widened to the whole last day so
-    #    the asset-key tie-break inside that day is complete.
+            (org_id, *([start_key] if start_key is not None else []), limit - len(page)))]
     if len(page) < limit:
-        remaining = limit - len(page)
-        first = conn.execute(
-            f"SELECT asset_key, cert_expires_at FROM asset_scan_latest l "  # nosec B608  # _IN_INVENTORY is a module constant
-            f"WHERE l.organization_id = ? AND l.cert_expires_at >= ? AND {_IN_INVENTORY} "
-            f"ORDER BY l.cert_expires_at LIMIT ?", (org_id, soon, remaining)).fetchall()
-        if first:
-            from services.asset_posture import expiry_threshold
-
-            last_day_end = expiry_threshold(now, days(first[-1][1]) + 1)
-            rows = conn.execute(
-                f"SELECT asset_key, cert_expires_at FROM asset_scan_latest l "  # nosec B608  # _IN_INVENTORY is a module constant
-                f"WHERE l.organization_id = ? AND l.cert_expires_at >= ? AND l.cert_expires_at < ? AND {_IN_INVENTORY}",
-                (org_id, soon, last_day_end)).fetchall()
-            page += [k for _, _, k in ranked(rows)][:remaining]
+        position = after if after and after[0] == 2 else None
+        page += [(2, d, k) for d, k in dated_after(position, soon, None, limit - len(page))]
     # Only the listed assets are read in full.
     by_key: Dict[str, Dict[str, Any]] = {}
-    for start in range(0, len(page), 500):
-        chunk = page[start:start + 500]
+    keys = [k for _, _, k in page]
+    for start in range(0, len(keys), 500):
+        chunk = keys[start:start + 500]
         marks = ",".join("?" * len(chunk))
         for r in conn.execute(
             f"""
@@ -3182,7 +3420,11 @@ def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetim
             (org_id, *chunk),
         ):
             by_key[r["asset_key"]] = dict(r)
-    return {"summary": summary, "total": total, "rows": [by_key[k] for k in page if k in by_key]}
+    rows = []
+    for grp, dd, key in page:
+        if key in by_key:
+            rows.append(dict(by_key[key], grp=grp, dd=dd))
+    return {"summary": summary, "total": total, "rows": rows}
 
 
 #: HNDL pricing inputs per asset: the port from the asset key, the newest scan's cryptography and
@@ -3201,7 +3443,7 @@ def _hndl_inputs_sql(dialect: str) -> str:
         days = ("CASE WHEN a.updated_at GLOB '*Z' OR a.updated_at GLOB '*[+-][0-9][0-9]:[0-9][0-9]' "
                 "THEN MAX(30, CAST({d} AS INTEGER) - ({d} < CAST({d} AS INTEGER))) ELSE 365 END").format(d=diff)
     return (
-        "SELECT a.asset_key AS asset_key, a.updated_at AS updated_at, a.owner AS owner, a.environment AS environment, "
+        "SELECT a.asset_key AS asset_key, a.updated_at AS updated_at, a.owner AS owner, a.environment AS environment, "  # nosec B608  # column lists and placeholders are module constants; values are bound
         "{port} AS port_s, COALESCE(l.tls_version, '') AS tls, COALESCE(l.cipher_name, '') AS cipher, "
         "COALESCE(l.key_type, '') AS kt, COALESCE(l.key_bits, 0) AS kb, COALESCE(l.key_exchange, '') AS kx, "
         "{days} AS days "
@@ -3229,24 +3471,28 @@ def hndl_input_groups(now: datetime) -> List[tuple]:
         return [tuple(r) for r in conn.execute(sql, params)]
 
 
-def hndl_group_members(now: datetime, groups: Sequence[tuple], limit: int) -> List[tuple]:
-    """The first `limit` assets, in /assets order (updated_at, asset_key descending), whose pricing
-    inputs are one of `groups` (7-tuples as hndl_input_groups returns them):
-    [(asset_key, owner, environment, port_s, tls_version, cipher_name, key_type, key_bits, key_exchange, days)]."""
-    if not groups or limit <= 0:
+def hndl_group_members(now: datetime, ranked_groups: Sequence[tuple], limit: int) -> List[tuple]:
+    """The first `limit` assets ordered by their group's rank, then in /assets order (updated_at,
+    asset_key descending). `ranked_groups`: [(group 7-tuple as hndl_input_groups returns it, rank)].
+    Returns [(asset_key, owner, environment, port_s, tls_version, cipher_name, key_type, key_bits,
+    key_exchange, days)]. One statement for the whole priority queue."""
+    if not ranked_groups or limit <= 0:
         return []
     org_id = current_organization_id()
     now_iso = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     pg = postgres_main_db_requested()
     p = "%s" if pg else "?"
     inner = _hndl_inputs_sql("pg" if pg else "sqlite")
-    row = "(" + ",".join([p] * len(_HNDL_GROUP_COLS)) + ")"
-    values = ",".join([row] * len(groups))
+    row = "(" + ",".join([p] * (len(_HNDL_GROUP_COLS) + 1)) + ")"
+    values = ",".join([row] * len(ranked_groups))
     cols = ", ".join(_HNDL_GROUP_COLS)
-    sql = (f"SELECT asset_key, owner, environment, {cols} FROM ({inner}) x "  # nosec B608  # fixed SQL text and placeholders; values are bound
-           f"WHERE ({cols}) IN (VALUES {values}) ORDER BY updated_at DESC, asset_key DESC LIMIT {p}")
-    flat = [v for g in groups for v in g]
-    params = ((now_iso, org_id) if pg else (now_iso, now_iso, now_iso, org_id)) + tuple(flat) + (int(limit),)
+    on = " AND ".join("g.%s = x.%s" % (c, c) for c in _HNDL_GROUP_COLS)
+    xcols = ", ".join("x." + c for c in _HNDL_GROUP_COLS)
+    sql = (f"WITH g({cols}, rnk) AS (VALUES {values}) "  # nosec B608  # fixed SQL text and placeholders; values are bound
+           f"SELECT x.asset_key, x.owner, x.environment, {xcols} FROM ({inner}) x JOIN g ON {on} "
+           f"ORDER BY g.rnk, x.updated_at DESC, x.asset_key DESC LIMIT {p}")
+    flat = [v for g, rnk in ranked_groups for v in tuple(g) + (int(rnk),)]
+    params = tuple(flat) + ((now_iso, org_id) if pg else (now_iso, now_iso, now_iso, org_id)) + (int(limit),)
     if pg:
         return pg_hndl_query(sql, params)
     with closing(get_connection()) as conn:
@@ -5677,7 +5923,7 @@ def save_scan_asset_summaries(scan_id: str, scanned_at_iso: str, results: list[d
 
 def _asset_latest_extras_update_sql(placeholder: str = "?") -> str:
     sets = ", ".join("%s = %s" % (c, placeholder) for c in _LATEST_EXTRA_COLUMNS)
-    return ("UPDATE asset_scan_latest SET %s WHERE organization_id = %s AND asset_key = %s AND result_id = %s"
+    return ("UPDATE asset_scan_latest SET %s WHERE organization_id = %s AND asset_key = %s AND result_id = %s"  # nosec B608  # column lists and placeholders are module constants; values are bound
             % (sets, placeholder, placeholder, placeholder))
 
 
@@ -5704,11 +5950,7 @@ def asset_scan_latest_ready() -> bool:
     if postgres_main_db_requested():
         return pg_asset_scan_latest_ready()
     with closing(get_connection()) as conn:
-        try:
-            row = conn.execute("SELECT 1 FROM morrow_backfills WHERE name = ?", (ASSET_LATEST_BACKFILL,)).fetchone()
-        except sqlite3.OperationalError:
-            return False
-    return row is not None
+        return _backfill_done(conn, ASSET_LATEST_BACKFILL)
 
 
 def backfill_asset_scan_latest(log: Any = None) -> Dict[str, int]:
@@ -5727,7 +5969,7 @@ def backfill_asset_scan_latest(log: Any = None) -> Dict[str, int]:
     stats = {"rows": 0, "scans_read": 0, "filled": 0}
     with closing(get_connection()) as conn:
         _ensure_asset_scan_latest(conn)
-        if conn.execute("SELECT 1 FROM morrow_backfills WHERE name = ?", (ASSET_LATEST_BACKFILL,)).fetchone():
+        if _backfill_done(conn, ASSET_LATEST_BACKFILL):
             return stats
         pending = conn.execute(
             "SELECT organization_id, scan_id, asset_key, result_id FROM asset_scan_latest WHERE map_included IS NULL"
@@ -5758,13 +6000,13 @@ def backfill_asset_scan_latest(log: Any = None) -> Dict[str, int]:
             if params:
                 conn.executemany(update, params)
                 stats["filled"] += len(params)
-            if n % 100 == 0:
-                conn.commit()
-                if log:
-                    log("asset_scan_latest backfill: %d/%d scans" % (n, len(by_scan)))
-        conn.execute("INSERT OR REPLACE INTO morrow_backfills (name, completed_at) VALUES (?, ?)",
-                     (ASSET_LATEST_BACKFILL, _utc_now_iso()))
-        conn.commit()
+            # Short transactions: the server keeps writing while this runs.
+            conn.commit()
+            _BACKFILL_PROGRESS["asset_scan_latest"] = n
+            _BACKFILL_PROGRESS["total_scans"] = len(by_scan)
+            if log and n % 100 == 0:
+                log("asset_scan_latest backfill: %d/%d scans" % (n, len(by_scan)))
+        _mark_backfill_done(conn, ASSET_LATEST_BACKFILL)
     if log:
         log("asset_scan_latest backfill: %s in %.1f s" % (stats, (datetime.now(timezone.utc) - started).total_seconds()))
     return stats
@@ -5992,13 +6234,13 @@ def latest_scan_facts_for_org(limit: int = 5000, text_query: str = "") -> list[d
             # asset_scan_latest holds exactly the row the NOT EXISTS walk over scan_results found
             # (the newest per asset by scanned_at, then id), one per asset, so the history is not
             # read at all: idx_asset_scan_latest_org_scanned is walked newest first to `limit`.
-            if term and len(term) >= 3 and _has_asset_search_index(conn):
+            if term and len(term) >= 3 and _has_asset_search_index(conn) and _sync_search_index(conn):
                 # Trigram index: a quoted phrase matches any substring, case-insensitively, so this is
                 # the per-column LIKE '%term%' without reading every asset. A rare term at 100,000
                 # assets took 8 s through the walk.
                 phrase = '"' + term.replace('"', '""') + '"'
                 hits = [r[0] for r in conn.execute(
-                    "SELECT rowid FROM asset_scan_latest_fts WHERE asset_scan_latest_fts MATCH ? LIMIT ?",
+                    "SELECT rowid FROM asset_search_fts WHERE asset_search_fts MATCH ? LIMIT ?",
                     (phrase, _SEARCH_ROWID_CAP + 1))]
                 if len(hits) <= _SEARCH_ROWID_CAP:
                     # A selective term: read just the matching rows and order them.

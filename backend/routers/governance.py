@@ -1,15 +1,23 @@
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 import sys
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
-from db import (asset_latest_evidence, certificate_lifecycle_rows, current_organization_id, list_assets,
-                list_runtime_observed_assets)
-from services.crypto_governance import build_certificate_lifecycle_report_from_rows, build_shadow_it_report
+from db import (asset_latest_evidence, asset_scan_latest_ready, backfill_progress, certificate_lifecycle_rows,
+                current_organization_id, list_assets, list_runtime_observed_assets)
+from services.crypto_governance import (build_certificate_lifecycle_report,
+                                        build_certificate_lifecycle_report_from_rows, build_shadow_it_report)
 
 
 RequireRole = Callable[..., Dict[str, Any]]
+
+
+def _app_attr(name: str) -> Any:
+    app_module = sys.modules.get("app")
+    if app_module is None or not hasattr(app_module, name):
+        raise RuntimeError(f"{name} unavailable")
+    return getattr(app_module, name)
 
 
 def _default_org_id() -> str:
@@ -25,17 +33,37 @@ def create_governance_router(require_role: RequireRole) -> APIRouter:
     def api_certificate_lifecycle(
         request: Request,
         warning_days: int = Query(30, ge=1, le=365),
-        asset_limit: int = Query(5000, ge=1, le=20000),
+        limit: int = Query(200, ge=1, le=5000),
+        cursor: Optional[str] = Query(None, max_length=2048),
+        asset_limit: Optional[int] = Query(None, ge=1, le=20000),
     ):
         org_id = str(getattr(request.state, "org_id", current_organization_id()) or _default_org_id()).strip() or _default_org_id()
         require_role(request, allowed_roles=["viewer", "operator", "admin"], action="governance.certificates", resource_type="organization", resource_id=org_id)
-        # The summary covers the whole inventory and `items` lists the `asset_limit` most urgent
-        # certificates, both from asset_scan_latest in SQL. This used to parse the newest 100
-        # scans' full results (4-18 s and 95 MB at 100,000 assets) for the newest 5,000 assets only.
+        # `asset_limit` is the old name of the page size, kept for existing callers.
+        page_size = min(int(asset_limit or limit), 5000)
+        if not asset_scan_latest_ready():
+            # The one-time backfill of an upgraded database is still running (see
+            # db.start_background_backfills): answer as before it existed, for the newest assets.
+            assets = list_assets(limit=page_size)
+            report = build_certificate_lifecycle_report(
+                assets=assets,
+                latest_for_asset=_app_attr("_latest_full_scan_result_lookup")(
+                    fallback_keys=[a.get("asset_key") or "" for a in assets]),
+                warning_days=int(warning_days),
+            )
+            return {"api_version": "v1", "organization_id": org_id, **report, "next_cursor": None,
+                    "backfill": backfill_progress()}
+        # The summary covers the whole inventory and `items` is one page of it, most urgent first,
+        # both from asset_scan_latest in SQL; `next_cursor` fetches the next page. This used to
+        # parse the newest 100 scans' full results (4-18 s and 95 MB at 100,000 assets) for the
+        # newest 5,000 assets only, and then returned all 5,000.
         now = datetime.now(timezone.utc)
-        data = certificate_lifecycle_rows(int(warning_days), now, int(asset_limit))
+        try:
+            data = certificate_lifecycle_rows(int(warning_days), now, page_size, cursor)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="invalid cursor") from None
         report = build_certificate_lifecycle_report_from_rows(data, warning_days=int(warning_days), now=now)
-        return {"api_version": "v1", "organization_id": org_id, **report}
+        return {"api_version": "v1", "organization_id": org_id, **report, "next_cursor": data.get("next_cursor")}
 
     @router.get("/governance/shadow-it")
     @router.get("/v1/governance/shadow-it")
