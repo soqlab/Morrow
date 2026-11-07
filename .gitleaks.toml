@@ -47,13 +47,8 @@ regexes = [
 
 [[allowlists]]
 description = """TLS key-exchange group names (X25519MLKEM768, X25519Kyber768) next to the word "key". \
-They are algorithm identifiers, which this product reports on, not key material."""
+They are algorithm identifiers, which this product reports on, not key material. Not scoped to files: the regex matches only these exact names, and every new test or service that names the group would otherwise need its own entry."""
 targetRules = ["generic-api-key"]
-condition = "AND"
-paths = [
-    '''^backend/test_(crypto_switch|migration_proof|public_checker|scan_pipeline_accuracy)\.py$''',
-    '''^backend/services/(knowledge_base|remediation_playbooks)\.py$''',
-]
 regexes = ['''(?i)^x25519_?(mlkem|kyber)768$''']
 
 [[allowlists]]
