@@ -101,13 +101,10 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          - variant: all-in-one
-            dockerfile: deploy/render-hosted/Dockerfile
-            context: .
+          # scripts/release/build-image.sh maps each variant to its Dockerfile and context.
+          - variant: all-in-one   # deploy/render-hosted/Dockerfile, repository root
             suffix: ""
-          - variant: api
-            dockerfile: backend/Dockerfile
-            context: backend
+          - variant: api          # backend/Dockerfile, backend/
             suffix: "-api"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -145,7 +142,8 @@ jobs:
         env:
           V: ${{ steps.version.outputs.version }}${{ matrix.suffix }}
         run: |
-          sh scripts/release/sboms.sh image "dist/repro/morrow-$V.oci.tar" "$IMAGE" "$V"             "morrow-$V-image.cdx.json"
+          sh scripts/release/sboms.sh image "dist/repro/morrow-$V.oci.tar" "$IMAGE" "$V" \
+            "morrow-$V-image.cdx.json"
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
