@@ -1,0 +1,3 @@
+# Hosts that must never be probed by the accuracy suite, one per line (exact hostname).
+# Add a host here when its operator asks; reference_probe.py and the weekly job skip it, and it
+# should then be removed from endpoints.jsonl with the next relabel.

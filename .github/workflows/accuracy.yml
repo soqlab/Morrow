@@ -1,0 +1,75 @@
+# Weekly scanner accuracy run against real public endpoints (docs/ACCURACY.md).
+#
+# 1. Relabel every endpoint in backend/accuracy/candidates.txt with the independent reference
+#    (OpenSSL 3.5+ s_client and OpenSSH ssh -vv, in alpine:3.22), so this week's disagreements are
+#    measured against this week's configurations.
+# 2. Scan the same endpoints with Morrow's real scanners, in the production base image
+#    (python:3.11-slim, as backend/Dockerfile), and score them.
+# 3. Report: a step summary with the per-protocol table, a warning per disagreement and per metric
+#    that fell below the published baseline, a notice per endpoint whose label changed since the
+#    committed dataset. Results are uploaded as an artifact.
+#
+# It never fails a build: the internet changes under this suite, so a red X here would mostly
+# mean "a website changed its TLS configuration". Every step that touches the network is
+# continue-on-error, and nothing else depends on this workflow.
+#
+# Traffic: ordinary TLS/SSH client handshakes, one connection per host at a time, a few hundred
+# public hosts, once a week. No secrets are read.
+
+name: Scanner accuracy (weekly)
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"     # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanner-accuracy
+  cancel-in-progress: false
+
+jobs:
+  accuracy:
+    name: Public-endpoint accuracy
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Relabel with the reference tools (OpenSSL 3.5+, OpenSSH)
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD/backend:/w" -w /w alpine:3.22 sh -c '
+            apk add -q openssl openssh-client python3 &&
+            openssl version && ssh -V &&
+            python3 accuracy/reference_probe.py --workers 6 --out accuracy/endpoints.fresh.jsonl'
+
+      - name: Scan with Morrow and score
+        continue-on-error: true
+        run: |
+          test -s backend/accuracy/endpoints.fresh.jsonl || cp backend/accuracy/endpoints.jsonl backend/accuracy/endpoints.fresh.jsonl
+          docker run --rm -v "$PWD/backend:/w" -w /w -e PYTHONPATH=/w \
+            -e GITHUB_STEP_SUMMARY=/w/accuracy/results/step_summary.md \
+            python:3.11-slim sh -c '
+              pip install -q --disable-pip-version-check requests cryptography &&
+              mkdir -p accuracy/results &&
+              python -m accuracy.run_accuracy --workers 6 \
+                --dataset accuracy/endpoints.fresh.jsonl \
+                --drift-from accuracy/endpoints.jsonl \
+                --out accuracy/results/latest.json --github'
+          if [ -f backend/accuracy/results/step_summary.md ]; then
+            cat backend/accuracy/results/step_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scanner-accuracy
+          path: |
+            backend/accuracy/endpoints.fresh.jsonl
+            backend/accuracy/results/latest.json
+          if-no-files-found: warn
+          retention-days: 90

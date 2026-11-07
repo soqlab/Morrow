@@ -242,6 +242,7 @@ one.
 | [docs/DATA_MODEL_AND_OPERATIONS.md](docs/DATA_MODEL_AND_OPERATIONS.md) | Schema and operations |
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Threat model |
 | [docs/SCANNER_ACCURACY_AUDIT.md](docs/SCANNER_ACCURACY_AUDIT.md) | What the scanner gets right and wrong, measured |
+| [docs/ACCURACY.md](docs/ACCURACY.md) | Precision and recall against a few hundred real public endpoints, rerun weekly |
 | [docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md](docs/PRODUCTION_DEPLOYMENT_RUNBOOK.md) | Deploying for real |
 | [docs/NON_TECHNICAL_EXPLANATION.md](docs/NON_TECHNICAL_EXPLANATION.md) | The plain-English version |
 

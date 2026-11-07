@@ -1,0 +1,5 @@
+# Run artefacts. results/published.json is the committed baseline; the rest is regenerated.
+endpoints.fresh.jsonl
+*.partial
+results/*
+!results/published.json

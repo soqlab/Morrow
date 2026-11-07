@@ -22,3 +22,5 @@ conftest.py
 *.log
 reports/
 start-server-*.cmd
+# Scanner accuracy suite (docs/ACCURACY.md): a dataset and scripts run from CI, never by the service.
+accuracy/

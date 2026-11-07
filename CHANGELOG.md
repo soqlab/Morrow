@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Scanner accuracy suite against real public endpoints (docs/ACCURACY.md): 422 labelled endpoints (386 TLS, 36 SSH) with labels from OpenSSL 3.5 `s_client` and OpenSSH `ssh -vv`, a runner that scores Morrow's real scanners per protocol and attribute (`backend/accuracy/`), an opt-in `network` pytest, and a weekly workflow that relabels, rescans and reports warnings without failing builds
+
+### Fixed
+- TLS scanner: TLS 1.0 and 1.1 were never detected under OpenSSL 3 (the probes failed locally at the default security level); a TLS 1.2 server with only RSA key exchange was reported as not speaking TLS 1.2 and its certificate was not read
+- TLS scanner: hybrid key exchange was missed on servers that accept an offered X25519 share instead of asking for X25519MLKEM768 (Fastly, Akamai, Mozilla and others); the probe now sends a browser-shaped X25519MLKEM768 key share
+- Harvest-now-decrypt-later verdict now follows the observed key exchange: an endpoint that negotiates a hybrid ML-KEM group is no longer reported "critical"/"high"
+
 ## [0.7.0] — 2026-11-06
 
 ### Added
