@@ -160,26 +160,227 @@ at every size. All per-endpoint data, including cold and p95, is in `scripts/sca
 - the indexes, in both schemas;
 - the coverage fields.
 
-## Known limits (not fixed here)
+## Known limits after the first pass
 
-- **Reports are capped, not complete.** HNDL covers 1,000 assets, CBOM 2,000, CSV, crypto agility and velocity
-  5,000. Above that size the figures describe the newest part of the estate, and the response now
-  says so. Making them complete means aggregating in SQL, or walking the asset cursor, inside each
-  report's model.
-- **`/telemetry/kpis`: 10–14 s.** It loads up to 5,000 telemetry events from four sources and counts them in
-  Python. Its cost grows with request volume (the security journal), not inventory. It should be a set of
-  `COUNT(*) ... WHERE created_at >= ?` queries.
-- **`/governance/certificates` and `/dark-matter/map`: 4–18 s, 95 MB / 52 MB peak.** They load and
-  parse the full JSON of the newest 100 or 30 scans, because certificate details live only in
-  `scans.results_json`. The cost is bounded by scan size, not inventory, but it is the largest memory peak
-  in the console. A per-asset certificate table would remove it.
-- **Rare-term `/search` at 100k: 8 s.** A term that matches few assets walks most of the 200,000
-  rows. An FTS or trigram index on the newest row per asset would fix it.
-- **SQLite file layout.** Scan blobs and `scan_results` pages are interleaved, so cold reads of
-  `scan_results` touch pages across a 1.5 GB file, and cold numbers depend heavily on the OS cache.
-  Moving `summary_json` ahead of `results_json`, or into its own table, would also make
-  `list_scan_rows(limit=2000)` (the telemetry path) cheap.
-- **Postgres writes from Windows Docker: about 0.3 s per `upsert_asset`.** Seeding 10k assets took 50 minutes.
-  This was not investigated, and production Postgres is not on Docker Desktop.
-- **Not measured:** concurrency (every number here is one request at a time), 100k on Postgres,
-  and the console's own rendering time.
+These were the open items when the sections above were written; the next section says what became
+of each: reports capped at 1,000–5,000 assets, `/telemetry/kpis` at 10–14 s, the certificate view and
+the key map at 4–18 s and 95 / 52 MB, a rare `/search` term at 8 s, `list_scan_rows(2000)` walking
+result blobs, Postgres seeding through Docker Desktop at about 0.3 s per asset, and concurrency and
+100k on Postgres not measured.
+
+## 100,000 assets: the second pass (branch `perf-100k`)
+
+### What changed
+
+1. **`asset_scan_latest`: one row per asset, written at scan time.** It holds each asset's newest
+   `scan_results` row (newest by `scanned_at`, then `id`, the order every newest-row read already
+   used) plus the few fields of the full scan result that only `scans.results_json` carried: the
+   certificate's expiry (raw, and normalized to fixed-width UTC so SQL can compare it), issuer and
+   subject, and the key-map facts (key type and size as the map reads them, TLS version, ccTLD
+   country, heuristic risk score, whether the result carried an error). `services/asset_posture.py`
+   defines those fields once, for the write path and the backfill.
+   - The `scan_results` half is maintained **by triggers** in both dialects (SQLite triggers;
+     PL/pgSQL functions on Postgres): an insert replaces the asset's row only when it is newer, an
+     update of the current row is copied, and deleting the current row (retention) promotes the next
+     newest. Raw SQL writers and retention cannot leave it stale.
+   - The full-result half is written by `save_scan_asset_summaries` in the same transaction
+     (`RETURNING id` on Postgres); a newer row clears it until then.
+   - **Upgrade.** The schema step fills the `scan_results` half with one `INSERT … SELECT`; the startup
+     backfill (`db.backfill_asset_scan_latest`, run once from `init_db` and recorded in
+     `morrow_backfills`) reads each asset's newest scan once for the rest. On the 100k SQLite file the
+     first start after upgrading took **658 s** on the loaded laptop: 353 s for the backfill (1,000
+     scans read), the rest for the `scan_headers` copy (item 6) and index builds. Run
+     `python -c "import db; db.init_db()"` once before switching traffic, as with a migration.
+   - The table is in both tenant purge lists and in `services/postgres_rls.ORG_SCOPED_TABLES`.
+2. **Reads moved onto it.** `latest_scan_facts_for_org` (executive dashboard, board risk, heatmap,
+   CBOM, crypto agility, velocity, compliance, search) reads one row per asset through
+   `idx_asset_scan_latest_org_scanned` instead of walking 200,000 history rows with a `NOT EXISTS`
+   (SQLite) or a `DISTINCT ON` (Postgres) per request.
+3. **Search uses trigram indexes.** SQLite: an FTS5 table with the `trigram` tokenizer over
+   `search_text` (the lower-cased search columns joined by `char(31)`, so a term cannot straddle two
+   fields), kept in sync by triggers. A quoted phrase query is the same case-insensitive "contains"
+   the per-column `LIKE` was. A selective term reads only its matches; a term with more than 2,000
+   matches, or under three characters, walks the newest-first index and stops at `limit`. Postgres:
+   `pg_trgm` and a GIN index on `search_text` (skipped, with a log line, where the extension cannot be
+   created).
+4. **Certificate lifecycle and key map are SQL over the whole estate.** `/governance/certificates`
+   counts every inventory asset and lists the `asset_limit` most urgent in the old order (severity,
+   days remaining, asset key). On SQLite that order is assembled from three index ranges (expired or
+   expiring, unknown, healthy), so it reads indexes plus the listed rows only. A new
+   `inventory_coverage` field says how many assets the list holds. `/dark-matter/map` aggregates `meta`
+   and `country_summary` over every asset's newest scan in SQL and lists the newest 3,000 keys, with a
+   `coverage` field. Neither reads scan JSON any more. **Behaviour change:** both used to describe only
+   the newest 100 / 30 scans; an asset outside them was "unknown" in the certificate view and absent
+   from the map. Shadow-IT now reads only the runtime endpoints' own inventory rows and scan evidence
+   (it called any runtime endpoint outside the newest 5,000 assets "not in asset inventory").
+5. **`/telemetry/kpis` is windowed `COUNT`s.** Each KPI is a `COUNT … WHERE <time> >= ?` over its
+   source (scan headers, `scan_results`, flight-recorder events, the canary and alert tables) plus the
+   in-process event bus. **Behaviour change:** the counts are exact within their windows; the old code
+   counted only what fell inside the newest 5,000 merged events. The old implementation is kept as
+   `_telemetry_real_kpis_from_events`, and a test checks the two agree on a small database.
+6. **`scan_headers` (SQLite only).** Every `scans` column except `results_json`, kept by triggers.
+   `summary_json` and the `job_*` columns sit after the 400 KB result blob in a `scans` row, so reading
+   them walked its overflow chain: `list_scan_rows(2000)` read 800 MB. Postgres stores large values
+   out of line and needs no copy.
+7. **HNDL covers the estate.** `/hndl/dashboard` and `/hndl/timeline` price every asset instead of the
+   newest 1,000: the estate is grouped by its distinct pricing inputs in SQL (`db.hndl_input_groups`),
+   each group is scored once, and only the priority queue's assets are read (`db.hndl_group_members`,
+   one tie of equal exposure at a time, so the queue holds the same assets in the same order as a
+   per-asset sort). The output equals the per-asset model's on the same inputs (test), except that
+   totals are summed per group and can differ from a per-asset sum in the last cent.
+8. **Cutover tool fixes**, found loading this estate into Postgres: `migrate_sqlite_core_to_postgres`
+   passed JSON columns to psycopg2 as raw dicts and failed on the first table with one, and it read
+   each table whole, which ran out of memory on `scans`. It now wraps them in `Json` and streams in
+   batches.
+
+Regression tests: `backend/test_scale_reads.py` checks each new read against the read it replaced, on
+a database built through the scan path (out-of-order scans, duplicates within a scan, ties, raw-SQL
+inserts, updates and retention deletes, two tenants, the upgrade backfill, every certificate state and
+several page sizes, both search paths), and has a Postgres class (`MORROW_TEST_PG_DSN`) for the
+triggers, trigram search and the cutover tool. `test_load_regressions.py` now pins the
+one-row-per-asset plan.
+
+### Measurements, and how far to trust them
+
+**The laptop was not usable as a benchmark host during this work**, and the numbers must be read
+that way. It is the machine described above (i5-1135G7, 4 cores / 8 threads, 7.7 GB RAM), and it ran
+other agents' test suites, Docker image builds and an end-to-end container stack the whole time: CPU
+at 100%, free memory between 60 MB and 1 GB, so SQLite's page reads went to disk instead of the OS
+cache. One example: aggregating 100,000 rows of `asset_scan_latest` through an index took 68 s cold
+and 0.4 s with a warm 400 MB page cache. Wall-clock latency here mostly measures memory pressure.
+
+`bench.py` therefore now also records **`cpu50`**: the median CPU time the benchmark process spent per
+call (`time.process_time`). It leaves out waiting for a core or for evicted pages, so it compares
+across noisy runs where wall time cannot. It does include the app's own background threads
+(schedulers, the analytics snapshot refresh) when they run during a call, so a single high value can be
+one of those; it does not include a database server's CPU (irrelevant on SQLite). The two runs below were taken back to back on copies of one seeded 100k file, "before" with
+`bench.py --backend` pointing at a worktree of `6135688`. Times in ms.
+
+| Endpoint | p50 before | p50 after | CPU before | CPU after | Peak MB before / after |
+|---|---:|---:|---:|---:|---|
+| /executive-dashboard | 23,859 | 2,685 | 13,531 | 1,594 | 11.0 / 94.5 |
+| /qday/countdown | 1,241 | 2,144 | 844 | 922 | 11.2 / 11.1 |
+| /board-risk/weather | 1,749 | 2,421 | 1,250 | 1,406 | 11.0 / 11.0 |
+| /telemetry/kpis | 35,992 | 134 | 14,547 | 109 | 5.0 / 0.3 |
+| /observatory/dashboard | 48 | 49 | 47 | 47 | 0.4 / 0.4 |
+| /crypto-agility | 2,420 | 2,952 | 1,516 | 1,562 | 18.8 / 18.8 |
+| /migration-velocity | 3,058 | 2,990 | 1,516 | 1,422 | 14.4 / 14.4 |
+| /hndl/dashboard | 1,027 | 35,485 | 594 | 12,031 | 4.8 / 120.5 |
+| /board-risk | 1,254 | 1,339 | 844 | 766 | 11.4 / 11.0 |
+| /compliance-mapping | 2,658 | 4,165 | 1,750 | 1,641 | 4.8 / 4.8 |
+| /hndl-canaries | 57 | 55 | 62 | 62 | 0.4 / 0.4 |
+| /assets | 1,516 | 1,983 | 828 | 953 | 6.8 / 7.1 |
+| /tags | 1,734 | 1,923 | 953 | 984 | 0.3 / 0.3 |
+| /collections | 98 | 134 | 62 | 47 | 0.3 / 0.3 |
+| /repositories | 355 | 328 | 203 | 219 | 1.3 / 1.3 |
+| /baselines | 72 | 71 | 62 | 62 | 0.3 / 0.3 |
+| /governance/certificates | 14,723 | 16,171 | 5,641 | 7,547 | 95.2 / 13.4 |
+| /blast-radius/graph | 5,904 | 5,619 | 3,031 | 3,000 | 37.3 / 37.4 |
+| /scans?limit=25 | 564 | 273 | 531 | 125 | 0.4 / 0.3 |
+| /scans/{scan}/results | 274 | 324 | 203 | 172 | 3.4 / 3.4 |
+| /fix-next | 310 | 352 | 156 | 172 | 2.6 / 2.6 |
+| /heatmap | 464 | 364 | 219 | 234 | 1.4 / 1.4 |
+| /cbom | 5,462 | 3,756 | 1,578 | 1,734 | 11.5 / 11.9 |
+| /cbom.csv | 2,588 | 2,268 | 1,109 | 1,203 | 11.1 / 11.2 |
+| /sbom/imports | 117 | 130 | 94 | 78 | 0.2 / 0.2 |
+| /cbom/webhook/ingests | 59 | 86 | 62 | 62 | 0.4 / 0.4 |
+| /hndl/timeline | 2,085 | 27,468 | 1,234 | 12,359 | 4.6 / 107.6 |
+| /dark-matter/map | 3,626 | 2,363 | 2,422 | 1,312 | 52.0 / 5.6 |
+| /q-intel/model | 107 | 113 | 94 | 94 | 0.4 / 0.4 |
+| /remediations | 548 | 1,218 | 344 | 391 | 1.3 / 1.2 |
+| /remediation-feed | 1,806 | 2,237 | 1,453 | 1,484 | 1.7 / 1.7 |
+| /migration-tasks | 314 | 692 | 188 | 234 | 0.8 / 0.8 |
+| /board-risk/leaderboard | 1,357 | 1,735 | 984 | 1,328 | 11.0 / 11.1 |
+| /board-risk/regulatory | 1,344 | 1,131 | 906 | 953 | 11.0 / 11.0 |
+| /search?q=svc00012 | 10,072 | 838 | 6,859 | 672 | 0.7 / 0.3 |
+| /search?q=rsa | 642 | 697 | 359 | 281 | 0.5 / 0.5 |
+
+Raw runs: `scripts/scale/results/sqlite-100k-{before,after}-paired.json`. How to read it:
+
+- **Fixed and confirmed by CPU time:** `/telemetry/kpis` (14.5 s → 0.1 s CPU), the rare search term
+  (6.9 s → 0.7 s), `/scans?limit=25` (0.53 → 0.13 s), the executive dashboard (13.5 → 1.6 s), the key
+  map (2.4 → 1.3 s, and 52 → 5.6 MB peak) and the certificate view's memory (95 → 13 MB peak).
+- **Not faster:** the certificate view's CPU (5.6 → 7.5 s) and wall time. It now covers all 100,000
+  assets instead of the newest 5,000 and returns the 5,000 most urgent of them; on this file every
+  asset has an expiry, so all 100,000 are ranked, and the 2.4 MB response is built from 5,000 rows read
+  one by one. A profile (`profile_endpoint.py`) puts 1.6 s of it in classifying the 5,000 listed rows.
+  Paging `items` (it is a list a person reads) is the next step.
+- **HNDL in this table is the first, per-asset version** (35 s, 12 s CPU, 120 MB): pricing 100,000
+  assets in Python. It was replaced by the grouped version (item 7); re-measured on the same file
+  (`sqlite-100k-after-hndl.json`): `/hndl/dashboard` 19 s wall / 9.6 s CPU for one sample,
+  `/hndl/timeline` 5.2 s / 3.9 s, against 1.0 s / 0.6 s and 2.1 s / 1.2 s before for the newest 1,000
+  assets. A cProfile of the handlers alone shows 1.3 s and 1.6 s; the rest of the measured CPU is the
+  app's background threads (the analytics snapshot refresh ran during those calls). Complete coverage
+  costs more than a 1 % sample did, and this is the endpoint pair furthest from the 1 s target.
+- Everything else moved within the noise of this machine (±50 % wall between runs of the same code).
+
+
+### Not measured, and why
+
+- **100,000 assets on Postgres.** The estate was not loaded. Seeding through the app's helpers from a
+  container on the Docker network ran at about 100 scans per 12 minutes (about 8 hours for 100k); the
+  cutover tool, the faster route, failed on JSON columns and then ran out of memory (both fixed, item
+  8); then Docker Desktop stopped responding and went down. The Postgres paths are covered by the
+  gated tests, not by a 100k measurement. On a quiet machine:
+
+  ```powershell
+  docker run -d --name morrow-scale-pg -p 127.0.0.1:55432:5432 -e POSTGRES_PASSWORD=scale -e POSTGRES_USER=scale -e POSTGRES_DB=scale postgres:16 -c shared_buffers=256MB
+  cd backend
+  $env:MORROW_PRODUCT_DATABASE_URL = "postgresql://scale:scale@127.0.0.1:55432/scale"
+  & $py -c "import db_postgres as p; p.migrate_sqlite_core_to_postgres(r'C:\path\scale-100k.db', batch_size=2000)"
+  & $py -c "import db; db.init_db()"     # asset_scan_latest and its one-time backfill
+  & $py ..\scripts\scale\bench.py --postgres $env:MORROW_PRODUCT_DATABASE_URL --samples 7 --out ..\scripts\scale\results\postgres-100k.json
+  ```
+
+  Bench from a container on Postgres's Docker network (or a Linux host) if possible: through Docker
+  Desktop's port forwarding every round trip pays a Windows-to-VM hop.
+
+- **Concurrent users.** `scripts/scale/locustfile.py` (Locust, dev-only: `scripts/scale/requirements-load.txt`
+  in its own virtualenv) signs in N users through `POST /auth/login` with accounts made by
+  `scripts/scale/load_users.py`, spread round robin over several organizations, and opens console
+  views with 2–6 s of think time; at the end it prints p50, p95 and error rate per view. A run with 50
+  users against `uvicorn --workers 4` on the 100k SQLite file plus three 500-asset organizations was
+  abandoned: in four minutes the server completed 68 requests and the median sign-in took 134 s
+  (bcrypt on a CPU already at 100%). That describes the laptop, not Morrow, and is not quoted as a
+  result; 100 and 200 users were not run. What the attempt did show:
+  - With 4 workers each worker imports the app itself; on a loaded host that takes minutes, and
+    uvicorn's default 5 s worker health check kills and restarts them in a loop. Pass
+    `--timeout-worker-healthcheck` when running several workers (the Helm chart runs `--workers 4`;
+    the Docker image runs one).
+  - **Rate limits.** All virtual users share one source IP, so the per-org-and-IP limit
+    (`MORROW_RATE_LIMIT_MAX_REQUESTS`, default 240 a minute), slowapi's per-IP default
+    (`MORROW_RATE_LIMIT_DEFAULT`, 300/minute) and the sign-in limit (`MORROW_RATE_LIMIT_AUTH`,
+    10/minute) would turn most of a run into 429s. The run set them to 1000000, 1000000/minute and
+    100000/minute. Real users arrive from their own addresses; a run that should exercise the limits
+    keeps the defaults and spreads users over several source IPs.
+
+  On a quiet machine:
+
+  ```powershell
+  & $py ..\scripts\scale\seed.py --assets 500 --db $db --org org-load-b --host-prefix bsvc    # more orgs: repeat
+  & $py ..\scripts\scale\load_users.py --db $db --orgs 00000000-0000-0000-0000-000000000001,org-load-b --per-org 50 --out users.json
+  # server env: MORROW_SCANNER_DB=$db MORROW_AUTH_MODE=jwt MORROW_AUTH_ISSUER_ENABLED=1 MORROW_AUTH_JWT_SECRET=<random>
+  #             MORROW_AUTH_JWT_ALGORITHMS=HS256 MORROW_AUTH_ORG_ID_CLAIM=org_id and the rate limits above
+  & $py -m uvicorn app:app --port 8765 --workers 4 --timeout-worker-healthcheck 600
+  $env:MORROW_LOAD_USERS = "users.json"
+  locust -f ..\scripts\scale\locustfile.py --headless -u 100 -r 5 -t 5m --host http://127.0.0.1:8765 --csv out\run-100
+  ```
+
+### What is still slow or capped, and why
+
+- **CBOM and CSV exports stay capped** at 2,000 / 5,000 assets (stated in the `X-Morrow-*` headers).
+  They are documents, not aggregates: a complete CycloneDX file for 100,000 assets is on the order of
+  100 MB and belongs in a streamed or paginated export, not a console call.
+- **Crypto agility, velocity, compliance mapping and the board-risk reports** still describe the newest
+  5,000 (or fewer) assets. Their read is now one row per asset, but their models are per-asset
+  Python; making them complete is the "score each distinct input once" treatment HNDL got, report by
+  report.
+- **`/blast-radius/graph`** still parses the newest scans' full results; the edges it draws would have
+  to be stored at scan time, as the certificate fields now are.
+- **Whole-estate joins on SQLite are bounded by the page cache.** Joining 100,000 assets to their
+  latest rows (HNDL, the certificate summary) took seconds of CPU and tens of seconds of wall time on
+  the loaded laptop, against a fraction of a second with the file in memory. At this size on SQLite,
+  give connections a larger `cache_size`, or use Postgres.
+- **The first start after upgrading** runs the backfill (item 1).
+- **The 1 s target is not shown to be met.** CPU per call is below a second for the endpoints the
+  table marks; wall time on this laptop is not evidence either way.
