@@ -18,10 +18,22 @@ from __future__ import annotations
 
 import socket
 import struct
-from typing import Any, Dict, List
+import time
+from typing import Any, Dict, List, Optional
 
 
 _TIMEOUT = 10
+#: The whole read (banner + KEXINIT) must finish within this many seconds. The per-recv timeout
+#: alone let a server that trickles one byte at a time hold a scan for hours.
+_DEADLINE = 2 * _TIMEOUT
+#: RFC 4253 section 4.2: the identification string, including CR LF, is at most 255 characters.
+_MAX_BANNER_LINE = 255
+#: Largest packet read. RFC 4253 section 6.1 requires 35000 bytes; KEXINIT is a few KB.
+_MAX_PACKET = 65536
+
+
+class SSHParseError(ValueError):
+    """The server sent bytes that are not a well-formed SSH identification string or packet."""
 
 # KEX algorithms that are quantum-vulnerable
 _VULNERABLE_KEX = frozenset({
@@ -71,41 +83,100 @@ _WEAK_CIPHERS = frozenset({
 })
 
 
-def _read_packet(sock: socket.socket) -> bytes:
-    """Read a single SSH binary packet and return the payload."""
-    # Read 4-byte packet length
-    raw_len = b""
-    while len(raw_len) < 4:
-        chunk = sock.recv(4 - len(raw_len))
+def _recv(sock: socket.socket, n: int, deadline: float) -> bytes:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise socket.timeout("SSH read deadline passed")
+    sock.settimeout(min(_TIMEOUT, remaining))
+    return sock.recv(n)
+
+
+def _recv_exact(sock: socket.socket, n: int, deadline: float, what: str) -> bytes:
+    data = bytearray()
+    while len(data) < n:
+        chunk = _recv(sock, n - len(data), deadline)
         if not chunk:
-            raise ConnectionError("Connection closed reading packet length")
-        raw_len += chunk
+            raise ConnectionError(f"Connection closed reading {what}")
+        data += chunk
+    return bytes(data)
+
+
+def _read_banner(sock: socket.socket, deadline: float) -> str:
+    """The server's identification string ("SSH-2.0-...")."""
+    line = b""
+    while not line.endswith(b"\n"):
+        byte = _recv(sock, 1, deadline)
+        if not byte:
+            break
+        line += byte
+        if len(line) > _MAX_BANNER_LINE:
+            raise SSHParseError("SSH identification string longer than 255 characters")
+    return parse_banner(line)
+
+
+def parse_banner(line: bytes) -> str:
+    """The identification string without CR LF. Raises SSHParseError unless it starts with SSH-."""
+    if not line.startswith(b"SSH-"):
+        raise SSHParseError("not an SSH identification string")
+    return line.decode("utf-8", "replace").strip()
+
+
+def parse_packet_length(raw_len: bytes) -> int:
+    """packet_length of an SSH binary packet (RFC 4253 section 6). Raises SSHParseError."""
+    if len(raw_len) != 4:
+        raise SSHParseError("truncated packet length")
     pkt_len = struct.unpack(">I", raw_len)[0]
-    if pkt_len > 65536:
-        raise ValueError(f"Packet too large: {pkt_len}")
+    if pkt_len > _MAX_PACKET:
+        raise SSHParseError(f"Packet too large: {pkt_len}")
+    # padding_length byte + at least 4 bytes of padding.
+    if pkt_len < 5:
+        raise SSHParseError(f"Packet too short: {pkt_len}")
+    return pkt_len
 
-    # Read the rest
-    raw = b""
-    while len(raw) < pkt_len:
-        chunk = sock.recv(pkt_len - len(raw))
-        if not chunk:
-            raise ConnectionError("Connection closed reading packet body")
-        raw += chunk
 
+def parse_packet_body(raw: bytes) -> bytes:
+    """The payload of an unencrypted packet body (padding_length, payload, padding)."""
+    if not raw:
+        raise SSHParseError("empty packet")
     padding_len = raw[0]
-    payload = raw[1: pkt_len - padding_len]
-    return payload
+    if padding_len < 4 or padding_len > len(raw) - 1:
+        raise SSHParseError(f"padding length {padding_len} does not fit a {len(raw)}-byte packet")
+    return raw[1:len(raw) - padding_len]
+
+
+def _read_packet(sock: socket.socket, deadline: Optional[float] = None) -> bytes:
+    """Read a single SSH binary packet and return the payload."""
+    if deadline is None:
+        deadline = time.monotonic() + _DEADLINE
+    pkt_len = parse_packet_length(_recv_exact(sock, 4, deadline, "packet length"))
+    return parse_packet_body(_recv_exact(sock, pkt_len, deadline, "packet body"))
 
 
 def _read_name_list(data: bytes, offset: int) -> tuple[List[str], int]:
-    """Parse an SSH name-list (uint32 length + comma-separated names)."""
+    """Parse an SSH name-list (uint32 length + comma-separated names). Raises SSHParseError
+    when the list is truncated, rather than returning the part that arrived."""
     if offset + 4 > len(data):
-        return [], offset + 4
+        raise SSHParseError("truncated name-list length")
     length = struct.unpack_from(">I", data, offset)[0]
     offset += 4
+    if offset + length > len(data):
+        raise SSHParseError("name-list overruns the packet")
     raw = data[offset: offset + length].decode("ascii", "ignore")
     names = [n.strip() for n in raw.split(",") if n.strip()] if raw else []
     return names, offset + length
+
+
+def parse_kexinit(payload: bytes) -> Dict[str, List[str]]:
+    """The algorithm lists of an SSH_MSG_KEXINIT payload (RFC 4253 section 7.1)."""
+    if not payload or payload[0] != 20:
+        raise SSHParseError(f"Unexpected SSH message type: {payload[0] if payload else 'none'}")
+    if len(payload) < 17:
+        raise SSHParseError("KEXINIT shorter than its cookie")
+    offset = 17                                     # 1-byte type + 16-byte cookie
+    lists = {}
+    for key in ("kex", "host_key", "enc_c2s", "enc_s2c", "mac_c2s"):
+        lists[key], offset = _read_name_list(payload, offset)
+    return lists
 
 
 def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
@@ -146,39 +217,21 @@ def scan_ssh(host: str, port: int = 22) -> Dict[str, Any]:
     sock.settimeout(_TIMEOUT)
     try:
         sock.connect((host, port))
+        deadline = time.monotonic() + _DEADLINE
 
-        # Read server banner
-        banner_bytes = b""
-        while not banner_bytes.endswith(b"\n"):
-            byte = sock.recv(1)
-            if not byte:
-                break
-            banner_bytes += byte
-            if len(banner_bytes) > 512:
-                break
-        result["banner"] = banner_bytes.decode("utf-8", "replace").strip()
+        result["banner"] = _read_banner(sock, deadline)
 
         # Send our banner
         sock.sendall(b"SSH-2.0-Morrow_1.0\r\n")
 
-        # Read the KEXINIT packet (msg type 20)
-        payload = _read_packet(sock)
-        if not payload or payload[0] != 20:
-            result["error"] = f"Unexpected SSH message type: {payload[0] if payload else 'none'}"
-            return result
-
-        # Parse KEXINIT: skip 1-byte type + 16-byte cookie
-        offset = 17
-        kex_algs,     offset = _read_name_list(payload, offset)
-        host_key_algs, offset = _read_name_list(payload, offset)
-        enc_c2s,       offset = _read_name_list(payload, offset)
-        enc_s2c,       offset = _read_name_list(payload, offset)
-        mac_c2s,       offset = _read_name_list(payload, offset)
+        # Read and parse the KEXINIT packet (msg type 20)
+        lists = parse_kexinit(_read_packet(sock, deadline))
+        kex_algs = lists["kex"]
 
         result["kex_algorithms"]      = kex_algs
-        result["host_key_algorithms"] = host_key_algs
-        result["encryption_algorithms"] = list(dict.fromkeys(enc_c2s + enc_s2c))
-        result["mac_algorithms"]      = mac_c2s
+        result["host_key_algorithms"] = lists["host_key"]
+        result["encryption_algorithms"] = list(dict.fromkeys(lists["enc_c2s"] + lists["enc_s2c"]))
+        result["mac_algorithms"]      = lists["mac_c2s"]
 
         pq_kex = [k for k in kex_algs if k in _MORROW_HYBRID_KEX]
         result["pq_hybrid_kex"] = pq_kex
