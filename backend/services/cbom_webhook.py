@@ -28,6 +28,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from services import json_limits
+
 TOKEN_PREFIX = "mci_"
 _TOKEN_RE = re.compile(r"^mci_([0-9a-f]{12})_([A-Za-z0-9_-]{32,128})$")
 
@@ -253,8 +255,10 @@ def parse_payload(body: bytes) -> Dict[str, Any]:
     if len(body) > max_body_bytes():
         raise OverflowError(f"Body exceeds {max_body_bytes()} bytes.")
     try:
-        payload = json.loads(body)
-    except (ValueError, RecursionError):
+        # Depth-capped: a payload that loads just under the recursion limit would otherwise
+        # fail later, in json.dumps when it is stored, as a RecursionError (HTTP 500).
+        payload = json_limits.loads(body, max_depth=100)
+    except ValueError:
         raise ValueError("Invalid JSON")
     if not isinstance(payload, dict):
         raise ValueError("CBOM must be a JSON object")

@@ -32,6 +32,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from services import json_limits
+
 
 # ── Known crypto library name fragments (case-insensitive) ────────────────────
 
@@ -138,50 +140,95 @@ def parse_cyclonedx_json(json_bytes: bytes) -> Dict[str, Any]:
             "version":   str,      # specVersion string
         }
 
-    Raises ValueError on malformed JSON or missing required fields.
+    Raises ValueError on malformed JSON or missing required fields (ImportTooLarge, a
+    ValueError, when the document has more than MAX_IMPORT_COMPONENTS components).
+
+    Nothing here trusts a field's JSON type: the SBOM path is not schema-validated, so a name,
+    type or property value may be a number, list or object, and is then treated as absent.
     """
-    try:
-        doc = json.loads(json_bytes)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON: {exc}") from exc
+    doc = _load_json(json_bytes, "SBOM")
 
-    if not isinstance(doc, dict):
-        raise ValueError("SBOM root must be a JSON object")
+    spec_version = doc.get("specVersion", "unknown")
+    metadata = doc.get("metadata")
 
-    spec_version: str = doc.get("specVersion", "unknown")
-    metadata: Dict[str, Any] = doc.get("metadata", {})
-
-    # Components can live at root or nested inside metadata (v1.5 compositions)
+    # Nested components, in document order, iteratively: a deeply nested document must not
+    # exhaust the stack, and a wide one must not exceed the component limit.
     components: List[Dict[str, Any]] = []
-
-    def _collect(comp_list: Any) -> None:
-        if not isinstance(comp_list, list):
-            return
-        for item in comp_list:
-            if not isinstance(item, dict):
-                continue
-            components.append(item)
-            # Recurse into nested components
-            _collect(item.get("components", []))
-
-    _collect(doc.get("components", []))
+    stack: List[Any] = [iter(doc.get("components") if isinstance(doc.get("components"), list) else [])]
+    while stack:
+        item = next(stack[-1], _END)
+        if item is _END:
+            stack.pop()
+            continue
+        if not isinstance(item, dict):
+            continue
+        components.append(item)
+        if len(components) > MAX_IMPORT_COMPONENTS:
+            raise ImportTooLarge(
+                f"Document has more than {MAX_IMPORT_COMPONENTS} components "
+                "(MORROW_BOM_IMPORT_MAX_COMPONENTS)."
+            )
+        if isinstance(item.get("components"), list):
+            stack.append(iter(item["components"]))
 
     return {
         "components": components,
-        "metadata": metadata,
-        "version": spec_version,
+        "metadata": metadata if isinstance(metadata, dict) else {},
+        "version": spec_version if isinstance(spec_version, str) else str(spec_version)[:32],
+        "bom_format": doc.get("bomFormat") if isinstance(doc.get("bomFormat"), str) else "CycloneDX",
     }
+
+
+_END = object()
+
+#: Nesting depth accepted in an imported BOM: every later walk (schema validation included)
+#: stays far from the recursion limit. A CycloneDX BOM nests components a few levels deep.
+MAX_JSON_DEPTH = 100
+#: Largest key size recorded. Larger values are not key sizes, and overflow SQLite's INTEGER.
+_MAX_KEY_BITS = 1 << 20
+
+
+def _load_json(json_bytes: bytes, what: str) -> Dict[str, Any]:
+    try:
+        doc = json_limits.loads(json_bytes, max_depth=MAX_JSON_DEPTH)
+    except ValueError as exc:
+        raise ValueError(f"Invalid JSON: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise ValueError(f"{what} root must be a JSON object")
+    return doc
+
+
+def _text(value: Any) -> str:
+    """value if it is a string, else "" (a JSON number, list or object is not a name)."""
+    return value if isinstance(value, str) else ""
+
+
+def _key_bits(value: Any) -> Optional[int]:
+    """A key size from a JSON value: a plausible positive integer, else None.
+
+    str.isdigit() accepts characters int() rejects ("²"), and an unbounded number overflows the
+    INTEGER column it is stored in, so both are checked here once.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        n = value
+    elif isinstance(value, str) and re.fullmatch(r"\s*[0-9]{1,7}\s*", value):
+        n = int(value)
+    else:
+        return None
+    return n if 0 < n <= _MAX_KEY_BITS else None
 
 
 # ── Classification ────────────────────────────────────────────────────────────
 
 def _is_crypto_component(comp: Dict[str, Any]) -> bool:
     """Return True if this component is crypto-related."""
-    if comp.get("type", "").lower() == "cryptographic-asset":
+    if _text(comp.get("type")).lower() == "cryptographic-asset":
         return True
 
-    name = (comp.get("name") or "").lower()
-    desc = (comp.get("description") or "").lower()
+    name = _text(comp.get("name")).lower()
+    desc = _text(comp.get("description")).lower()
     combined = f"{name} {desc}"
     return any(lib in combined for lib in _CRYPTO_LIBS)
 
@@ -201,12 +248,12 @@ def _extract_algorithm(comp: Dict[str, Any]) -> tuple[str, int | None]:
     # 1. cryptoProperties (CycloneDX v1.5)
     crypto_props = comp.get("cryptoProperties", {})
     if isinstance(crypto_props, dict):
-        algorithm = crypto_props.get("algorithmProperties", {}).get("primitive", "") or ""
+        alg_props = crypto_props.get("algorithmProperties")
+        alg_props = alg_props if isinstance(alg_props, dict) else {}
+        algorithm = _text(alg_props.get("primitive"))
         if not algorithm:
-            algorithm = crypto_props.get("name", "") or ""
-        kl = crypto_props.get("algorithmProperties", {}).get("parameterSetIdentifier", "")
-        if kl and kl.isdigit():
-            key_length = int(kl)
+            algorithm = _text(crypto_props.get("name"))
+        key_length = _key_bits(alg_props.get("parameterSetIdentifier"))
 
     # 2. properties[] list
     properties = comp.get("properties", []) or []
@@ -214,20 +261,17 @@ def _extract_algorithm(comp: Dict[str, Any]) -> tuple[str, int | None]:
         for prop in properties:
             if not isinstance(prop, dict):
                 continue
-            pname = (prop.get("name") or "").lower()
+            pname = _text(prop.get("name")).lower()
             pval = prop.get("value", "") or ""
-            if pname in ("algorithm", "algorithmprimitive", "cipher") and pval:
+            if pname in ("algorithm", "algorithmprimitive", "cipher") and isinstance(pval, str) and pval:
                 if not algorithm:
                     algorithm = pval
             if pname in ("keylength", "keysize", "keylen") and pval:
-                try:
-                    key_length = int(str(pval).strip())
-                except ValueError:
-                    pass
+                key_length = _key_bits(pval) or key_length
 
     # 3. Fall back to component name
     if not algorithm:
-        algorithm = (comp.get("name") or "").strip()
+        algorithm = _text(comp.get("name")).strip()
 
     return algorithm, key_length
 
@@ -248,17 +292,17 @@ def classify_crypto_component(comp: Dict[str, Any]) -> Dict[str, Any]:
             description:  str,
         }
     """
-    name: str = (comp.get("name") or "").strip()
-    version: str = (comp.get("version") or "").strip()
-    comp_type: str = (comp.get("type") or "library").strip()
-    description: str = (comp.get("description") or "").strip()
+    name: str = _text(comp.get("name")).strip()
+    version: str = _text(comp.get("version")).strip()
+    comp_type: str = _text(comp.get("type")).strip() or "library"
+    description: str = _text(comp.get("description")).strip()
 
     # Supplier
     supplier_block = comp.get("supplier") or comp.get("manufacturer") or {}
     if isinstance(supplier_block, dict):
-        supplier = supplier_block.get("name", "")
+        supplier = _text(supplier_block.get("name"))
     else:
-        supplier = str(supplier_block)
+        supplier = _text(supplier_block)
 
     algorithm, key_length = _extract_algorithm(comp)
 
@@ -366,12 +410,8 @@ def import_sbom(
     parsed = parse_cyclonedx_json(json_bytes)
 
     components = parsed["components"]
-    parsed["metadata"]
     spec_version = parsed["version"]
-
-    # Determine SBOM format from bomFormat field (default CycloneDX)
-    raw_doc = json.loads(json_bytes)
-    sbom_format = raw_doc.get("bomFormat", "CycloneDX")
+    sbom_format = parsed["bom_format"]
 
     import_id = str(uuid.uuid4())
     imported_at = datetime.now(timezone.utc).isoformat()
@@ -644,7 +684,7 @@ def _canonicalise(name: str, param: str) -> Optional[str]:
     upper = raw.upper()
     if upper.startswith("EC-"):
         raw = raw[3:]
-    bits = int(param) if str(param or "").isdigit() else 0
+    bits = _key_bits(param) or 0
     if bits and not re.search(r"\d", raw):
         candidate = canonical_algorithm(f"{raw}-{bits}", bits)
         if candidate:
@@ -675,7 +715,7 @@ def _classify_cbom_algorithm(name: str, primitive: str, param: str, mode: str = 
     else:
         # Unknown name: an asymmetric primitive that is not a recognised PQ scheme is Shor-breakable.
         quantum_vulnerable = prim in _ASYMMETRIC_PRIMITIVES
-    key_length = int(param) if str(param or "").isdigit() else None
+    key_length = _key_bits(param)
     risk = _classify_risk(canonical or name, key_length, name.lower())
     if pq_safe:
         risk = "low"
@@ -844,7 +884,7 @@ def _cbom_asset(comp: Dict[str, Any], by_ref: Dict[str, Dict[str, Any]],
         asset.update({
             "name": f"{material}" + (f" ({algorithm})" if algorithm else ""),
             "algorithm": algorithm,
-            "key_length": int(size) if isinstance(size, int) else cls.get("key_length"),
+            "key_length": _key_bits(size) if isinstance(size, int) else cls.get("key_length"),
             "pq_safe": cls.get("pq_safe", False),
             "quantum_vulnerable": cls.get("quantum_vulnerable", False),
             "nist_pq_category": cls.get("nist_pq_category"),
@@ -894,12 +934,7 @@ def import_cbom(
     Raises ImportTooLarge (413), SchemaInvalid (422) or ValueError (400).
     """
     _check_size(json_bytes)
-    try:
-        doc = json.loads(json_bytes)
-    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError) as exc:
-        raise ValueError(f"Invalid JSON: {exc}") from exc
-    if not isinstance(doc, dict):
-        raise ValueError("CBOM root must be a JSON object")
+    doc = _load_json(json_bytes, "CBOM")
     if doc.get("bomFormat") != "CycloneDX":
         raise SchemaInvalid("Not a CycloneDX document (bomFormat must be \"CycloneDX\").", [])
 
