@@ -15,3 +15,16 @@ misconfigurations:
     statement: >-
       Test fixture only, never deployed: a strongSwan responder that ike_scanner tests probe. charon
       binds UDP 500/4500 and installs kernel IPsec policy, which needs root.
+  - id: DS-0002
+    paths:
+      - "deploy/e2e/dns/Dockerfile"
+    statement: >-
+      Real-service e2e stack only, never deployed: dnsmasq binds UDP/TCP 53 to serve the test zone's
+      TXT record, which needs root inside the container.
+  - id: DS-0002
+    paths:
+      - "deploy/e2e/backend-local.Dockerfile"
+    statement: >-
+      Real-service e2e stack only, never deployed: a laptop shortcut that copies the checkout onto an
+      already-built backend image (passed as BASE) and keeps that image's user. CI builds
+      backend/Dockerfile, which sets its own non-root USER.

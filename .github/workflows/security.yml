@@ -124,7 +124,17 @@ jobs:
 
       - name: Run Gitleaks
         run: |
-          "$RUNNER_TEMP/gitleaks" git . --config .gitleaks.toml --redact --verbose
+          "$RUNNER_TEMP/gitleaks" git . --config .gitleaks.toml --redact --verbose             --report-format json --report-path "$RUNNER_TEMP/gitleaks.json"
+
+      # The job log is visible only to signed-in users; annotations are public. Values stay redacted.
+      - name: Name each finding in an annotation
+        if: failure()
+        run: |
+          python3 - "$RUNNER_TEMP/gitleaks.json" <<'PY'
+          import json, sys
+          for f in json.load(open(sys.argv[1])):
+              print(f"::error file={f['File']},line={f['StartLine']},title=gitleaks::{f['RuleID']} in commit {f['Commit'][:10]}: {f['Description']}")
+          PY
 
   dockerfile-scan:
     name: Dockerfile and IaC scan
@@ -143,3 +153,17 @@ jobs:
           ignore-unfixed: true
           # Reviewed false positives, each scoped to one file with the reason.
           trivyignores: .trivyignore.yaml
+          format: json
+          output: trivy.json
+
+      # The job log is visible only to signed-in users; annotations are public.
+      - name: Name each finding in an annotation
+        if: failure()
+        run: |
+          python3 - trivy.json <<'PY'
+          import json, sys
+          for r in json.load(open(sys.argv[1])).get("Results") or []:
+              for m in r.get("Misconfigurations") or []:
+                  line = (m.get("CauseMetadata") or {}).get("StartLine") or 1
+                  print(f"::error file={r['Target']},line={line},title=trivy {m['ID']}::{m['Severity']} {m['Title']}")
+          PY
