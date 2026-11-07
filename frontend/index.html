@@ -5395,7 +5395,7 @@ VIEWS.assets = async (host) => {
         { h: "Status", f: r => pill(r.status || r.certificate_status || "unknown") },
         { h: "Expires", f: r => r.not_after ? `${DAY(r.not_after)}<span class="sub">${AGO(r.not_after)}</span>` : "—" },
         { h: "Algorithm", f: r => `<span class="m">${H(r.signature_algorithm || r.algorithm || "—")}</span>` },
-      ], rows(d), { max: "380px", empty: "No certificates discovered" }), { icon: I.lock, flush: true, sub: `${NUM(rows(d).length)} tracked` }), "/governance/certificates")}
+      ], rows(d), { max: "380px", empty: "No certificates discovered" }), { icon: I.lock, flush: true, sub: `${NUM((d && d.inventory_coverage && d.inventory_coverage.assets_in_report) || rows(d).length)} tracked` }), "/governance/certificates")}
       ${card("Shadow IT & unmanaged crypto", `<div id="shadowBox">${skel(2, 34)}</div>`,
         { icon: I.eye, sub: "Endpoints discovered outside the managed inventory", act: actBtn("Scan for shadow IT", "shadow", { cls: "btn xs" }) })}
     </div>`)}`;
