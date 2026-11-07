@@ -384,3 +384,45 @@ Raw runs: `scripts/scale/results/sqlite-100k-{before,after}-paired.json`. How to
 - **The first start after upgrading** runs the backfill (item 1).
 - **The 1 s target is not shown to be met.** CPU per call is below a second for the endpoints the
   table marks; wall time on this laptop is not evidence either way.
+
+### Follow-up: HNDL, certificate paging, startup, and Postgres CI
+
+Review asked for four things after the numbers above; this is what changed and what it measured.
+Times are direct calls of the report functions on the same 100k SQLite file and the same loaded laptop
+(`time.process_time` per call, so other agents' load does not count; wall in brackets).
+
+| Read | Before this follow-up | After |
+|---|---:|---:|
+| `/hndl/dashboard` (whole estate) | 9.6 s CPU (19 s wall) | 1.5 s CPU first call [2.4 s]; 0.03–0.05 s while the grouping is cached |
+| `/hndl/timeline` (whole estate) | 3.9 s CPU (5.2 s wall) | 1.1–1.6 s CPU uncached; 0.01 s cached (the overview loads it right after the dashboard) |
+| `/governance/certificates`, first page (200 items) | 7.5 s CPU, 2.4 MB, 5,000 items | 0.56–0.58 s CPU warm (1.4 s cold) |
+| `/governance/certificates`, next page | – | 0.23–0.27 s CPU |
+| First start of an upgraded 100k database | 658 s, blocking | 0.2 s; the backfills run in a background thread (21–26 s for the inventory stamps, minutes for the rest) |
+
+What changed:
+
+- **HNDL reads one index.** `asset_scan_latest` now carries the asset's inventory `updated_at` (text
+  and Julian day) and its port, kept by triggers on `assets` and backfilled in the background. The
+  grouping reads `idx_asset_scan_latest_org_inv2` only (no join to `assets`, arithmetic only per row);
+  the priority queue reads one rank at a time newest first and stops when it has its rows. The
+  grouping is reused for `MORROW_HNDL_CACHE_SECONDS` (default 30 s) per organization and minute, so
+  the dashboard and timeline of one view group the estate once; a scan or asset write in the process
+  clears it, other workers see changes within 30 s. The uncached grouping is still about 1.1 s of CPU
+  at 100,000 assets on this laptop: it is one sort of 100,000 short rows, and the target of 1 s is not
+  met for that first call. Computing the score itself in SQL would not remove the sort.
+- **Certificate items are paged**: `limit` (default 200, at most 5,000) and an opaque `cursor`
+  (`next_cursor` in the response); `asset_limit` remains as the page size for existing callers. The
+  summary still covers the whole inventory, read from `idx_asset_scan_latest_org_expiry_inv` alone.
+  The console's card shows the inventory total instead of the page length (both `index.html` copies,
+  identical); it lists the first 200, most urgent first.
+- **Backfills no longer block startup.** `db.init_db()` starts a background thread only when an
+  upgraded database has work left (`db.backfill_progress()` reports it). Until each backfill finishes,
+  the readers that need it answer the way they did before it existed: `list_scan_rows` reads `scans`,
+  and the certificate, key-map, telemetry and HNDL views use their previous paths. Fresh databases
+  start no thread.
+- **Postgres CI** (the `Test & Lint` job runs the whole suite on Postgres) found three real bugs, now
+  fixed: the Postgres scan write path read `RETURNING` rows from a dict cursor as tuples, so the
+  certificate and key-map fields were never written on Postgres; `/platform/state/migrate` tried to
+  copy the search index's FTS5 shadow tables (no rowid: 500); and the SQLite search index, written by
+  a trigger on the scan write path, could fail a scan write ("vtable constructor failed"). The index is
+  now updated by `/search` from a change list the triggers keep in a plain table.
