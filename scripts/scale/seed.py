@@ -58,14 +58,14 @@ def pick(rng: random.Random, weighted):
     return rng.choices(values, weights=weights, k=1)[0]
 
 
-def build_estate(n: int, rng: random.Random):
+def build_estate(n: int, rng: random.Random, prefix: str = "svc"):
     """Entry tuples in the shape services.demo_estate.build_facts takes."""
     teams = ["team-%02d" % i for i in range(40)]
     repos = max(1, n // 100)
     estate = []
     for i in range(n):
         internal = rng.random() < 0.6
-        host = ("svc%06d.internal.example" if internal else "svc%06d.example.com") % i
+        host = ("%s%06d.internal.example" if internal else "%s%06d.example.com") % (prefix, i)
         team = rng.choice(teams)
         estate.append((
             host, 443 if rng.random() < 0.85 else rng.choice((8443, 636, 993, 5432)),
@@ -88,6 +88,8 @@ def main() -> int:
     ap.add_argument("--remediation-ratio", type=float, default=0.10)
     ap.add_argument("--task-ratio", type=float, default=1 / 30)
     ap.add_argument("--seed", type=int, default=20261101)
+    ap.add_argument("--org", default=ORG_ID, help="organization to seed (created if missing; default: the default org)")
+    ap.add_argument("--host-prefix", default="svc", help="host name prefix, so several orgs hold distinct estates")
     args = ap.parse_args()
     if bool(args.db) == bool(args.postgres):
         ap.error("give exactly one of --db or --postgres")
@@ -97,7 +99,7 @@ def main() -> int:
         ap.error("--start must be a multiple of --endpoints-per-scan and below --stop")
 
     if args.db:
-        if os.path.exists(args.db) and lo == 0:
+        if os.path.exists(args.db) and lo == 0 and args.org == ORG_ID:
             ap.error("%s already exists; seed a fresh file" % args.db)
         os.environ["MORROW_SCANNER_DB"] = os.path.abspath(args.db)
         os.environ["MORROW_MAIN_DB_BACKEND"] = "sqlite"
@@ -120,14 +122,16 @@ def main() -> int:
     # The server pools SQLite connections for the database it serves (app._lifespan); without the
     # pool every helper call opens a connection and re-parses the schema (~50 ms on this laptop).
     db.enable_connection_pool()
-    db.set_current_organization_id(ORG_ID)
+    if args.org != ORG_ID:
+        db.upsert_organization(args.org, name="Scale test " + args.org)
+    db.set_current_organization_id(args.org)
     started = time.monotonic()
 
     def log(msg):
         print("[%7.1fs] %s" % (time.monotonic() - started, msg), flush=True)
 
     rng = random.Random(args.seed)
-    estate, repo_count = build_estate(args.assets, rng)
+    estate, repo_count = build_estate(args.assets, rng, args.host_prefix)
     pick_rng = random.Random(args.seed + 1)
     remediated = sorted(pick_rng.sample(range(len(estate)), int(len(estate) * args.remediation_ratio)))
     tasked = sorted(pick_rng.sample(range(len(estate)), int(len(estate) * args.task_ratio)))
@@ -149,7 +153,7 @@ def main() -> int:
             created = base + timedelta(seconds=start)
             results = [build_facts(e, rnd + 3, created) for e in chunk]
             summary = summarize_results(results)
-            scan_id = "scale-r%d-%06d" % (rnd, start)
+            scan_id = "scale-%s-r%d-%06d" % (args.org[:8], rnd, start) if args.org != ORG_ID else "scale-r%d-%06d" % (rnd, start)
             db.save_scan_row(scan_id, "completed", created, {"total": len(results), "done": len(results),
                                                             "percent": 100}, "", results, summary)
             db.save_scan_results(scan_id, results=results, summary=summary, status="completed")

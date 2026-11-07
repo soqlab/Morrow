@@ -15,6 +15,7 @@ ORG_SCOPED_TABLES: List[str] = [
     "collections",
     "credentials",
     "scan_results",
+    "asset_scan_latest",
     "scans",
     "schedules",
     "repositories",

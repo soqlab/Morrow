@@ -10,6 +10,9 @@ board / search) it records:
   * peak    tracemalloc's peak Python heap during that cold call, minus the heap before it (MB).
             SQLite's own page cache is C memory and is not included.
   * p50/p95 over the remaining (untraced) calls
+  * cpu50   median CPU time of this process per call (time.process_time). On a laptop shared with
+            other work wall time includes waiting for a core and for evicted pages; CPU time is the
+            work the endpoint itself did, so it compares across noisy runs where wall time cannot.
   * bytes   response body size, and the HTTP status
 
 Sampling stops at --samples calls or when an endpoint has used --budget seconds, whichever is
@@ -29,7 +32,6 @@ import json
 import os
 import pathlib
 import platform
-import statistics
 import sys
 import time
 import tracemalloc
@@ -81,6 +83,8 @@ def main() -> int:
                     help="one traced call per endpoint, no p50/p95 (for endpoints that take minutes)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--label", default="")
+    ap.add_argument("--backend", default=str(BACKEND),
+                    help="backend directory to measure (default: this tree's; e.g. a worktree of the base commit)")
     args = ap.parse_args()
     if bool(args.db) == bool(args.postgres):
         ap.error("give exactly one of --db or --postgres")
@@ -97,8 +101,8 @@ def main() -> int:
             os.environ.get("TEMP", "/tmp"), "morrow-scale-pg-sidecar.db"))
         os.environ["MORROW_MAIN_DB_BACKEND"] = "postgres"
         os.environ["MORROW_PRODUCT_DATABASE_URL"] = args.postgres
-    sys.path.insert(0, str(BACKEND))
-    os.chdir(BACKEND)
+    sys.path.insert(0, args.backend)
+    os.chdir(args.backend)
 
     import app as application  # noqa: E402
     from fastapi.testclient import TestClient  # noqa: E402
@@ -135,12 +139,13 @@ def main() -> int:
             if template in seen or (only and not any(template.startswith(o) for o in only)):
                 continue
             seen.add(template)
-            times, status, size = [], None, 0
+            times, cpus, status, size = [], [], None, 0
 
             def call():
-                t0 = time.perf_counter()
+                t0, c0 = time.perf_counter(), time.process_time()
                 res = client.get(path, headers=headers)
                 body = res.content
+                cpus.append(time.process_time() - c0)
                 return time.perf_counter() - t0, res.status_code, len(body)
 
             # The first call is the cold one (in-process caches empty), so it is the one that shows
@@ -150,6 +155,7 @@ def main() -> int:
             tracemalloc.start()
             base = tracemalloc.get_traced_memory()[0]
             cold, status, size = call()
+            cpus.clear()
             peak = (tracemalloc.get_traced_memory()[1] - base) / 1e6
             tracemalloc.stop()
             spent = cold
@@ -162,11 +168,12 @@ def main() -> int:
                    "calls": len(times) + 1, "cold_traced_ms": round(cold * 1000, 1),
                    "p50_ms": round(pct(times, 50) * 1000, 1) if times else None,
                    "p95_ms": round(pct(times, 95) * 1000, 1) if times else None,
+                   "cpu50_ms": round(pct(cpus, 50) * 1000, 1) if cpus else None,
                    "peak_mb": round(peak, 1)}
             report["endpoints"].append(row)
-            print("%-12s %-28s %3s %9d B  cold %8.1f  p50 %8s  p95 %8s ms  peak %7.1f MB  (n=%d)" % (
-                view, template, status, size, row["cold_traced_ms"], row["p50_ms"], row["p95_ms"], peak,
-                len(times)), flush=True)
+            print("%-12s %-28s %3s %9d B  cold %8.1f  p50 %8s  p95 %8s  cpu50 %8s ms  peak %7.1f MB  (n=%d)" % (
+                view, template, status, size, row["cold_traced_ms"], row["p50_ms"], row["p95_ms"], row["cpu50_ms"],
+                peak, len(times)), flush=True)
 
     report["assets_visible_in_first_page"] = asset_count
     pathlib.Path(args.out).parent.mkdir(parents=True, exist_ok=True)

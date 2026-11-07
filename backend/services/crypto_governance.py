@@ -32,19 +32,25 @@ def _parse_datetime(value: Any) -> Optional[datetime]:
         return None
 
 
+#: Where a scan result may carry the certificate's expiry, top level or under "certificate".
+CERTIFICATE_EXPIRY_KEYS = (
+    "cert_not_after",
+    "certificate_not_after",
+    "not_after",
+    "notAfter",
+    "cert_expires_at",
+    "certificate_expires_at",
+    "expires_at",
+    "valid_to",
+    "cert_valid_to",
+    "cert_expiry",
+)
+#: Every other field of a scan result this module reads (see db.SCAN_RESULT_DIGEST_KEYS).
+CERTIFICATE_RESULT_KEYS = ("cert_issuer", "issuer", "cert_subject", "subject")
+
+
 def certificate_expiry_value(latest: Dict[str, Any]) -> str:
-    keys = [
-        "cert_not_after",
-        "certificate_not_after",
-        "not_after",
-        "notAfter",
-        "cert_expires_at",
-        "certificate_expires_at",
-        "expires_at",
-        "valid_to",
-        "cert_valid_to",
-        "cert_expiry",
-    ]
+    keys = CERTIFICATE_EXPIRY_KEYS
     for key in keys:
         value = latest.get(key)
         if str(value or "").strip():
@@ -125,6 +131,39 @@ def build_certificate_lifecycle_report(
     severity_order = {"critical": 0, "high": 1, "medium": 2, "unknown": 3, "info": 4}
     items.sort(key=lambda item: (severity_order.get(str(item.get("severity") or "unknown"), 9), item.get("days_remaining") if item.get("days_remaining") is not None else 99999, str(item.get("asset_key") or "")))
     return {"warning_days": int(warning_days), "summary": counts, "items": items}
+
+
+def build_certificate_lifecycle_report_from_rows(data: Dict[str, Any], *, warning_days: int = 30,
+                                                 now: Optional[datetime] = None) -> Dict[str, Any]:
+    """The certificate lifecycle report from db.certificate_lifecycle_rows.
+
+    The summary counts the whole inventory (the database aggregates it); `items` are the most
+    urgent rows the database returned, classified exactly as build_certificate_lifecycle_report
+    classifies a scan result, and in the same order. `inventory_coverage` says how many of the
+    inventory's assets the items list.
+    """
+    now_dt = now or datetime.now(timezone.utc)
+    items: List[Dict[str, Any]] = []
+    for row in data.get("rows") or []:
+        latest = {"cert_not_after": row.get("cert_expires_raw") or "",
+                  "cert_issuer": row.get("cert_issuer") or "", "cert_subject": row.get("cert_subject") or ""}
+        cert = classify_certificate(latest, warning_days=warning_days, now=now_dt)
+        items.append({
+            "asset_key": str(row.get("asset_key") or "").strip(),
+            "owner": str(row.get("owner") or "").strip(),
+            "team": str(row.get("team") or "").strip(),
+            "repository_id": int(row.get("repository_id") or 0),
+            "repository": str(row.get("repository_name") or "").strip(),
+            "scan_id": str(row.get("scan_id") or "").strip(),
+            "scanned_at": str(row.get("scanned_at") or "").strip(),
+            **cert,
+        })
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "unknown": 3, "info": 4}
+    items.sort(key=lambda item: (severity_order.get(str(item.get("severity") or "unknown"), 9), item.get("days_remaining") if item.get("days_remaining") is not None else 99999, str(item.get("asset_key") or "")))
+    total = int(data.get("total") or 0)
+    return {"warning_days": int(warning_days), "summary": dict(data.get("summary") or {}), "items": items,
+            "inventory_coverage": {"assets_in_report": total, "items_listed": len(items),
+                                   "complete": len(items) >= total}}
 
 
 def build_shadow_it_report(*, assets: List[Dict[str, Any]], runtime_assets: List[Dict[str, Any]], latest_for_asset: Any) -> Dict[str, Any]:

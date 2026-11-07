@@ -1619,7 +1619,9 @@ class TestNewestRowPerAssetStopsAtTheLimit(_InventoryFixture):
         plan = " | ".join(r[3] for r in conn.execute("EXPLAIN QUERY PLAN " + statement, params))
         conn.close()
         self.assertNotIn("TEMP B-TREE", plan, plan)
-        self.assertIn("idx_scan_results_org_scanned", plan)
+        # One row per asset (asset_scan_latest), walked newest first: the history is not read.
+        self.assertIn("idx_asset_scan_latest_org_scanned", plan)
+        self.assertNotIn("scan_results", statement)
 
 
 class TestScanResultEnrichmentIsBatched(_InventoryFixture):
@@ -1683,21 +1685,21 @@ def test_capped_reports_say_how_much_of_the_inventory_they_cover(monkeypatch):
     assert app._coverage_headers(2000) == {"X-Morrow-Assets-In-Report": "2000",
                                            "X-Morrow-Inventory-Assets": "10000"}
     for handler in (app.api_hndl_tls_dashboard, app.api_hndl_tls_timeline):
-        assert "_inventory_coverage(len(asset_inputs))" in inspect.getsource(handler)
+        assert "_inventory_coverage(len(rows))" in inspect.getsource(handler)
     for handler in (app.api_cbom_org, app.api_cbom_csv):
         assert "_coverage_headers(" in inspect.getsource(handler)
 
 
-def test_certificate_and_shadow_it_reports_batch_their_fallback():
-    """Without fallback_keys every asset missing from the newest 100 scans cost its own query:
-    /governance/certificates took 111 s at 10,000 assets."""
+def test_certificate_and_shadow_it_reports_read_no_scan_json():
+    """/governance/certificates took 111 s at 10,000 assets with a query per asset, then 4-18 s and
+    95 MB at 100,000 parsing the newest 100 scans' results. Both reports read asset_scan_latest."""
     import inspect
 
     from routers import governance
 
     src = inspect.getsource(governance.create_governance_router)
-    assert src.count("_latest_full_scan_result_lookup\")(") == 2
-    assert src.count("fallback_keys=") == 2
+    assert "certificate_lifecycle_rows(" in src and "asset_latest_evidence(" in src
+    assert "load_scan_row" not in src and "_latest_full_scan_result_lookup" not in src
 
 
 if __name__ == "__main__":

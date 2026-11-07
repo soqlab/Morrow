@@ -88,6 +88,14 @@ from db_postgres import (
     pg_record_webhook_event,
     pg_rotate_webhook_secret,
     pg_save_scan_asset_summaries,
+    pg_asset_scan_latest_ready,
+    pg_backfill_asset_scan_latest,
+    pg_certificate_lifecycle_rows,
+    pg_key_map_rows,
+    pg_hndl_asset_inputs,
+    pg_asset_latest_evidence,
+    pg_telemetry_scan_counts,
+    pg_count_flight_recorder_events_since,
     pg_save_scan_results,
     pg_save_scan_row,
     pg_set_asset_metadata,
@@ -514,7 +522,71 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
     add_asset("metadata_json", "ALTER TABLE assets ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'")
     add_asset("repository_id", "ALTER TABLE assets ADD COLUMN repository_id INTEGER NOT NULL DEFAULT 0")
 
+    _ensure_scan_side_tables(conn)
     conn.commit()
+
+
+#: Every column of `scans` except results_json, in a narrow table of its own.
+#:
+#: SQLite stores a row's columns in order, and in `scans` results_json (about 400 KB for a
+#: 100-endpoint scan, spread over a chain of ~100 overflow pages) comes before summary_json and the
+#: job_* columns, which ALTER TABLE appended. Reading any of those walks the whole overflow chain, so
+#: list_scan_rows(limit=2000) -- the telemetry KPIs' read -- read 800 MB at 100,000 assets (10-14 s).
+#: Triggers keep this copy exact for every writer, including raw SQL, so no write path can forget
+#: it. Postgres keeps large values out of line (TOAST) and needs no such table.
+_SCAN_HEADER_COLUMNS = ("organization_id", "status", "created_at", "progress_json", "error_text",
+                        "summary_json", "job_id", "job_state", "job_started_at", "job_finished_at")
+_SCAN_HEADER_COLS_SQL = ", ".join(_SCAN_HEADER_COLUMNS)
+_SCAN_HEADER_NEW_SQL = ", ".join("NEW." + c for c in _SCAN_HEADER_COLUMNS)
+
+
+def _ensure_scan_side_tables(conn: sqlite3.Connection) -> None:
+    if schema_ensured("scan_side_tables"):
+        return
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS scan_headers (
+            scan_id TEXT PRIMARY KEY,
+            organization_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT '',
+            progress_json TEXT NOT NULL DEFAULT '{}',
+            error_text TEXT NOT NULL DEFAULT '',
+            summary_json TEXT NOT NULL DEFAULT '{}',
+            job_id TEXT NOT NULL DEFAULT '',
+            job_state TEXT NOT NULL DEFAULT '',
+            job_started_at TEXT NOT NULL DEFAULT '',
+            job_finished_at TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_headers_org_created ON scan_headers (organization_id, created_at)")
+    # INSERT OR REPLACE INTO scans deletes the old row without firing DELETE triggers (recursive
+    # triggers are off); the INSERT trigger's own INSERT OR REPLACE replaces the header.
+    conn.executescript(
+        f"""
+        CREATE TRIGGER IF NOT EXISTS trg_scans_header_insert AFTER INSERT ON scans BEGIN
+            INSERT OR REPLACE INTO scan_headers (scan_id, {_SCAN_HEADER_COLS_SQL}) VALUES (NEW.id, {_SCAN_HEADER_NEW_SQL});
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_scans_header_update AFTER UPDATE ON scans BEGIN
+            DELETE FROM scan_headers WHERE scan_id = OLD.id AND OLD.id <> NEW.id;
+            INSERT OR REPLACE INTO scan_headers (scan_id, {_SCAN_HEADER_COLS_SQL}) VALUES (NEW.id, {_SCAN_HEADER_NEW_SQL});
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_scans_side_delete AFTER DELETE ON scans BEGIN
+            DELETE FROM scan_headers WHERE scan_id = OLD.id;
+        END;
+        """  # nosec B608  # column lists are the module constant _SCAN_HEADER_COLUMNS
+    )
+    # A database written before these tables existed: copy the headers once. Rows that already have
+    # one are skipped through the primary-key index, so this reads nothing on later starts.
+    conn.execute(
+        f"""
+        INSERT OR IGNORE INTO scan_headers (scan_id, {_SCAN_HEADER_COLS_SQL})
+        SELECT id, {_SCAN_HEADER_COLS_SQL} FROM scans s
+        WHERE NOT EXISTS (SELECT 1 FROM scan_headers h WHERE h.scan_id = s.id)
+        """  # nosec B608  # column list is the module constant _SCAN_HEADER_COLUMNS
+    )
+    mark_schema_ensured("scan_side_tables")
 
 
 def _ensure_sprint5_tables(conn: sqlite3.Connection) -> None:
@@ -601,6 +673,249 @@ def _ensure_sprint5_tables(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_asset ON scan_results(asset_key, scanned_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_scan_results_scan ON scan_results(scan_id)")
     _ensure_scan_result_observation_columns(conn)
+    _ensure_asset_scan_latest(conn)
+
+
+#: asset_scan_latest: one row per asset, the newest scan_results row plus a few fields of the full
+#: result (services/asset_posture.py says what and why).
+_ASSET_LATEST_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS asset_scan_latest (
+        organization_id TEXT NOT NULL,
+        asset_key TEXT NOT NULL,
+        result_id INTEGER NOT NULL DEFAULT 0,
+        scan_id TEXT NOT NULL DEFAULT '',
+        scanned_at TEXT NOT NULL DEFAULT '',
+        risk_level TEXT NOT NULL DEFAULT '',
+        quantum_score REAL NOT NULL DEFAULT 0,
+        findings_count INTEGER NOT NULL DEFAULT 0,
+        pq_relevance TEXT NOT NULL DEFAULT '',
+        tls_version TEXT NOT NULL DEFAULT '',
+        key_type TEXT NOT NULL DEFAULT '',
+        sig_algorithm TEXT NOT NULL DEFAULT '',
+        owner TEXT NOT NULL DEFAULT '',
+        team TEXT NOT NULL DEFAULT '',
+        environment TEXT NOT NULL DEFAULT '',
+        criticality TEXT NOT NULL DEFAULT '',
+        key_bits INTEGER,
+        key_curve TEXT,
+        cipher_name TEXT,
+        scan_status TEXT,
+        key_exchange TEXT,
+        host TEXT,
+        port INTEGER,
+        cert_expires_raw TEXT,
+        cert_expires_at TEXT,
+        cert_issuer TEXT,
+        cert_subject TEXT,
+        map_included INTEGER,
+        map_key_type TEXT,
+        map_key_bits INTEGER,
+        map_tls_version TEXT,
+        map_country TEXT,
+        map_risk_score REAL,
+        map_risk_basis TEXT,
+        search_text TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (organization_id, asset_key)
+    )
+"""
+
+
+def _sqlite_has_fts5_trigram(conn: sqlite3.Connection) -> bool:
+    try:
+        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS temp._fts5_probe USING fts5(x, tokenize='trigram')")
+        conn.execute("DROP TABLE IF EXISTS temp._fts5_probe")
+        return True
+    except sqlite3.OperationalError:
+        return False
+
+
+ASSET_LATEST_FACTS_BACKFILL = "asset_scan_latest_facts_v1"
+ASSET_LATEST_BACKFILL = "asset_scan_latest_extras_v1"
+
+#: The scan_results columns copied into asset_scan_latest (db._SCAN_FACT_COLUMNS; spelled out here
+#: because this module defines that constant further down).
+_LATEST_FACT_COLUMNS = (
+    "asset_key", "scan_id", "scanned_at", "risk_level", "quantum_score", "findings_count",
+    "pq_relevance", "tls_version", "key_type", "sig_algorithm",
+    "owner", "team", "environment", "criticality",
+    "key_bits", "key_curve", "cipher_name", "scan_status", "key_exchange",
+)
+_LATEST_EXTRA_COLUMNS = (
+    "host", "port", "cert_expires_raw", "cert_expires_at", "cert_issuer", "cert_subject",
+    "map_included", "map_key_type", "map_key_bits", "map_tls_version", "map_country",
+    "map_risk_score", "map_risk_basis",
+)
+#: What /search matches, one field after another (services/asset_posture.SEARCH_COLUMNS). char(31)
+#: separates them so that a term can only match inside one field, as the per-column LIKEs did.
+_LATEST_SEARCH_FIELDS = ("asset_key", "key_type", "sig_algorithm", "tls_version", "risk_level", "owner", "team",
+                         "environment")
+
+
+def _latest_search_sql(prefix: str, present: Optional[set] = None) -> str:
+    parts = []
+    for col in _LATEST_SEARCH_FIELDS:
+        if present is not None and col not in present:
+            parts.append("'unknown'" if col == "risk_level" else "''")
+        elif col == "risk_level":
+            parts.append("LOWER(CASE WHEN COALESCE(%srisk_level, '') = '' THEN 'unknown' ELSE %srisk_level END)"
+                         % (prefix, prefix))
+        else:
+            parts.append("LOWER(COALESCE(%s%s, ''))" % (prefix, col))
+    return " || char(31) || ".join(parts)
+
+
+def _asset_latest_fact_cols_sql() -> str:
+    return ", ".join(("organization_id", "result_id") + _LATEST_FACT_COLUMNS + ("search_text",))
+
+
+#: What a scan_results table without a column (an old or hand-made schema) contributes instead.
+_LATEST_FACT_DEFAULTS = {"quantum_score": "0", "findings_count": "0", "key_bits": "NULL", "key_curve": "NULL",
+                         "cipher_name": "NULL", "scan_status": "NULL", "key_exchange": "NULL"}
+
+
+def _fact_value_exprs(prefix: str, present: Optional[set] = None) -> List[str]:
+    """One SQL expression per _LATEST_FACT_COLUMNS entry, reading `prefix`<column>."""
+    return [prefix + c if present is None or c in present else _LATEST_FACT_DEFAULTS.get(c, "''")
+            for c in _LATEST_FACT_COLUMNS]
+
+
+def _asset_latest_fact_values_sql(prefix: str, present: Optional[set] = None) -> str:
+    rid = "id" if present is None or "id" in present else "rowid"
+    return ", ".join(["%sorganization_id" % prefix, prefix + rid]
+                     + _fact_value_exprs(prefix, present) + [_latest_search_sql(prefix, present)])
+
+
+def _asset_latest_trigger_sql(present: Optional[set] = None) -> str:
+    fact_sets = ", ".join("%s = excluded.%s" % (c, c) for c in _LATEST_FACT_COLUMNS if c != "asset_key")
+    clear_extras = ", ".join("%s = NULL" % c for c in _LATEST_EXTRA_COLUMNS)
+    copy_sets = ", ".join("%s = %s" % (c, v) for c, v in zip(_LATEST_FACT_COLUMNS, _fact_value_exprs("NEW.", present))
+                          if c != "asset_key")
+    cols = _asset_latest_fact_cols_sql()
+    upsert_new = (
+        "INSERT INTO asset_scan_latest (%s) VALUES (%s) "
+        "ON CONFLICT (organization_id, asset_key) DO UPDATE SET "
+        "result_id = excluded.result_id, %s, search_text = excluded.search_text, %s "
+        "WHERE excluded.scanned_at > asset_scan_latest.scanned_at "
+        "OR (excluded.scanned_at = asset_scan_latest.scanned_at AND excluded.result_id > asset_scan_latest.result_id)"
+        % (cols, _asset_latest_fact_values_sql("NEW.", present), fact_sets, clear_extras)
+    )
+    promote_old = (
+        "INSERT INTO asset_scan_latest (%s) SELECT %s FROM scan_results sr "
+        "WHERE sr.organization_id = OLD.organization_id AND sr.asset_key = OLD.asset_key "
+        "AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l WHERE l.organization_id = OLD.organization_id "
+        "AND l.asset_key = OLD.asset_key) "
+        "ORDER BY sr.scanned_at DESC, sr.id DESC LIMIT 1"
+        % (cols, _asset_latest_fact_values_sql("sr.", present))
+    )
+    drop_old = ("DELETE FROM asset_scan_latest WHERE organization_id = OLD.organization_id "
+                "AND asset_key = OLD.asset_key AND result_id = OLD.id")
+    same_row = ("NEW.id = OLD.id AND NEW.organization_id = OLD.organization_id AND NEW.asset_key = OLD.asset_key "
+                "AND NEW.scanned_at = OLD.scanned_at")
+    return f"""
+        CREATE TRIGGER IF NOT EXISTS trg_scan_results_latest_ins AFTER INSERT ON scan_results BEGIN
+            {upsert_new};
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_scan_results_latest_del AFTER DELETE ON scan_results BEGIN
+            {drop_old};
+            {promote_old};
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_scan_results_latest_upd_same AFTER UPDATE ON scan_results
+        WHEN {same_row} BEGIN
+            UPDATE asset_scan_latest SET {copy_sets}, search_text = {_latest_search_sql("NEW.", present)}
+            WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key AND result_id = NEW.id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_scan_results_latest_upd_moved AFTER UPDATE ON scan_results
+        WHEN NOT ({same_row}) BEGIN
+            {drop_old};
+            {promote_old};
+            {upsert_new};
+        END;
+    """  # nosec B608  # column lists are module constants
+
+
+#: Above this many trigram matches /search walks the newest-first index instead of the matches.
+_SEARCH_ROWID_CAP = 2000
+
+
+def _has_asset_search_index(conn: sqlite3.Connection) -> bool:
+    """Whether the trigram index exists (FTS5 with the trigram tokenizer needs SQLite 3.34+)."""
+    try:
+        return conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'asset_scan_latest_fts'").fetchone() is not None
+    except sqlite3.Error:
+        return False
+
+
+def _ensure_asset_scan_latest(conn: sqlite3.Connection) -> None:
+    if schema_ensured("asset_scan_latest"):
+        return
+    conn.execute(_ASSET_LATEST_TABLE_SQL)
+    # Newest first, as latest_scan_facts_for_org returns them.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_scanned"
+                 " ON asset_scan_latest (organization_id, scanned_at DESC, result_id DESC)")
+    # Index-only reads for the certificate report and the key map (see _sqlite_certificate_rows):
+    # visiting 100,000 rows in key order is 100,000 random page reads.
+    conn.execute("DROP INDEX IF EXISTS idx_asset_scan_latest_org_expiry")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_expiry_key"
+                 " ON asset_scan_latest (organization_id, cert_expires_at, asset_key)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_key_expiry"
+                 " ON asset_scan_latest (organization_id, asset_key, cert_expires_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_map"
+                 " ON asset_scan_latest (organization_id, map_included, map_country, map_risk_score, map_key_type)")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS morrow_backfills (name TEXT PRIMARY KEY, completed_at TEXT NOT NULL)"
+    )
+    # /search: a trigram full-text index over search_text, kept in sync by triggers. A trigram
+    # phrase query matches any substring of three or more characters, case-insensitively -- the
+    # "contains" that LIKE '%term%' answered by reading the newest row of every asset.
+    if _sqlite_has_fts5_trigram(conn):
+        existed = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE name = 'asset_scan_latest_fts'").fetchone() is not None
+        conn.executescript(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS asset_scan_latest_fts USING fts5(
+                search_text, content='asset_scan_latest', content_rowid='rowid', tokenize='trigram');
+            CREATE TRIGGER IF NOT EXISTS trg_asset_scan_latest_fts_ins AFTER INSERT ON asset_scan_latest BEGIN
+                INSERT INTO asset_scan_latest_fts (rowid, search_text) VALUES (NEW.rowid, NEW.search_text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS trg_asset_scan_latest_fts_del AFTER DELETE ON asset_scan_latest BEGIN
+                INSERT INTO asset_scan_latest_fts (asset_scan_latest_fts, rowid, search_text)
+                VALUES ('delete', OLD.rowid, OLD.search_text);
+            END;
+            CREATE TRIGGER IF NOT EXISTS trg_asset_scan_latest_fts_upd AFTER UPDATE OF search_text ON asset_scan_latest BEGIN
+                INSERT INTO asset_scan_latest_fts (asset_scan_latest_fts, rowid, search_text)
+                VALUES ('delete', OLD.rowid, OLD.search_text);
+                INSERT INTO asset_scan_latest_fts (rowid, search_text) VALUES (NEW.rowid, NEW.search_text);
+            END;
+            """
+        )
+        if not existed:
+            conn.execute("INSERT INTO asset_scan_latest_fts (asset_scan_latest_fts) VALUES ('rebuild')")
+    # The scan_results half of each row is maintained by triggers, so every writer -- raw SQL
+    # included -- keeps it exact: an insert replaces the asset's row when it is newer, an update of
+    # the asset's current row is copied, and deleting it (retention) promotes the next newest row.
+    present = {row[1] for row in conn.execute("PRAGMA table_info(scan_results)").fetchall()}
+    if not {"organization_id", "asset_key", "scanned_at"} <= present:
+        return  # no scan_results table (yet): try again on a later connection
+    conn.executescript(_asset_latest_trigger_sql(present))
+    if not conn.execute("SELECT 1 FROM morrow_backfills WHERE name = ?", (ASSET_LATEST_FACTS_BACKFILL,)).fetchone():
+        # Rows written before the triggers existed: the newest row of every asset, in one statement.
+        conn.execute(
+            f"""
+            INSERT INTO asset_scan_latest ({_asset_latest_fact_cols_sql()})
+            SELECT {_asset_latest_fact_values_sql("sr.", present)} FROM scan_results sr
+            WHERE NOT EXISTS (
+                SELECT 1 FROM scan_results n
+                WHERE n.organization_id = sr.organization_id AND n.asset_key = sr.asset_key
+                  AND (n.scanned_at > sr.scanned_at OR (n.scanned_at = sr.scanned_at AND n.id > sr.id))
+            ) AND true
+            ON CONFLICT (organization_id, asset_key) DO NOTHING
+            """  # nosec B608  # column lists are module constants
+        )
+        conn.execute("INSERT OR REPLACE INTO morrow_backfills (name, completed_at) VALUES (?, ?)",
+                     (ASSET_LATEST_FACTS_BACKFILL, _utc_now_iso()))
+        conn.commit()
+    mark_schema_ensured("asset_scan_latest")
 
 
 #: Key types whose size and curve are fixed by the algorithm itself, so they can be backfilled onto
@@ -1685,6 +2000,7 @@ def init_db():
     if postgres_main_db_requested():
         ensure_postgres_core_schema()
         ensure_postgres_default_org(name="Default Organization")
+        _run_asset_latest_backfill()
         return
     db_path = os.environ.get('MORROW_SCANNER_DB', DB_PATH)
     with closing(get_connection()) as conn:
@@ -1714,7 +2030,18 @@ def init_db():
         _WEBHOOK_CLAIM_COLUMNS_READY.discard(db_path)
     _schema_initialized_db_path = db_path
     _schema_initialized.set()
+    _run_asset_latest_backfill()
 
+
+def _run_asset_latest_backfill() -> None:
+    """backfill_asset_scan_latest at startup. A failure is logged, not fatal: the reports that need
+    the backfilled fields show those assets as "no evidence" until it succeeds on a later start."""
+    import logging as _logging
+
+    try:
+        backfill_asset_scan_latest(log=_logging.getLogger("morrow.db").info)
+    except Exception:
+        _logging.getLogger("morrow.db").exception("asset_scan_latest backfill failed")
 
 
 def save_scan_row(
@@ -1905,14 +2232,18 @@ def list_scan_rows(limit: int = 20) -> List[Dict[str, Any]]:
     if postgres_main_db_requested():
         return pg_list_scan_rows(org_id, limit=limit)
     with closing(get_connection()) as conn:
+        # scan_headers, not scans: summary_json and the job_* columns sit after results_json in a
+        # scans row, so reading them from there walks every selected scan's result blob (see
+        # _ensure_scan_side_tables). Same rows, same order as the rowid subquery on scans.
         cur = conn.execute(
-            f"""
-            SELECT id, status, created_at, progress_json, error_text, summary_json,
+            """
+            SELECT scan_id, status, created_at, progress_json, error_text, summary_json,
                    job_id, job_state, job_started_at, job_finished_at
-            FROM scans
-            WHERE rowid IN ({_NEWEST_SCAN_ROWIDS_SQL})
+            FROM scan_headers
+            WHERE organization_id = ?
             ORDER BY datetime(created_at) DESC
-            """,  # nosec B608  # the subquery is the module constant _NEWEST_SCAN_ROWIDS_SQL; org id and limit are bound
+            LIMIT ?
+            """,
             (org_id, limit),
         )
         rows = cur.fetchall()
@@ -2693,6 +3024,327 @@ def latest_scan_result_for_asset(asset_key_str: str) -> Optional[Dict[str, Any]]
             (org_id, asset_key_str),
         ).fetchone()
         return dict(row) if row else None
+
+
+def _certificate_sql(dialect: str) -> Dict[str, str]:
+    """The certificate lifecycle report over the whole inventory, in SQL.
+
+    Every inventory asset is one item, joined to its newest scan's certificate fields
+    (asset_scan_latest); classify_certificate's states map onto comparisons of the normalized expiry
+    with `now` (expired: before now; expiring soon: before now + warning_days + 1 days, since
+    days_remaining is the floor of the difference; high severity: before now + 8 days).
+    """
+    p = "%s" if dialect == "pg" else "?"
+    if dialect == "pg":
+        days = "FLOOR(EXTRACT(EPOCH FROM (c.cert_expires_at::timestamptz - %s::timestamptz)) / 86400)" % p
+    else:
+        diff = "(julianday(c.cert_expires_at) - julianday(%s))" % p
+        days = "(CAST(%s AS INTEGER) - (%s < CAST(%s AS INTEGER)))" % (diff, diff, diff)
+    base = (
+        "SELECT a.asset_key, a.owner, a.team, a.repository_id, COALESCE(r.name, '') AS repository_name, "
+        "l.scan_id, l.scanned_at, l.cert_expires_raw, l.cert_expires_at, l.cert_issuer, l.cert_subject "
+        "FROM assets a "
+        "LEFT JOIN asset_scan_latest l ON l.organization_id = a.organization_id AND l.asset_key = a.asset_key "
+        "LEFT JOIN repositories r ON r.organization_id = a.organization_id AND r.id = a.repository_id "
+        "AND a.repository_id <> 0 "
+        "WHERE a.organization_id = %s AND TRIM(a.asset_key) <> ''" % p
+    )
+    rank = ("CASE WHEN c.cert_expires_at IS NULL THEN 3 WHEN c.cert_expires_at < {p} THEN 0 "
+            "WHEN c.cert_expires_at < {p} THEN 1 WHEN c.cert_expires_at < {p} THEN 2 ELSE 4 END").format(p=p)
+    summary = (
+        "SELECT COUNT(*) AS total, "
+        "COALESCE(SUM(CASE WHEN c.cert_expires_at IS NULL THEN 1 ELSE 0 END), 0) AS unknown, "
+        "COALESCE(SUM(CASE WHEN c.cert_expires_at < {p} THEN 1 ELSE 0 END), 0) AS expired, "
+        "COALESCE(SUM(CASE WHEN c.cert_expires_at >= {p} AND c.cert_expires_at < {p} THEN 1 ELSE 0 END), 0) AS expiring_soon, "
+        "COALESCE(SUM(CASE WHEN c.cert_expires_at >= {p} THEN 1 ELSE 0 END), 0) AS healthy "
+        "FROM ({base}) c"
+    ).format(p=p, base=base)
+    page = (
+        "SELECT c.* FROM ({base}) c ORDER BY {rank}, "
+        "CASE WHEN c.cert_expires_at IS NULL THEN 99999 ELSE {days} END, c.asset_key LIMIT {p}"
+    ).format(base=base, rank=rank, days=days, p=p)
+    return {"summary": summary, "page": page}
+
+
+def certificate_lifecycle_rows(warning_days: int, now: datetime, limit: int) -> Dict[str, Any]:
+    """{"summary": {...counts over the whole inventory}, "total": n, "rows": [the `limit` most urgent]}.
+
+    Rows come back in the report's order (severity, days remaining, asset key) with the asset's
+    inventory fields and its newest scan's certificate fields; the caller classifies each row with
+    classify_certificate(now=now), which agrees with the SQL buckets by construction.
+    """
+    from services.asset_posture import expiry_threshold
+
+    org_id = current_organization_id()
+    now_s = expiry_threshold(now)
+    soon = expiry_threshold(now, int(warning_days) + 1)
+    high = expiry_threshold(now, 8)
+    sev_high = high if int(warning_days) >= 7 else soon
+    if postgres_main_db_requested():
+        return pg_certificate_lifecycle_rows(org_id, now_s, soon, sev_high, int(limit), _certificate_sql("pg"))
+    with closing(get_connection()) as conn:
+        conn.row_factory = sqlite3.Row
+        return _sqlite_certificate_rows(conn, org_id, now, now_s, soon, sev_high, int(limit))
+
+
+#: An inventory asset (the certificate report covers the inventory, not scan rows without one).
+_IN_INVENTORY = ("EXISTS (SELECT 1 FROM assets a WHERE a.organization_id = l.organization_id "
+                 "AND a.asset_key = l.asset_key AND TRIM(a.asset_key) <> '')")
+
+
+def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetime, now_s: str, soon: str,
+                             sev_high: str, limit: int) -> Dict[str, Any]:
+    """certificate_lifecycle_rows on SQLite, reading indexes instead of rows.
+
+    The single join over every asset (as Postgres runs it) visited 100,000 asset rows and 100,000
+    asset_scan_latest rows in key order -- random page reads, 20-70 s on a laptop short of memory.
+    Here the counts come from idx_asset_scan_latest_org_expiry_key and the assets primary key alone,
+    the report's order is assembled from three ranges (expired or expiring, then unknown, then
+    healthy, as classify_certificate ranks them), and only the `limit` listed assets are read.
+    """
+    total = int(conn.execute("SELECT COUNT(*) FROM assets WHERE organization_id = ? AND TRIM(asset_key) <> ''",
+                             (org_id,)).fetchone()[0] or 0)
+    s = conn.execute(
+        f"""
+        SELECT COALESCE(SUM(CASE WHEN cert_expires_at < ? THEN 1 ELSE 0 END), 0),
+               COALESCE(SUM(CASE WHEN cert_expires_at >= ? AND cert_expires_at < ? THEN 1 ELSE 0 END), 0),
+               COALESCE(SUM(CASE WHEN cert_expires_at >= ? THEN 1 ELSE 0 END), 0)
+        FROM asset_scan_latest l
+        WHERE l.organization_id = ? AND l.cert_expires_at IS NOT NULL AND {_IN_INVENTORY}
+        """,  # nosec B608  # _IN_INVENTORY is a module constant
+        (now_s, now_s, soon, soon, org_id),
+    ).fetchone()
+    expired, expiring, healthy = (int(v or 0) for v in s)
+    summary = {"expired": expired, "expiring_soon": expiring, "healthy": healthy,
+               "unknown": total - expired - expiring - healthy}
+
+    day_cache: Dict[str, int] = {}
+
+    def days(expires: str) -> int:
+        d = day_cache.get(expires)
+        if d is None:
+            dt = datetime.fromisoformat(expires[:-1]).replace(tzinfo=timezone.utc)
+            d = day_cache[expires] = int((dt - now).total_seconds() // 86400)
+        return d
+
+    def ranked(rows) -> List[tuple]:
+        out = []
+        for key, expires in rows:
+            rank = 0 if expires < now_s else 1 if expires < sev_high else 2 if expires < soon else 4
+            out.append((rank, days(expires), key))
+        return sorted(out)
+
+    # 1. Expired and expiring: few on a healthy estate, all of them on a neglected one.
+    page = [k for _, _, k in ranked(conn.execute(
+        f"SELECT asset_key, cert_expires_at FROM asset_scan_latest l "  # nosec B608  # _IN_INVENTORY is a module constant
+        f"WHERE l.organization_id = ? AND l.cert_expires_at IS NOT NULL AND l.cert_expires_at < ? AND {_IN_INVENTORY}",
+        (org_id, soon)))][:limit]
+    # 2. Unknown (no scan, or no expiry in it), by asset key.
+    if len(page) < limit:
+        page += [r[0] for r in conn.execute(
+            "SELECT a.asset_key FROM assets a WHERE a.organization_id = ? AND TRIM(a.asset_key) <> '' "
+            "AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l INDEXED BY idx_asset_scan_latest_org_key_expiry "
+            "WHERE l.organization_id = a.organization_id "
+            "AND l.asset_key = a.asset_key AND l.cert_expires_at IS NOT NULL) ORDER BY a.asset_key LIMIT ?",
+            (org_id, limit - len(page)))]
+    # 3. Healthy, soonest first: the first `remaining` by expiry, widened to the whole last day so
+    #    the asset-key tie-break inside that day is complete.
+    if len(page) < limit:
+        remaining = limit - len(page)
+        first = conn.execute(
+            f"SELECT asset_key, cert_expires_at FROM asset_scan_latest l "  # nosec B608  # _IN_INVENTORY is a module constant
+            f"WHERE l.organization_id = ? AND l.cert_expires_at >= ? AND {_IN_INVENTORY} "
+            f"ORDER BY l.cert_expires_at LIMIT ?", (org_id, soon, remaining)).fetchall()
+        if first:
+            from services.asset_posture import expiry_threshold
+
+            last_day_end = expiry_threshold(now, days(first[-1][1]) + 1)
+            rows = conn.execute(
+                f"SELECT asset_key, cert_expires_at FROM asset_scan_latest l "  # nosec B608  # _IN_INVENTORY is a module constant
+                f"WHERE l.organization_id = ? AND l.cert_expires_at >= ? AND l.cert_expires_at < ? AND {_IN_INVENTORY}",
+                (org_id, soon, last_day_end)).fetchall()
+            page += [k for _, _, k in ranked(rows)][:remaining]
+    # Only the listed assets are read in full.
+    by_key: Dict[str, Dict[str, Any]] = {}
+    for start in range(0, len(page), 500):
+        chunk = page[start:start + 500]
+        marks = ",".join("?" * len(chunk))
+        for r in conn.execute(
+            f"""
+            SELECT a.asset_key, a.owner, a.team, a.repository_id, COALESCE(r.name, '') AS repository_name,
+                   l.scan_id, l.scanned_at, l.cert_expires_raw, l.cert_expires_at, l.cert_issuer, l.cert_subject
+            FROM assets a
+            LEFT JOIN asset_scan_latest l ON l.organization_id = a.organization_id AND l.asset_key = a.asset_key
+            LEFT JOIN repositories r ON r.organization_id = a.organization_id AND r.id = a.repository_id
+                 AND a.repository_id <> 0
+            WHERE a.organization_id = ? AND a.asset_key IN ({marks})
+            """,  # nosec B608  # only placeholders are interpolated
+            (org_id, *chunk),
+        ):
+            by_key[r["asset_key"]] = dict(r)
+    return {"summary": summary, "total": total, "rows": [by_key[k] for k in page if k in by_key]}
+
+
+def hndl_asset_inputs(now: datetime) -> List[tuple]:
+    """Every inventory asset's HNDL pricing inputs, in /assets order (updated_at, asset_key descending):
+    (asset_key, owner, environment, tls_version, cipher_name, key_type, key_bits, key_exchange,
+    first_scan_days_ago), the newest scan's fields from asset_scan_latest.
+
+    first_scan_days_ago is what the HNDL handlers derived from updated_at: whole days since then, at
+    least 30, or 365 when the stamp carries no time zone. The HNDL views priced only the newest
+    1,000 assets because this join ran per asset; it is one narrow statement for the whole estate.
+    """
+    org_id = current_organization_id()
+    now_iso = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    if postgres_main_db_requested():
+        return pg_hndl_asset_inputs(org_id, now_iso)
+    diff = "(julianday(?) - julianday(a.updated_at))"
+    days = ("CASE WHEN a.updated_at GLOB '*Z' OR a.updated_at GLOB '*[+-][0-9][0-9]:[0-9][0-9]' "
+            "THEN MAX(30, CAST(%s AS INTEGER) - (%s < CAST(%s AS INTEGER))) ELSE 365 END" % (diff, diff, diff))
+    with closing(get_connection()) as conn:
+        return [tuple(r) for r in conn.execute(
+            f"""
+            SELECT a.asset_key, a.owner, a.environment, COALESCE(l.tls_version, ''), COALESCE(l.cipher_name, ''),
+                   COALESCE(l.key_type, ''), COALESCE(l.key_bits, 0), COALESCE(l.key_exchange, ''), {days}
+            FROM assets a
+            LEFT JOIN asset_scan_latest l ON l.organization_id = a.organization_id AND l.asset_key = a.asset_key
+            WHERE a.organization_id = ? AND a.asset_key <> ''
+            ORDER BY a.updated_at DESC, a.asset_key DESC
+            """,  # nosec B608  # days is a fixed expression; values are bound
+            (now_iso, now_iso, now_iso, org_id),
+        )]
+
+
+def key_map_rows(record_limit: int = 3000) -> Dict[str, Any]:
+    """The key map over every asset's newest scan, aggregated in SQL (asset_scan_latest).
+
+    {"summary": {total, high_risk, without_country, without_key_type},
+     "countries": [{country, key_count, scored_key_count, total_risk}],
+     "records": [the newest `record_limit` keys, newest first]}. Results that carried an error are
+    left out, as build_dark_matter_map leaves them out.
+    """
+    org_id = current_organization_id()
+    if postgres_main_db_requested():
+        return pg_key_map_rows(org_id, int(record_limit))
+    with closing(get_connection()) as conn:
+        conn.row_factory = sqlite3.Row
+        s = conn.execute(
+            """
+            SELECT COUNT(*) AS total,
+                   COALESCE(SUM(CASE WHEN COALESCE(map_risk_score, 0) >= 0.80 THEN 1 ELSE 0 END), 0) AS high_risk,
+                   COALESCE(SUM(CASE WHEN map_country IS NULL THEN 1 ELSE 0 END), 0) AS without_country,
+                   COALESCE(SUM(CASE WHEN COALESCE(map_key_type, '') = '' THEN 1 ELSE 0 END), 0) AS without_key_type
+            FROM asset_scan_latest WHERE organization_id = ? AND map_included = 1
+            """,
+            (org_id,),
+        ).fetchone()
+        countries = conn.execute(
+            """
+            SELECT map_country AS country, COUNT(*) AS key_count, COUNT(map_risk_score) AS scored_key_count,
+                   COALESCE(SUM(map_risk_score), 0) AS total_risk
+            FROM asset_scan_latest WHERE organization_id = ? AND map_included = 1 AND map_country IS NOT NULL
+            GROUP BY map_country ORDER BY key_count DESC, map_country
+            """,
+            (org_id,),
+        ).fetchall()
+        records = conn.execute(
+            """
+            SELECT host, port, map_key_type AS key_type, map_key_bits AS key_bits, map_tls_version AS tls_version,
+                   map_country AS country, map_risk_score AS risk_score, map_risk_basis AS risk_basis
+            FROM asset_scan_latest WHERE organization_id = ? AND map_included = 1
+            ORDER BY scanned_at DESC, result_id DESC LIMIT ?
+            """,
+            (org_id, max(0, int(record_limit))),
+        ).fetchall()
+    return {"summary": dict(s), "countries": [dict(r) for r in countries], "records": [dict(r) for r in records]}
+
+
+def asset_latest_evidence(asset_keys: Sequence[str]) -> Dict[str, Dict[str, Any]]:
+    """{asset_key: {"scan_id", "scanned_at"}} for the assets among `asset_keys` that have scan
+    evidence: the newest scan of each, from asset_scan_latest. One query per 500 keys."""
+    keys = list(dict.fromkeys(str(k).strip() for k in (asset_keys or []) if str(k or "").strip()))
+    if not keys:
+        return {}
+    org_id = current_organization_id()
+    if postgres_main_db_requested():
+        return pg_asset_latest_evidence(org_id, keys)
+    out: Dict[str, Dict[str, Any]] = {}
+    with closing(get_connection()) as conn:
+        for start in range(0, len(keys), 500):
+            chunk = keys[start:start + 500]
+            marks = ",".join("?" * len(chunk))
+            for ak, scan_id, scanned_at in conn.execute(
+                f"SELECT asset_key, scan_id, scanned_at FROM asset_scan_latest "  # nosec B608  # only placeholders are interpolated
+                f"WHERE organization_id = ? AND asset_key IN ({marks})",
+                (org_id, *chunk),
+            ):
+                out[str(ak)] = {"scan_id": scan_id or "", "scanned_at": scanned_at or ""}
+    return out
+
+
+#: The statuses _telemetry_status_event_type reports as "scan_complete".
+_COMPLETE_SCAN_STATUSES = ("done", "completed", "complete")
+
+
+def telemetry_scan_counts(hour_ago_iso: str, day_ago_iso: str, findings_since_iso: str) -> Dict[str, Any]:
+    """The persisted-scan inputs of /telemetry/kpis, counted in SQL.
+
+    scans_complete_1h  completed scans whose finish time (job_finished_at, else created_at) is within
+                       the hour
+    scans_total        every scan the tenant has (each is one telemetry event)
+    newest_complete_at the newest completed scan's finish time, ISO text, or ""
+    findings_24h       (scan, asset) results since day_ago with critical/high risk
+    findings_events    (scan, asset) results since findings_since that count as finding events
+                       (critical/high risk, or at least one finding)
+    """
+    org_id = current_organization_id()
+    if postgres_main_db_requested():
+        return pg_telemetry_scan_counts(org_id, hour_ago_iso, day_ago_iso, findings_since_iso)
+    statuses = ",".join("'%s'" % s for s in _COMPLETE_SCAN_STATUSES)
+    finished = "datetime(COALESCE(NULLIF(job_finished_at, ''), created_at))"
+    with closing(get_connection()) as conn:
+        row = conn.execute(
+            f"""
+            SELECT COUNT(*),
+                   COALESCE(SUM(CASE WHEN LOWER(status) IN ({statuses}) AND {finished} >= datetime(?) THEN 1 ELSE 0 END), 0),
+                   MAX(CASE WHEN LOWER(status) IN ({statuses}) THEN {finished} END)
+            FROM scan_headers WHERE organization_id = ?
+            """,  # nosec B608  # statuses is the module constant _COMPLETE_SCAN_STATUSES
+            (hour_ago_iso, org_id),
+        ).fetchone()
+        findings = conn.execute(
+            """
+            SELECT COALESCE(SUM(CASE WHEN hot = 1 AND scanned_at >= ? THEN 1 ELSE 0 END), 0), COUNT(*)
+            FROM (
+                SELECT scan_id, asset_key, MAX(scanned_at) AS scanned_at,
+                       MAX(CASE WHEN LOWER(risk_level) IN ('critical', 'high') THEN 1 ELSE 0 END) AS hot,
+                       MAX(findings_count) AS findings
+                FROM scan_results
+                WHERE organization_id = ? AND scanned_at >= ?
+                GROUP BY scan_id, asset_key
+            ) WHERE hot = 1 OR findings > 0
+            """,
+            (day_ago_iso, org_id, findings_since_iso),
+        ).fetchone()
+    newest = str(row[2] or "")
+    return {"scans_total": int(row[0] or 0), "scans_complete_1h": int(row[1] or 0),
+            "newest_complete_at": (newest.replace(" ", "T") + "Z") if newest else "",
+            "findings_24h": int(findings[0] or 0), "findings_events": int(findings[1] or 0)}
+
+
+def count_flight_recorder_events_since(intent: str, since_iso: str) -> Dict[str, int]:
+    """{"since": events with `intent` created at or after since_iso, "total": all with `intent`}."""
+    org_id = current_organization_id()
+    if postgres_main_db_requested():
+        return pg_count_flight_recorder_events_since(org_id, intent, since_iso)
+    with closing(get_connection()) as conn:
+        _ensure_flight_recorder_tables(conn)
+        row = conn.execute(
+            "SELECT COALESCE(SUM(CASE WHEN datetime(created_at) >= datetime(?) THEN 1 ELSE 0 END), 0), COUNT(*) "
+            "FROM flight_recorder_events WHERE organization_id = ? AND intent = ?",
+            (since_iso, org_id, str(intent or "")),
+        ).fetchone()
+    return {"since": int(row[0] or 0), "total": int(row[1] or 0)}
 
 
 # -----------------------------
@@ -4688,6 +5340,7 @@ def delete_organization(organization_id: str, mode: str = "archive") -> Dict[str
         "migration_tasks",
         "remediations",
         "scan_results",
+        "asset_scan_latest",
         "baselines",
         "asset_tags",
         "assets",
@@ -4961,7 +5614,12 @@ def save_scan_asset_summaries(scan_id: str, scanned_at_iso: str, results: list[d
             env = (a.get("environment") or "") if isinstance(a, dict) else ""
             crit = (a.get("criticality") or "") if isinstance(a, dict) else ""
 
-            conn.execute(
+            facts = (org_id, ak, scan_id, scanned_at_iso, risk_level, quantum_score, findings_count,
+                     pq_rel, tls_ver, key_type, sig_alg,
+                     owner, team, env, crit,
+                     observed["key_bits"], observed["key_curve"],
+                     observed["cipher_name"], observed["scan_status"], observed["key_exchange"])
+            cur = conn.execute(
                 """
                 INSERT INTO scan_results (
                     organization_id,
@@ -4971,13 +5629,107 @@ def save_scan_asset_summaries(scan_id: str, scanned_at_iso: str, results: list[d
                     key_bits, key_curve, cipher_name, scan_status, key_exchange
                 ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
-                (org_id, ak, scan_id, scanned_at_iso, risk_level, quantum_score, findings_count,
-                 pq_rel, tls_ver, key_type, sig_alg,
-                 owner, team, env, crit,
-                 observed["key_bits"], observed["key_curve"],
-                 observed["cipher_name"], observed["scan_status"], observed["key_exchange"]),
+                facts,
             )
+            # The scan_results trigger has made this row the asset's current one if it is the newest;
+            # add what only the full result carries (certificate, key map). A no-op when it is not.
+            _set_asset_latest_extras(conn, org_id, ak, int(cur.lastrowid or 0), r)
         conn.commit()
+
+
+def _asset_latest_extras_update_sql(placeholder: str = "?") -> str:
+    sets = ", ".join("%s = %s" % (c, placeholder) for c in _LATEST_EXTRA_COLUMNS)
+    return ("UPDATE asset_scan_latest SET %s WHERE organization_id = %s AND asset_key = %s AND result_id = %s"
+            % (sets, placeholder, placeholder, placeholder))
+
+
+def _set_asset_latest_extras(conn: sqlite3.Connection, org_id: str, ak: str, result_id: int,
+                             result: Dict[str, Any]) -> None:
+    from services.asset_posture import result_extras
+
+    extras = result_extras(result)
+    conn.execute(_asset_latest_extras_update_sql(),
+                 tuple(extras[c] for c in _LATEST_EXTRA_COLUMNS) + (org_id, ak, int(result_id)))
+
+
+def _result_asset_key_sqlite(result: Dict[str, Any]) -> str:
+    """The asset key save_scan_asset_summaries gives a result on SQLite."""
+    try:
+        return asset_key(result.get("host", ""), int(result.get("port", 443)))
+    except Exception:
+        return ""
+
+
+def asset_scan_latest_ready() -> bool:
+    """Whether asset_scan_latest carries the full-result fields for scans written before it existed
+    (backfill_asset_scan_latest has run). Its scan_results half is always current."""
+    if postgres_main_db_requested():
+        return pg_asset_scan_latest_ready()
+    with closing(get_connection()) as conn:
+        try:
+            row = conn.execute("SELECT 1 FROM morrow_backfills WHERE name = ?", (ASSET_LATEST_BACKFILL,)).fetchone()
+        except sqlite3.OperationalError:
+            return False
+    return row is not None
+
+
+def backfill_asset_scan_latest(log: Any = None) -> Dict[str, int]:
+    """Add the full-result fields to asset_scan_latest rows that predate it. Runs once, from init_db.
+
+    Each such asset's newest scan is loaded once; within it the last result with that asset key
+    wins -- the one whose scan_results row has the highest id, since save_scan_asset_summaries
+    writes them in order. A row whose scan no longer holds its result keeps NULLs, which every
+    reader takes as "no certificate / key evidence".
+    """
+    if postgres_main_db_requested():
+        return pg_backfill_asset_scan_latest(log=log)
+    from services.asset_posture import result_extras
+
+    started = datetime.now(timezone.utc)
+    stats = {"rows": 0, "scans_read": 0, "filled": 0}
+    with closing(get_connection()) as conn:
+        _ensure_asset_scan_latest(conn)
+        if conn.execute("SELECT 1 FROM morrow_backfills WHERE name = ?", (ASSET_LATEST_BACKFILL,)).fetchone():
+            return stats
+        pending = conn.execute(
+            "SELECT organization_id, scan_id, asset_key, result_id FROM asset_scan_latest WHERE map_included IS NULL"
+        ).fetchall()
+        stats["rows"] = len(pending)
+        by_scan: Dict[tuple, Dict[str, int]] = {}
+        for org, scan_id, ak, rid in pending:
+            by_scan.setdefault((org, scan_id), {})[ak] = int(rid)
+        update = _asset_latest_extras_update_sql()
+        for n, ((org, scan_id), keys) in enumerate(sorted(by_scan.items()), 1):
+            row = conn.execute("SELECT results_json FROM scans WHERE organization_id = ? AND id = ?",
+                               (org, scan_id)).fetchone()
+            stats["scans_read"] += 1
+            try:
+                results = json.loads(row[0] or "[]") if row else []
+            except Exception:
+                results = []
+            last: Dict[str, Dict[str, Any]] = {}
+            for result in results if isinstance(results, list) else []:
+                if isinstance(result, dict):
+                    ak = _result_asset_key_sqlite(result)
+                    if ak in keys:
+                        last[ak] = result
+            params = []
+            for ak, result in last.items():
+                extras = result_extras(result)
+                params.append(tuple(extras[c] for c in _LATEST_EXTRA_COLUMNS) + (org, ak, keys[ak]))
+            if params:
+                conn.executemany(update, params)
+                stats["filled"] += len(params)
+            if n % 100 == 0:
+                conn.commit()
+                if log:
+                    log("asset_scan_latest backfill: %d/%d scans" % (n, len(by_scan)))
+        conn.execute("INSERT OR REPLACE INTO morrow_backfills (name, completed_at) VALUES (?, ?)",
+                     (ASSET_LATEST_BACKFILL, _utc_now_iso()))
+        conn.commit()
+    if log:
+        log("asset_scan_latest backfill: %s in %.1f s" % (stats, (datetime.now(timezone.utc) - started).total_seconds()))
+    return stats
 
 
 def register_scanned_asset(asset_key_str: str, conn: Optional[sqlite3.Connection] = None) -> None:
@@ -5196,29 +5948,64 @@ def latest_scan_facts_for_org(limit: int = 5000, text_query: str = "") -> list[d
             return pg_latest_scan_facts_for_org(org_id, limit=limit, text_query=term)
         return pg_latest_scan_facts_for_org(org_id, limit=limit)
     columns = ", ".join(_SCAN_FACT_COLUMNS)
-    search = (" AND " + _SCAN_FACT_SEARCH_SQL) if term else ""
-    search_params = [_like_contains(term)] * _SCAN_FACT_SEARCH_TERMS if term else []
     with closing(get_connection()) as conn, conn:
         conn.row_factory = sqlite3.Row
         try:
-            # Walk the tenant's rows newest first (idx_scan_results_org_scanned) and keep a row only
-            # if no newer row exists for its asset (idx_scan_results_org_asset_scanned), stopping at
-            # `limit`. The ROW_NUMBER() window this replaces ranked the tenant's whole history before
-            # the LIMIT applied: 30 s per report at 100,000 assets (200,000 rows), against 0.3 s here.
-            rows = conn.execute(
-                f"""
-                SELECT {columns} FROM scan_results sr
-                WHERE sr.organization_id = ?
-                  AND NOT EXISTS (
-                      SELECT 1 FROM scan_results n
-                      WHERE n.organization_id = sr.organization_id AND n.asset_key = sr.asset_key
-                        AND (n.scanned_at > sr.scanned_at OR (n.scanned_at = sr.scanned_at AND n.id > sr.id))
-                  ){search}
-                ORDER BY sr.scanned_at DESC, sr.id DESC
-                LIMIT ?
-                """,  # nosec B608  # columns are the _SCAN_FACT_COLUMNS constant and search the constant _SCAN_FACT_SEARCH_SQL; org id, terms and limit are bound
-                (org_id, *search_params, limit),
-            ).fetchall()
+            # asset_scan_latest holds exactly the row the NOT EXISTS walk over scan_results found
+            # (the newest per asset by scanned_at, then id), one per asset, so the history is not
+            # read at all: idx_asset_scan_latest_org_scanned is walked newest first to `limit`.
+            if term and len(term) >= 3 and _has_asset_search_index(conn):
+                # Trigram index: a quoted phrase matches any substring, case-insensitively, so this is
+                # the per-column LIKE '%term%' without reading every asset. A rare term at 100,000
+                # assets took 8 s through the walk.
+                phrase = '"' + term.replace('"', '""') + '"'
+                hits = [r[0] for r in conn.execute(
+                    "SELECT rowid FROM asset_scan_latest_fts WHERE asset_scan_latest_fts MATCH ? LIMIT ?",
+                    (phrase, _SEARCH_ROWID_CAP + 1))]
+                if len(hits) <= _SEARCH_ROWID_CAP:
+                    # A selective term: read just the matching rows and order them.
+                    marks = ",".join("?" * len(hits)) or "NULL"
+                    rows = conn.execute(
+                        f"""
+                        SELECT {columns} FROM asset_scan_latest
+                        WHERE rowid IN ({marks}) AND organization_id = ?
+                        ORDER BY scanned_at DESC, result_id DESC
+                        LIMIT ?
+                        """,  # nosec B608  # columns are the _SCAN_FACT_COLUMNS constant; only placeholders are interpolated
+                        (*hits, org_id, limit),
+                    ).fetchall()
+                else:
+                    # A common term: the newest-first walk meets `limit` matches almost at once.
+                    rows = conn.execute(
+                        f"""
+                        SELECT {columns} FROM asset_scan_latest
+                        WHERE organization_id = ? AND instr(search_text, ?) > 0
+                        ORDER BY scanned_at DESC, result_id DESC
+                        LIMIT ?
+                        """,  # nosec B608  # columns are the _SCAN_FACT_COLUMNS constant; org id, term and limit are bound
+                        (org_id, term, limit),
+                    ).fetchall()
+            elif term:
+                # Under three characters a trigram index cannot help; one narrow row per asset is read.
+                rows = conn.execute(
+                    f"""
+                    SELECT {columns} FROM asset_scan_latest
+                    WHERE organization_id = ? AND instr(search_text, ?) > 0
+                    ORDER BY scanned_at DESC, result_id DESC
+                    LIMIT ?
+                    """,  # nosec B608  # columns are the _SCAN_FACT_COLUMNS constant; org id, term and limit are bound
+                    (org_id, term, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    f"""
+                    SELECT {columns} FROM asset_scan_latest
+                    WHERE organization_id = ?
+                    ORDER BY scanned_at DESC, result_id DESC
+                    LIMIT ?
+                    """,  # nosec B608  # columns are the _SCAN_FACT_COLUMNS constant; org id and limit are bound
+                    (org_id, limit),
+                ).fetchall()
         except sqlite3.OperationalError as exc:
             if "no such table" in str(exc).lower():
                 try:

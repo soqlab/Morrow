@@ -1,20 +1,15 @@
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict
 import sys
 
 from fastapi import APIRouter, Query, Request
 
-from db import current_organization_id, list_assets, list_runtime_observed_assets
-from services.crypto_governance import build_certificate_lifecycle_report, build_shadow_it_report
+from db import (asset_latest_evidence, certificate_lifecycle_rows, current_organization_id, list_assets,
+                list_runtime_observed_assets)
+from services.crypto_governance import build_certificate_lifecycle_report_from_rows, build_shadow_it_report
 
 
 RequireRole = Callable[..., Dict[str, Any]]
-
-
-def _app_attr(name: str) -> Any:
-    app_module = sys.modules.get("app")
-    if app_module is None or not hasattr(app_module, name):
-        raise RuntimeError(f"{name} unavailable")
-    return getattr(app_module, name)
 
 
 def _default_org_id() -> str:
@@ -34,15 +29,12 @@ def create_governance_router(require_role: RequireRole) -> APIRouter:
     ):
         org_id = str(getattr(request.state, "org_id", current_organization_id()) or _default_org_id()).strip() or _default_org_id()
         require_role(request, allowed_roles=["viewer", "operator", "admin"], action="governance.certificates", resource_type="organization", resource_id=org_id)
-        assets = list_assets(limit=int(asset_limit))
-        # fallback_keys: an asset missing from the recent scans is answered from one batched
-        # query instead of one query per asset (5,000 sequential reads on a 10k inventory).
-        report = build_certificate_lifecycle_report(
-            assets=assets,
-            latest_for_asset=_app_attr("_latest_full_scan_result_lookup")(
-                fallback_keys=[a.get("asset_key") or "" for a in assets]),
-            warning_days=int(warning_days),
-        )
+        # The summary covers the whole inventory and `items` lists the `asset_limit` most urgent
+        # certificates, both from asset_scan_latest in SQL. This used to parse the newest 100
+        # scans' full results (4-18 s and 95 MB at 100,000 assets) for the newest 5,000 assets only.
+        now = datetime.now(timezone.utc)
+        data = certificate_lifecycle_rows(int(warning_days), now, int(asset_limit))
+        report = build_certificate_lifecycle_report_from_rows(data, warning_days=int(warning_days), now=now)
         return {"api_version": "v1", "organization_id": org_id, **report}
 
     @router.get("/governance/shadow-it")
@@ -54,13 +46,17 @@ def create_governance_router(require_role: RequireRole) -> APIRouter:
     ):
         org_id = str(getattr(request.state, "org_id", current_organization_id()) or _default_org_id()).strip() or _default_org_id()
         require_role(request, allowed_roles=["viewer", "operator", "admin"], action="governance.shadow_it", resource_type="organization", resource_id=org_id)
-        assets = list_assets(limit=int(asset_limit))
         runtime_assets = list_runtime_observed_assets(limit=int(runtime_limit))
+        keys = [str(r.get("asset_key") or "").strip() for r in runtime_assets if str(r.get("asset_key") or "").strip()]
+        # Only the runtime endpoints are judged, so only their inventory rows and scan evidence are
+        # read. Reading the newest `asset_limit` assets instead called every runtime endpoint outside
+        # them "not in asset inventory" once the inventory was larger than that.
+        assets = list_assets(limit=max(int(asset_limit), len(keys)), asset_keys=keys, _max_limit=20000) if keys else []
+        evidence = asset_latest_evidence(keys)
         report = build_shadow_it_report(
             assets=assets,
             runtime_assets=runtime_assets,
-            latest_for_asset=_app_attr("_latest_full_scan_result_lookup")(
-                fallback_keys=[a.get("asset_key") or "" for a in assets]),
+            latest_for_asset=lambda key: evidence.get(str(key or "").strip()) or {},
         )
         return {"api_version": "v1", "organization_id": org_id, **report}
 

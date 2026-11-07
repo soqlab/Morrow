@@ -1,0 +1,3 @@
+# Concurrency runs only (scripts/scale/locustfile.py). Not a runtime or CI dependency: install it in a
+# separate virtualenv, e.g.  python -m venv .venv-load && .venv-load/bin/pip install -r scripts/scale/requirements-load.txt
+locust==2.32.4

@@ -131,6 +131,8 @@ from db import (
     load_scan_row,
     count_scans,
     list_scan_rows,
+    telemetry_scan_counts,
+    count_flight_recorder_events_since,
     asset_key,
     set_baseline,
     get_baseline,
@@ -280,7 +282,7 @@ from services.q_intel import (
     ingest_milestone as _ingest_milestone,
     get_q_day_probability as _get_q_day_probability,
 )
-from services.dark_matter import build_dark_matter_map as _build_dark_matter_map
+from services.dark_matter import build_dark_matter_map_from_rows as _build_dark_matter_map_from_rows
 from services.quantum_sim import (
     build_simulation_graph as _build_sim_graph,
     run_detonation as _run_detonation,
@@ -4198,6 +4200,7 @@ _POSTGRES_NATIVE_OR_ARCHIVED_TABLES = {
     "baselines",
     "scans",
     "scan_results",
+    "asset_scan_latest",
     "remediations",
     "migration_tasks",
     "validation_jobs",
@@ -8456,56 +8459,15 @@ def api_hndl_tls_dashboard(request: Request, q_day_year: Optional[int] = None):
 
     q_day_year = max(2027, min(int(q_day_year), 2040)) if q_day_year else None
 
-    # Pull all assets + their latest scan result. One batched query, not one per asset: this loop
-    # used to call latest_scan_result_for_asset() for each of up to 1000 assets, which is 1000
-    # sequential round trips and was the whole cost of this endpoint.
-    from db import list_assets, latest_scan_results_for_assets
-    from datetime import datetime, timezone
+    # Every asset of the estate, priced from its newest scan (asset_scan_latest), in one narrow
+    # statement; each distinct set of inputs is scored once. The view used to price the newest 1,000
+    # assets only (a per-asset join), and said so in inventory_coverage.
+    from db import hndl_asset_inputs
+    from services.hndl import compute_org_hndl_dashboard_for_estate
 
-    assets_raw = list_assets(limit=1000) or []
-    latest_by_asset = latest_scan_results_for_assets(
-        [str(a.get("asset_key") or "") for a in assets_raw]
-    )
-    asset_inputs = []
-    for a in assets_raw:
-        ak = str(a.get("asset_key") or "")
-        if not ak:
-            continue
-        parts = ak.split(":", 1)
-        host = parts[0]
-        port = int(parts[1]) if len(parts) > 1 else 443
-
-        latest = latest_by_asset.get(ak) or {}
-
-        # Estimate days since first seen (use asset updated_at or default 365)
-        first_seen_days = 365
-        try:
-            updated_at = a.get("updated_at") or latest.get("scanned_at")
-            if updated_at:
-                dt = datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
-                first_seen_days = max(30, (datetime.now(timezone.utc) - dt).days)
-        except Exception:
-            pass
-
-        asset_inputs.append({
-            "asset_key": ak,
-            "host": host,
-            "port": port,
-            "tls_version": str(latest.get("tls_version") or ""),
-            # These four are persisted per asset now. key_bits in particular: without it every RSA
-            # asset was priced at the RSA-2048 Q-Day probability and every EC asset at P-256's, so
-            # the dollar figures overstated exposure for every larger key in the estate.
-            "cipher_name": str(latest.get("cipher_name") or ""),
-            "key_type": str(latest.get("key_type") or ""),
-            "key_bits": int(latest.get("key_bits") or 0),
-            "key_exchange": str(latest.get("key_exchange") or ""),
-            "first_scan_days_ago": first_seen_days,
-            "owner": str(a.get("owner") or ""),
-            "environment": str(a.get("environment") or ""),
-        })
-
-    dashboard = compute_org_hndl_dashboard(asset_inputs, q_day_year=q_day_year)
-    dashboard["inventory_coverage"] = _inventory_coverage(len(asset_inputs))
+    rows = hndl_asset_inputs(datetime.now(timezone.utc))
+    dashboard = compute_org_hndl_dashboard_for_estate(rows, q_day_year=q_day_year)
+    dashboard["inventory_coverage"] = _inventory_coverage(len(rows))
     dashboard["organization_id"] = org_id
     dashboard["generated_at"] = _now_iso()
     dashboard["api_version"] = "v1"
@@ -8523,52 +8485,18 @@ def api_hndl_tls_timeline(request: Request):
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID).strip() or DEFAULT_ORG_ID
     _require_role(request, allowed_roles=["viewer", "operator", "admin"], action="hndl.timeline", resource_type="organization", resource_id=org_id)
 
-    from db import list_assets, latest_scan_results_for_assets
-    from datetime import datetime, timezone
+    # The whole estate, from counts of distinct pricing inputs (see /hndl/dashboard).
+    from db import hndl_asset_inputs
+    from services.hndl import compute_hndl_timeline_for_estate
 
-    assets_raw = list_assets(limit=1000) or []
-    # Batched for the same reason as /hndl/dashboard: one query, not one per asset.
-    latest_by_asset = latest_scan_results_for_assets(
-        [str(a.get("asset_key") or "") for a in assets_raw]
-    )
-    asset_inputs = []
-    for a in assets_raw:
-        ak = str(a.get("asset_key") or "")
-        if not ak:
-            continue
-        parts = ak.split(":", 1)
-        host = parts[0]
-        port = int(parts[1]) if len(parts) > 1 else 443
-        latest = latest_by_asset.get(ak) or {}
-
-        first_seen_days = 365
-        try:
-            updated_at = a.get("updated_at") or latest.get("scanned_at")
-            if updated_at:
-                dt = datetime.fromisoformat(str(updated_at).replace("Z", "+00:00"))
-                first_seen_days = max(30, (datetime.now(timezone.utc) - dt).days)
-        except Exception:
-            pass
-
-        asset_inputs.append({
-            "asset_key": ak,
-            "host": host,
-            "port": port,
-            "tls_version": str(latest.get("tls_version") or ""),
-            "cipher_name": str(latest.get("cipher_name") or ""),
-            "key_type": str(latest.get("key_type") or ""),
-            "key_bits": int(latest.get("key_bits") or 0),
-            "key_exchange": str(latest.get("key_exchange") or ""),
-            "first_scan_days_ago": first_seen_days,
-        })
-
-    timeline = compute_hndl_timeline(asset_inputs)
+    rows = hndl_asset_inputs(datetime.now(timezone.utc))
+    timeline = compute_hndl_timeline_for_estate(rows)
     return {
         "api_version": "v1",
         "organization_id": org_id,
         "generated_at": _now_iso(),
         "timeline": timeline,
-        "inventory_coverage": _inventory_coverage(len(asset_inputs)),
+        "inventory_coverage": _inventory_coverage(len(rows)),
         "model_basis": _hndl_model_basis(),
     }
 
@@ -8976,15 +8904,12 @@ def api_dark_matter_map(request: Request):
     _require_role(request, allowed_roles=["viewer", "operator", "admin"],
                   action="dark_matter.map", resource_type="organization", resource_id=org_id)
 
-    from db import list_scan_rows, load_scan_row
-    rows = list_scan_rows(limit=30) or []
-    scan_results_list = []
-    for row in rows:
-        full = load_scan_row(str(row.get("id") or ""))
-        if full and full.get("results"):
-            scan_results_list.append(full["results"])
-
-    result = _build_dark_matter_map(scan_results_list)
+    # Every asset's newest scan, aggregated in SQL over asset_scan_latest: meta and country_summary
+    # cover the whole estate and key_records the newest 3,000 keys (coverage says so). This used to
+    # parse the newest 30 scans' full results -- 52 MB of heap and 3-5 s at 100,000 assets -- and
+    # described only those 30 scans.
+    from db import key_map_rows
+    result = _build_dark_matter_map_from_rows(key_map_rows(record_limit=3000))
     result["organization_id"] = org_id
     result["generated_at"] = _now_iso()
     result["api_version"] = "v1"
@@ -18768,7 +18693,108 @@ def _telemetry_real_stats(org_id: str) -> Dict[str, Any]:
     }
 
 
+def _aux_telemetry_counts(org_id: str, day_ago: datetime) -> Dict[str, Dict[str, int]]:
+    """{source: {"total", "24h"}} for the SQLite auxiliary evidence tables, counted in SQL. Each
+    total is capped where _fetch_sqlite_telemetry_events caps its read (1,000)."""
+    cutoff = _format_utc_z(day_ago)
+    out: Dict[str, Dict[str, int]] = {}
+    statements = {
+        "hndl_canary_hits": ("SELECT COUNT(*), COALESCE(SUM(CASE WHEN datetime(created_at) >= datetime(?) THEN 1 ELSE 0 END), 0) "
+                             "FROM hndl_canary_hits WHERE organization_id = ?"),
+        "quantum_canary_hits": ("SELECT COUNT(*), COALESCE(SUM(CASE WHEN datetime(h.hit_at) >= datetime(?) THEN 1 ELSE 0 END), 0) "
+                                "FROM quantum_canary_hits h JOIN quantum_canaries q ON q.beacon_token = h.beacon_token "
+                                "WHERE q.org_id = ? AND h.is_bot = 0"),
+        "drift_events": "SELECT COUNT(*), 0 FROM drift_events WHERE ? IS NOT NULL AND org_id = ?",
+    }
+    try:
+        with _db() as db:
+            for source, sql in statements.items():
+                try:
+                    total, recent = db.execute(sql, (cutoff, org_id)).fetchone()
+                    out[source] = {"total": min(int(total or 0), 1000), "24h": int(recent or 0)}
+                except sqlite3.Error:
+                    out[source] = {"total": 0, "24h": 0}
+            try:
+                rows = _push_log(db, org_id, 1000) or []
+            except Exception:
+                rows = []
+            recent = sum(1 for r in rows if (_telemetry_parse_datetime(r.get("created_at")) or _telemetry_epoch()) >= day_ago)
+            out["push_notification_log"] = {"total": len(rows), "24h": recent}
+    except Exception:
+        logging.exception("[TELEMETRY] failed counting auxiliary telemetry tables")
+    return out
+
+
 def _telemetry_real_kpis(org_id: str) -> Dict[str, Any]:
+    """KPI counters over the persisted evidence, counted by the database.
+
+    This used to build up to 5,000 event dicts from six sources -- including list_scan_rows(2000),
+    which on SQLite walked every scan's result blob to reach summary_json -- and count them in
+    Python: 10-14 s at 100,000 assets. Each counter is now a COUNT over its time window, exact
+    within the window; the old ones counted only what fell inside the newest 5,000 events.
+    """
+    now = _utc_now()
+    hour_ago = now - timedelta(hours=1)
+    day_ago = now - timedelta(days=1)
+    token = set_current_organization_id(org_id or DEFAULT_ORG_ID)
+    try:
+        scans = telemetry_scan_counts(_format_utc_z(hour_ago), _format_utc_z(day_ago),
+                                      _format_utc_z(now - timedelta(days=30)))
+        runtime = count_flight_recorder_events_since("airlock_runtime_handshake_proof", _format_utc_z(day_ago))
+    finally:
+        reset_current_organization_id(token)
+    aux = _aux_telemetry_counts(org_id, day_ago)
+
+    # The in-process event bus holds what this process saw live. Scan and finding events that name a
+    # scan are already counted from the persisted rows; the bus still says which host the newest
+    # completed scan was, which the persisted scan row does not record.
+    bus = _safe_event_bus_events(org_id, 1000)
+
+    def bus_count(typ: str, cutoff: datetime, *, persisted: bool = False, hot_only: bool = False) -> int:
+        n = 0
+        for event in bus:
+            data = event.get("data") or {}
+            if event.get("type") != typ or _telemetry_dt(event) < cutoff:
+                continue
+            if persisted and data.get("scan_id"):
+                continue
+            if hot_only and str(data.get("risk_level") or "").lower() not in {"critical", "high"}:
+                continue
+            n += 1
+        return n
+
+    last_bus_scan = max((e for e in bus if e.get("type") == "scan_complete"), key=_telemetry_dt, default=None)
+    newest_persisted = _telemetry_parse_datetime(scans.get("newest_complete_at")) or _telemetry_epoch()
+    last_data = (last_bus_scan.get("data") or {}) if last_bus_scan and _telemetry_dt(last_bus_scan) >= newest_persisted else {}
+
+    sources = {
+        "event_bus": len(bus),
+        "scans": min(scans["scans_total"], 2000),
+        "scan_results": min(scans["findings_events"], 5000),
+        "flight_recorder_events": min(runtime["total"], 2000),
+        **{name: counts["total"] for name, counts in aux.items()},
+    }
+    return {
+        "org_id": org_id,
+        "scans_last_hour": scans["scans_complete_1h"] + bus_count("scan_complete", hour_ago, persisted=True),
+        "canary_trips_24h": aux.get("quantum_canary_hits", {}).get("24h", 0) + bus_count("canary_trip", day_ago),
+        "critical_findings_24h": scans["findings_24h"] + bus_count("finding_new", day_ago, persisted=True, hot_only=True),
+        "hndl_alerts_24h": aux.get("hndl_canary_hits", {}).get("24h", 0) + bus_count("hndl_alert", day_ago),
+        "alerts_fired_24h": aux.get("push_notification_log", {}).get("24h", 0) + bus_count("alert_fired", day_ago),
+        "runtime_proofs_24h": runtime["since"] + bus_count("runtime_handshake_proof", day_ago),
+        "last_scan_host": last_data.get("host") or last_data.get("asset_key") or "",
+        "last_scan_risk": last_data.get("risk_level") or "",
+        "evidence_event_count": min(sum(sources.values()), 5000),
+        "evidence_sources": sorted({str(e.get("source")) for e in bus if e.get("source")}
+                                   | {name for name, n in sources.items() if n and name != "event_bus"}),
+        "data_mode": "real_evidence_only",
+        "computed_at": _now_iso(),
+    }
+
+
+def _telemetry_real_kpis_from_events(org_id: str) -> Dict[str, Any]:
+    """The previous implementation of _telemetry_real_kpis, over the merged event list. Kept as the
+    reference the regression tests compare the SQL counters with on small databases."""
     events = _telemetry_real_events(org_id, limit=5000)
     now = _utc_now()
     hour_ago = now - timedelta(hours=1)

@@ -119,6 +119,74 @@ def dark_matter_model_basis() -> Dict[str, Any]:
     )
 
 
+def _key_record(host: str, port: Optional[int], key_type: str, key_bits: Optional[int], tls_version: str,
+                country: Optional[str], risk: Optional[float], risk_basis: str) -> Dict[str, Any]:
+    coords = _COUNTRY_COORDS.get(country) if country else None
+    return {
+        "id": hashlib.md5(f"{host}:{port}".encode(), usedforsecurity=False).hexdigest()[:12],
+        "host": host,
+        "port": port,
+        "key_type": key_type,
+        "key_bits": key_bits,
+        "tls_version": tls_version,
+        "country": country,
+        "country_source": "tld" if country else None,
+        "lat": round(coords[0] + _jitter(host, "lat"), 4) if coords else None,
+        "lon": round(coords[1] + _jitter(host, "lon"), 4) if coords else None,
+        "risk_score": round(risk, 3) if risk is not None else None,
+        "risk_basis": risk_basis,
+    }
+
+
+def build_dark_matter_map_from_rows(data: Dict[str, Any]) -> Dict[str, Any]:
+    """The key map from db.key_map_rows: every asset's newest scan, aggregated by the database.
+
+    `meta` and `country_summary` cover the whole estate; `key_records` lists the newest keys the
+    database returned, and `coverage` says how many of the estate's keys that is. The per-key values
+    (country from the TLD, the heuristic risk score) were computed by this module's own functions
+    when the scan was saved (services/asset_posture.result_extras).
+    """
+    summary = data.get("summary") or {}
+    records = []
+    for r in data.get("records") or []:
+        port = r.get("port")
+        bits = r.get("key_bits")
+        risk = r.get("risk_score")
+        records.append(_key_record(str(r.get("host") or ""), int(port) if port else None,
+                                   str(r.get("key_type") or ""), int(bits) if bits else None,
+                                   str(r.get("tls_version") or ""), r.get("country") or None,
+                                   float(risk) if risk is not None else None, str(r.get("risk_basis") or "")))
+    country_summary = []
+    for c in data.get("countries") or []:
+        country = str(c.get("country") or "")
+        coords = _COUNTRY_COORDS.get(country)
+        n = int(c.get("scored_key_count") or 0)
+        total_risk = float(c.get("total_risk") or 0.0)
+        country_summary.append({
+            "country": country,
+            "lat": coords[0] if coords else None,
+            "lon": coords[1] if coords else None,
+            "key_count": int(c.get("key_count") or 0),
+            "scored_key_count": n,
+            "total_risk": round(total_risk, 3),
+            "avg_risk": round(total_risk / n, 3) if n else None,
+        })
+    total = int(summary.get("total") or 0)
+    return {
+        "key_records": records,
+        "country_summary": country_summary,
+        "meta": {
+            "total_keys_mapped": total,
+            "high_risk_keys": int(summary.get("high_risk") or 0),
+            "countries_covered": len(country_summary),
+            "keys_without_country": int(summary.get("without_country") or 0),
+            "keys_without_key_type": int(summary.get("without_key_type") or 0),
+        },
+        "coverage": {"keys_in_records": len(records), "keys_total": total, "complete": len(records) >= total},
+        "model_basis": dark_matter_model_basis(),
+    }
+
+
 def build_dark_matter_map(
     scan_results_list: List[List[Dict[str, Any]]],
 ) -> Dict[str, Any]:
