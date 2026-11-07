@@ -12265,6 +12265,13 @@ def _scan_worker(scan_id: str, targets: List[str], organization_id: str = "") ->
         except Exception:
             # Still non-fatal — the scan itself succeeded — but never silent again.
             logging.exception("[SCAN] failed to persist per-asset summaries for %s", scan_id)
+        # Verify loop, as tasks.run_scan_task runs it: a merged remediation whose asset now scans
+        # clean is closed (and journaled). Without this, a deployment with no Celery broker, where
+        # every scan runs here, never closed a remediation and so could never issue a migration proof.
+        try:
+            auto_close_merged_remediations(scan_id, results)
+        except Exception:
+            logging.exception("[SCAN] verify loop failed for %s", scan_id)
         update_scan_progress(scan_id, status="completed", progress=prog, error_text="")
 
         # Fire Slack alert (non-blocking, best-effort)
