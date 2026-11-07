@@ -297,6 +297,9 @@ def _from_fields(fmt: str, fields: Dict[str, Any]) -> Dict[str, Any]:
 
 def _observation(fmt: str, host: str, port: int, version: str, cipher: str, group: str,
                  group_observed: bool, group_loggable: bool = True) -> Dict[str, Any]:
+    # Capped here, for every format: the ALB parsers passed the cipher field through unbounded,
+    # so one log line could store a 16 KB "cipher" on the endpoint row.
+    cipher = str(cipher or "").strip()[:128]
     return {
         "format": fmt,
         "host": host,
