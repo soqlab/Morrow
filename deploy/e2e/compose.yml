@@ -1,0 +1,167 @@
+# Real-service e2e stack for Morrow. See docs/DEMO_RUNBOOK.md for the walkthrough and
+# .github/workflows/e2e-real.yml for the CI job that runs backend/e2e_real/ against it.
+#
+#   sh deploy/e2e/gen-state.sh
+#   export MORROW_E2E_VAULT_KEY="$(cat deploy/e2e/state/vault.key)"
+#   docker build -t morrow-e2e-backend:local backend   (see the backend service for a local variant)
+#   docker compose -f deploy/e2e/compose.yml up -d --build --wait
+#   MORROW_E2E_BASE_URL=http://127.0.0.1:18000 pytest backend/e2e_real -v
+#   docker compose -f deploy/e2e/compose.yml down -v
+#
+# Images are pinned by digest. The two locally built images pin their bases too (dns/Dockerfile;
+# MORROW_E2E_STRONGSWAN_BASE, set by the CI job, for the strongSwan fixture).
+name: morrow-e2e
+
+x-logs: &logs ./state/logs:/var/log/morrow
+
+volumes:
+  backend-data: {}
+
+networks:
+  e2e:
+    ipam:
+      config:
+        - subnet: 172.30.77.0/24
+
+services:
+  dns:
+    build: ./dns
+    image: morrow-e2e-dns:local
+    volumes: ["./state:/state:ro"]
+    networks: {e2e: {ipv4_address: 172.30.77.53}}
+
+  backend:
+    # The checkout's backend, built before `up` (no `build:` here, so compose never rebuilds or
+    # retags an image behind your back):
+    #   CI:     docker build -t morrow-e2e-backend:local backend
+    #   local:  docker build -t morrow-e2e-backend:local -f deploy/e2e/backend-local.Dockerfile \
+    #             --build-arg BASE=<an image with backend/requirements.txt installed> backend
+    # The code is copied into the image, not bind-mounted: on Docker Desktop for Windows, importing
+    # the backend over a bind mount took longer than 20 minutes.
+    image: morrow-e2e-backend:local
+    user: "0:0"   # reads the bind-mounted state (certs, dnsmasq.conf) whatever its owner
+    working_dir: /app
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - cat /etc/ssl/certs/ca-certificates.crt /certs/ca.pem > /tmp/ca-bundle.pem &&
+        exec python -m uvicorn app:app --host 0.0.0.0 --port 8000
+    environment:
+      PYTHONPATH: /app
+      PYTHONDONTWRITEBYTECODE: "1"
+      SSL_CERT_FILE: /tmp/ca-bundle.pem
+      MORROW_ENVIRONMENT: local
+      MORROW_MAIN_DB_BACKEND: sqlite
+      MORROW_FEATURE_STORE_BACKEND: sqlite
+      # A named volume, not the bind mount: SQLite on a Docker Desktop bind mount is slow enough
+      # that the schema bootstrap alone took over half an hour.
+      MORROW_SCANNER_DB: /data/morrow.db
+      DATABASE_URL: ""
+      MORROW_PRODUCT_DATABASE_URL: ""
+      CELERY_BROKER_URL: ""
+      CELERY_RESULT_BACKEND: ""
+      MORROW_TEST_PG_DSN: ""
+      MORROW_AUTH_MODE: headers
+      MORROW_AUTH_REQUIRED: "1"
+      MORROW_DEFAULT_ROLE: viewer
+      MORROW_LLM_DISABLED: "1"
+      MORROW_VAULT_MASTER_KEY: ${MORROW_E2E_VAULT_KEY:?run gen-state.sh and export MORROW_E2E_VAULT_KEY}
+      # Hosted-style scope control: scans only reach hosts under DNS-verified domains.
+      MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS: "1"
+      # A company-network install: Prometheus and the other services are on private addresses.
+      MORROW_CODE_HOSTS_ALLOW_PRIVATE: "1"
+      PER_TARGET_TIMEOUT: "20"
+      ENABLE_INPROCESS_SCHEDULER: "0"
+    volumes:
+      - backend-data:/data
+      - ./state:/state
+      - ./state/certs:/certs:ro
+    ports: ["127.0.0.1:18000:8000"]
+    dns: [172.30.77.53]
+    networks: {e2e: {ipv4_address: 172.30.77.10}}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+    depends_on: [dns]
+
+  strongswan-pq:
+    image: morrow-test-strongswan:local
+    build:
+      context: ../../backend/tests/fixtures/strongswan
+      args: {BASE: "${MORROW_E2E_STRONGSWAN_BASE:-alpine:edge}"}
+    cap_add: [NET_ADMIN]
+    networks: {e2e: {aliases: [vpn.e2e.morrow.test]}}
+
+  strongswan-classic:
+    image: morrow-test-strongswan:local
+    cap_add: [NET_ADMIN]
+    volumes: ["../../backend/tests/fixtures/strongswan/swanctl-classic.conf:/etc/swanctl/swanctl.conf:ro"]
+    networks: {e2e: {aliases: [vpn-classic.e2e.morrow.test]}}
+    depends_on: [strongswan-pq]   # same image; built once by strongswan-pq
+
+  nginx:
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./state/certs:/certs:ro
+      - ./state:/state:ro
+      - *logs
+    networks: {e2e: {aliases: [nginx.e2e.morrow.test]}}
+
+  envoy:
+    image: envoyproxy/envoy:v1.39.6@sha256:1fde8efee875e4e4f6a39a90fe49d9338e1caacce5762034ef9fb4bbb9ad6aed
+    command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "warn"]
+    user: "0:0"   # writes the access log into the bind-mounted state/logs
+    volumes:
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - ./state/certs:/certs:ro
+      - *logs
+    networks: {e2e: {aliases: [envoy.e2e.morrow.test]}}
+
+  prometheus:
+    image: prom/prometheus:v3.7.3@sha256:49214755b6153f90a597adcbff0252cc61069f8ab69ce8411285cd4a560e8038
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.config.file=/etc/prometheus/web.yml",
+              "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=1h"]
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/web.yml:/etc/prometheus/web.yml:ro
+      - ./state/certs:/certs:ro
+    networks: {e2e: {aliases: [prometheus.e2e.morrow.test]}}
+    depends_on: [envoy]
+
+  traffic:
+    image: alpine:3.22@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f
+    entrypoint: ["/bin/sh", "/traffic.sh"]
+    volumes:
+      - ./traffic/traffic.sh:/traffic.sh:ro
+      - ./state/certs:/certs:ro
+      - ./state:/state:ro
+    networks: {e2e: {}}
+    depends_on: [nginx, envoy]
+
+  # The shippers need an ingest token, which only exists once the backend is up: the tests (or the
+  # runbook) create one per shipper and start them with `--profile shippers`.
+  fluent-bit:
+    profiles: [shippers]
+    image: fluent/fluent-bit:4.1@sha256:187934cada19ddecde7d7dc53da8c85e4aee047ccdab6da9a8843fb7b738c1fa
+    command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/morrow.conf"]
+    environment:
+      MORROW_INGEST_TOKEN: ${MORROW_E2E_NGINX_INGEST_TOKEN:-unset}
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/morrow.conf:ro
+      - *logs
+    tmpfs: [/fluent-bit-db]
+    networks: {e2e: {}}
+
+  vector:
+    profiles: [shippers]
+    image: timberio/vector:0.50.0-alpine@sha256:93761c26fa3a3793f5f200de0f4cfc6102b5e9803ab33b4830d0873ba8dbdc4f
+    command: ["--config", "/etc/vector/morrow.toml"]
+    environment:
+      MORROW_INGEST_TOKEN: ${MORROW_E2E_ENVOY_INGEST_TOKEN:-unset}
+    volumes:
+      - ./vector/vector.toml:/etc/vector/morrow.toml:ro
+      - *logs
+    tmpfs: [/var/lib/vector]
+    networks: {e2e: {}}

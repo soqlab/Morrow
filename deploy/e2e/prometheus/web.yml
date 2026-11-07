@@ -1,0 +1,4 @@
+# Morrow only talks to Prometheus over https (services/pq_rollout.normalize_metrics).
+tls_server_config:
+  cert_file: /certs/prometheus.pem
+  key_file: /certs/prometheus.key

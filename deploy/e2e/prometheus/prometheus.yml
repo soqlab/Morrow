@@ -1,0 +1,9 @@
+# Prometheus scraping Envoy's native metrics every 2 s, so the rollout gates see traffic quickly.
+global:
+  scrape_interval: 2s
+  evaluation_interval: 2s
+scrape_configs:
+  - job_name: envoy
+    metrics_path: /stats/prometheus
+    static_configs:
+      - targets: ["envoy:9901"]

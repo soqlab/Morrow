@@ -1,0 +1,24 @@
+# Vector: tail the Envoy TLS log and ship it to Morrow (docs/PASSIVE_DISCOVERY.md).
+data_dir = "/var/lib/vector"
+
+[sources.envoy_tls]
+type = "file"
+include = ["/var/log/morrow/envoy_tls.log"]
+read_from = "beginning"
+
+[sinks.morrow]
+type = "http"
+inputs = ["envoy_tls"]
+uri = "http://backend:8000/v1/runtime/passive/ingest?format=envoy"
+method = "post"
+compression = "gzip"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+auth.strategy = "bearer"
+auth.token = "${MORROW_INGEST_TOKEN}"
+batch.max_bytes = 1000000
+batch.max_events = 1000
+batch.timeout_secs = 1
+# A loaded backend can take longer than the 60 s default to answer a full batch.
+request.timeout_secs = 300
+request.rate_limit_num = 60

@@ -1,0 +1,80 @@
+# Real-service end-to-end checks: the backend against real nginx (OpenSSL 3.5, hybrid ML-KEM),
+# Envoy, Prometheus over HTTPS, strongSwan 6, Fluent Bit and Vector, all in containers
+# (deploy/e2e/compose.yml). The tests are backend/e2e_real/; docs/DEMO_RUNBOOK.md is the same
+# run by hand.
+#
+#   kill switch     rescan of the real nginx observes the switched group
+#   gradual rollout real Prometheus gate passes on healthy traffic, fails and rolls back on old clients
+#   passive ingest  real nginx/Envoy access logs shipped by Fluent Bit and Vector
+#   IKE scanner     real strongSwan responders, through the verified-domain scope check
+#   CBOM            signed CI ingest exactly as the generated GitHub Actions step sends it
+#
+# No secrets: every credential (vault key, CA, ingest tokens, signing key) is generated for the run.
+# Ticket sync and GitHub PR creation need real third-party accounts and are not exercised here.
+
+name: E2E (real services)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-real-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Real-service e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MORROW_E2E_BASE_URL: http://127.0.0.1:18000
+      # Base for the strongSwan fixture image (alpine:edge carries strongSwan 6 with ML-KEM).
+      MORROW_E2E_STRONGSWAN_BASE: alpine@sha256:020dfcbaaf4cc1078bf2d9c7ba31a8466e334061dcd2f248001d68f79e52c000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      - name: Install the test client
+        run: pip install pytest==9.1.1 httpx==0.28.1 cryptography==50.0.0  # cryptography: scripts/verify_migration_proof.py
+
+      - name: Generate throw-away CA, certificates and vault key
+        run: |
+          sh deploy/e2e/gen-state.sh
+          key="$(cat deploy/e2e/state/vault.key)"
+          echo "::add-mask::$key"
+          echo "MORROW_E2E_VAULT_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Build the backend image
+        run: bash scripts/ci-annotate.sh "e2e backend image" docker build -q -t morrow-e2e-backend:local backend
+
+      - name: Start the stack
+        run: bash scripts/ci-annotate.sh "e2e stack" docker compose -f deploy/e2e/compose.yml up -d --build --wait --wait-timeout 300
+
+      - name: Run the real-service tests
+        run: bash scripts/ci-annotate.sh "e2e-real" python -m pytest backend/e2e_real -v --tb=short -rfE --durations=10
+
+      - name: Collect container logs
+        if: failure()
+        run: |
+          docker compose -f deploy/e2e/compose.yml --profile shippers logs --no-color --timestamps > e2e-logs.txt 2>&1 || true
+          docker compose -f deploy/e2e/compose.yml ps -a >> e2e-logs.txt 2>&1 || true
+
+      - name: Upload container logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-real-logs
+          path: e2e-logs.txt
+          if-no-files-found: ignore
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f deploy/e2e/compose.yml --profile shippers down -v --remove-orphans || true
