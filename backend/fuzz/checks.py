@@ -171,7 +171,7 @@ def check_x509_der(data: bytes) -> None:
 
     try:
         cert = x509.load_der_x509_certificate(data)
-    except ValueError:
+    except (ValueError, x509.InvalidVersion):        # rejected at load: the scan's own error path
         return
     with time_limit(what="_leaf_cert_facts"):
         facts = scanner._leaf_cert_facts(cert)
@@ -362,6 +362,7 @@ def check_cbom(data: bytes) -> None:
     """POST /v1/cbom/import: import_cbom raises only ValueError (400/413/422)."""
     from services import sbom_import as si
 
+    _warm_up("cbom", si._cyclonedx_validator)          # building the schema validator takes seconds
     with closing_conn() as conn, time_limit(TIME_LIMIT * 5, what="import_cbom"):
         try:
             result = si.import_cbom(conn, "org-fuzz", "fuzz.json", data)
@@ -403,6 +404,7 @@ def closing_conn(webhook: bool = False) -> Iterator[sqlite3.Connection]:
 def check_cert_inventory_value(value: Any) -> None:
     from services import cert_inventory as ci
 
+    _warm_up("cert_inventory", lambda: ci.classify(ci._item(key_algorithm="RSA", key_size=2048)))
     with time_limit(what="cert_inventory field parsing"):
         date = ci._date(value)
         family = ci._family(value)
