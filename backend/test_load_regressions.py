@@ -1699,7 +1699,10 @@ def test_certificate_and_shadow_it_reports_read_no_scan_json():
 
     src = inspect.getsource(governance.create_governance_router)
     assert "certificate_lifecycle_rows(" in src and "asset_latest_evidence(" in src
-    assert "load_scan_row" not in src and "_latest_full_scan_result_lookup" not in src
+    # The full-results lookup is only the fallback while an upgraded database is being backfilled.
+    fallback = src.index("if not asset_scan_latest_ready():")
+    assert src.count("_latest_full_scan_result_lookup") == 1
+    assert fallback < src.index("_latest_full_scan_result_lookup") < src.index("certificate_lifecycle_rows(")
 
 
 if __name__ == "__main__":

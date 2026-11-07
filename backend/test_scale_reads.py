@@ -371,7 +371,7 @@ class TestBackfillsDoNotBlockStartup(_SqliteBase):
         conn = self.raw()
         before = self.db.list_scan_rows(limit=100)
         conn.execute("DELETE FROM scan_headers")
-        conn.execute("UPDATE asset_scan_latest SET map_included = NULL")
+        conn.execute("UPDATE asset_scan_latest SET map_included = NULL, asset_updated_at = NULL")
         conn.execute("DELETE FROM morrow_backfills WHERE name <> 'asset_scan_latest_facts_v1'")
         conn.commit()
         conn.close()
@@ -386,6 +386,13 @@ class TestBackfillsDoNotBlockStartup(_SqliteBase):
         self.assertTrue(self.db.asset_scan_latest_ready())
         self.assertEqual(self.db.list_scan_rows(limit=100), before)
         self.assertEqual(self.db.backfill_progress()["state"], "done")
+        conn = self.raw()
+        stamped = conn.execute("SELECT COUNT(*) FROM asset_scan_latest l JOIN assets a ON a.organization_id = "
+                               "l.organization_id AND a.asset_key = l.asset_key WHERE l.asset_updated_at = a.updated_at").fetchone()[0]
+        unstamped = conn.execute("SELECT COUNT(*) FROM asset_scan_latest WHERE asset_updated_at IS NULL").fetchone()[0]
+        conn.close()
+        self.assertEqual(unstamped, 0)
+        self.assertGreater(stamped, 0)
 
     def test_a_database_with_nothing_to_backfill_starts_no_thread(self):
         self.assertIsNone(self.db.start_background_backfills())

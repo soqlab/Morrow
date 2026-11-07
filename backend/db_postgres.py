@@ -2869,7 +2869,10 @@ def pg_save_scan_asset_summaries(
                 # newest; add the fields only the full result carries (certificate, key map).
                 from services.asset_posture import result_extras
                 extras_rows = []
-                for (result_id, ak), (inserted_key, item) in zip(inserted or [], inserted_items):
+                for returned, (inserted_key, item) in zip(inserted or [], inserted_items):
+                    # The cursor is a RealDictCursor: each returned row is {"id", "asset_key"}.
+                    result_id, ak = ((returned["id"], returned["asset_key"]) if isinstance(returned, dict)
+                                     else (returned[0], returned[1]))
                     if str(ak) != inserted_key:
                         continue
                     extras = result_extras(item)

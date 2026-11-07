@@ -621,6 +621,48 @@ def _scan_headers_missing(conn: sqlite3.Connection, limit: int) -> List[str]:
         (int(limit),))]
 
 
+ASSET_INV_BACKFILL = "asset_scan_latest_inventory_v2"
+_JD_SQL = "CASE WHEN {u} GLOB '*Z' OR {u} GLOB '*[+-][0-9][0-9]:[0-9][0-9]' THEN julianday({u}) END"
+
+
+def _asset_inv_pending(conn: sqlite3.Connection, after_rowid: int, limit: int) -> List[int]:
+    """asset_scan_latest rowids after `after_rowid` whose asset is in the inventory but whose
+    asset_updated_at is not set yet (rows written before the column existed)."""
+    return [r[0] for r in conn.execute(
+        "SELECT l.rowid FROM asset_scan_latest l WHERE l.rowid > ? AND (l.asset_updated_at IS NULL OR l.asset_port IS NULL) "
+        "AND EXISTS (SELECT 1 FROM assets a WHERE a.organization_id = l.organization_id AND a.asset_key = l.asset_key "
+        "AND TRIM(a.asset_key) <> '') ORDER BY l.rowid LIMIT ?", (int(after_rowid), int(limit)))]
+
+
+def backfill_asset_inventory_stamps(log: Any = None, batch: int = 2000) -> int:
+    """Set asset_scan_latest.asset_updated_at on rows written before it existed, in short batches."""
+    done, last = 0, 0
+    with closing(get_connection()) as conn:
+        _ensure_asset_scan_latest(conn)
+        if _backfill_done(conn, ASSET_INV_BACKFILL):
+            return 0
+        while True:
+            ids = _asset_inv_pending(conn, last, batch)
+            if not ids:
+                break
+            marks = ",".join("?" * len(ids))
+            conn.execute(
+                "UPDATE asset_scan_latest SET asset_updated_at = (SELECT a.updated_at FROM assets a "  # nosec B608  # placeholders only
+                "WHERE a.organization_id = asset_scan_latest.organization_id AND a.asset_key = asset_scan_latest.asset_key), "
+                "asset_port = CASE WHEN instr(asset_key, ':') > 0 THEN substr(asset_key, instr(asset_key, ':') + 1) ELSE '' END "
+                f"WHERE rowid IN ({marks})", ids)
+            conn.execute(f"UPDATE asset_scan_latest SET asset_updated_jd = {_JD_SQL.format(u='asset_updated_at')} "  # nosec B608  # constant expression and placeholders
+                         f"WHERE rowid IN ({marks})", ids)
+            conn.commit()
+            done += len(ids)
+            last = ids[-1]
+            _BACKFILL_PROGRESS["asset_inventory"] = done
+        _mark_backfill_done(conn, ASSET_INV_BACKFILL)
+    if log:
+        log("asset_scan_latest inventory stamps: %d rows" % done)
+    return done
+
+
 def scan_headers_ready() -> bool:
     if postgres_main_db_requested():
         return True
@@ -941,19 +983,65 @@ def _ensure_asset_scan_latest(conn: sqlite3.Connection) -> None:
     if schema_ensured("asset_scan_latest"):
         return
     conn.execute(_ASSET_LATEST_TABLE_SQL)
+    # The asset's inventory updated_at, NULL when the asset is not in the inventory. Kept by triggers
+    # on assets, so the whole-estate reports (HNDL, the certificate summary) read this one table
+    # through one covering index instead of joining 100,000 assets to it.
+    latest_cols = {r[1] for r in conn.execute("PRAGMA table_info(asset_scan_latest)").fetchall()}
+    for col, ddl in (("asset_updated_at", "TEXT"), ("asset_updated_jd", "REAL"), ("asset_port", "TEXT")):
+        if col not in latest_cols:
+            conn.execute("ALTER TABLE asset_scan_latest ADD COLUMN %s %s" % (col, ddl))  # nosec B608  # literal names
+    # asset_updated_jd is updated_at as a Julian day, NULL when the stamp has no time zone (the HNDL
+    # views count such an asset 365 days old); asset_port is the asset key's port text. Both are
+    # what the HNDL pricing reads per asset, stored so a whole-estate read does arithmetic only.
+    conn.executescript(
+        """
+        DROP TRIGGER IF EXISTS trg_asset_latest_inv_new;
+        DROP TRIGGER IF EXISTS trg_assets_latest_inv_ins;
+        DROP TRIGGER IF EXISTS trg_assets_latest_inv_upd;
+        DROP TRIGGER IF EXISTS trg_assets_latest_inv_del;
+        CREATE TRIGGER IF NOT EXISTS trg_asset_latest_inv2_new AFTER INSERT ON asset_scan_latest BEGIN
+            UPDATE asset_scan_latest SET
+                asset_port = CASE WHEN instr(NEW.asset_key, ':') > 0 THEN substr(NEW.asset_key, instr(NEW.asset_key, ':') + 1) ELSE '' END,
+                asset_updated_at = (SELECT a.updated_at FROM assets a WHERE a.organization_id = NEW.organization_id
+                                    AND a.asset_key = NEW.asset_key AND TRIM(a.asset_key) <> '')
+            WHERE rowid = NEW.rowid;
+            UPDATE asset_scan_latest SET asset_updated_jd = %(jd_col)s WHERE rowid = NEW.rowid;
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_ins AFTER INSERT ON assets BEGIN
+            UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
+                asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
+            WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_upd AFTER UPDATE OF organization_id, asset_key, updated_at ON assets BEGIN
+            UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
+            WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
+            UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
+                asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
+            WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_del AFTER DELETE ON assets BEGIN
+            UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
+            WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
+        END;
+        """ % {"jd_col": _JD_SQL.format(u="asset_updated_at"), "jd_new": _JD_SQL.format(u="NEW.updated_at")}
+    )
     # Newest first, as latest_scan_facts_for_org returns them.
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_scanned"
                  " ON asset_scan_latest (organization_id, scanned_at DESC, result_id DESC)")
     # Index-only reads for the certificate report and the key map (see _sqlite_certificate_rows):
     # visiting 100,000 rows in key order is 100,000 random page reads.
     conn.execute("DROP INDEX IF EXISTS idx_asset_scan_latest_org_expiry")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_expiry_key"
-                 " ON asset_scan_latest (organization_id, cert_expires_at, asset_key)")
+    conn.execute("DROP INDEX IF EXISTS idx_asset_scan_latest_org_expiry_key")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_expiry_inv"
+                 " ON asset_scan_latest (organization_id, cert_expires_at, asset_key, asset_updated_at)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_key_expiry"
                  " ON asset_scan_latest (organization_id, asset_key, cert_expires_at)")
-    # The HNDL views join every asset to these columns; covering them keeps the join index-only.
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_key_crypto ON asset_scan_latest"
-                 " (organization_id, asset_key, tls_version, cipher_name, key_type, key_bits, key_exchange)")
+    # Everything the HNDL views read, in /assets order: they scan this index and nothing else.
+    conn.execute("DROP INDEX IF EXISTS idx_asset_scan_latest_org_key_crypto")
+    conn.execute("DROP INDEX IF EXISTS idx_asset_scan_latest_org_inv")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_inv2 ON asset_scan_latest"
+                 " (organization_id, asset_updated_at, asset_key, asset_updated_jd, asset_port, tls_version, cipher_name,"
+                 " key_type, key_bits, key_exchange)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_map"
                  " ON asset_scan_latest (organization_id, map_included, map_country, map_risk_score, map_key_type)")
     conn.execute(
@@ -2161,6 +2249,11 @@ def _pending_backfills() -> List[str]:
         _ensure_asset_scan_latest(conn)
         if not _backfill_done(conn, SCAN_HEADERS_BACKFILL):
             pending.append(SCAN_HEADERS_BACKFILL)
+        if not _backfill_done(conn, ASSET_INV_BACKFILL):
+            if _asset_inv_pending(conn, 0, 1):
+                pending.append(ASSET_INV_BACKFILL)
+            else:
+                _mark_backfill_done(conn, ASSET_INV_BACKFILL)
         if not _backfill_done(conn, ASSET_LATEST_BACKFILL):
             if conn.execute("SELECT 1 FROM asset_scan_latest WHERE map_included IS NULL LIMIT 1").fetchone():
                 pending.append(ASSET_LATEST_BACKFILL)
@@ -2179,6 +2272,7 @@ def run_pending_backfills() -> None:
         try:
             if not postgres_main_db_requested():
                 backfill_scan_headers(log=log)
+                backfill_asset_inventory_stamps(log=log)
             backfill_asset_scan_latest(log=log)
             _BACKFILL_PROGRESS["state"] = "done"
         except Exception:
@@ -3317,6 +3411,8 @@ _IN_INVENTORY = ("EXISTS (SELECT 1 FROM assets a WHERE a.organization_id = l.org
 
 def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetime, now_s: str, soon: str,
                              w1: int, limit: int, after: Optional[tuple]) -> Dict[str, Any]:
+    # Once asset_updated_at is stamped, "in the inventory" is a column of the covering index.
+    in_inventory = "l.asset_updated_at IS NOT NULL" if _backfill_done(conn, ASSET_INV_BACKFILL) else _IN_INVENTORY
     """certificate_lifecycle_rows on SQLite, reading indexes instead of rows.
 
     A single join over every asset (as Postgres runs it) visits 100,000 asset rows and 100,000
@@ -3336,7 +3432,7 @@ def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetim
                COALESCE(SUM(CASE WHEN cert_expires_at >= ? AND cert_expires_at < ? THEN 1 ELSE 0 END), 0),
                COALESCE(SUM(CASE WHEN cert_expires_at >= ? THEN 1 ELSE 0 END), 0)
         FROM asset_scan_latest l
-        WHERE l.organization_id = ? AND l.cert_expires_at IS NOT NULL AND {_IN_INVENTORY}
+        WHERE l.organization_id = ? AND l.cert_expires_at IS NOT NULL AND {in_inventory}
         """,  # nosec B608  # _IN_INVENTORY is a module constant
         (now_s, now_s, soon, soon, org_id),
     ).fetchone()
@@ -3363,7 +3459,7 @@ def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetim
         if hi:
             clauses.append("l.cert_expires_at < ?")
             params.append(hi)
-        where = " AND ".join(clauses + [_IN_INVENTORY])
+        where = " AND ".join(clauses + [in_inventory])
         first = conn.execute(f"SELECT cert_expires_at FROM asset_scan_latest l WHERE {where} "  # nosec B608  # fixed clauses
                              f"ORDER BY l.cert_expires_at LIMIT ?", (*params, n)).fetchall()
         if not first or n <= 0:
@@ -3468,7 +3564,64 @@ def hndl_input_groups(now: datetime) -> List[tuple]:
     if pg:
         return pg_hndl_query(sql, params)
     with closing(get_connection()) as conn:
+        if _backfill_done(conn, ASSET_INV_BACKFILL):
+            merged: Dict[tuple, int] = {}
+            for part, part_params in _sqlite_hndl_parts(now_iso, org_id, None):
+                for r in conn.execute(f"SELECT {cols}, COUNT(*) FROM ({part}) x GROUP BY {cols}", part_params):  # nosec B608  # fixed SQL text
+                    merged[tuple(r[:7])] = merged.get(tuple(r[:7]), 0) + int(r[7])
+            return [k + (n,) for k, n in merged.items()]
         return [tuple(r) for r in conn.execute(sql, params)]
+
+
+def _sqlite_days(column: str) -> str:
+    diff = "(julianday(?) - julianday(%s))" % column
+    return ("CASE WHEN {c} GLOB '*Z' OR {c} GLOB '*[+-][0-9][0-9]:[0-9][0-9]' "
+            "THEN MAX(30, CAST({d} AS INTEGER) - ({d} < CAST({d} AS INTEGER))) ELSE 365 END").format(c=column, d=diff)
+
+
+_SQLITE_PORT = "CASE WHEN instr(asset_key, ':') > 0 THEN substr(asset_key, instr(asset_key, ':') + 1) ELSE '' END"
+
+
+def _sqlite_hndl_parts(now_iso: str, org_id: str, crypto: Optional[Sequence[tuple]] = None) -> List[tuple]:
+    """The HNDL inputs of every inventory asset as two index-only reads: assets with a scan, from
+    idx_asset_scan_latest_org_inv, and assets never scanned, from the assets primary key. Columns:
+    asset_key, updated_at, port_s, tls, cipher, kt, kb, kx, days."""
+    diff = "(? - asset_updated_jd)"
+    scanned = (
+        "SELECT asset_key, asset_updated_at AS updated_at, asset_port AS port_s, COALESCE(tls_version, '') AS tls, "
+        "COALESCE(cipher_name, '') AS cipher, COALESCE(key_type, '') AS kt, COALESCE(key_bits, 0) AS kb, "
+        "COALESCE(key_exchange, '') AS kx, "
+        "CASE WHEN asset_updated_jd IS NULL THEN 365 "
+        "ELSE MAX(30, CAST({d} AS INTEGER) - ({d} < CAST({d} AS INTEGER))) END AS days "
+        "FROM asset_scan_latest INDEXED BY idx_asset_scan_latest_org_inv2 "
+        "WHERE organization_id = ? AND asset_updated_at IS NOT NULL"
+    ).format(d=diff)
+    crypto_params: tuple = ()
+    if crypto:
+        # Only the rows whose cryptography is one of `crypto` (the priority queue's groups) get their
+        # inputs computed; the index is still read once, but the rest are filtered on its columns.
+        row = "(?,?,?,?,?)"
+        scanned += (" AND (COALESCE(tls_version, ''), COALESCE(cipher_name, ''), COALESCE(key_type, ''), "
+                    "COALESCE(key_bits, 0), COALESCE(key_exchange, '')) IN (VALUES %s)" % ",".join([row] * len(crypto)))
+        crypto_params = tuple(v for c in crypto for v in c)
+    unscanned = (
+        "SELECT a.asset_key AS asset_key, a.updated_at AS updated_at, {port} AS port_s, '' AS tls, '' AS cipher, "
+        "'' AS kt, 0 AS kb, '' AS kx, {days} AS days FROM assets a "
+        "WHERE a.organization_id = ? AND a.asset_key <> '' AND NOT EXISTS (SELECT 1 FROM asset_scan_latest l "
+        "WHERE l.organization_id = a.organization_id AND l.asset_key = a.asset_key)"
+    ).format(port=_SQLITE_PORT.replace("asset_key", "a.asset_key"), days=_sqlite_days("a.updated_at"))
+    three = (now_iso, now_iso, now_iso)
+    now_jd = _julian_day(now_iso)
+    parts = [(scanned, (now_jd, now_jd, now_jd, org_id) + crypto_params)]
+    if crypto is None or ("", "", "", 0, "") in set(tuple(c) for c in crypto):
+        parts.append((unscanned, three + (org_id,)))
+    return parts
+
+
+def _julian_day(iso: str) -> float:
+    """julianday() of an ISO timestamp, as SQLite computes it (so the HNDL day counts agree)."""
+    with closing(sqlite3.connect(":memory:")) as c:
+        return float(c.execute("SELECT julianday(?)", (iso,)).fetchone()[0])
 
 
 def hndl_group_members(now: datetime, ranked_groups: Sequence[tuple], limit: int) -> List[tuple]:
@@ -3493,6 +3646,27 @@ def hndl_group_members(now: datetime, ranked_groups: Sequence[tuple], limit: int
            f"ORDER BY g.rnk, x.updated_at DESC, x.asset_key DESC LIMIT {p}")
     flat = [v for g, rnk in ranked_groups for v in tuple(g) + (int(rnk),)]
     params = tuple(flat) + ((now_iso, org_id) if pg else (now_iso, now_iso, now_iso, org_id)) + (int(limit),)
+    if not pg:
+        with closing(get_connection()) as conn:
+            if _backfill_done(conn, ASSET_INV_BACKFILL):
+                crypto = sorted({tuple(g[1:6]) for g, _ in ranked_groups})
+                parts = _sqlite_hndl_parts(now_iso, org_id, crypto)
+                union = " UNION ALL ".join(p for p, _ in parts)
+                rows = conn.execute(
+                    f"WITH g({cols}, rnk) AS (VALUES {values}) "  # nosec B608  # fixed SQL text and placeholders
+                    f"SELECT x.asset_key, x.updated_at, {xcols} FROM ({union}) x "
+                    f"JOIN g ON {on} ORDER BY g.rnk, x.updated_at DESC, x.asset_key DESC LIMIT ?",
+                    tuple(flat) + tuple(v for _, ps in parts for v in ps) + (int(limit),)).fetchall()
+                keys = [r[0] for r in rows]
+                people: Dict[str, tuple] = {}
+                for start in range(0, len(keys), 500):
+                    chunk = keys[start:start + 500]
+                    marks = ",".join("?" * len(chunk))
+                    for ak, owner, env in conn.execute(
+                            f"SELECT asset_key, owner, environment FROM assets WHERE organization_id = ? "  # nosec B608  # placeholders only
+                            f"AND asset_key IN ({marks})", (org_id, *chunk)):
+                        people[ak] = (owner, env)
+                return [(r[0],) + people.get(r[0], ("", "")) + tuple(r[2:]) for r in rows]
     if pg:
         return pg_hndl_query(sql, params)
     with closing(get_connection()) as conn:

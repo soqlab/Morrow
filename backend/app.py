@@ -4192,6 +4192,13 @@ def _ensure_platform_admin_schema() -> None:
         conn.commit()
 
 
+def _is_derived_sqlite_table(name: str) -> bool:
+    """Tables rebuilt from the core data (read models, the search index and its FTS5 shadow
+    tables, backfill markers): not state to archive or migrate. FTS5 shadow tables have no rowid,
+    so copying them failed outright."""
+    return name in {"scan_headers", "asset_search_dirty", "morrow_backfills"} or name.startswith("asset_search_fts")
+
+
 _POSTGRES_NATIVE_OR_ARCHIVED_TABLES = {
     "organizations",
     "repositories",
@@ -4316,11 +4323,13 @@ def _sqlite_feature_state_tables() -> List[Dict[str, Any]]:
                     count = int(conn.execute(f"SELECT COUNT(*) FROM {quoted_name}").fetchone()[0] or 0)  # nosec B608  # table name read from sqlite_master and double-quoted as an identifier
                 except Exception:
                     count = 0
+                derived = _is_derived_sqlite_table(name)
                 out.append({
                     "table": name,
                     "rows": count,
-                    "state": "postgres_native" if name in _POSTGRES_NATIVE_OR_ARCHIVED_TABLES else "sqlite_auxiliary",
-                    "postgres_archive_supported": name not in _POSTGRES_NATIVE_OR_ARCHIVED_TABLES,
+                    "state": ("postgres_native" if name in _POSTGRES_NATIVE_OR_ARCHIVED_TABLES
+                              else "derived" if derived else "sqlite_auxiliary"),
+                    "postgres_archive_supported": name not in _POSTGRES_NATIVE_OR_ARCHIVED_TABLES and not derived,
                 })
             return out
     except Exception as exc:
