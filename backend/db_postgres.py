@@ -5437,36 +5437,37 @@ def migrate_sqlite_core_to_postgres(
                     stats["tables"][spec.name] = {"copied": 0, "skipped": True}
                     continue
 
-                rows = src.execute(f"SELECT {', '.join(cols)} FROM {spec.name}").fetchall()  # nosec B608  # table and columns come from CORE_TABLE_SPECS, filtered to columns SQLite reports
-                if not rows:
-                    stats["tables"][spec.name] = {"copied": 0, "skipped": False}
-                    continue
-
-                ordered_rows: List[Sequence[Any]] = []
-                for row in rows:
-                    normalized = _normalize_row(spec, {col: row[col] for col in cols})
-                    # JSON columns come back from _normalize_row as dicts/lists, which psycopg2 cannot
-                    # adapt on its own: without Json() the cutover failed on the first table with a
-                    # JSON column ("can't adapt type 'dict'").
-                    ordered_rows.append(tuple(
-                        Json(v) if isinstance(v, (dict, list)) else v
-                        for v in (normalized.get(col) for col in cols)))
-
                 sql = _build_upsert_sql(TableSpec(
                     name=spec.name,
                     columns=tuple(cols),
                     conflict_target=tuple(c for c in spec.conflict_target if c in cols),
                     update_columns=tuple(c for c in spec.update_columns if c in cols),
                 ))
-
-                for start in range(0, len(ordered_rows), batch_size):
-                    chunk = ordered_rows[start : start + batch_size]
+                # Streamed in batches: reading a whole table first held every scan's results (about
+                # 400 KB each, several times that once parsed) in memory at once, and the copy of a
+                # 100,000-asset estate died with MemoryError.
+                copied = 0
+                src_cur = src.execute(f"SELECT {', '.join(cols)} FROM {spec.name}")  # nosec B608  # table and columns come from CORE_TABLE_SPECS, filtered to columns SQLite reports
+                while True:
+                    rows = src_cur.fetchmany(batch_size)
+                    if not rows:
+                        break
+                    chunk: List[Sequence[Any]] = []
+                    for row in rows:
+                        normalized = _normalize_row(spec, {col: row[col] for col in cols})
+                        # JSON columns come back from _normalize_row as dicts/lists, which psycopg2
+                        # cannot adapt on its own: without Json() the cutover failed on the first
+                        # table with a JSON column ("can't adapt type 'dict'").
+                        chunk.append(tuple(
+                            Json(v) if isinstance(v, (dict, list)) else v
+                            for v in (normalized.get(col) for col in cols)))
                     execute_values(cur, sql, chunk)
+                    copied += len(chunk)
 
-                if spec.sequence_column:
+                if copied and spec.sequence_column:
                     _reset_sequence(cur, spec.name, spec.sequence_column)
 
-                stats["tables"][spec.name] = {"copied": len(ordered_rows), "skipped": False}
-                stats["copied"] += len(ordered_rows)
+                stats["tables"][spec.name] = {"copied": copied, "skipped": False}
+                stats["copied"] += copied
 
     return stats
