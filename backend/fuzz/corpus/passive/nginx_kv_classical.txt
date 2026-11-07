@@ -1,0 +1,1 @@
+203.0.113.9 - - [05/Nov/2026:10:00:02 +0000] "GET / HTTP/1.1" 200 512 host=api.example.com port=443 ssl_protocol=TLSv1.3 ssl_cipher=TLS_AES_128_GCM_SHA256 ssl_curve=X25519

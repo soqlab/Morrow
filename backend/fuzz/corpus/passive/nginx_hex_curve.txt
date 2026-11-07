@@ -1,0 +1,1 @@
+{"ssl_server_name":"hex.example.com","server_port":"8443","ssl_protocol":"TLSv1.3","ssl_cipher":"TLS_AES_128_GCM_SHA256","ssl_curve":"0x11ec"}

@@ -1,0 +1,8 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	ssl
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	version	cipher	curve	server_name	resumed	established
+#types	time	string	addr	port	addr	port	string	string	string	string	bool	bool
+1762336807.2	C1	192.168.1.21	53900	198.51.100.20	443	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	secp256r1	mail.example.com	F	T

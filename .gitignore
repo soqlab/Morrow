@@ -79,3 +79,11 @@ reports/market-ready/
 reports/prod-handoff/
 reports/release-evidence/
 backups/
+
+# Hypothesis example database and Atheris work/crash files from local fuzz runs
+.hypothesis/
+backend/work/
+backend/artifacts/
+backend/crash-*
+backend/timeout-*
+backend/oom-*

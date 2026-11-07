@@ -1,0 +1,1 @@
+[{"start_time":"2026-11-05T10:00:03.120Z","method":"GET","path":"/v1/orders?id=9","response_code":200,"downstream_remote_address":"198.51.100.4:51234","requested_server_name":"orders.example.com","downstream_local_port":"443","downstream_tls_version":"TLSv1.3","downstream_tls_cipher":"TLS_AES_128_GCM_SHA256","downstream_tls_group":"SecP256r1MLKEM768"}]

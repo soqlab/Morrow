@@ -10,3 +10,5 @@ jsonschema==4.26.0
 # AWS Secrets Manager / SSM are stubbed in-process for test_secrets_scanner_aws.py,
 # so the scanner is covered without credentials or a live AWS account.
 moto==5.2.3
+# Property-based fuzzing of the parsers of remote bytes (backend/test_fuzz_*.py, backend/fuzz/).
+hypothesis==6.170.15

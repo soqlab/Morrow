@@ -1,0 +1,1 @@
+{"requested_server_name":"legacy.example.com","downstream_local_address":"10.0.0.5:9443","downstream_tls_version":"TLSv1.2","downstream_tls_cipher":"ECDHE-RSA-AES128-GCM-SHA256","downstream_tls_group":"-"}

@@ -1,0 +1,1 @@
+<134>Nov  5 10:00:04 lb1 haproxy[2211]: 198.51.100.8:40112 [05/Nov/2026:10:00:04.001] fe_https~ be_app/app1 0/0/1/2/3 200 845 - - ---- 1/1/0/0/0 0/0 "GET /cart HTTP/1.1" sni=shop.example.com fp=443 sslv=TLSv1.3 sslc=TLS_AES_256_GCM_SHA384 curve=secp384r1
