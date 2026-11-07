@@ -15,7 +15,7 @@ count.
 | Source | Version | Cipher | Group | Host / port |
 | --- | --- | --- | --- | --- |
 | nginx | `$ssl_protocol` | `$ssl_cipher` | `$ssl_curve` (nginx 1.21.5+; unknown groups logged as hex, e.g. `0x11ec`, which Morrow resolves) | `$ssl_server_name` / `$host`, `$server_port` |
-| Envoy | `%DOWNSTREAM_TLS_VERSION%` | `%DOWNSTREAM_TLS_CIPHER%` | `%DOWNSTREAM_TLS_GROUP%` | `%REQUESTED_SERVER_NAME%`, `%DOWNSTREAM_LOCAL_PORT%` |
+| Envoy | `%DOWNSTREAM_TLS_VERSION%` | `%DOWNSTREAM_TLS_CIPHER%` | `%DOWNSTREAM_TLS_GROUP%` (Envoy 1.39+; see below) | `%REQUESTED_SERVER_NAME%`, `%DOWNSTREAM_LOCAL_PORT%` |
 | HAProxy | `ssl_fc_protocol` (`%sslv`) | `ssl_fc_cipher` (`%sslc`) | `ssl_fc_curve` (HAProxy built with OpenSSL 3.0+) | `ssl_fc_sni`, `%fp` |
 | AWS ALB | `ssl_protocol` (field 16) | `ssl_cipher` (field 15) | **not logged by ALB** | `domain_name` (19), port from the request line |
 | Zeek `ssl.log` | `version` | `cipher` | `curve` | `server_name` / `id.resp_h`, `id.resp_p` |
@@ -74,7 +74,11 @@ log_format morrow_tls escape=json
 access_log /var/log/nginx/morrow_tls.log morrow_tls if=$https;
 ```
 
-Envoy (`typed_config` of a file access log):
+Envoy (`typed_config` of a file access log). `%DOWNSTREAM_TLS_GROUP%` exists from Envoy 1.39
+(checked against 1.39.6). Envoy 1.36 does not have it and refuses to start with
+`Not supported field in StreamInfo: DOWNSTREAM_TLS_GROUP`; on such a release leave the
+`downstream_tls_group` line out, and TLS 1.3 handshakes are recorded with the group "not logged"
+(`unknown`) until you upgrade or a scan observes it:
 
 ```yaml
 log_format:
@@ -85,6 +89,17 @@ log_format:
     downstream_tls_cipher: "%DOWNSTREAM_TLS_CIPHER%"
     downstream_tls_group: "%DOWNSTREAM_TLS_GROUP%"
 ```
+
+`%REQUESTED_SERVER_NAME%` is empty unless the listener runs the TLS inspector, and a line with no
+host is counted as `missing_host`, never stored. Add it to every TLS listener you ship logs from:
+
+```yaml
+listener_filters:
+- name: envoy.filters.listener.tls_inspector
+  typed_config: {"@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector}
+```
+
+deploy/e2e/envoy/envoy.yaml is a complete, tested example.
 
 HAProxy (frontend):
 
