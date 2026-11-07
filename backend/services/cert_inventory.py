@@ -649,27 +649,31 @@ def _fp(value: Any) -> str:
 
 
 def _date(value: Any) -> str:
-    """ISO-8601 UTC from the shapes vendors use: ISO strings, yyyy-MM-dd, epoch seconds."""
-    if value in (None, ""):
+    """ISO-8601 UTC from the shapes vendors use: ISO strings, yyyy-MM-dd, epoch seconds.
+
+    Never raises: a date outside what datetime can hold (an epoch in the far future, year 1 with
+    a positive UTC offset) is returned as "" rather than aborting the whole sync.
+    """
+    if value is None or value == "" or isinstance(value, bool):
         return ""
-    if isinstance(value, (int, float)) or (isinstance(value, str) and re.fullmatch(r"\d{9,11}(\.\d+)?", value.strip())):
-        try:
-            return _iso(datetime.fromtimestamp(float(value), tz=timezone.utc))
-        except (OverflowError, OSError, ValueError):
-            return ""
-    text = str(value).strip()
-    m = re.fullmatch(r"/Date\((\d+)\)/", text)
-    if m:
-        return _iso(datetime.fromtimestamp(int(m.group(1)) / 1000, tz=timezone.utc))
-    # .NET-style 7-digit fractions (TPP, Keyfactor) are trimmed to the 6 Python 3.11 accepts.
-    text = re.sub(r"(\.\d{6})\d+", r"\1", text)
     try:
-        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return text[:40]
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return _iso(dt)
+        if isinstance(value, (int, float)) or (isinstance(value, str) and re.fullmatch(r"\d{9,11}(\.\d+)?", value.strip())):
+            return _iso(datetime.fromtimestamp(float(value), tz=timezone.utc))
+        text = str(value).strip()[:64]
+        m = re.fullmatch(r"/Date\((\d+)\)/", text)
+        if m:
+            return _iso(datetime.fromtimestamp(int(m.group(1)) / 1000, tz=timezone.utc))
+        # .NET-style 7-digit fractions (TPP, Keyfactor) are trimmed to the 6 Python 3.11 accepts.
+        text = re.sub(r"(\.\d{6})\d+", r"\1", text)
+        try:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return text[:40]
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return _iso(dt)
+    except (OverflowError, OSError, ValueError):
+        return ""
 
 
 def _first(value: Any) -> str:
