@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from cryptography import x509
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.backends import default_backend
 from cryptography.x509.oid import AuthorityInformationAccessOID
 from cryptography.x509 import ocsp as x509_ocsp
@@ -536,13 +537,199 @@ def _build_client_hello(host: str) -> bytes:
     return b"\x16\x03\x01" + _u16(len(handshake)) + handshake
 
 
-def _recv_at_least(sock: socket.socket, want: int, buf: bytearray) -> bool:
-    while len(buf) < want:
-        chunk = sock.recv(16384)
-        if not chunk:
-            return False
-        buf += chunk
-    return True
+class TLSParseError(ValueError):
+    """The server sent bytes that are not a well-formed TLS message of the kind expected."""
+
+
+#: RFC 8446 section 5.2 / RFC 5246 section 6.2.3: no record is longer than 2^14 + 2048 bytes.
+_TLS_MAX_RECORD = 2 ** 14 + 2048
+#: Bytes read from the server while looking for the key-exchange group. A ServerHello arrives in
+#: the first record; a TLS 1.2 ServerKeyExchange follows the certificate chain, which is rarely
+#: more than 16 KB. Anything larger is not read, so a server cannot make the probe buffer more.
+_TLS_MAX_FIRST_FLIGHT = 256 * 1024
+#: Records read while looking for the group. Bounds the loop when a server sends tiny records.
+_TLS_MAX_FLIGHT_RECORDS = 64
+_TLS_RECORD_TYPES = frozenset({0x14, 0x15, 0x16, 0x17})
+
+
+def parse_tls_record_header(header: bytes) -> Tuple[int, int]:
+    """(content type, length) of a TLS record header. Raises TLSParseError."""
+    if len(header) < 5:
+        raise TLSParseError("truncated record header")
+    rec_type = header[0]
+    if rec_type not in _TLS_RECORD_TYPES or header[1] != 0x03:
+        raise TLSParseError("not a TLS record (the server does not speak TLS on this port)")
+    rec_len = int.from_bytes(header[3:5], "big")
+    if rec_len > _TLS_MAX_RECORD:
+        raise TLSParseError(f"record length {rec_len} exceeds the TLS limit of {_TLS_MAX_RECORD}")
+    return rec_type, rec_len
+
+
+def split_handshake_messages(data: bytes) -> Tuple[List[Tuple[int, bytes]], bytes]:
+    """The complete handshake messages at the start of data, and the incomplete remainder."""
+    messages: List[Tuple[int, bytes]] = []
+    pos = 0
+    while len(data) - pos >= 4:
+        msg_len = int.from_bytes(data[pos + 1:pos + 4], "big")
+        if len(data) - pos - 4 < msg_len:
+            break
+        messages.append((data[pos], data[pos + 4:pos + 4 + msg_len]))
+        pos += 4 + msg_len
+    return messages, data[pos:]
+
+
+def parse_server_hello(body: bytes) -> Dict[str, Any]:
+    """Parse a ServerHello (or HelloRetryRequest) body, the bytes after the 4-byte header.
+
+    Returns hello_retry, cipher_suite, selected_version (supported_versions, or None) and
+    key_share_group (or None). Every length is checked against the bytes present: a field that
+    overruns the message raises TLSParseError instead of being read from the bytes that follow.
+    """
+    if len(body) < 38:
+        raise TLSParseError("ServerHello shorter than its fixed fields")
+    hello_retry = body[2:34] == _HRR_RANDOM
+    sid_len = body[34]
+    if sid_len > 32:
+        raise TLSParseError("legacy_session_id longer than 32 bytes")
+    pos = 35 + sid_len
+    if len(body) < pos + 3:
+        raise TLSParseError("ServerHello truncated before cipher_suite")
+    out: Dict[str, Any] = {
+        "hello_retry": hello_retry,
+        "cipher_suite": int.from_bytes(body[pos:pos + 2], "big"),
+        "selected_version": None,
+        "key_share_group": None,
+    }
+    pos += 3                                                   # cipher_suite + compression_method
+    if pos == len(body):
+        return out                                             # no extensions (TLS 1.2 allows it)
+    if len(body) < pos + 2:
+        raise TLSParseError("ServerHello truncated in the extensions length")
+    ext_end = pos + 2 + int.from_bytes(body[pos:pos + 2], "big")
+    pos += 2
+    if ext_end != len(body):
+        raise TLSParseError("extensions length does not match the ServerHello length")
+    seen = set()
+    while pos < ext_end:
+        if ext_end - pos < 4:
+            raise TLSParseError("truncated extension header")
+        ext_type = int.from_bytes(body[pos:pos + 2], "big")
+        ext_len = int.from_bytes(body[pos + 2:pos + 4], "big")
+        pos += 4
+        if pos + ext_len > ext_end:
+            raise TLSParseError(f"extension 0x{ext_type:04x} overruns the ServerHello")
+        if ext_type in seen:
+            raise TLSParseError(f"duplicate extension 0x{ext_type:04x}")
+        seen.add(ext_type)
+        ext_body = body[pos:pos + ext_len]
+        pos += ext_len
+        if ext_type == 0x0033:
+            # key_share: {group} in a HelloRetryRequest, {group, key_exchange<1..2^16-1>} in a
+            # ServerHello (RFC 8446 section 4.2.8).
+            if len(ext_body) < 2:
+                raise TLSParseError("key_share extension too short")
+            if not hello_retry:
+                if len(ext_body) < 4 or 4 + int.from_bytes(ext_body[2:4], "big") != len(ext_body):
+                    raise TLSParseError("key_share entry length does not match the extension")
+            out["key_share_group"] = int.from_bytes(ext_body[:2], "big")
+        elif ext_type == 0x002B and len(ext_body) == 2:
+            out["selected_version"] = int.from_bytes(ext_body, "big")
+    return out
+
+
+def server_key_exchange_named_curve(body: bytes) -> Optional[int]:
+    """The NamedCurve of a TLS 1.2 ECDHE ServerKeyExchange body, or None (RFC 8422 section 5.4)."""
+    if len(body) >= 3 and body[0] == 0x03:                    # ECCurveType named_curve
+        return int.from_bytes(body[1:3], "big")
+    return None
+
+
+class _RecordReader:
+    """Reads TLS records from a socket against one overall deadline and a byte budget.
+
+    A per-recv timeout alone let a server that sends one byte just inside the timeout hold the
+    probe for hours (64 KB records, one byte every few seconds); the deadline caps the whole read.
+    """
+
+    def __init__(self, sock: Any, deadline: float, budget: int = _TLS_MAX_FIRST_FLIGHT,
+                 clock: Any = time.monotonic):
+        self.sock = sock
+        self.deadline = deadline
+        self.budget = budget
+        self.clock = clock
+        self.buf = bytearray()
+        self.received = 0
+
+    def _fill(self, want: int) -> bool:
+        while len(self.buf) < want:
+            remaining = self.deadline - self.clock()
+            if remaining <= 0:
+                raise socket.timeout("deadline passed")
+            self.sock.settimeout(remaining)
+            chunk = self.sock.recv(16384)
+            if not chunk:
+                return False
+            self.received += len(chunk)
+            if self.received > self.budget:
+                raise TLSParseError(f"server sent more than {self.budget} bytes before the key exchange")
+            self.buf += chunk
+        return True
+
+    def next_record(self) -> Optional[Tuple[int, bytes]]:
+        """(content type, payload), or None when the connection closed first."""
+        if not self._fill(5):
+            return None
+        rec_type, rec_len = parse_tls_record_header(bytes(self.buf[:5]))
+        if not self._fill(5 + rec_len):
+            return None
+        payload = bytes(self.buf[5:5 + rec_len])
+        del self.buf[:5 + rec_len]
+        return rec_type, payload
+
+
+_NO_GROUP_REASON = ("the server named no key-exchange group (static RSA key exchange, or a "
+                    "TLS version that does not carry one)")
+
+
+def read_key_exchange_group(reader: Any) -> Tuple[Optional[int], bool, str]:
+    """(group id, hello_retry, reason) from the server's first flight.
+
+    reader.next_record() returns (type, payload) or None. The group comes from the ServerHello /
+    HelloRetryRequest key_share, else from a TLS 1.2 ServerKeyExchange in the same flight. Raises
+    TLSParseError for malformed records and messages.
+    """
+    pending = b""
+    hello: Optional[Dict[str, Any]] = None
+    for _ in range(_TLS_MAX_FLIGHT_RECORDS):
+        record = reader.next_record()
+        if record is None:
+            break
+        rec_type, payload = record
+        if rec_type == 0x15:                                  # alert
+            return None, False, ("server rejected the probe ClientHello "
+                                 f"(TLS alert {payload[:2].hex() or 'unknown'})")
+        if rec_type != 0x16:
+            continue
+        pending += payload
+        messages, pending = split_handshake_messages(pending)
+        for msg_type, body in messages:
+            if hello is None:
+                if msg_type != 0x02:
+                    return None, False, "no ServerHello in the first flight"
+                hello = parse_server_hello(body)
+                if hello["key_share_group"] is not None:
+                    return hello["key_share_group"], hello["hello_retry"], ""
+                if hello["hello_retry"] or hello["selected_version"] == 0x0304:
+                    # TLS 1.3 without a key share (PSK-only); no ServerKeyExchange will follow.
+                    return None, hello["hello_retry"], _NO_GROUP_REASON
+            elif msg_type == 12:                              # ServerKeyExchange
+                group = server_key_exchange_named_curve(body)
+                return group, False, "" if group is not None else _NO_GROUP_REASON
+            elif msg_type == 14:                              # ServerHelloDone: no SKE (static RSA)
+                return None, False, _NO_GROUP_REASON
+    if hello is None:
+        return None, False, "no ServerHello in the first flight"
+    return None, False, _NO_GROUP_REASON
 
 
 def _probe_key_exchange_group(host: str, port: int, timeout: float = DEFAULT_TIMEOUT,
@@ -558,6 +745,8 @@ def _probe_key_exchange_group(host: str, port: int, timeout: float = DEFAULT_TIM
     needs this: it resolves the target, refuses every non-public answer, and must then connect to
     the address it checked rather than re-resolving, or DNS rebinding could point the second
     lookup inward. Default "" keeps the internal scanner's behaviour unchanged.
+
+    The whole read is bounded by one deadline (twice ``timeout``) and _TLS_MAX_FIRST_FLIGHT bytes.
     """
     out: Dict[str, Any] = {
         "key_exchange": "",
@@ -578,66 +767,12 @@ def _probe_key_exchange_group(host: str, port: int, timeout: float = DEFAULT_TIM
         with socket.create_connection((address or host, port), timeout=timeout) as sock:
             sock.settimeout(timeout)
             sock.sendall(hello)
-            buf = bytearray()
-            handshake = bytearray()
-            for _ in range(8):
-                if not _recv_at_least(sock, 5, buf):
-                    break
-                rec_type = buf[0]
-                rec_len = int.from_bytes(bytes(buf[3:5]), "big")
-                if not _recv_at_least(sock, 5 + rec_len, buf):
-                    break
-                payload = bytes(buf[5:5 + rec_len])
-                del buf[:5 + rec_len]
-                if rec_type == 0x15:                                  # alert
-                    out["key_exchange_unobservable_reason"] = (
-                        "server rejected the probe ClientHello "
-                        f"(TLS alert {payload.hex() or 'unknown'})"
-                    )
-                    return out
-                if rec_type != 0x16:
-                    continue
-                handshake += payload
-                if len(handshake) >= 4:
-                    msg_len = int.from_bytes(bytes(handshake[1:4]), "big")
-                    if len(handshake) >= 4 + msg_len:
-                        break
-
-            if len(handshake) < 4 or handshake[0] != 0x02:
-                out["key_exchange_unobservable_reason"] = "no ServerHello in the first flight"
-                return out
-            msg_len = int.from_bytes(bytes(handshake[1:4]), "big")
-            body = bytes(handshake[4:4 + msg_len])
-            rest = bytes(handshake[4 + msg_len:])
-
-            pos = 2                                                   # legacy_version
-            out["key_exchange_hello_retry"] = body[pos:pos + 32] == _HRR_RANDOM
-            pos += 32
-            pos += 1 + body[pos]                                      # legacy_session_id_echo
-            pos += 3                                                  # cipher_suite + compression
-            ext_total = int.from_bytes(body[pos:pos + 2], "big")
-            pos += 2
-            ext_end = pos + ext_total
-            group_id: Optional[int] = None
-            while pos + 4 <= ext_end:
-                ext_type = int.from_bytes(body[pos:pos + 2], "big")
-                ext_len = int.from_bytes(body[pos + 2:pos + 4], "big")
-                ext_body = body[pos + 4:pos + 4 + ext_len]
-                pos += 4 + ext_len
-                # key_share: {group} in a HelloRetryRequest, {group, key_exchange} in a ServerHello.
-                if ext_type == 0x0033 and len(ext_body) >= 2:
-                    group_id = int.from_bytes(ext_body[:2], "big")
-
+            reader = _RecordReader(sock, time.monotonic() + 2 * timeout)
+            group_id, hello_retry, reason = read_key_exchange_group(reader)
+            out["key_exchange_hello_retry"] = hello_retry
             if group_id is None:
-                group_id = _tls12_server_key_exchange_group(sock, buf, rest)
-
-            if group_id is None:
-                out["key_exchange_unobservable_reason"] = (
-                    "the server named no key-exchange group (static RSA key exchange, or a "
-                    "TLS version that does not carry one)"
-                )
+                out["key_exchange_unobservable_reason"] = reason
                 return out
-
             name = TLS_NAMED_GROUPS.get(group_id, f"unknown-group-0x{group_id:04x}")
             out["key_exchange"] = name
             out["key_exchange_group_id"] = group_id
@@ -646,36 +781,13 @@ def _probe_key_exchange_group(host: str, port: int, timeout: float = DEFAULT_TIM
             return out
     except socket.timeout:
         out["key_exchange_unobservable_reason"] = "timed out before the ServerHello arrived"
+    except TLSParseError as exc:
+        out["key_exchange_unobservable_reason"] = f"malformed server response: {exc}"
     except OSError as exc:
         out["key_exchange_unobservable_reason"] = f"connection failed: {exc}"
     except Exception as exc:                                          # never fail the whole scan
         out["key_exchange_unobservable_reason"] = f"{type(exc).__name__}: {exc}"
     return out
-
-
-def _tls12_server_key_exchange_group(sock: socket.socket, buf: bytearray, rest: bytes) -> Optional[int]:
-    """The named curve from a TLS 1.2 ServerKeyExchange, which arrives in the same flight."""
-    pending = bytearray(rest)
-    for _ in range(12):
-        while len(pending) >= 4:
-            msg_len = int.from_bytes(bytes(pending[1:4]), "big")
-            if len(pending) < 4 + msg_len:
-                break
-            if pending[0] == 12 and msg_len >= 4 and pending[4] == 0x03:   # named_curve
-                return int.from_bytes(bytes(pending[5:7]), "big")
-            del pending[:4 + msg_len]
-        try:
-            if not _recv_at_least(sock, 5, buf):
-                return None
-            rec_len = int.from_bytes(bytes(buf[3:5]), "big")
-            if not _recv_at_least(sock, 5 + rec_len, buf):
-                return None
-            if buf[0] == 0x16:
-                pending += bytes(buf[5:5 + rec_len])
-            del buf[:5 + rec_len]
-        except OSError:
-            return None
-    return None
 
 
 # Public-key algorithms the scanner can name, and the bit strength to report when the key object
@@ -697,9 +809,27 @@ def _pk_details(cert: x509.Certificate) -> Dict[str, Any]:
     algorithm resolver, blast radius) reads ``key_bits``; the old key_detail string held the size
     for RSA and a curve name for EC, and nothing read it.
     """
-    pk = cert.public_key()
-    cls = pk.__class__.__name__.upper()
     out: Dict[str, Any] = {"key_type": "", "key_detail": "", "key_bits": 0, "key_curve": ""}
+    try:
+        pk = cert.public_key()
+    except (ValueError, UnsupportedAlgorithm):
+        # A key algorithm this cryptography build cannot load (or a malformed key). The whole
+        # scan used to fail on it; report the algorithm by OID instead.
+        out["key_type"] = "UNKNOWN"
+        try:
+            oid = cert.public_key_algorithm_oid
+            out["key_detail"] = str(oid._name if oid._name != "Unknown OID" else oid.dotted_string)
+        except Exception:
+            out["key_detail"] = ""
+        return out
+    cls = pk.__class__.__name__.upper()
+
+    # ML-DSA (FIPS 204) before the DSA check below: "MLDSA65PUBLICKEY" contains "DSA", and a
+    # post-quantum certificate was reported as classical, Shor-breakable DSA.
+    if cls.startswith("MLDSA"):
+        level = "".join(ch for ch in cls[5:7] if ch.isdigit())
+        name = f"ML-DSA-{level}" if level else "ML-DSA"
+        return {"key_type": "ML-DSA", "key_detail": name, "key_bits": 0, "key_curve": ""}
 
     def _bits(default: int = 0) -> int:
         try:
@@ -747,6 +877,18 @@ def _pk_info(cert: x509.Certificate) -> Tuple[str, str]:
     return (d["key_type"], d["key_detail"])
 
 
+def _name_string(cert: x509.Certificate, which: str) -> str:
+    """RFC 4514 subject or issuer, or "" when the name does not parse.
+
+    cryptography parses names lazily, so a certificate that loads can still raise ValueError
+    here; that failed the whole scan of an endpoint presenting it.
+    """
+    try:
+        return getattr(cert, which).rfc4514_string()
+    except ValueError:
+        return ""
+
+
 def _leaf_cert_facts(cert: x509.Certificate) -> Dict[str, Any]:
     """Every fact read off the leaf certificate, for both the verified and unverified paths.
 
@@ -758,8 +900,8 @@ def _leaf_cert_facts(cert: x509.Certificate) -> Dict[str, Any]:
     now, so the two paths cannot disagree about what a certificate says.
     """
     facts: Dict[str, Any] = {
-        "subject": cert.subject.rfc4514_string(),
-        "issuer": cert.issuer.rfc4514_string(),
+        "subject": _name_string(cert, "subject"),
+        "issuer": _name_string(cert, "issuer"),
         "not_before": _utc_iso(_cert_not_before(cert)),
         "not_after": _utc_iso(_cert_not_after(cert)),
         "days_until_expiry": _days_until(_cert_not_after(cert)),
@@ -1160,8 +1302,8 @@ def _analyze_cert_chain(chain_der: List[bytes]) -> Dict[str, Any]:
             parsed.append(
                 {
                     "index": i,
-                    "subject": cert.subject.rfc4514_string(),
-                    "issuer": cert.issuer.rfc4514_string(),
+                    "subject": _name_string(cert, "subject"),
+                    "issuer": _name_string(cert, "issuer"),
                     "not_before": _utc_iso(_cert_not_before(cert)),
                     "not_after": _utc_iso(_cert_not_after(cert)),
                     "key": f"{kt} / {kd}".strip(" /"),
