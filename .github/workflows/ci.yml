@@ -298,6 +298,12 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.lock
 
+      # Fails fast when a requirements*.txt pin changes without the hashed lock the images and CI
+      # install (fix: sh scripts/release/lock-requirements.sh). Standard library only.
+      - name: Lock files agree with the requirement files
+        working-directory: .
+        run: python -I scripts/release/check_locks.py
+
       - name: Install lint tools
         run: pip install ruff
 
