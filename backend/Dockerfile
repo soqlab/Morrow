@@ -16,9 +16,11 @@ WORKDIR /app
 ARG OPENTOFU_VERSION=1.8.6
 # sha256 of tofu_<version>_linux_amd64.zip, from the release's tofu_<version>_SHA256SUMS.
 ARG OPENTOFU_SHA256=4714768d1c502cd3a67ad8925cea44280e1c732ff005fcf1ee006530441cf667
-# apt installs the packages as they were in the Debian archive at this moment
-# (snapshot.debian.org), so their versions do not drift between builds. Move it forward to pick
-# up Debian security fixes.
+# apt installs the packages as they were in the Debian archive at this moment, so their versions do
+# not drift between builds: the RUN below points the Debian sources at snapshot.debian.org for the
+# install and puts the original sources back afterwards. (apt's own APT::Snapshot option is not
+# used: it fetches the live indexes as well, so a newer live package could still win.)
+# Move it forward to pick up Debian security fixes.
 ARG DEBIAN_SNAPSHOT=20261105T000000Z
 ARG INSTALL_DEV_DEPS=false
 # Set by scripts/release/build-image.sh to the commit time. useradd takes /etc/shadow's
@@ -40,8 +42,12 @@ COPY requirements-bootstrap.lock requirements.lock requirements-dev.lock /app/
 # build time. --only-binary: no source builds, whose output depends on the build machine.
 # The final rm removes what apt and dpkg record about the build itself (logs, caches, *-old
 # backups); those carry the build time and would differ between two builds.
-RUN apt-get -o APT::Snapshot="$DEBIAN_SNAPSHOT" update \
-    && apt-get -o APT::Snapshot="$DEBIAN_SNAPSHOT" install -y --no-install-recommends curl unzip ca-certificates \
+RUN cp -p /etc/apt/sources.list.d/debian.sources /tmp/debian.sources \
+    && sed -i -e "s|http://deb.debian.org/debian-security|https://snapshot.debian.org/archive/debian-security/$DEBIAN_SNAPSHOT|" \
+              -e "s|http://deb.debian.org/debian|https://snapshot.debian.org/archive/debian/$DEBIAN_SNAPSHOT|" \
+              /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get install -y --no-install-recommends curl unzip ca-certificates \
     && curl -fsSL "https://github.com/opentofu/opentofu/releases/download/v${OPENTOFU_VERSION}/tofu_${OPENTOFU_VERSION}_linux_amd64.zip" -o /tmp/tofu.zip \
     && echo "${OPENTOFU_SHA256}  /tmp/tofu.zip" | sha256sum -c - \
     && unzip /tmp/tofu.zip tofu -d /usr/local/bin \
@@ -50,8 +56,9 @@ RUN apt-get -o APT::Snapshot="$DEBIAN_SNAPSHOT" update \
     && pip install --no-cache-dir --require-hashes --only-binary :all: --no-deps -r /app/requirements.lock \
     && if [ "$INSTALL_DEV_DEPS" = "true" ]; then pip install --no-cache-dir --require-hashes --only-binary :all: --no-deps -r /app/requirements-dev.lock; fi \
     && adduser --disabled-password --gecos "" --uid 1001 appuser \
+    && cp -p /tmp/debian.sources /etc/apt/sources.list.d/debian.sources \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*.bin /var/log/* /var/cache/ldconfig/aux-cache \
-              /var/cache/debconf/*-old /var/lib/dpkg/*-old /etc/*-
+              /var/cache/debconf/*-old /var/lib/dpkg/*-old /etc/*- /tmp/debian.sources
 
 COPY --chown=appuser:appuser . /app
 

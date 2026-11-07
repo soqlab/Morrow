@@ -36,8 +36,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY backend/requirements-bootstrap.lock backend/requirements.lock /app/
 # Hash-locked installs and the cleanup of apt/dpkg build records: see backend/Dockerfile.
-RUN apt-get -o APT::Snapshot="$DEBIAN_SNAPSHOT" update \
-    && apt-get -o APT::Snapshot="$DEBIAN_SNAPSHOT" install -y --no-install-recommends curl unzip ca-certificates redis-server \
+# The Debian sources point at the snapshot for the install only; see backend/Dockerfile.
+RUN cp -p /etc/apt/sources.list.d/debian.sources /tmp/debian.sources \
+    && sed -i -e "s|http://deb.debian.org/debian-security|https://snapshot.debian.org/archive/debian-security/$DEBIAN_SNAPSHOT|" \
+              -e "s|http://deb.debian.org/debian|https://snapshot.debian.org/archive/debian/$DEBIAN_SNAPSHOT|" \
+              /etc/apt/sources.list.d/debian.sources \
+    && apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get install -y --no-install-recommends curl unzip ca-certificates redis-server \
     && curl -fsSL "https://github.com/opentofu/opentofu/releases/download/v${OPENTOFU_VERSION}/tofu_${OPENTOFU_VERSION}_linux_amd64.zip" -o /tmp/tofu.zip \
     && echo "${OPENTOFU_SHA256}  /tmp/tofu.zip" | sha256sum -c - \
     && unzip /tmp/tofu.zip tofu -d /usr/local/bin \
@@ -45,8 +50,9 @@ RUN apt-get -o APT::Snapshot="$DEBIAN_SNAPSHOT" update \
     && pip install --no-cache-dir --require-hashes --only-binary :all: --no-deps -r /app/requirements-bootstrap.lock \
     && pip install --no-cache-dir --require-hashes --only-binary :all: --no-deps -r /app/requirements.lock \
     && adduser --disabled-password --gecos "" --uid 1001 appuser \
+    && cp -p /tmp/debian.sources /etc/apt/sources.list.d/debian.sources \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*.bin /var/log/* /var/cache/ldconfig/aux-cache \
-              /var/cache/debconf/*-old /var/lib/dpkg/*-old /etc/*-
+              /var/cache/debconf/*-old /var/lib/dpkg/*-old /etc/*- /tmp/debian.sources
 
 COPY --chown=appuser:appuser backend/ /app/
 COPY --chown=appuser:appuser deploy/render-hosted/start.sh /app/render-start.sh
