@@ -5445,7 +5445,12 @@ def migrate_sqlite_core_to_postgres(
                 ordered_rows: List[Sequence[Any]] = []
                 for row in rows:
                     normalized = _normalize_row(spec, {col: row[col] for col in cols})
-                    ordered_rows.append(tuple(normalized.get(col) for col in cols))
+                    # JSON columns come back from _normalize_row as dicts/lists, which psycopg2 cannot
+                    # adapt on its own: without Json() the cutover failed on the first table with a
+                    # JSON column ("can't adapt type 'dict'").
+                    ordered_rows.append(tuple(
+                        Json(v) if isinstance(v, (dict, list)) else v
+                        for v in (normalized.get(col) for col in cols)))
 
                 sql = _build_upsert_sql(TableSpec(
                     name=spec.name,

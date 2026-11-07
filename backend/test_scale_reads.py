@@ -542,3 +542,34 @@ def test_digest_helpers_are_pure():
                             "certificate": {"notAfter": "2030-01-02T03:04:05+01:00"}})
     assert extras["cert_expires_at"] == "2030-01-02T02:04:05.000000Z"
     assert extras["map_country"] == "DE" and extras["map_risk_score"] == 0.85 and extras["map_included"] == 1
+
+
+@pytest.mark.skipif(not PG_DSN, reason="set MORROW_TEST_PG_DSN to run against a real Postgres")
+class TestCutoverCopiesJsonColumns(_SqliteBase):
+    """migrate_sqlite_core_to_postgres passed JSON columns to psycopg2 as dicts and failed on the
+    first table that has one ("can't adapt type 'dict'"); the 100,000-asset Postgres run found it."""
+
+    def test_a_seeded_sqlite_database_copies_and_fills_asset_scan_latest(self):
+        import psycopg2
+
+        import db_postgres
+
+        name = "pq_cutover_%s" % uuid.uuid4().hex[:8]
+        admin = psycopg2.connect(PG_DSN)
+        admin.autocommit = True
+        with admin.cursor() as cur:
+            cur.execute("CREATE DATABASE %s" % name)
+        dsn = "%s/%s" % (PG_DSN.rsplit("/", 1)[0], name)
+        try:
+            stats = db_postgres.migrate_sqlite_core_to_postgres(os.environ["MORROW_SCANNER_DB"], dsn=dsn)
+            self.assertGreater(stats["tables"]["scans"]["copied"], 0)
+            with db_postgres.pg_product_conn(dsn) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT COUNT(*) FROM asset_scan_latest WHERE organization_id = 'org-a'")
+                    latest = cur.fetchone()[0]
+            self.assertEqual(latest, len(self.old_newest("org-a")))
+        finally:
+            db_postgres.close_pools()
+            with admin.cursor() as cur:
+                cur.execute("DROP DATABASE IF EXISTS %s WITH (FORCE)" % name)
+            admin.close()
