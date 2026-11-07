@@ -38,12 +38,12 @@ scanned one are judged by exactly the same rule.
 from __future__ import annotations
 
 import ipaddress
-import json
 import re
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 from scanner import TLS_NAMED_GROUPS, _is_weak_cipher, classify_key_exchange_group
+from services import json_limits
 
 FORMATS = ("nginx", "envoy", "haproxy", "alb", "zeek")
 MAX_LINE_CHARS = 16_384
@@ -85,8 +85,12 @@ _ALIASES: Dict[str, Dict[str, Tuple[str, ...]]] = {
 
 _EMPTY = {"", "-", "null", "none", "(null)", "nil"}
 _HOSTNAME_RE = re.compile(r"^(?=.{1,253}$)[a-z0-9_](?:[a-z0-9_-]{0,62}[a-z0-9_])?(?:\.[a-z0-9_](?:[a-z0-9_-]{0,62}[a-z0-9_])?)*$")
-_KV_RE = re.compile(r'([A-Za-z_][A-Za-z0-9_.:-]*)=("(?:[^"\\]|\\.)*"|\S*)')
-_ALB_TOKEN_RE = re.compile(r'"(?:[^"\\]|\\.)*"|\S+')
+# Both patterns run on every line of an attacker-supplied batch, so neither may backtrack. A key
+# starts only where no key character precedes it (else a 16 KB run of letters with no "=" is
+# retried from every offset: quadratic, about 20 s for one line), and the possessive quantifiers
+# (Python 3.11+) stop an unterminated quoted value from being re-scanned.
+_KV_RE = re.compile(r'(?<![A-Za-z0-9_.:-])([A-Za-z_][A-Za-z0-9_.:-]*+)=("(?:[^"\\]|\\.)*+"|\S*)')
+_ALB_TOKEN_RE = re.compile(r'"(?:[^"\\]|\\.)*+"|\S+')
 _ALB_TLS_TYPES = {"https", "h2", "grpcs", "wss"}
 _ALB_TYPES = _ALB_TLS_TYPES | {"http", "ws"}
 
@@ -313,7 +317,7 @@ def _parse_structured(fmt: str, record: Any) -> Dict[str, Any]:
     stripped = text.strip()
     if stripped.startswith("{"):
         try:
-            obj = json.loads(stripped)
+            obj = json_limits.loads(stripped)
         except ValueError:
             raise ParseError("invalid_json")
         if not isinstance(obj, dict):
@@ -362,6 +366,19 @@ def parse_alb(line: Any) -> Optional[Dict[str, Any]]:
     return _observation("alb", host, port, version, cipher, "", False, group_loggable=False)
 
 
+_ZEEK_HEX_SEPARATOR_RE = re.compile(r"(?:\\x[0-9A-Fa-f]{2})+")
+
+
+def _zeek_separator(text: str) -> str:
+    """The separator a "#separator" header names: Zeek writes it as hex escapes ("\\x09")."""
+    raw = text.split(" ", 1)[1].strip() if " " in text else "\\x09"
+    if _ZEEK_HEX_SEPARATOR_RE.fullmatch(raw):
+        raw = bytes.fromhex(raw.replace("\\x", "")).decode("latin-1")
+    if not raw:
+        raise ParseError("zeek_invalid_separator")
+    return raw
+
+
 class ZeekTsvState:
     def __init__(self) -> None:
         self.fields: List[str] = []
@@ -376,8 +393,7 @@ def parse_zeek(line: Any, state: ZeekTsvState) -> Optional[Dict[str, Any]]:
     text = str(line).rstrip("\r\n")
     if text.startswith("#"):
         if text.startswith("#separator"):
-            raw = text.split(" ", 1)[1].strip() if " " in text else "\\x09"
-            state.separator = raw.encode("utf-8").decode("unicode_escape") if raw.startswith("\\x") else raw
+            state.separator = _zeek_separator(text)
         elif text.startswith("#unset_field"):
             state.unset = text.split(state.separator, 1)[1] if state.separator in text else state.unset
         elif text.startswith("#fields"):

@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from db_feature_store import feature_conn
-from services import passive_discovery
+from services import json_limits, passive_discovery
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +323,7 @@ def decode_records(body: bytes, content_type: str = "", content_encoding: str = 
     parsed_whole = False
     if ctype in ("application/json", "") and stripped[:1] in ("[", "{"):
         try:
-            whole = json.loads(stripped)
+            whole = json_limits.loads(stripped)
             parsed_whole = True
         except ValueError:
             whole = None
@@ -344,7 +344,7 @@ def decode_records(body: bytes, content_type: str = "", content_encoding: str = 
                 continue
             if (ndjson or raw.lstrip().startswith("{")) and raw.lstrip().startswith("{"):
                 try:
-                    records.append(json.loads(raw))
+                    records.append(json_limits.loads(raw))
                     continue
                 except ValueError:
                     pass                               # handed to the parser, which counts it
