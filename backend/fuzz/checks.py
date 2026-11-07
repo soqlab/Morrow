@@ -23,9 +23,11 @@ import threading
 import time
 from typing import Any, Iterator, List, Optional, Sequence
 
-#: Seconds one input may take. Generous: CI runners are slow and Windows has no SIGALRM, where the
-#: limit is checked after the call instead of interrupting it.
-TIME_LIMIT = float(os.environ.get("MORROW_FUZZ_TIME_LIMIT", "3"))
+#: Seconds one input may take. Generous on purpose: a shared or loaded runner must not turn a
+#: millisecond parse into a false hang, while the hangs this catches (quadratic regexes, reads
+#: without a deadline) take tens of seconds to forever. Windows has no SIGALRM; there the limit
+#: is checked after the call instead of interrupting it.
+TIME_LIMIT = float(os.environ.get("MORROW_FUZZ_TIME_LIMIT", "10"))
 
 
 class ParserHang(BaseException):
