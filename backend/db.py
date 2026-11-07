@@ -993,38 +993,43 @@ def _ensure_asset_scan_latest(conn: sqlite3.Connection) -> None:
     # asset_updated_jd is updated_at as a Julian day, NULL when the stamp has no time zone (the HNDL
     # views count such an asset 365 days old); asset_port is the asset key's port text. Both are
     # what the HNDL pricing reads per asset, stored so a whole-estate read does arithmetic only.
-    conn.executescript(
-        """
-        DROP TRIGGER IF EXISTS trg_asset_latest_inv_new;
-        DROP TRIGGER IF EXISTS trg_assets_latest_inv_ins;
-        DROP TRIGGER IF EXISTS trg_assets_latest_inv_upd;
-        DROP TRIGGER IF EXISTS trg_assets_latest_inv_del;
-        CREATE TRIGGER IF NOT EXISTS trg_asset_latest_inv2_new AFTER INSERT ON asset_scan_latest BEGIN
-            UPDATE asset_scan_latest SET
-                asset_port = CASE WHEN instr(NEW.asset_key, ':') > 0 THEN substr(NEW.asset_key, instr(NEW.asset_key, ':') + 1) ELSE '' END,
-                asset_updated_at = (SELECT a.updated_at FROM assets a WHERE a.organization_id = NEW.organization_id
-                                    AND a.asset_key = NEW.asset_key AND TRIM(a.asset_key) <> '')
-            WHERE rowid = NEW.rowid;
-            UPDATE asset_scan_latest SET asset_updated_jd = %(jd_col)s WHERE rowid = NEW.rowid;
-        END;
-        CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_ins AFTER INSERT ON assets BEGIN
-            UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
-                asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
-            WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
-        END;
-        CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_upd AFTER UPDATE OF organization_id, asset_key, updated_at ON assets BEGIN
-            UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
-            WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
-            UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
-                asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
-            WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
-        END;
-        CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_del AFTER DELETE ON assets BEGIN
-            UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
-            WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
-        END;
-        """ % {"jd_col": _JD_SQL.format(u="asset_updated_at"), "jd_new": _JD_SQL.format(u="NEW.updated_at")}  # nosec B608  # constant expressions
-    )
+    # These triggers read and watch `assets`; a database being upgraded may not have it yet, and a
+    # trigger whose body names a missing table fails every write that fires it. They are created
+    # once `assets` exists (this function runs again then: it is only marked done after them).
+    has_assets = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'assets'").fetchone()
+    if has_assets:
+        conn.executescript(
+            """
+            DROP TRIGGER IF EXISTS trg_asset_latest_inv_new;
+            DROP TRIGGER IF EXISTS trg_assets_latest_inv_ins;
+            DROP TRIGGER IF EXISTS trg_assets_latest_inv_upd;
+            DROP TRIGGER IF EXISTS trg_assets_latest_inv_del;
+            CREATE TRIGGER IF NOT EXISTS trg_asset_latest_inv2_new AFTER INSERT ON asset_scan_latest BEGIN
+                UPDATE asset_scan_latest SET
+                    asset_port = CASE WHEN instr(NEW.asset_key, ':') > 0 THEN substr(NEW.asset_key, instr(NEW.asset_key, ':') + 1) ELSE '' END,
+                    asset_updated_at = (SELECT a.updated_at FROM assets a WHERE a.organization_id = NEW.organization_id
+                                        AND a.asset_key = NEW.asset_key AND TRIM(a.asset_key) <> '')
+                WHERE rowid = NEW.rowid;
+                UPDATE asset_scan_latest SET asset_updated_jd = %(jd_col)s WHERE rowid = NEW.rowid;
+            END;
+            CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_ins AFTER INSERT ON assets BEGIN
+                UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
+                    asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
+                WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
+            END;
+            CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_upd AFTER UPDATE OF organization_id, asset_key, updated_at ON assets BEGIN
+                UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
+                WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
+                UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
+                    asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
+                WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
+            END;
+            CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_del AFTER DELETE ON assets BEGIN
+                UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
+                WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
+            END;
+            """ % {"jd_col": _JD_SQL.format(u="asset_updated_at"), "jd_new": _JD_SQL.format(u="NEW.updated_at")}  # nosec B608  # constant expressions
+        )
     # Newest first, as latest_scan_facts_for_org returns them.
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_scanned"
                  " ON asset_scan_latest (organization_id, scanned_at DESC, result_id DESC)")
@@ -1109,7 +1114,8 @@ def _ensure_asset_scan_latest(conn: sqlite3.Connection) -> None:
         conn.execute("INSERT OR REPLACE INTO morrow_backfills (name, completed_at) VALUES (?, ?)",
                      (ASSET_LATEST_FACTS_BACKFILL, _utc_now_iso()))
         conn.commit()
-    mark_schema_ensured("asset_scan_latest")
+    if has_assets:
+        mark_schema_ensured("asset_scan_latest")
 
 
 #: Key types whose size and curve are fixed by the algorithm itself, so they can be backfilled onto
