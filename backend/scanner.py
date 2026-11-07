@@ -26,7 +26,7 @@ from policy import evaluate_tls_findings, derive_risk_and_score, derive_pq_relev
 DEFAULT_TIMEOUT = 6
 #: Recorded on every scan result, so evidence built from a stored scan (a migration proof, for one)
 #: can say which scanner produced it. Bump when what the scanner observes or how it classifies changes.
-SCANNER_VERSION = "morrow-tls-scanner/2026.11"
+SCANNER_VERSION = "morrow-tls-scanner/2026.11.1"
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +297,16 @@ def _connect_handshake(
     return out
 
 
+#: Cipher string for the per-version probes. The question a version probe asks is "does the server
+#: speak TLS 1.x at all", so the client must not refuse on its own policy first. Python's default
+#: string (SECLEVEL=2, ECDHE/DHE only) made two answers impossible: under OpenSSL 3 every TLS 1.0 and
+#: 1.1 handshake failed locally with "internal error" before a byte was sent (no cipher or signature
+#: is permitted for those versions above security level 0), so no legacy-protocol endpoint was ever
+#: reported; and a TLS 1.2 server offering only RSA key exchange was reported as not speaking TLS 1.2.
+#: Found by the public-endpoint accuracy suite (docs/ACCURACY.md).
+_VERSION_PROBE_CIPHERS = "ALL:@SECLEVEL=0"
+
+
 def _probe_tls_versions(host: str, port: int) -> Dict[str, Any]:
     supported: Dict[str, bool] = {"TLSv1.0": False, "TLSv1.1": False, "TLSv1.2": False, "TLSv1.3": False}
     errors: Dict[str, str] = {}
@@ -308,7 +318,8 @@ def _probe_tls_versions(host: str, port: int) -> Dict[str, Any]:
     ]:
         if proto is None:
             continue
-        r = _connect_handshake(host, port, protocol_const=proto, verify=False, alpn=["h2", "http/1.1"])
+        r = _connect_handshake(host, port, protocol_const=proto, verify=False,
+                               cipher=_VERSION_PROBE_CIPHERS, alpn=["h2", "http/1.1"])
         if r["success"]:
             supported[label] = True
         else:
@@ -486,16 +497,22 @@ def _build_client_hello(host: str) -> bytes:
     X25519 share, a server that accepts both groups without preferring one (OpenSSL 3.5's default
     for groups in the same tuple, e.g. nginx `ssl_ecdh_curve X25519MLKEM768:X25519`) answers with
     X25519, and the scan reported a hybrid-capable endpoint as classical.
+    On the public accuracy dataset (docs/ACCURACY.md) that missed 137 of 299 hybrid-capable
+    endpoints, Fastly, Akamai and Apple among them.
     """
     import secrets as _secrets
 
     from cryptography.hazmat.primitives import serialization as _ser
     from cryptography.hazmat.primitives.asymmetric import x25519 as _x25519
 
-    share = _x25519.X25519PrivateKey.generate().public_key().public_bytes(
-        _ser.Encoding.Raw, _ser.PublicFormat.Raw
-    )
-    hybrid_share = _mlkem768_encapsulation_key() + share   # X25519MLKEM768: ML-KEM ek || X25519
+    def _x25519_pub() -> bytes:
+        return _x25519.X25519PrivateKey.generate().public_key().public_bytes(
+            _ser.Encoding.Raw, _ser.PublicFormat.Raw
+        )
+
+    share = _x25519_pub()
+    # X25519MLKEM768 client share = ML-KEM-768 encapsulation key (1184 bytes) || X25519 key (32).
+    hybrid_share = _mlkem768_encapsulation_key() + _x25519_pub()
 
     exts = b""
     is_ip = True
@@ -1370,6 +1387,48 @@ def _scope_refusal(host: str) -> str:
         return f"Scan permission could not be checked ({exc.__class__.__name__})."
 
 
+def _legacy_cipher_cert_fallback(host: str, port: int, facts: Dict[str, Any]) -> None:
+    """Read the certificate from a server the default client context cannot handshake with.
+
+    The primary handshake uses ssl.create_default_context(), whose cipher list has no static-RSA
+    key exchange and sits at SECLEVEL 2. A server offering only RSA key transport (or only
+    pre-TLS-1.2) failed that handshake with an alert, and the scan came back tls_error with no
+    certificate at all -- so exactly the legacy estates most in need of migration were reported
+    "unknown". Found by the public accuracy suite (static-rsa.badssl.com, docs/ACCURACY.md).
+    The certificate is read with a permissive, unverified handshake and marked as such.
+    """
+    try:
+        ctx = _new_ssl_context(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            ctx.minimum_version = ssl.TLSVersion.MINIMUM_SUPPORTED
+        ctx.set_ciphers(_VERSION_PROBE_CIPHERS)
+        with socket.create_connection((host, port), timeout=DEFAULT_TIMEOUT) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                der = ssock.getpeercert(binary_form=True)
+                if not der:
+                    return
+                facts["primary_handshake_error"] = facts.get("error") or ""
+                facts["tls_version"] = ssock.version() or ""
+                c = ssock.cipher()
+                if c:
+                    facts["cipher_name"] = c[0] or ""
+                    facts["cipher_bits"] = c[2] if len(c) > 2 else None
+                facts.update(_leaf_cert_facts(x509.load_der_x509_certificate(der, default_backend())))
+                chain_der, chain_source, conf, conf_reason = _get_cert_chain_der_with_source(ssock)
+                facts["chain_source"] = chain_source
+                facts["chain_confidence"] = conf
+                facts["chain_confidence_reason"] = conf_reason
+                facts.update(_analyze_cert_chain(chain_der))
+                facts["unverified_fallback"] = True
+                facts["error"] = ""
+                facts["error_code"] = ""
+    except Exception:
+        return
+
+
 def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
     facts: Dict[str, Any] = {
         "host": host,
@@ -1577,6 +1636,8 @@ def scan_host(host: str, port: int = 443) -> Dict[str, Any]:
         except Exception as e:
             facts["error"] = str(e)
             facts["error_code"] = _error_code_from_exception(e)
+            if isinstance(e, ssl.SSLError):
+                _legacy_cipher_cert_fallback(host, port, facts)
 
         # Probes (do not require verification)
         try:

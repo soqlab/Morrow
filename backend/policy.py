@@ -994,6 +994,20 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
     hndl = "high" if classical_dependency else "unknown"
     if not tls13_enabled or weak_tls:
         hndl = "critical" if classical_dependency else "high"
+    # Harvest-now-decrypt-later is about the *key exchange*: recorded traffic is decryptable later
+    # only if the session key was agreed classically. The certificate key (classical_dependency)
+    # matters for impersonation, not for decrypting a recording. This used to ignore the observed
+    # group, so every endpoint that already negotiates X25519MLKEM768 with a current client --
+    # Google, Cloudflare, Meta, AWS, ... -- was reported HNDL "critical"/"high": on the public
+    # accuracy dataset (docs/ACCURACY.md) 310 of 386 endpoints, precision 20%. Passive discovery
+    # (services/passive_discovery.py) already scores a hybrid group "low"; the active scan now agrees.
+    # Legacy-version support does not change it: a passive recorder of a PQ-capable client's session
+    # sees the hybrid exchange, and a downgrade needs an active attacker, which is not HNDL.
+    pq_key_exchange = bool(facts.get("key_exchange_observed")) and _get_str(
+        facts.get("key_exchange_family")
+    ) in ("pq_hybrid", "pq_pure")
+    if pq_key_exchange:
+        hndl = "low"
 
     if not scanned:
         # Nothing was observed. A crypto-agility score of 70 and "needs_crypto_agility_work" were
