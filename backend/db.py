@@ -941,6 +941,59 @@ def _asset_latest_trigger_sql(present: Optional[set] = None) -> str:
 _SEARCH_ROWID_CAP = 2000
 
 
+#: The triggers that keep asset_scan_latest's inventory stamp (asset_updated_at, asset_updated_jd,
+#: asset_port) in step with `assets`. A table rebuild of `assets` (the sprint-14 key migration)
+#: drops them and recreates them around its renames: ALTER TABLE ... RENAME rewrites the trigger
+#: bodies that name the table, and would leave them pointing at the dropped copy.
+_ASSET_INVENTORY_TRIGGERS = ("trg_asset_latest_inv2_new", "trg_assets_latest_inv2_ins", "trg_assets_latest_inv2_upd",
+                             "trg_assets_latest_inv2_del")
+
+
+def _asset_inventory_trigger_sql() -> str:
+    return (
+        """
+                DROP TRIGGER IF EXISTS trg_asset_latest_inv_new;
+                DROP TRIGGER IF EXISTS trg_assets_latest_inv_ins;
+                DROP TRIGGER IF EXISTS trg_assets_latest_inv_upd;
+                DROP TRIGGER IF EXISTS trg_assets_latest_inv_del;
+                CREATE TRIGGER IF NOT EXISTS trg_asset_latest_inv2_new AFTER INSERT ON asset_scan_latest BEGIN
+                    UPDATE asset_scan_latest SET
+                        asset_port = CASE WHEN instr(NEW.asset_key, ':') > 0 THEN substr(NEW.asset_key, instr(NEW.asset_key, ':') + 1) ELSE '' END,
+                        asset_updated_at = (SELECT a.updated_at FROM assets a WHERE a.organization_id = NEW.organization_id
+                                            AND a.asset_key = NEW.asset_key AND TRIM(a.asset_key) <> '')
+                    WHERE rowid = NEW.rowid;
+                    UPDATE asset_scan_latest SET asset_updated_jd = %(jd_col)s WHERE rowid = NEW.rowid;
+                END;
+                CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_ins AFTER INSERT ON assets BEGIN
+                    UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
+                        asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
+                    WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
+                END;
+                CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_upd AFTER UPDATE OF organization_id, asset_key, updated_at ON assets BEGIN
+                    UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
+                    WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
+                    UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
+                        asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
+                    WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
+                END;
+                CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_del AFTER DELETE ON assets BEGIN
+                    UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
+                    WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
+                END;
+                """ % {"jd_col": _JD_SQL.format(u="asset_updated_at"), "jd_new": _JD_SQL.format(u="NEW.updated_at")}  # nosec B608  # constant expressions
+    )
+
+
+def _drop_asset_inventory_triggers(conn: sqlite3.Connection) -> None:
+    for name in _ASSET_INVENTORY_TRIGGERS:
+        conn.execute("DROP TRIGGER IF EXISTS %s" % name)  # nosec B608  # names are the literals above
+
+
+def _restore_asset_inventory_triggers(conn: sqlite3.Connection) -> None:
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'asset_scan_latest'").fetchone():
+        conn.executescript(_asset_inventory_trigger_sql())
+
+
 def _has_asset_search_index(conn: sqlite3.Connection) -> bool:
     """Whether the trigram index exists (FTS5 with the trigram tokenizer needs SQLite 3.34+)."""
     try:
@@ -998,38 +1051,7 @@ def _ensure_asset_scan_latest(conn: sqlite3.Connection) -> None:
     # once `assets` exists (this function runs again then: it is only marked done after them).
     has_assets = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'assets'").fetchone()
     if has_assets:
-        conn.executescript(
-            """
-            DROP TRIGGER IF EXISTS trg_asset_latest_inv_new;
-            DROP TRIGGER IF EXISTS trg_assets_latest_inv_ins;
-            DROP TRIGGER IF EXISTS trg_assets_latest_inv_upd;
-            DROP TRIGGER IF EXISTS trg_assets_latest_inv_del;
-            CREATE TRIGGER IF NOT EXISTS trg_asset_latest_inv2_new AFTER INSERT ON asset_scan_latest BEGIN
-                UPDATE asset_scan_latest SET
-                    asset_port = CASE WHEN instr(NEW.asset_key, ':') > 0 THEN substr(NEW.asset_key, instr(NEW.asset_key, ':') + 1) ELSE '' END,
-                    asset_updated_at = (SELECT a.updated_at FROM assets a WHERE a.organization_id = NEW.organization_id
-                                        AND a.asset_key = NEW.asset_key AND TRIM(a.asset_key) <> '')
-                WHERE rowid = NEW.rowid;
-                UPDATE asset_scan_latest SET asset_updated_jd = %(jd_col)s WHERE rowid = NEW.rowid;
-            END;
-            CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_ins AFTER INSERT ON assets BEGIN
-                UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
-                    asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
-                WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
-            END;
-            CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_upd AFTER UPDATE OF organization_id, asset_key, updated_at ON assets BEGIN
-                UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
-                WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
-                UPDATE asset_scan_latest SET asset_updated_at = CASE WHEN TRIM(NEW.asset_key) <> '' THEN NEW.updated_at END,
-                    asset_updated_jd = CASE WHEN TRIM(NEW.asset_key) <> '' THEN %(jd_new)s END
-                WHERE organization_id = NEW.organization_id AND asset_key = NEW.asset_key;
-            END;
-            CREATE TRIGGER IF NOT EXISTS trg_assets_latest_inv2_del AFTER DELETE ON assets BEGIN
-                UPDATE asset_scan_latest SET asset_updated_at = NULL, asset_updated_jd = NULL
-                WHERE organization_id = OLD.organization_id AND asset_key = OLD.asset_key;
-            END;
-            """ % {"jd_col": _JD_SQL.format(u="asset_updated_at"), "jd_new": _JD_SQL.format(u="NEW.updated_at")}  # nosec B608  # constant expressions
-        )
+        conn.executescript(_asset_inventory_trigger_sql())
     # Newest first, as latest_scan_facts_for_org returns them.
     conn.execute("CREATE INDEX IF NOT EXISTS idx_asset_scan_latest_org_scanned"
                  " ON asset_scan_latest (organization_id, scanned_at DESC, result_id DESC)")
@@ -1786,9 +1808,11 @@ def _migrate_assets_to_org_pk(conn: sqlite3.Connection) -> None:
         """,
         (DEFAULT_ORG_ID,),
     )
+    _drop_asset_inventory_triggers(conn)
     conn.execute("ALTER TABLE assets RENAME TO __assets_m14_old")
     conn.execute("ALTER TABLE __assets_m14_new RENAME TO assets")
     conn.execute("DROP TABLE __assets_m14_old")
+    _restore_asset_inventory_triggers(conn)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets (owner)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_team ON assets (team)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_assets_env ON assets (environment)")
