@@ -92,7 +92,7 @@ from db_postgres import (
     pg_backfill_asset_scan_latest,
     pg_certificate_lifecycle_rows,
     pg_key_map_rows,
-    pg_hndl_asset_inputs,
+    pg_hndl_query,
     pg_asset_latest_evidence,
     pg_telemetry_scan_counts,
     pg_count_flight_recorder_events_since,
@@ -3185,34 +3185,72 @@ def _sqlite_certificate_rows(conn: sqlite3.Connection, org_id: str, now: datetim
     return {"summary": summary, "total": total, "rows": [by_key[k] for k in page if k in by_key]}
 
 
-def hndl_asset_inputs(now: datetime) -> List[tuple]:
-    """Every inventory asset's HNDL pricing inputs, in /assets order (updated_at, asset_key descending):
-    (asset_key, owner, environment, tls_version, cipher_name, key_type, key_bits, key_exchange,
-    first_scan_days_ago), the newest scan's fields from asset_scan_latest.
+#: HNDL pricing inputs per asset: the port from the asset key, the newest scan's cryptography and
+#: whole days since the asset's updated_at (at least 30; 365 when the stamp has no time zone).
+_HNDL_GROUP_COLS = ("port_s", "tls", "cipher", "kt", "kb", "kx", "days")
 
-    first_scan_days_ago is what the HNDL handlers derived from updated_at: whole days since then, at
-    least 30, or 365 when the stamp carries no time zone. The HNDL views priced only the newest
-    1,000 assets because this join ran per asset; it is one narrow statement for the whole estate.
-    """
+
+def _hndl_inputs_sql(dialect: str) -> str:
+    p = "%s" if dialect == "pg" else "?"
+    if dialect == "pg":
+        port = "CASE WHEN strpos(a.asset_key, ':') > 0 THEN substr(a.asset_key, strpos(a.asset_key, ':') + 1) ELSE '' END"
+        days = "GREATEST(30, FLOOR(EXTRACT(EPOCH FROM (%s::timestamptz - a.updated_at)) / 86400))::integer" % p
+    else:
+        port = "CASE WHEN instr(a.asset_key, ':') > 0 THEN substr(a.asset_key, instr(a.asset_key, ':') + 1) ELSE '' END"
+        diff = "(julianday(%s) - julianday(a.updated_at))" % p
+        days = ("CASE WHEN a.updated_at GLOB '*Z' OR a.updated_at GLOB '*[+-][0-9][0-9]:[0-9][0-9]' "
+                "THEN MAX(30, CAST({d} AS INTEGER) - ({d} < CAST({d} AS INTEGER))) ELSE 365 END").format(d=diff)
+    return (
+        "SELECT a.asset_key AS asset_key, a.updated_at AS updated_at, a.owner AS owner, a.environment AS environment, "
+        "{port} AS port_s, COALESCE(l.tls_version, '') AS tls, COALESCE(l.cipher_name, '') AS cipher, "
+        "COALESCE(l.key_type, '') AS kt, COALESCE(l.key_bits, 0) AS kb, COALESCE(l.key_exchange, '') AS kx, "
+        "{days} AS days "
+        "FROM assets a LEFT JOIN asset_scan_latest l ON l.organization_id = a.organization_id AND l.asset_key = a.asset_key "
+        "WHERE a.organization_id = {p} AND a.asset_key <> ''"
+    ).format(port=port, days=days, p=p)
+
+
+def hndl_input_groups(now: datetime) -> List[tuple]:
+    """The estate's distinct HNDL pricing inputs with how many assets have each:
+    [(port_s, tls_version, cipher_name, key_type, key_bits, key_exchange, days, count)].
+
+    The HNDL views priced only the newest 1,000 assets, one by one; the whole estate collapses to a
+    few hundred distinct inputs, so this is one GROUP BY and the model runs once per group."""
     org_id = current_organization_id()
     now_iso = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    if postgres_main_db_requested():
-        return pg_hndl_asset_inputs(org_id, now_iso)
-    diff = "(julianday(?) - julianday(a.updated_at))"
-    days = ("CASE WHEN a.updated_at GLOB '*Z' OR a.updated_at GLOB '*[+-][0-9][0-9]:[0-9][0-9]' "
-            "THEN MAX(30, CAST(%s AS INTEGER) - (%s < CAST(%s AS INTEGER))) ELSE 365 END" % (diff, diff, diff))
+    pg = postgres_main_db_requested()
+    inner = _hndl_inputs_sql("pg" if pg else "sqlite")
+    cols = ", ".join(_HNDL_GROUP_COLS)
+    sql = f"SELECT {cols}, COUNT(*) FROM ({inner}) x GROUP BY {cols}"  # nosec B608  # fixed SQL text; values are bound
+    params = (now_iso, org_id) if pg else (now_iso, now_iso, now_iso, org_id)
+    if pg:
+        return pg_hndl_query(sql, params)
     with closing(get_connection()) as conn:
-        return [tuple(r) for r in conn.execute(
-            f"""
-            SELECT a.asset_key, a.owner, a.environment, COALESCE(l.tls_version, ''), COALESCE(l.cipher_name, ''),
-                   COALESCE(l.key_type, ''), COALESCE(l.key_bits, 0), COALESCE(l.key_exchange, ''), {days}
-            FROM assets a
-            LEFT JOIN asset_scan_latest l ON l.organization_id = a.organization_id AND l.asset_key = a.asset_key
-            WHERE a.organization_id = ? AND a.asset_key <> ''
-            ORDER BY a.updated_at DESC, a.asset_key DESC
-            """,  # nosec B608  # days is a fixed expression; values are bound
-            (now_iso, now_iso, now_iso, org_id),
-        )]
+        return [tuple(r) for r in conn.execute(sql, params)]
+
+
+def hndl_group_members(now: datetime, groups: Sequence[tuple], limit: int) -> List[tuple]:
+    """The first `limit` assets, in /assets order (updated_at, asset_key descending), whose pricing
+    inputs are one of `groups` (7-tuples as hndl_input_groups returns them):
+    [(asset_key, owner, environment, port_s, tls_version, cipher_name, key_type, key_bits, key_exchange, days)]."""
+    if not groups or limit <= 0:
+        return []
+    org_id = current_organization_id()
+    now_iso = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    pg = postgres_main_db_requested()
+    p = "%s" if pg else "?"
+    inner = _hndl_inputs_sql("pg" if pg else "sqlite")
+    row = "(" + ",".join([p] * len(_HNDL_GROUP_COLS)) + ")"
+    values = ",".join([row] * len(groups))
+    cols = ", ".join(_HNDL_GROUP_COLS)
+    sql = (f"SELECT asset_key, owner, environment, {cols} FROM ({inner}) x "  # nosec B608  # fixed SQL text and placeholders; values are bound
+           f"WHERE ({cols}) IN (VALUES {values}) ORDER BY updated_at DESC, asset_key DESC LIMIT {p}")
+    flat = [v for g in groups for v in g]
+    params = ((now_iso, org_id) if pg else (now_iso, now_iso, now_iso, org_id)) + tuple(flat) + (int(limit),)
+    if pg:
+        return pg_hndl_query(sql, params)
+    with closing(get_connection()) as conn:
+        return [tuple(r) for r in conn.execute(sql, params)]
 
 
 def key_map_rows(record_limit: int = 3000) -> Dict[str, Any]:

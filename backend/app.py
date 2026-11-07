@@ -8459,15 +8459,16 @@ def api_hndl_tls_dashboard(request: Request, q_day_year: Optional[int] = None):
 
     q_day_year = max(2027, min(int(q_day_year), 2040)) if q_day_year else None
 
-    # Every asset of the estate, priced from its newest scan (asset_scan_latest), in one narrow
-    # statement; each distinct set of inputs is scored once. The view used to price the newest 1,000
-    # assets only (a per-asset join), and said so in inventory_coverage.
-    from db import hndl_asset_inputs
+    # Every asset of the estate, priced from its newest scan (asset_scan_latest): the estate is grouped
+    # by distinct pricing inputs in SQL and each group is scored once; only the priority queue's assets
+    # are read individually. The view used to price the newest 1,000 assets one by one.
+    from db import hndl_group_members, hndl_input_groups
     from services.hndl import compute_org_hndl_dashboard_for_estate
 
-    rows = hndl_asset_inputs(datetime.now(timezone.utc))
-    dashboard = compute_org_hndl_dashboard_for_estate(rows, q_day_year=q_day_year)
-    dashboard["inventory_coverage"] = _inventory_coverage(len(rows))
+    now = datetime.now(timezone.utc)
+    dashboard = compute_org_hndl_dashboard_for_estate(
+        hndl_input_groups(now), lambda groups, limit: hndl_group_members(now, groups, limit), q_day_year=q_day_year)
+    dashboard["inventory_coverage"] = _inventory_coverage(dashboard["asset_count"])
     dashboard["organization_id"] = org_id
     dashboard["generated_at"] = _now_iso()
     dashboard["api_version"] = "v1"
@@ -8486,17 +8487,17 @@ def api_hndl_tls_timeline(request: Request):
     _require_role(request, allowed_roles=["viewer", "operator", "admin"], action="hndl.timeline", resource_type="organization", resource_id=org_id)
 
     # The whole estate, from counts of distinct pricing inputs (see /hndl/dashboard).
-    from db import hndl_asset_inputs
+    from db import hndl_input_groups
     from services.hndl import compute_hndl_timeline_for_estate
 
-    rows = hndl_asset_inputs(datetime.now(timezone.utc))
-    timeline = compute_hndl_timeline_for_estate(rows)
+    groups = hndl_input_groups(datetime.now(timezone.utc))
+    timeline = compute_hndl_timeline_for_estate(groups)
     return {
         "api_version": "v1",
         "organization_id": org_id,
         "generated_at": _now_iso(),
         "timeline": timeline,
-        "inventory_coverage": _inventory_coverage(len(rows)),
+        "inventory_coverage": _inventory_coverage(sum(int(g[7]) for g in groups)),
         "model_basis": _hndl_model_basis(),
     }
 

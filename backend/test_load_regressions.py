@@ -1685,7 +1685,7 @@ def test_capped_reports_say_how_much_of_the_inventory_they_cover(monkeypatch):
     assert app._coverage_headers(2000) == {"X-Morrow-Assets-In-Report": "2000",
                                            "X-Morrow-Inventory-Assets": "10000"}
     for handler in (app.api_hndl_tls_dashboard, app.api_hndl_tls_timeline):
-        assert "_inventory_coverage(len(rows))" in inspect.getsource(handler)
+        assert "_inventory_coverage(" in inspect.getsource(handler)
     for handler in (app.api_cbom_org, app.api_cbom_csv):
         assert "_coverage_headers(" in inspect.getsource(handler)
 

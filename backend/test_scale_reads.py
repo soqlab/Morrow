@@ -374,16 +374,41 @@ class TestHndlCoversTheEstate(_SqliteBase):
         return out
 
     def test_estate_dashboard_and_timeline_equal_the_per_asset_model(self):
+        def want_full_queue(old, year):
+            from services.hndl import compute_org_hndl_dashboard as full
+            import services.hndl as h
+            scored = []
+            for a in old:
+                r = h.score_tls_endpoint_hndl(host=a["host"], port=a["port"], tls_version=a["tls_version"],
+                                              cipher_name=a["cipher_name"], key_type=a["key_type"],
+                                              key_bits=a["key_bits"], q_day_year=year or full([], None)["q_day_year"],
+                                              first_scan_days_ago=a["first_scan_days_ago"],
+                                              key_exchange=a["key_exchange"])
+                r["asset_key"], r["owner"], r["environment"] = a["asset_key"], a["owner"], a["environment"]
+                scored.append(r)
+            scored.sort(key=lambda x: (x["exposure_usd"] is not None, x["exposure_usd"] or 0.0), reverse=True)
+            return scored
+
         from services.hndl import (compute_hndl_timeline, compute_hndl_timeline_for_estate,
                                    compute_org_hndl_dashboard, compute_org_hndl_dashboard_for_estate)
 
-        rows = self.db.hndl_asset_inputs(datetime.now(UTC))
-        self.assertEqual(len(rows), len(self.db.list_assets(limit=5000)))
+        now = datetime.now(UTC)
+        groups = self.db.hndl_input_groups(now)
         old = self.old_inputs()
+        self.assertEqual(sum(g[7] for g in groups), len(old))
         for year in (2027, 2031, None):
-            self.assertEqual(compute_org_hndl_dashboard_for_estate(rows, q_day_year=year),
-                             compute_org_hndl_dashboard(old, q_day_year=year), year)
-        for a, b in zip(compute_hndl_timeline_for_estate(rows), compute_hndl_timeline(old)):
+            for size in (50, 3, 1000):
+                got = compute_org_hndl_dashboard_for_estate(
+                    groups, lambda gs, limit: self.db.hndl_group_members(now, gs, limit), q_day_year=year,
+                    queue_size=size)
+                want = compute_org_hndl_dashboard(old, q_day_year=year)
+                self.assertAlmostEqual(got.pop("total_exposure_usd"), want.pop("total_exposure_usd"), places=1)
+                # compute_org_hndl_dashboard always lists 50; the estate version lists `size`.
+                listed = want.pop("priority_queue")
+                self.assertEqual(got.pop("priority_queue"),
+                                 listed[:size] if size <= 50 else want_full_queue(old, year)[:size])
+                self.assertEqual(got, want, (year, size))
+        for a, b in zip(compute_hndl_timeline_for_estate(groups), compute_hndl_timeline(old)):
             self.assertEqual({k: a[k] for k in ("year", "critical_count", "high_count")},
                              {k: b[k] for k in ("year", "critical_count", "high_count")})
             self.assertAlmostEqual(a["total_exposure_usd"], b["total_exposure_usd"], places=1)

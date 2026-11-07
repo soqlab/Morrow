@@ -717,28 +717,17 @@ def compute_org_hndl_dashboard(
     }
 
 
-def _inputs_to_assets(rows) -> List[Dict[str, Any]]:
-    """db.hndl_asset_inputs tuples as the asset dicts compute_org_hndl_dashboard reads."""
-    out = []
-    for ak, owner, env, tls, cipher, key_type, key_bits, kx, days in rows:
-        parts = str(ak).split(":", 1)
-        out.append({"asset_key": ak, "host": parts[0], "port": int(parts[1]) if len(parts) > 1 else 443,
-                    "tls_version": tls or "", "cipher_name": cipher or "", "key_type": key_type or "",
-                    "key_bits": int(key_bits or 0), "key_exchange": kx or "", "first_scan_days_ago": int(days),
-                    "owner": owner or "", "environment": env or ""})
-    return out
-
-
-def _score_key(a: Dict[str, Any]) -> tuple:
-    return (int(a.get("port") or 443), str(a.get("tls_version") or ""), str(a.get("cipher_name") or ""),
-            str(a.get("key_type") or ""), int(a.get("key_bits") or 0), int(a.get("first_scan_days_ago") or 365),
-            str(a.get("key_exchange") or ""))
+def _group_score_key(group: tuple) -> tuple:
+    """(port, tls, cipher, key_type, key_bits, days, key_exchange) of a db.hndl_input_groups row,
+    parsed as the HNDL handlers parsed an asset (port from the asset key, 443 when it has none)."""
+    port_s, tls, cipher, key_type, key_bits, key_exchange, days = group[:7]
+    return (int(port_s) if port_s not in (None, "") else 443, tls or "", cipher or "", key_type or "",
+            int(key_bits or 0), int(days), key_exchange or "")
 
 
 def _scorer(q_day_year: int):
     """score_tls_endpoint_hndl memoized on everything but the host: the score is a function of the
-    port, the observed cryptography and the harvest window, so a 100,000-asset estate has a few
-    hundred distinct scores, not 100,000."""
+    port, the observed cryptography and the harvest window."""
     memo: Dict[tuple, Dict[str, Any]] = {}
 
     def score(key: tuple) -> Dict[str, Any]:
@@ -754,50 +743,59 @@ def _scorer(q_day_year: int):
     return score
 
 
-def compute_org_hndl_dashboard_for_estate(rows, q_day_year: Optional[int] = None) -> Dict[str, Any]:
-    """compute_org_hndl_dashboard over every asset of the estate (db.hndl_asset_inputs).
+def _rank(score: Dict[str, Any]) -> tuple:
+    return (score["exposure_usd"] is not None, score["exposure_usd"] or 0.0)
 
-    Same output, same order and the same arithmetic (exposures summed per asset, in the queue's
-    order); only the per-asset result dicts are built just for the 50 assets of the priority queue,
-    and each distinct input is scored once.
+
+def compute_org_hndl_dashboard_for_estate(groups, members, q_day_year: Optional[int] = None,
+                                          queue_size: int = 50) -> Dict[str, Any]:
+    """compute_org_hndl_dashboard over the whole estate, from db.hndl_input_groups.
+
+    `groups`: [(port_s, tls, cipher, key_type, key_bits, key_exchange, days, count)].
+    `members(groups, limit)`: db.hndl_group_members, the first `limit` assets of those groups in
+    /assets order. Each group is scored once and counted `count` times; the priority queue is filled
+    from the highest-exposure groups, a tie (equal exposure) at a time, so it holds the same assets in
+    the same order as sorting every asset would. The total is summed per group, so it can differ from
+    a per-asset sum in the last cent.
     """
     if q_day_year is None:
         resolved = default_q_day_year()
         q_day_year, q_day_year_source = resolved["year"], resolved["source"]
     else:
         q_day_year_source = "request"
-    assets = _inputs_to_assets(rows)
     score = _scorer(q_day_year)
-    scores = [score(_score_key(a)) for a in assets]
-    order = sorted(range(len(assets)),
-                   key=lambda i: (scores[i]["exposure_usd"] is not None, scores[i]["exposure_usd"] or 0.0), reverse=True)
+    scored = [(g, score(_group_score_key(g)), int(g[7])) for g in groups]
     tier_counts: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0, UNMEASURED: 0}
     algo_counts: Dict[str, int] = {}
-    total_exposure = 0.0
-    measured = 0
-    for i in order:
-        s = scores[i]
+    total_exposure, measured, asset_count = 0.0, 0, 0
+    for _, s, n in scored:
+        asset_count += n
+        tier_counts[s["risk_tier"]] = tier_counts.get(s["risk_tier"], 0) + n
+        algo_counts[s["algo_class"]] = algo_counts.get(s["algo_class"], 0) + n
         if s["exposure_usd"] is not None:
-            total_exposure += s["exposure_usd"]
-            measured += 1
-    for s in scores:
-        tier_counts[s["risk_tier"]] = tier_counts.get(s["risk_tier"], 0) + 1
-        algo_counts[s["algo_class"]] = algo_counts.get(s["algo_class"], 0) + 1
-    queue = []
-    for i in order[:50]:
-        a = assets[i]
-        item = dict(scores[i])
-        item["host"] = str(a.get("host") or a.get("asset_key") or "")
-        item["asset_key"] = a.get("asset_key")
-        item["owner"] = a.get("owner") or ""
-        item["environment"] = a.get("environment") or ""
-        queue.append(item)
-    unmeasured = len(assets) - measured
+            total_exposure += s["exposure_usd"] * n
+            measured += n
+    queue: List[Dict[str, Any]] = []
+    buckets: Dict[tuple, List[tuple]] = {}
+    for g, s, _ in scored:
+        buckets.setdefault(_rank(s), []).append(g[:7])
+    for rank in sorted(buckets, reverse=True):
+        if len(queue) >= queue_size:
+            break
+        for row in members(buckets[rank], queue_size - len(queue)):
+            ak, owner, env = row[0], row[1], row[2]
+            item = dict(score(_group_score_key(row[3:])))
+            item["host"] = str(ak).split(":", 1)[0] or str(ak)
+            item["asset_key"] = ak
+            item["owner"] = owner or ""
+            item["environment"] = env or ""
+            queue.append(item)
+    unmeasured = asset_count - measured
     return {
         "q_day_year": q_day_year,
         "q_day_year_source": q_day_year_source,
         "total_exposure_usd": round(total_exposure, 2),
-        "asset_count": len(assets),
+        "asset_count": asset_count,
         "measured_asset_count": measured,
         "unmeasured_asset_count": unmeasured,
         "exposure_basis": (
@@ -812,20 +810,16 @@ def compute_org_hndl_dashboard_for_estate(rows, q_day_year: Optional[int] = None
     }
 
 
-def compute_hndl_timeline_for_estate(rows, years: Optional[List[int]] = None) -> List[Dict[str, Any]]:
-    """compute_hndl_timeline over every asset (db.hndl_asset_inputs), from counts of distinct inputs."""
+def compute_hndl_timeline_for_estate(groups, years: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+    """compute_hndl_timeline over the whole estate, from db.hndl_input_groups."""
     if not years:
         years = [2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035]
-    counts: Dict[tuple, int] = {}
-    for a in _inputs_to_assets(rows):
-        k = _score_key(a)
-        counts[k] = counts.get(k, 0) + 1
     result = []
     for y in years:
         score = _scorer(y)
         total, critical, high = 0.0, 0, 0
-        for k, n in counts.items():
-            s = score(k)
+        for g in groups:
+            s, n = score(_group_score_key(g)), int(g[7])
             if s["exposure_usd"] is not None:
                 total += s["exposure_usd"] * n
             critical += n if s["risk_tier"] == "critical" else 0

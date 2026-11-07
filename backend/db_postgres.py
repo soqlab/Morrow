@@ -2897,23 +2897,12 @@ def pg_certificate_lifecycle_rows(org_id: str, now_s: str, soon: str, sev_high: 
     return {"summary": summary, "total": int(s.get("total") or 0), "rows": out}
 
 
-def pg_hndl_asset_inputs(org_id: str, now_iso: str, dsn: Optional[str] = None) -> List[tuple]:
-    """db.hndl_asset_inputs for Postgres (updated_at is TIMESTAMPTZ, so it always has a zone)."""
+def pg_hndl_query(sql: str, params: Sequence[Any], dsn: Optional[str] = None) -> List[tuple]:
+    """Run one of db's HNDL input statements (db._hndl_inputs_sql, fixed text) and return tuples."""
     ensure_postgres_core_schema(dsn)
     with pg_product_conn(dsn) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT a.asset_key, a.owner, a.environment, COALESCE(l.tls_version, ''), COALESCE(l.cipher_name, ''),
-                       COALESCE(l.key_type, ''), COALESCE(l.key_bits, 0), COALESCE(l.key_exchange, ''),
-                       GREATEST(30, FLOOR(EXTRACT(EPOCH FROM (%s::timestamptz - a.updated_at)) / 86400))::integer
-                FROM assets a
-                LEFT JOIN asset_scan_latest l ON l.organization_id = a.organization_id AND l.asset_key = a.asset_key
-                WHERE a.organization_id = %s AND a.asset_key <> ''
-                ORDER BY a.updated_at DESC, a.asset_key DESC
-                """,
-                (now_iso, str(org_id or "").strip() or DEFAULT_ORG_ID),
-            )
+            cur.execute(sql, tuple(params))
             return [tuple(r) for r in cur.fetchall()]
 
 
