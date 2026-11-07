@@ -1,2 +1,4 @@
 # Shell scripts run inside Linux containers; a CRLF checkout on Windows breaks them.
 *.sh text eol=lf
+# Fuzz inputs are exact bytes: never convert their line endings.
+backend/fuzz/corpus/** -text
