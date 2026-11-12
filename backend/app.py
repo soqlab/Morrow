@@ -2300,8 +2300,11 @@ def _auth_public_path(path: str) -> bool:
     #
     # /trial-request is how a stranger asks for an account. It must answer without a login for the
     # obvious reason, and it grants nothing: it writes one pending row that a person has to act on.
+    #
+    # /api/public is the quantum-readiness grade (routers/public_grade.py): read-only handshake facts
+    # about public hosts, with the same kind of guardrails, enforced in services/public_grade.py.
     if _route_paths.has_prefix(p, ("/check", "/api/public-check", "/r", "/trial-request",
-                                   "/api/trial-request")):
+                                   "/api/trial-request", "/api/public")):
         return True
     if p.startswith("/vendor-admin"):
         return True
@@ -2460,6 +2463,10 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/r/{domain}/badge.svg", "purpose": "embeddable posture badge; renders from stored data and never starts a check"},
             {"path": "/trial-request", "purpose": "request an account; records one pending row, grants nothing until an operator approves it"},
             {"path": "/api/public-check", "purpose": "the public checker's API; rate limited per IP, per domain and globally"},
+            {"path": "/api/public/grade/{domain}", "purpose": "public quantum-readiness grade (A-F) of a public HTTPS endpoint; JSON, .txt for terminals; rate limited and cached"},
+            {"path": "/api/public/badge/{domain}.svg", "purpose": "embeddable quantum-readiness grade badge"},
+            {"path": "/api/public/stats", "purpose": "aggregate counts of public grade checks; no names"},
+            {"path": "/api/public/history/{domain}", "purpose": "stored public grades for one public domain"},
             # The free checker's public documents. A domain owner who found one of our handshakes in
             # their logs has no account and never will, so every one of these has to answer without
             # a login -- /scanner and /abuse most of all.
@@ -11400,6 +11407,21 @@ app.include_router(create_public_check_router(_PlatformAdminDeps(
     record_event=lambda *args, **kwargs: _record_platform_admin_event(*args, **kwargs),
 )))
 _register_platform_schema("public_check", lambda *_: _public_check.init_tables())
+
+# The public quantum-readiness grade (A-F) at /api/public, called by soqlab.com and by curl. Same
+# stance as the checker above: unauthenticated (listed in _auth_public_path), read-only towards
+# tenants, and guarded in services/public_grade.py (SSRF guard with a pinned address, opt-outs,
+# per-IP/per-domain/global budgets, a concurrency cap and a one-hour cache). It never goes through
+# an organization's scan and never relaxes MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS. Its CORS policy is
+# its own (listed public origins, GET only, no credentials), installed outside the app-wide one.
+from routers.public_grade import PublicApiCorsMiddleware, create_public_grade_router  # noqa: E402
+from services import public_grade as _public_grade  # noqa: E402
+
+app.include_router(create_public_grade_router(_PlatformAdminDeps(
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+)))
+app.add_middleware(PublicApiCorsMiddleware)
+_register_platform_schema("public_grade", lambda *_: _public_grade.init_tables())
 
 # Trial requests: the route from a stranger to an account. /auth/register is admin-only on purpose,
 # so without this the public site has no path from "this looks useful" to "I have a login". It is

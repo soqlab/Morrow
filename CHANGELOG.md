@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Public quantum-readiness grade (docs/PUBLIC_GRADE.md): `GET /api/public/grade/{domain}` (JSON, `.txt` for curl), `/badge/{domain}.svg`, `/stats` and `/history/{domain}`, unauthenticated with CORS for soqlab.com only. A minimal read-only handshake probe on 443 (pinned address, SSRF guard, opt-outs, per-IP/per-domain/global budgets, concurrency cap, 1 h cache) graded A-F on post-quantum key exchange, TLS versions, forward secrecy and certificate validity, with three-level summaries, a sourced "decrypt from" year range (GRI Quantum Threat Timeline 2025) and per-server config fixes. Separate from org scans; stores only in `public_grade_checks`. Batch CLI: `python -m services.public_grade --batch domains.txt --out results.jsonl`
 - Scanner accuracy suite against real public endpoints (docs/ACCURACY.md): 422 labelled endpoints (386 TLS, 36 SSH) with labels from OpenSSL 3.5 `s_client` and OpenSSH `ssh -vv`, a runner that scores Morrow's real scanners per protocol and attribute (`backend/accuracy/`), an opt-in `network` pytest, and a weekly workflow that relabels, rescans and reports warnings without failing builds
 
 ### Fixed

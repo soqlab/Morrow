@@ -11,7 +11,7 @@ import urllib.request
 import urllib.error
 import warnings
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import requests
 
@@ -490,8 +490,14 @@ def _mlkem768_encapsulation_key() -> bytes:
         return bytes(out) + _secrets.token_bytes(32)
 
 
-def _build_client_hello(host: str) -> bytes:
+def _build_client_hello(host: str, groups: Optional[Sequence[int]] = None) -> bytes:
     """A TLS 1.3 ClientHello offering every hybrid group we know about.
+
+    ``groups`` narrows supported_groups to exactly those code points (the public grade uses it to
+    ask "is this one hybrid group accepted?" one group at a time). Key shares are then sent only for
+    the groups this function can build a share for (X25519MLKEM768, X25519); for any other group the
+    key_share list is empty and a server that supports it answers with a HelloRetryRequest naming
+    it, which read_key_exchange_group already reads. Default None keeps the full offer unchanged.
 
     It carries key shares for X25519MLKEM768 and X25519, as current browsers send. With only an
     X25519 share, a server that accepts both groups without preferring one (OpenSSL 3.5's default
@@ -528,16 +534,20 @@ def _build_client_hello(host: str) -> bytes:
         if name:
             exts += _tls_extension(0x0000, _u16(len(name) + 3) + b"\x00" + _u16(len(name)) + name)
     exts += _tls_extension(0x000B, b"\x01\x00")                       # ec_point_formats
-    groups = b"".join(_u16(g) for g in _OFFERED_GROUPS)
-    exts += _tls_extension(0x000A, _u16(len(groups)) + groups)        # supported_groups
+    offered = tuple(groups) if groups else _OFFERED_GROUPS
+    group_bytes = b"".join(_u16(g) for g in offered)
+    exts += _tls_extension(0x000A, _u16(len(group_bytes)) + group_bytes)  # supported_groups
     sig_algs = b"".join(_u16(x) for x in (
         0x0403, 0x0503, 0x0603, 0x0804, 0x0805, 0x0806, 0x0807, 0x0808,
         0x0401, 0x0501, 0x0601, 0x0201,
     ))
     exts += _tls_extension(0x000D, _u16(len(sig_algs)) + sig_algs)    # signature_algorithms
     exts += _tls_extension(0x002B, b"\x04" + _u16(0x0304) + _u16(0x0303))  # supported_versions
-    key_share = (_u16(0x11EC) + _u16(len(hybrid_share)) + hybrid_share
-                 + _u16(0x001D) + _u16(len(share)) + share)
+    key_share = b""
+    if 0x11EC in offered:
+        key_share += _u16(0x11EC) + _u16(len(hybrid_share)) + hybrid_share
+    if 0x001D in offered:
+        key_share += _u16(0x001D) + _u16(len(share)) + share
     exts += _tls_extension(0x0033, _u16(len(key_share)) + key_share)  # key_share
     exts += _tls_extension(0x0016, b"")                               # encrypt_then_mac
     exts += _tls_extension(0x0017, b"")                               # extended_master_secret
@@ -750,7 +760,7 @@ def read_key_exchange_group(reader: Any) -> Tuple[Optional[int], bool, str]:
 
 
 def _probe_key_exchange_group(host: str, port: int, timeout: float = DEFAULT_TIMEOUT,
-                              address: str = "") -> Dict[str, Any]:
+                              address: str = "", groups: Optional[Sequence[int]] = None) -> Dict[str, Any]:
     """Observe the key-exchange group the server selects, by reading its ServerHello.
 
     Returns ``key_exchange_observed`` False with a reason whenever the group could not be read, so
@@ -775,7 +785,7 @@ def _probe_key_exchange_group(host: str, port: int, timeout: float = DEFAULT_TIM
         "key_exchange_hello_retry": False,
     }
     try:
-        hello = _build_client_hello(host)
+        hello = _build_client_hello(host, groups)
     except Exception as exc:
         out["key_exchange_unobservable_reason"] = f"could not build ClientHello: {exc}"
         return out
