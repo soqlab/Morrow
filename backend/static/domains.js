@@ -4,6 +4,8 @@
 
      Uses the console's session from localStorage (morrow_token / morrow_refresh, the console's keys)
      and the organization-scoped API: GET/POST /domains, POST /domains/{d}/verify, DELETE /domains/{d}.
+     Team sign-in (admins only): GET /domain-join, PUT /domain-join/{d} {enabled}; anyone with a
+     verified mailbox at an enabled domain may join the organization as a viewer (services/team_join.py).
      No third-party requests. */
 
   const $ = id => document.getElementById(id);
@@ -122,7 +124,60 @@
     wireAdd();
     const list = r.data.domains || [];
     $("domList").innerHTML = list.length ? list.map(card).join("") : `<p class="dom-note">No domains yet. Add the domain your servers live under, for example the one in your email address.</p>`;
+    await loadJoin();
   }
+
+  // ---------- team sign-in ----------
+  async function loadJoin() {
+    const box = $("joinBox");
+    if (!box) return;
+    const r = await api("/domain-join");
+    if (r.status === 403 || r.status === 401 || r.status === 404) { box.hidden = true; return; }   // admins only
+    box.hidden = false;
+    if (!r.ok || !r.data) { box.innerHTML = `<p class="dom-note bad">${esc(detail(r) || "Team sign-in settings could not be loaded.")}</p>`; return; }
+    const policies = r.data.policies || [];
+    const joined = r.data.joined || [];
+    const rows = policies.filter(p => p.verified).map(p => {
+      const why = p.free_mail ? "Free email providers can't be used."
+        : p.claimed_by_other_organization ? "Another organization verified this domain first."
+        : p.enabled ? `Anyone with a verified mailbox @${p.domain} can join as a viewer at /join.`
+        : `Off. People @${p.domain} need an invitation.`;
+      const canEnable = !p.free_mail && !p.claimed_by_other_organization;
+      return `<article class="dom-card">
+        <div class="dom-head"><span class="dom-name">@${esc(p.domain)}</span>
+          <span class="invite-pill" data-status="${p.enabled ? "valid" : "pending"}">${p.enabled ? "Team sign-in on" : "Team sign-in off"}</span></div>
+        <p class="dom-note">${esc(why)}</p>
+        <div class="invite-actions" style="margin-top:4px">
+          ${p.enabled ? `<button class="btn small" type="button" data-join-off="${esc(p.domain)}">Turn off</button>`
+            : canEnable ? `<button class="btn primary small" type="button" data-join-on="${esc(p.domain)}">Let @${esc(p.domain)} join</button>` : ""}
+        </div></article>`;
+    }).join("");
+    box.innerHTML = `<h2>Team sign-in</h2>
+      <p class="dom-note">${r.data.available ? "Let colleagues join without an invitation: they enter their work email at <b>/join</b>, open the emailed link and create a passkey. They start as viewers. The DNS record is checked again on every join, so removing it pauses joining."
+        : "Team sign-in needs passkeys and email, which aren't set up on this server."}</p>
+      ${rows || `<p class="dom-note">Verify a domain above first.</p>`}
+      <p class="invite-error" id="joinError" role="alert"></p>
+      <h3 style="margin-top:22px">Joined through team sign-in</h3>
+      ${joined.length ? `<dl class="dom-rec">${joined.map(j => `<dt>${esc(when(j.joined_at))}</dt><dd>${esc(j.email)}</dd><span>${esc(j.role)}</span>`).join("")}</dl>`
+        : `<p class="dom-note">Nobody yet.</p>`}`;
+  }
+  async function setJoin(domain, enabled, button) {
+    button.disabled = true;
+    const r = await api(`/domain-join/${encodeURIComponent(domain)}`, { method: "PUT", body: { enabled } });
+    button.disabled = false;
+    if (!r.ok) { const e = $("joinError"); if (e) e.textContent = detail(r) || `The server answered ${r.status}.`; return; }
+    return loadJoin();
+  }
+
+  $("joinBox")?.addEventListener("click", async event => {
+    const on = event.target.closest("[data-join-on]");
+    if (on) {
+      if (!window.confirm(`Let anyone with a verified @${on.dataset.joinOn} email address join your organization as a viewer?`)) return;
+      return setJoin(on.dataset.joinOn, true, on);
+    }
+    const off = event.target.closest("[data-join-off]");
+    if (off) return setJoin(off.dataset.joinOff, false, off);
+  });
 
   $("domList").addEventListener("click", async event => {
     const copy = event.target.closest("[data-copy]");

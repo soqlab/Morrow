@@ -4,11 +4,15 @@
 
      Without a token it asks for an email address (POST /auth/password-reset/request), whose answer is
      the same whether or not the address has an account. With a token it asks for the new password
-     (POST /auth/password-reset/confirm). The token arrives in the URL fragment, which never reaches a
-     server log or a Referer header; it is kept in sessionStorage for this tab and removed from the
-     address bar. No third-party requests. */
+     (POST /auth/password-reset/confirm). Accounts that sign in with passkeys, and every account on a
+     passkeys-only server, are emailed /reset-password#recover=... instead: account recovery, which
+     registers a new passkey (POST /auth/passkey/register/begin and /finish, kind "recover", through
+     /ui/passkey.js) and can remove the others. The token arrives in the URL fragment, which never
+     reaches a server log or a Referer header; it is kept in sessionStorage for this tab and removed
+     from the address bar. No third-party requests. */
 
   const TOKEN_KEY = "pq_reset_token";
+  const RECOVER_KEY = "pq_recover_token";
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
   const store = {
@@ -17,16 +21,26 @@
     del: key => { try { sessionStorage.removeItem(key); } catch { /* ignore */ } }
   };
 
-  function readToken() {
-    const match = /(?:^|[#&])token=([A-Za-z0-9_\-]{16,256})(?:&|$)/.exec(location.hash || "");
+  function readToken(name, key) {
+    const match = new RegExp(`(?:^|[#&])${name}=([A-Za-z0-9_\\-]{16,256})(?:&|$)`).exec(location.hash || "");
     if (match) {
-      store.set(TOKEN_KEY, match[1]);
+      store.set(key, match[1]);
       try { history.replaceState(null, "", location.pathname + location.search); } catch { /* ignore */ }
       return match[1];
     }
-    return store.get(TOKEN_KEY);
+    return store.get(key);
   }
-  const token = readToken();
+  const recoverToken = readToken("recover", RECOVER_KEY);
+  const token = recoverToken ? "" : readToken("token", TOKEN_KEY);
+
+  let passkeysOnly = false;
+  async function loadConfig() {
+    try {
+      const res = await fetch("/auth/config", { cache: "no-store", credentials: "same-origin" });
+      const cfg = res.ok ? await res.json() : {};
+      passkeysOnly = !!(cfg && cfg.passkeys_only);
+    } catch { passkeysOnly = false; }
+  }
 
   async function request(path, body) {
     const controller = new AbortController();
@@ -73,12 +87,17 @@
 
   // ---------- without a token: ask for the address ----------
   function askEmail() {
-    state({ title: "Reset your password.", lead: "Enter the email address you sign in with. We'll email you a link to choose a new password.",
+    if (passkeysOnly) {
+      $("resetTitle").textContent = "Recover your account.";
+    }
+    state({ title: passkeysOnly ? "Recover your account." : "Reset your password or recover your account.",
+      lead: passkeysOnly ? "Lost your passkey? Enter the email address you sign in with. We'll email you a link to create a new one."
+        : "Enter the email address you sign in with. We'll email you a link to choose a new password, or to create a new passkey if you sign in with one.",
       body: `<form class="invite-form" novalidate>
           <label>Email<input id="resetEmail" type="email" autocomplete="username" required maxlength="320"></label>
           <p class="invite-error" id="resetError" role="alert"></p>
         </form>`,
-      actions: [{ label: "Email me a reset link", primary: true, run: sendLink }, { label: "Back to sign in", href: "/ui/" }] });
+      actions: [{ label: passkeysOnly ? "Email me a recovery link" : "Email me a link", primary: true, run: sendLink }, { label: "Back to sign in", href: "/ui/" }] });
     $("resetEmail").focus();
   }
   async function sendLink() {
@@ -129,5 +148,50 @@
     error.textContent = detail(r) || `The server answered ${r.status}.`;
   }
 
-  token ? askPassword() : askEmail();
+  // ---------- with a recovery link: create a new passkey ----------
+  function askPasskey() {
+    const supported = window.MorrowPasskey && MorrowPasskey.supported();
+    state({ title: "Create a new passkey.", lead: "This replaces the way you sign in. It signs you out on every other device.",
+      body: `<form class="invite-form" novalidate>
+          <label class="invite-check" style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px">
+            <input id="recoverRevoke" type="checkbox" style="width:auto"> Also remove my other passkeys (a lost or stolen device)</label>
+          <p class="invite-error" id="resetError" role="alert">${supported ? "" : "This browser can't create a passkey. Open the link in a current browser, or on your phone."}</p>
+        </form>`,
+      actions: [{ label: "Create passkey", primary: true, run: recover }] });
+  }
+  function linkUnusable(r) {
+    store.del(RECOVER_KEY);
+    return state({ title: "This link can't be used.", lead: detail(r) || "It may have expired or already been used.", tone: "bad",
+      actions: [{ label: "Request a new link", primary: true, run: askEmail }] });
+  }
+  async function recover() {
+    const error = $("resetError");
+    if (!window.MorrowPasskey || !MorrowPasskey.supported()) { error.textContent = "This browser can't create a passkey."; return; }
+    error.textContent = "";
+    const begin = await request("/auth/passkey/register/begin", { kind: "recover", token: recoverToken });
+    if (!begin.ok || !begin.data) {
+      if (begin.status === 404 || begin.status === 410) return linkUnusable(begin);
+      error.textContent = detail(begin) || (begin.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${begin.status}.`);
+      return;
+    }
+    let credential;
+    try { credential = await MorrowPasskey.create(begin.data.options); }
+    catch (e) { error.textContent = MorrowPasskey.message(e) || "No passkey was created. Press the button to try again."; return; }
+    const r = await request("/auth/passkey/register/finish", { challenge_id: begin.data.challenge_id, credential, token: recoverToken,
+      revoke_other_passkeys: !!$("recoverRevoke").checked });
+    if (r.ok && r.data && r.data.access_token) {
+      store.del(RECOVER_KEY);
+      try {
+        localStorage.setItem("morrow_token", r.data.access_token);
+        if (r.data.refresh_token) localStorage.setItem("morrow_refresh", r.data.refresh_token);
+      } catch { /* storage blocked: sign in with the new passkey */ }
+      return state({ title: "You're back in.", lead: r.data.other_passkeys_removed ? "Your other passkeys were removed." : "Your new passkey is ready.", tone: "ok",
+        actions: [{ label: "Open the console", primary: true, href: "/ui/" }] });
+    }
+    if (r.status === 404 || r.status === 410) return linkUnusable(r);
+    if (r.status === 429) { error.textContent = "Too many attempts. Wait a minute, then try again."; return; }
+    error.textContent = detail(r) || (r.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${r.status}.`);
+  }
+
+  loadConfig().then(() => { recoverToken ? askPasskey() : token ? askPassword() : askEmail(); });
 })();

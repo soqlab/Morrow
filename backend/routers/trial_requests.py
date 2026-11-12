@@ -234,12 +234,13 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
         if self_signup_enabled():
             return _page(
                 "Check your email", "Check your email",
-                "<p>We've sent a link to the address you entered. Open it to choose a password; "
+                "<p>We've sent a link to the address you entered. Open it to create your account "
+                "(with a passkey where this server offers them); "
                 "your workspace is ready as soon as you do. The link works once and expires in "
                 "72 hours.</p>"
                 "<p>Nothing arrived after a few minutes? Check your spam folder. If you already "
                 "have an account, <a href=\"/ui/\">sign in</a> or "
-                "<a href=\"/reset-password\">reset your password</a>.</p>"
+                "<a href=\"/reset-password\">recover your account</a>.</p>"
                 "<p>Once you're in, add and verify your domain under Domains: you can scan the "
                 "domains you've shown you control.</p>")
         return _page(
@@ -266,7 +267,7 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
             {"recorded": True, "id": result.get("id", ""), "status": result.get("status"),
              "duplicate": bool(result.get("duplicate")),
              "self_serve": bool(result.get("self_serve")),
-             "detail": ("Check your email for a link to choose your password." if self_signup_enabled()
+             "detail": ("Check your email for a link to create your account." if self_signup_enabled()
                         else "A person reviews every request. Approval is not automatic.")},
             headers=_NO_STORE)
 

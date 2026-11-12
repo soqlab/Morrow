@@ -23,6 +23,10 @@ AUTH_EVENTS = {
     "saml.success", "saml.failure", "refresh.success", "refresh.failure",
     "logout.revoked", "logout.no_session", "logout.failure", "token.rejected", "auth.rate_limited",
     "invite_register.refused", "password_reset.requested", "password_reset.refused", "password_reset.completed",
+    # Passkeys (services/passkeys.py), account recovery and domain team sign-in (services/team_join.py).
+    "passkey.registered", "passkey.removed", "passkey.refused", "passkey.clone_suspected",
+    "passkey_enrollment.required", "account_recovery.requested", "account_recovery.completed",
+    "team_join.requested", "team_join.refused", "team_join.joined",
 }
 
 
@@ -192,7 +196,7 @@ def _insert(kind, values):
 
 
 def record_auth(event_type, *, user=None, method="password", source_ip="", user_agent="", subject="", status_code=200):
-    if event_type not in AUTH_EVENTS or method not in {"password", "saml", "jwt", "refresh_token", "api_key"}:
+    if event_type not in AUTH_EVENTS or method not in {"password", "passkey", "saml", "jwt", "refresh_token", "api_key"}:
         raise ValueError("Unsupported authentication event")
     # Identity is supplied only after authentication, never from a requested role/org or failed email.
     user = user or {}

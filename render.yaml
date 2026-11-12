@@ -105,7 +105,7 @@ services:
       # legal review in docs/LAUNCH_CHECKLIST.md part 3 exist.
       - key: MORROW_PUBLIC_CHECK_ENABLED
         value: "0"
-      # Email (invitations, password reset, new trial request notices) through Resend's SMTP
+      # Email (invitations, account recovery, team sign-in links, new trial request notices) through Resend's SMTP
       # relay; soqlab.com is already verified there. MORROW_SMTP_PASSWORD is a Resend API key.
       # Plain address only: the sender is also the SMTP envelope sender.
       - key: MORROW_SMTP_HOST
@@ -129,8 +129,15 @@ services:
         value: "1"
       - key: MORROW_SELF_SIGNUP
         value: "1"
-      # Customer sign-in screen: email and password only, no developer token options.
+      # Customer sign-in screen: no developer token options.
       - key: MORROW_SIGNIN_SIMPLE
+        value: "1"
+      # Passkeys only (services/passkeys.py; the relying party is MORROW_PUBLIC_BASE_URL's host). No
+      # password sign-in for an account with a passkey, no new passwords anywhere, and "forgot
+      # password" emails an account-recovery link that registers a new passkey. An account that
+      # still has a password signs in with it once and must add a passkey before it gets a session;
+      # the passkey deletes the password.
+      - key: MORROW_PASSKEYS_ONLY
         value: "1"
       # Admin dashboard figures are precomputed snapshots; at this size a minute is cheap.
       - key: MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS

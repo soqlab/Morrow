@@ -6,7 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Passkey sign-in (WebAuthn, py_webauthn 3.0.1): one "Sign in with passkey" button with browser autofill, discoverable credentials, user verification required, single-use server-stored challenges and sign-counter clone detection. Invitations and self sign-up create a passkey, never a password. Users list, rename and remove passkeys (never the last). See docs/AUTH_AND_ACCESS_POLICY.md
+- `MORROW_PASSKEYS_ONLY=1` (on in render.yaml): no password sign-in for accounts with a passkey, no new passwords anywhere, password sign-in for remaining password accounts only buys a single-use passkey enrollment, and "forgot password" becomes account recovery (an emailed single-use link that registers a new passkey and can remove the others)
+- Domain team sign-in: an admin lets anyone with a verified mailbox at a verified, non-free-mail domain join as a viewer (`/join`, `/domain-join`); DNS re-checked on every join, first verifier wins, every join audited
 - Scanner accuracy suite against real public endpoints (docs/ACCURACY.md): 422 labelled endpoints (386 TLS, 36 SSH) with labels from OpenSSL 3.5 `s_client` and OpenSSH `ssh -vv`, a runner that scores Morrow's real scanners per protocol and attribute (`backend/accuracy/`), an opt-in `network` pytest, and a weekly workflow that relabels, rescans and reports warnings without failing builds
+
+### Changed
+- An account's first passkey deletes its password (`morrow_users.password_hash` is now nullable; the table is migrated in place on startup)
 
 ### Fixed
 - TLS scanner: TLS 1.0 and 1.1 were never detected under OpenSSL 3 (the probes failed locally at the default security level); a TLS 1.2 server with only RSA key exchange was reported as not speaking TLS 1.2 and its certificate was not read

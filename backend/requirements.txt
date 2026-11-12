@@ -46,6 +46,11 @@ jsonschema==4.26.0
 # SAML SSO
 python3-saml==1.16.0
 
+# Passkeys (services/passkeys.py): WebAuthn registration and assertion verification. py_webauthn,
+# maintained by Duo Labs (github.com/duo-labs/py_webauthn); 3.0.1 was released September 2026. It
+# brings cbor2 and pyOpenSSL (which caps cryptography below 51: raise them together).
+webauthn==3.0.1
+
 # Azure Key Vault secret backend
 azure-keyvault-secrets==4.11.0
 azure-identity==1.25.3

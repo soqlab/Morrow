@@ -6,9 +6,10 @@
      It is moved into sessionStorage for this tab and removed from the address bar. The page:
        1. previews the invitation (POST /auth/invite/preview, masked summary only);
        2. reads the console session from localStorage (morrow_token / morrow_refresh, the console's keys);
-       3. offers account creation for the invited address (POST /auth/invite/register, which also
-          accepts the invitation and returns a session), sign-in through the console (returning here
-          via sessionStorage), sign-out when the
+       3. offers account creation for the invited address: with passkeys (POST /auth/passkey/register/begin
+          and /finish, kind "invite", through /ui/passkey.js), or with a password (POST /auth/invite/register)
+          only where the server has no passkeys; either also accepts the invitation and returns a session.
+          Then sign-in through the console (returning here via sessionStorage), sign-out when the
           signed-in email does not match, and acceptance (POST /admin/accept-invite), which the
           server binds to the signed-in email and claims atomically.
      No third-party requests. */
@@ -24,6 +25,14 @@
     del: (area, key) => { try { window[area].removeItem(key); } catch { /* ignore */ } }
   };
   let preview = null;
+  let authConfig = null;
+  async function passkeysOffered() {
+    if (!authConfig) {
+      const r = await request("/auth/config");
+      authConfig = r.ok && r.data ? r.data : {};
+    }
+    return !!authConfig.passkeys_enabled;
+  }
 
   function readToken() {
     const match = /(?:^|[#&])token=([A-Za-z0-9_\-]{16,256})(?:&|$)/.exec(location.hash || "");
@@ -176,14 +185,24 @@
     }
     const who = await identity();
     if (!who) {
-      state({ title: `Join ${p.organization_name}.`, lead: `You're invited as ${p.role || "a member"}. Choose a password for ${p.invited_email_masked || "the invited address"} to create your account and join.`,
-        body: `<form class="invite-form" id="inviteRegister" novalidate>
-            <label>Your name (optional)<input id="regName" type="text" autocomplete="name" maxlength="200"></label>
-            <label>Password<input id="regPassword" type="password" autocomplete="new-password" required minlength="10"></label>
-            <label>Repeat password<input id="regPassword2" type="password" autocomplete="new-password" required minlength="10"></label>
-            <p class="invite-error" id="regError" role="alert"></p>
-          </form>${para("At least 10 characters, including a digit. Already have an account for this address? Sign in instead.")}`,
-        actions: [{ label: "Create account and join", primary: true, run: register }, { label: "Sign in instead", run: signIn }] });
+      if (await passkeysOffered()) {
+        const supported = window.MorrowPasskey && MorrowPasskey.supported();
+        state({ title: `Join ${p.organization_name}.`, lead: `You're invited as ${p.role || "a member"}. Create a passkey for ${p.invited_email_masked || "the invited address"} on this device to create your account and join. There is no password.`,
+          body: `<form class="invite-form" id="inviteRegister" novalidate>
+              <label>Your name (optional)<input id="regName" type="text" autocomplete="name" maxlength="200"></label>
+              <p class="invite-error" id="regError" role="alert">${supported ? "" : "This browser can't create a passkey. Open the link in a current browser, or on your phone."}</p>
+            </form>${para("A passkey signs you in with your fingerprint, face or device PIN. Already have an account for this address? Sign in instead.")}`,
+          actions: [{ label: "Create passkey and join", primary: true, run: registerPasskey }, { label: "Sign in instead", run: signIn }] });
+      } else {
+        state({ title: `Join ${p.organization_name}.`, lead: `You're invited as ${p.role || "a member"}. Choose a password for ${p.invited_email_masked || "the invited address"} to create your account and join.`,
+          body: `<form class="invite-form" id="inviteRegister" novalidate>
+              <label>Your name (optional)<input id="regName" type="text" autocomplete="name" maxlength="200"></label>
+              <label>Password<input id="regPassword" type="password" autocomplete="new-password" required minlength="10"></label>
+              <label>Repeat password<input id="regPassword2" type="password" autocomplete="new-password" required minlength="10"></label>
+              <p class="invite-error" id="regError" role="alert"></p>
+            </form>${para("At least 10 characters, including a digit. Already have an account for this address? Sign in instead.")}`,
+          actions: [{ label: "Create account and join", primary: true, run: register }, { label: "Sign in instead", run: signIn }] });
+      }
       // The buttons sit outside the form, so a browser will not submit it on Enter by itself:
       // treat Enter in any field as "Create account and join", and never let the form navigate.
       const form = $("inviteRegister");
@@ -205,23 +224,16 @@
       actions: [{ label: "Accept invitation", primary: true, run: accept }, { label: "Sign out", run: signOut }] });
   }
 
-  async function register() {
-    const error = $("regError");
-    const password = $("regPassword").value;
-    if (password.length < 10 || !/[0-9]/.test(password)) { error.textContent = "Use at least 10 characters, including a digit."; return; }
-    if (password !== $("regPassword2").value) { error.textContent = "The two passwords don't match."; return; }
-    error.textContent = "";
-    const r = await request("/auth/invite/register", { method: "POST", body: { token, password, full_name: $("regName").value.trim() } });
-    if (r.ok && r.data && r.data.access_token) {
-      store.set("localStorage", "morrow_token", r.data.access_token);
-      if (r.data.refresh_token) store.set("localStorage", "morrow_refresh", r.data.refresh_token);
-      store.del("sessionStorage", TOKEN_KEY);
-      store.del("sessionStorage", RETURN_KEY);
-      store.set("sessionStorage", FLASH_KEY, JSON.stringify({ title: "Welcome to Morrow", message: `You joined ${preview.organization_name}.`, kind: "ok" }));
-      state({ title: "Account created.", lead: "Opening the console.", tone: "ok" });
-      location.assign("/ui/");
-      return;
-    }
+  function signedUp(data) {
+    store.set("localStorage", "morrow_token", data.access_token);
+    if (data.refresh_token) store.set("localStorage", "morrow_refresh", data.refresh_token);
+    store.del("sessionStorage", TOKEN_KEY);
+    store.del("sessionStorage", RETURN_KEY);
+    store.set("sessionStorage", FLASH_KEY, JSON.stringify({ title: "Welcome to Morrow", message: `You joined ${preview.organization_name}.`, kind: "ok" }));
+    state({ title: "Account created.", lead: "Opening the console.", tone: "ok" });
+    location.assign("/ui/");
+  }
+  async function registerFailed(r, error) {
     if (r.status === 409) {
       return state({ title: "You already have an account.", lead: `Sign in with ${preview.invited_email_masked || "the invited address"} to accept.`,
         actions: [{ label: "Sign in to accept", primary: true, run: signIn }] });
@@ -230,6 +242,30 @@
     if (r.status === 429) { error.textContent = "Too many attempts. Wait a minute, then try again."; return; }
     if (r.status === 0) { error.textContent = "We couldn't reach the server. Try again."; return; }
     error.textContent = detail(r) || `The server answered ${r.status}.`;
+  }
+  async function registerPasskey() {
+    const error = $("regError");
+    if (!window.MorrowPasskey || !MorrowPasskey.supported()) { error.textContent = "This browser can't create a passkey. Open the link in a current browser, or on your phone."; return; }
+    error.textContent = "";
+    const begin = await request("/auth/passkey/register/begin", { method: "POST", body: { kind: "invite", token, full_name: $("regName").value.trim() } });
+    if (!begin.ok || !begin.data) return registerFailed(begin, error);
+    let credential;
+    try { credential = await MorrowPasskey.create(begin.data.options); }
+    catch (e) { error.textContent = MorrowPasskey.message(e) || "No passkey was created. Press the button to try again."; return; }
+    const r = await request("/auth/passkey/register/finish", { method: "POST", body: { challenge_id: begin.data.challenge_id, credential, token } });
+    if (r.ok && r.data && r.data.access_token) return signedUp(r.data);
+    return registerFailed(r, error);
+  }
+
+  async function register() {
+    const error = $("regError");
+    const password = $("regPassword").value;
+    if (password.length < 10 || !/[0-9]/.test(password)) { error.textContent = "Use at least 10 characters, including a digit."; return; }
+    if (password !== $("regPassword2").value) { error.textContent = "The two passwords don't match."; return; }
+    error.textContent = "";
+    const r = await request("/auth/invite/register", { method: "POST", body: { token, password, full_name: $("regName").value.trim() } });
+    if (r.ok && r.data && r.data.access_token) return signedUp(r.data);
+    return registerFailed(r, error);
   }
 
   function signIn() {

@@ -6,9 +6,7 @@
 aiohappyeyeballs==2.7.1 \
     --hash=sha256:065665c041c42a5938ed220bdcd7230f22527fbec085e1853d2402c8a3615d9d \
     --hash=sha256:9243213661e29250eb41368e5daa826fc017156c3b8a11440826b2e3ed376472
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   aiohttp
+    # via aiohttp
 aiohttp==3.14.4 \
     --hash=sha256:019587c7b3a44917dd61bcb312fd5c034f341dc9851b83e7b41b65e08b68ca0f \
     --hash=sha256:02a508ba5ad91c4d730523584c0adc65882274bba5e37c33bc2f475e37577256 \
@@ -171,50 +169,35 @@ aiohttp==3.14.4 \
     --hash=sha256:fc76be08ff407fba717a769aff04ca1b4bf9ecfdcb5caadef84a563fdbbd146d \
     --hash=sha256:fdf2d2a6ad402797422949f4a200a60d43e3a021695c8a7804aa1d5bbef22652 \
     --hash=sha256:ff4b366510c733974adb7a4102c094e4a6308e6f369315a4cf14d2d0a619cf82
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 aiosignal==1.4.0 \
     --hash=sha256:053243f8b92b990551949e63930a839ff0cf0b0ebbe0597b0f3fb19e1a0fe82e \
     --hash=sha256:f47eecd9468083c2029cc99945502cb7708b082c232f9aca65da147157b251c7
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   aiohttp
+    # via aiohttp
 alembic==1.18.5 \
     --hash=sha256:06d8ba9d04558022f5395e9317de03d270f3dced49cee01f89fe7a13c26f14bc \
     --hash=sha256:1554982221dd17e9a749b53902407578eb305e453f71999e8c7f0a48389fff8e
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 amqp==5.4.2 \
     --hash=sha256:9362660c4a31150cf18e78cae2ce8aa1e929fc6c6739e69f6dd5dbea9c3edc82 \
     --hash=sha256:e6e756b15c89c86818b48a4947a424706238afbf67d457428d3269bc4590db9e
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   kombu
+    # via kombu
 annotated-doc==0.0.5 \
     --hash=sha256:117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101 \
     --hash=sha256:c7e58ce09192557605d8bbd92836d7e1d520ac9580096042c0bfd197efacf1bb
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   fastapi
+    # via fastapi
 annotated-types==0.8.0 \
     --hash=sha256:13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7 \
     --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   pydantic
+    # via pydantic
 anthropic==1.2.0 \
     --hash=sha256:12f8eedee7b7fb5685837b1371b7bfae1b281703f62355f4632598ec2fc53b34 \
     --hash=sha256:b60642b3e3cd6b8e3e328a2d3f2863ad2b6e743f1037e42cc0143f7df99f63c6
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 anyio==4.14.2 \
     --hash=sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494 \
     --hash=sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   anthropic
     #   httpx
@@ -224,20 +207,15 @@ anyio==4.14.2 \
 asgiref==3.13.0 \
     --hash=sha256:034cc8cbf72d00553b4be256703ac545120b4e50af13b49dec99da899aeeecb4 \
     --hash=sha256:f9596a2434512686473d50f96ff6207fbba49ae1a785dfac614df4aeb085674d
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   opentelemetry-instrumentation-asgi
+    # via opentelemetry-instrumentation-asgi
 async-timeout==5.0.1 \
     --hash=sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c \
     --hash=sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   redis
+    # via redis
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
     --hash=sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   aiohttp
     #   jsonschema
     #   referencing
@@ -245,28 +223,21 @@ azure-core==1.41.0 \
     --hash=sha256:522b4011e8180b1a3dcd2024396a4e7fe9ac37fb8597db47163d230b5efe892d \
     --hash=sha256:f46ff5dfcd230f25cf1c19e8a34b8dc08a337b2503e268bb600a16c00db8ad5a
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   azure-identity
     #   azure-keyvault-secrets
     #   azure-storage-blob
 azure-identity==1.25.3 \
     --hash=sha256:ab23c0d63015f50b630ef6c6cf395e7262f439ce06e5d07a64e874c724f8d9e6 \
     --hash=sha256:f4d0b956a8146f30333e071374171f3cfa7bdb8073adb8c3814b65567aa7447c
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 azure-keyvault-secrets==4.11.0 \
     --hash=sha256:ac14727b9159cca353173ec5a454d8d7b192a6f2f5e7eb540f9fbcf914fa0ca0 \
     --hash=sha256:d8543b710423569bd00ada2a2533fe83d52d8e1fe026e1c47f41a3bc0fc73ef5
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 azure-storage-blob==12.30.0 \
     --hash=sha256:2cd74d4d5731e5eb6b8d5c5056ee115a5e88f8fdf22517b739836fda685018be \
     --hash=sha256:d415ac50b67a8da6b3ae7e9f1014b1b55cd7aafa0b8d4ca9b380568dc7360423
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 bcrypt==5.0.0 \
     --hash=sha256:046ad6db88edb3c5ece4369af997938fb1c19d6a699b9c1b27b0db432faae4c4 \
     --hash=sha256:0c418ca99fd47e9c59a301744d63328f17798b5947b0f791e9af3c1c499c2d0a \
@@ -331,41 +302,100 @@ bcrypt==5.0.0 \
     --hash=sha256:f748f7c2d6fd375cc93d3fba7ef4a9e3a092421b8dbf34d8d4dc06be9492dfdd \
     --hash=sha256:f8429e1c410b4073944f03bd778a9e066e7fad723564a52ff91841d278dfc822 \
     --hash=sha256:fc746432b951e92b58317af8e0ca746efe93e66555f1b40888865ef5bf56446b
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 billiard==4.3.2 \
     --hash=sha256:37735a7b4117aafa73532b3b493db4c02fb85c0e69d5f3447f113fd30ff27872 \
     --hash=sha256:9eb83c99b1cf7acb1fed86c1dfd477157000a1a2c0108005c1e5837b55d2acba
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   celery
+    # via celery
 boto3==1.43.40 \
     --hash=sha256:5fa80de4b4b7bab383dd8c563e235d51fcc7df4502662af56f0a2472c3c15651 \
     --hash=sha256:a7108b9ce25b8f92d1ce96b9e35090794d5c58b219ff2f6a7a65c8986a4ed6f4
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   moto
 botocore==1.43.126 \
     --hash=sha256:2f2239a47025a2fa173cd145ab8803ac02b76114864bf5b66475ff1cb88e6b0a \
     --hash=sha256:96996af07d8b703c3cdf44863f69c0b4b8b2d1cb6976c641986ced3e38c072f3
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   boto3
     #   moto
     #   s3transfer
+cbor2==6.2.1 \
+    --hash=sha256:00176ecde0be58a668ab67b0e0c763c692a9b6f7898894982e04a8c2b02c2715 \
+    --hash=sha256:02336d65520273d06fd7e4801f4f8c63fbd7a473ef187d40a0e433a8ed5d8e9e \
+    --hash=sha256:035e93888a813a67181ec19dd6053ca4f76abd92adf4ec81d4bca0b72388cb19 \
+    --hash=sha256:07b3af862e98b85f3d4d1ec94b5d24d54f5c7a9569fed183116a4166b26ef19d \
+    --hash=sha256:086c1588bd407a46739da704b5ee7d15225dc998d9582a0519fc6c9a114b25f7 \
+    --hash=sha256:093d7e42eab8c3ebae12af68f71a5514ed574e61f8c35ed7a5c96ab0d9df8a8d \
+    --hash=sha256:0baf8b17517b5d94850a076621121d3339644d1bfe894ae789a32f855b6e90fc \
+    --hash=sha256:120d2b616488b2a49a04f3a871fd544b68985ae7c3d472e388586a2189d4607f \
+    --hash=sha256:1a606cfd3f7414746df567559f1d7340154d0924b9a8d2ce23d55a8e488e2591 \
+    --hash=sha256:1f2dbec34ebe04f4dab80b5d49d0fd06d1702dc1336c1e780f401a8b378bed30 \
+    --hash=sha256:23fb300ed63cf367d859c378300b419422fc699f3d91c5889021999214bdf790 \
+    --hash=sha256:24407205afbdedee63e29071ff1fc010fc625a29c85bbb6c43d4f79a7a5e4f64 \
+    --hash=sha256:2773c2d4ca770259718a27a28b33d410761d278f52e203209558c74bcf9fb208 \
+    --hash=sha256:2b0c44f260405f66e7f8410ff2f47fd5aeef1b84cea4f90c5efe9f676d84224d \
+    --hash=sha256:37dc36e64a3e0cbab657e906bdc8d739a3f56134a6a89bad5156ea964d2aad49 \
+    --hash=sha256:41810f070b8e3ee87392e89a00e276840947da9b30a98c72f0c03e07935b654a \
+    --hash=sha256:432e0c4d9536203fea986767295351c82577ab0ded57758e71c85dea21e147ca \
+    --hash=sha256:438d082ba745cd87e2fecacf88e74b1cb8fc20d79f2c791a51cabf6c90abcbc9 \
+    --hash=sha256:4582163771c7abf70feaea6093b0bb128de20f3c10ad6eb8f87c899705ad437b \
+    --hash=sha256:51d6960dbc7fb4607acc932a7d860dd50bc25b6b6e3dc19c7a28d42db4839500 \
+    --hash=sha256:5785a0a9738ede549da72d5c3a2cc40b7fcbf1fbea6c1957dd0d59b64310256e \
+    --hash=sha256:5800aa7e6f67b86fbd0a074b44e8042d513cb5a831ce1b3e5fe7c19523ae4bd4 \
+    --hash=sha256:5ea796072147aea911bcea72ae74bbefbfbd3a480f9f55547280c871e33bd284 \
+    --hash=sha256:623fe0658993f8b438a6e737aebe31313b14907fb5b2aa6f844fc3b9ba8aeb7a \
+    --hash=sha256:6a66bf0322d40534b3e8ff838cdaed345a6a707cabc447c8e4266d2b4f69d572 \
+    --hash=sha256:6d9767e443c64e3f88fca9adc64aa5761fe0ef35d45cd4a0e63d5bbb773a6138 \
+    --hash=sha256:7225faafc3d341d905480ce3f821e4d0f23511025532b64d5f44780a5bd625e7 \
+    --hash=sha256:746629065048827c8b42f85c6325d79870f9683df7ffcb98680bbe7bcda647b7 \
+    --hash=sha256:74a8df13828de73a99b03bd3a4508a99d1f19dac2ab46f3fd361890120ea6583 \
+    --hash=sha256:799b9ee84c04dc7422930134247efc8571f61e26a5ea0fa0754bbdf4bf567766 \
+    --hash=sha256:7dd3791d2339526f6836f13e32b7213ee13cb02c1d71dcb360821ea625d8a6c6 \
+    --hash=sha256:817f79f7f3f98e303eb00e8fb89e6e78615a00952a847a81211fd3a319fbbd67 \
+    --hash=sha256:830c54f5d6581bce628e0c9970f22f1b94069d123ba3c051192e9f3fd5154400 \
+    --hash=sha256:861bf947d9ae0f7ba8d3424aee3dcc9eb9f903404fda600ea1c5dc95284e08a2 \
+    --hash=sha256:8b0d93ae182fb58222b3251b04b53e67c559f6809f160cbc22d7c4f91d2e8538 \
+    --hash=sha256:8d1aef5eaee896b4239b7e0cf2f215b93e46d8a8cc392a7394f94d23ab15ee3b \
+    --hash=sha256:8f0079305dd5ed379093624039ed26b88e49687883731e2688dc72cc1756d6c0 \
+    --hash=sha256:8f5406c5cf88c0185dc0817a97ab7372fd360ce51cf3e0dea8b5fbe4e17ce3b1 \
+    --hash=sha256:970e885d314bc79640c0f303ece6e443ec0787539945ad4598fd8ad16fbc41c7 \
+    --hash=sha256:a387dfc1a0e50e4e7a2f7087f98bdc27b9bb9dc6f9df663b12c5a708f76a7991 \
+    --hash=sha256:aa789848ab27d04710e64b2ec7a0eb1aa193aa4d43dfe9d9f494d6e2eaed9d83 \
+    --hash=sha256:b19a9ffa63de7871ede20ed2cfda1efb12bb8efaf5ac29a331b5308542fc4ea5 \
+    --hash=sha256:b3f41fb922f4aa5865ea3cf685585f7aaf30b4b73c230a12c4d685bc8fef1350 \
+    --hash=sha256:b645a59d9e5b44c943338b8850bb98350a77b08ae91ece98898a3b5c852feea4 \
+    --hash=sha256:b86cd0ca6fd4abd99958df1bb214dde8b264a0cb02d6f0f69837140d92a1c72f \
+    --hash=sha256:b961015036c5a072cbda65f79b39110bdf0b440528348bf5bd4c007ccb790446 \
+    --hash=sha256:b9a92721b7b1cbca902a378ff6bc0aca08c5c143921e9d9eb117ab238d87a01e \
+    --hash=sha256:bda666879182490a559e5d845d2deb95dea80b5007e2698d8fbd64a7d453fb0e \
+    --hash=sha256:beb4801453292b88f71b26b62dc3bf445802f3ebf6d0af190e63a4a121971d58 \
+    --hash=sha256:c1eb32463e716f29f12ade34b9573817ec9fef9f8c5f01e0fccf5894b30b1296 \
+    --hash=sha256:c23dfc9a7e369fddec7b49ea42a22fd972feb7644d647e8e43797488a2c5c2a1 \
+    --hash=sha256:c4dfb4cd553fd9f84559caacc84870e460341bcc12c05f9e637f4b8146a74e97 \
+    --hash=sha256:ce6f9135a62b4aa427bd0104526c75fc1e95ad97409083e377797b6d69a7478d \
+    --hash=sha256:d026fa56d3bf5ef3072f0d5e8716f7cf8519a158da3abd71de56f909a8acbbf5 \
+    --hash=sha256:d11eda82b6484e73ea1f6b9ffdc4a2e310a53f3bcfee30e788a997f942347e08 \
+    --hash=sha256:dc2eb868fbccd75ee7f7e917fb0983d6f05f1f719a7bae29bd08bb2443afa31e \
+    --hash=sha256:dd789b939587d38319bf9eef6d5bf7523dc52e5d32f261e1b5134ee0da8f22d6 \
+    --hash=sha256:def3a679b085095a9316d38a676d5bca3e2d5954d0cad7140f3f0af88e33c2b0 \
+    --hash=sha256:e00d1daf9e8750b071a6e6228ba7fb97f98ba3ea7aaab27427cf651eecc65dec \
+    --hash=sha256:e12f481ce60cae61b85c2111a075544acec66327422b8f543b9fc9cee136be52 \
+    --hash=sha256:ea459ecefc087ff2c69b24cbf2c3d9f902724df8bf37dae044983fdb1c96e617 \
+    --hash=sha256:ee8aeceef3c4689a9d3569757f874185c5750242255e8ab4463564851f8e611f \
+    --hash=sha256:eed16d1416e22a7b4dbd4dba81c3c448790511c10927cad6aaba4e12d2748626 \
+    --hash=sha256:ef8419796021fc755294125d27e4c98da26ff584b354fcd964a6740e6c5a1dd9 \
+    --hash=sha256:f23eb8f345ba85df3adab97740ec086fa8b2e4c571aaad5cd9b3d5b3655eb4c4 \
+    --hash=sha256:ff6a31c27d36cb9f3df5b53f04e86c11c55ed607b94136fc7de1d80bd2332273
+    # via webauthn
 celery==5.6.2 \
     --hash=sha256:3ffafacbe056951b629c7abcf9064c4a2366de0bdfc9fdba421b97ebb68619a5 \
     --hash=sha256:4a8921c3fcf2ad76317d3b29020772103581ed2454c4c042cc55dcc43585009b
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 certifi==2026.10.23 \
     --hash=sha256:a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd \
     --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   httpcore
     #   httpx
     #   requests
@@ -472,7 +502,6 @@ cffi==2.1.1 \
     --hash=sha256:fb92203a88b3d3053034db775110081c49d28be6551923805e039924093761e4 \
     --hash=sha256:fcd22650c908d7b7da162bbfaab594a1227a15d1643a98c68b122ac642fa2264
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   cryptography
     #   pynacl
 charset-normalizer==3.5.2 \
@@ -649,14 +678,12 @@ charset-normalizer==3.5.2 \
     --hash=sha256:fd1fbe0f116b6e55da77aca2c6ddcddcfac2186cbf78bdebf40fc156efca389d \
     --hash=sha256:fe9753dfee015c570d73df76f899f18444d41388bffcde097deba51c4fadbb9f
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   reportlab
     #   requests
 click==8.3.3 \
     --hash=sha256:398329ad4837b2ff7cbe1dd166a4c0f8900c3ca3a218de04466f38f6497f18a2 \
     --hash=sha256:a2bf429bb3033c89fa4936ffb35d5cb471e3719e1f3c8a7c3fff0b8314305613
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   celery
     #   click-didyoumean
@@ -666,21 +693,15 @@ click==8.3.3 \
 click-didyoumean==0.3.1 \
     --hash=sha256:4f82fdff0dbe64ef8ab2279bd6aa3f6a99c3b28c05aa09cbfc07c9d7fbb5a463 \
     --hash=sha256:5c4bb6007cfea5f2fd6583a2fb6701a22a41eb98957e63d0fac41c10e7c3117c
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   celery
+    # via celery
 click-plugins==1.1.1.2 \
     --hash=sha256:008d65743833ffc1f5417bf0e78e8d2c23aab04d9745ba817bd3e71b0feb6aa6 \
     --hash=sha256:d7af3984a99d243c131aa1a828331e7630f4a88a9741fd05c927b204bcf92261
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   celery
+    # via celery
 click-repl==0.4.1 \
     --hash=sha256:5cb10881d4c5ebaa8695eceb69911af3062ee78342812b713564b17aad333eb5 \
     --hash=sha256:c32a1cf6f95e5bd6e92076f81ce24eafd33f2f0ffb0135887e335b8e446d1c0b
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   celery
+    # via celery
 cryptography==50.0.0 \
     --hash=sha256:031e2d5dd4bb9caa3ca9c82e5a197fd8ae680232cee62603d1a813f3f07e3d03 \
     --hash=sha256:06a32a980526a6ab9a4b9bf8f7385800791e2bb960903cb6b530e4817509a3b7 \
@@ -729,7 +750,6 @@ cryptography==50.0.0 \
     --hash=sha256:f89831ef99dd7dd169ab06d63a831adb9e20a87aac6d380266bbda5823349169 \
     --hash=sha256:fd9192b7b70c573d7f214eb1ae35e00d359f6f5e4b27c7e21e30de1fc6204645
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   azure-identity
     #   azure-storage-blob
@@ -737,30 +757,24 @@ cryptography==50.0.0 \
     #   moto
     #   msal
     #   pyjwt
+    #   pyopenssl
+    #   webauthn
 deprecated==1.3.1 \
     --hash=sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f \
     --hash=sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   limits
+    # via limits
 dnspython==2.9.0 \
     --hash=sha256:9a4aedb833c3c1b49214d04d44d3032ab7a9135f7c1d29a549b4ff78fd82fda9 \
     --hash=sha256:b44dc6b18f07a8b1c56676a19fbfdb5209415b046a9cece286baafa87ff3f7f1
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 docstring-parser==0.18.0 \
     --hash=sha256:292510982205c12b1248696f44959db3cdd1740237a968ea1e2e7a900eeb2015 \
     --hash=sha256:b3fcbed555c47d8479be0796ef7e19c2670d428d72e96da63f3a40122860374b
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   anthropic
+    # via anthropic
 fastapi==0.141.1 \
     --hash=sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3 \
     --hash=sha256:e8822fc40db1e1858054d7a949a888695bc9bdce70139178e33bd2871a453ca1
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 frozenlist==1.8.0 \
     --hash=sha256:0325024fe97f94c41c08872db482cf8ac4800d80e79222c6b0b7b162d5b13686 \
     --hash=sha256:032efa2674356903cd0261c4317a561a6850f3ac864a63fc1583147fb05a79b0 \
@@ -893,14 +907,12 @@ frozenlist==1.8.0 \
     --hash=sha256:fb30f9626572a76dfe4293c7194a09fb1fe93ba94c7d4f720dfae3b646b45027 \
     --hash=sha256:fe3c58d2f5db5fbd18c2987cba06d51b0529f52bc3a6cdc33d3f4eab725104bd
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   aiohttp
     #   aiosignal
 google-api-core==2.33.0 \
     --hash=sha256:3a36bcc3e319783f4c97da41f6f45ea6ffcaa55848e341de16e09cb70243c2bb \
     --hash=sha256:a2e22a0c1d0f03eafff1858b38cf46f832d5902b0c052235bf0ab8402929fbdc
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-cloud-access-context-manager
     #   google-cloud-asset
     #   google-cloud-core
@@ -912,7 +924,6 @@ google-auth==2.62.1 \
     --hash=sha256:015399a5abde39033c69404cc1c079e6d4c2de2993e164c9f4eac6e5376ad72b \
     --hash=sha256:3c8e1ce2553784ae17fd220e6f88df3281d86ab98019278f436d06dffab17a9e
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-api-core
     #   google-cloud-asset
     #   google-cloud-core
@@ -923,45 +934,31 @@ google-auth==2.62.1 \
 google-cloud-access-context-manager==0.6.0 \
     --hash=sha256:760267fba1f8be8636e2a8d7c302027f310260fff8051c46b8b09b97d5468ee0 \
     --hash=sha256:e1e62fe16fa3b1520afddf7023df9c261adbec7eb744f0a1be75306516e93d4f
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   google-cloud-asset
+    # via google-cloud-asset
 google-cloud-asset==4.4.0 \
     --hash=sha256:350d564db6edb2d9521d4776fc44d559765fecd06bdb7284017cf24261039c8d \
     --hash=sha256:8b1c5916939995ad3e42210b189785056d80fa6fa3c2109fece3ba2b462ae49d
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 google-cloud-core==2.8.0 \
     --hash=sha256:365f8e4518ae81c8101b8dea5fc1c32a960badedb8b511f19db2843cbbd285d2 \
     --hash=sha256:e235b0952f7ffe7b9c71a4cf96b506d9cfb557e22557c412f0df9b7068b5d007
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   google-cloud-storage
+    # via google-cloud-storage
 google-cloud-org-policy==1.18.0 \
     --hash=sha256:41e330cfc833863d10a6b5f5ffaa2a12d0fe2f08fa03d619faaad744ae8d922b \
     --hash=sha256:c0fc063963b48eafff711bca96aa9a08c1598635d92ddf2a4c0178614981ce8c
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   google-cloud-asset
+    # via google-cloud-asset
 google-cloud-os-config==1.25.0 \
     --hash=sha256:1b6f5f1da1f80f5796ca6098428324b2f32275e21b29ac08aa127e614c8dcb89 \
     --hash=sha256:2e02717d6a0dabe8f6ebf7b9b37eb28b5f70e3358bd7caf0cddbcf843b303da1
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   google-cloud-asset
+    # via google-cloud-asset
 google-cloud-resource-manager==1.16.0 \
     --hash=sha256:cc938f87cc36c2672f062b1e541650629e0d954c405a4dac35ceedee70c267c3 \
     --hash=sha256:fb9a2ad2b5053c508e1c407ac31abfd1a22e91c32876c1892830724195819a28
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 google-cloud-storage==3.4.1 \
     --hash=sha256:6f041a297e23a4b485fad8c305a7a6e6831855c208bcbe74d00332a909f82268 \
     --hash=sha256:972764cc0392aa097be8f49a5354e22eb47c3f62370067fb1571ffff4a1c1189
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 google-crc32c==1.9.0 \
     --hash=sha256:0568b17ed90ac596f29400d99e243fd0cc6276766183def888d1bf8d1dc13827 \
     --hash=sha256:0abe7e202c25909869c35672ab0f2fe748a7acf276eb78577332a7c38999740f \
@@ -995,20 +992,16 @@ google-crc32c==1.9.0 \
     --hash=sha256:fb63a8d7fa2e95dcff1ca16af2f4d88b526fa5ff72d1696285884ac2d49b6963 \
     --hash=sha256:fbef61a3794e011c65fb4396a196cf123a7f474fe5a443db8e5dd7d751b9e6d4
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-cloud-storage
     #   google-resumable-media
 google-resumable-media==2.11.0 \
     --hash=sha256:f43d15e6a7f818f762eaead0f369c551f8275a4179c9d6225d0d259f49b87b5d \
     --hash=sha256:febd83686752799661b4de575f0b993c5c25c349a5362556fc4d7be164056a37
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   google-cloud-storage
+    # via google-cloud-storage
 googleapis-common-protos==1.75.0 \
     --hash=sha256:53a062ff3c32552fbd62c11fe23768b78e4ddf0494d5e5fd97d3f4689c75fbbd \
     --hash=sha256:961ed60399c457ceb0ee8f285a84c870aabc9c6a832b9d37bb281b5bebde43ed
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-api-core
     #   grpc-google-iam-v1
     #   grpcio-status
@@ -1093,14 +1086,11 @@ greenlet==3.5.6 \
     --hash=sha256:fdacf26402389bdd89857ad3c045a26fe8f3314f9a8b28226f82f88463a65b77 \
     --hash=sha256:fe3170a69fe039b18ad18171e66faa9a75f6fe9d78f968fd9b54e09fbd714d81 \
     --hash=sha256:fea4427d1ffdb3b523d7daa6712038428a4c16c450b9777bdd1221cfee0eab49
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   sqlalchemy
+    # via sqlalchemy
 grpc-google-iam-v1==0.14.4 \
     --hash=sha256:392b3796947ed6334e61171d9ab06bf7eb357f554e5fc7556ad7aab6d0e17038 \
     --hash=sha256:412facc320fcbd94034b4df3d557662051d4d8adfa86e0ddb4dca70a3f739964
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-cloud-asset
     #   google-cloud-resource-manager
 grpcio==1.85.1 \
@@ -1166,7 +1156,6 @@ grpcio==1.85.1 \
     --hash=sha256:eaad7e6aa9ac3aded4f6bc86a18bf2cff3de356f972bf32a5558df9788085b85 \
     --hash=sha256:f0ebfbd8ba42497e0ff7229c8c5e166e07c2b348462c1481dbd90faa978ad8af
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-api-core
     #   google-cloud-asset
     #   google-cloud-org-policy
@@ -1179,14 +1168,11 @@ grpcio==1.85.1 \
 grpcio-status==1.71.2 \
     --hash=sha256:803c98cb6a8b7dc6dbb785b1111aed739f241ab5e9da0bba96888aa74704cfd3 \
     --hash=sha256:c7a97e176df71cdc2c179cd1847d7fc86cca5832ad12e9798d7fed6b7a1aab50
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   google-api-core
+    # via google-api-core
 h11==0.16.0 \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \
     --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   httpcore
     #   httpcore2
     #   uvicorn
@@ -1197,9 +1183,7 @@ httpcore==1.0.9 \
 httpcore2==2.16.0 \
     --hash=sha256:5c4358319f2602d984ad93182c9fee5160f22e9da7babdda870a5e7c4e2dc34f \
     --hash=sha256:c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   httpx2
+    # via httpx2
 httptools==0.9.0 \
     --hash=sha256:02bc5b3dcb6394b9d825fd62a7bfa0b2943063a3c89abc4492ad45e334a20eb5 \
     --hash=sha256:050f7ab098121873c8f13e35857f97ab60a76185c8302bde9a384939bb7c3b96 \
@@ -1319,9 +1303,7 @@ httptools==0.9.0 \
     --hash=sha256:f9489c1d87160c126f73b004742fe8654fa1ce37ed89e9e01330a1c10aaecde4 \
     --hash=sha256:f9ccc9884241efceb4547a92955d128574c864681f11b7ea3ecbde295fafbe8b \
     --hash=sha256:fc1a4f9d18d32a6e0a0a0a382986a60a2126f5144dd08715be7adb8df18e8a46
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   uvicorn
+    # via uvicorn
 httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
@@ -1329,9 +1311,7 @@ httpx==0.28.1 \
 httpx2==2.16.0 \
     --hash=sha256:0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f \
     --hash=sha256:fd2c5d7909e8d86fe92d53020c310ca0e4e431b838c207c5754b9bbf0308d49a
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   anthropic
+    # via anthropic
 hypothesis==6.170.15 \
     --hash=sha256:0ecf4e2948c3de57ea12d66f6cf6c0e3ad88b5eae0d216cfa2922800ba5522a7 \
     --hash=sha256:1138c03edf4c4401afb28e50255644b4ab4e1ad52864456cd4e84458ba8c671a \
@@ -1421,7 +1401,6 @@ idna==3.20 \
     --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44 \
     --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   anyio
     #   httpx
     #   httpx2
@@ -1435,7 +1414,6 @@ isodate==0.7.2 \
     --hash=sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15 \
     --hash=sha256:4cd1aa0f43ca76f4a6c6c0292a85f40b35ec2e43e315b59f06e6d32171a953e6
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   azure-keyvault-secrets
     #   azure-storage-blob
     #   python3-saml
@@ -1545,41 +1523,31 @@ jiter==0.19.0 \
     --hash=sha256:fcce75459e06cf811395581f6d256e2535d165ec4d223b809115a59b4ea6f398 \
     --hash=sha256:fdc0a6ddcc9228a0955b350509041c9321af91e928c918402d0212d5fd315355 \
     --hash=sha256:fe16c8e0caf7513c6b4e1c6466761b153aa16c4e18a84ddcf6dcf731b2bace1a
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   anthropic
+    # via anthropic
 jmespath==1.1.0 \
     --hash=sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d \
     --hash=sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   boto3
     #   botocore
 jsonschema==4.26.0 \
     --hash=sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326 \
     --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements-dev.txt
     #   -r backend/requirements.txt
 jsonschema-specifications==2025.9.1 \
     --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe \
     --hash=sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   jsonschema
+    # via jsonschema
 kombu==5.7.0 \
     --hash=sha256:31e62fdfd2381caa3422f8e02b84a491d9a2180ddda74507b57f4cb1e1c2c2c9 \
     --hash=sha256:dede73bff4c89175be382c4203d2f167cf7017c384396ec75c36a1b5678f1587
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   celery
+    # via celery
 limits==5.8.0 \
     --hash=sha256:ae1b008a43eb43073c3c579398bd4eb4c795de60952532dc24720ab45e1ac6b8 \
     --hash=sha256:c9e0d74aed837e8f6f50d1fcebcf5fd8130957287206bc3799adaee5092655da
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   slowapi
+    # via slowapi
 lxml==6.1.3 \
     --hash=sha256:032a0a97eed428bd143c75a11118238546424ceb2fa311cca5f073aa44658dc4 \
     --hash=sha256:05f5bce9af14fd1506997594bd81cee6d9c6b58ea80a39c058327aa6371ed9e9 \
@@ -1758,15 +1726,12 @@ lxml==6.1.3 \
     --hash=sha256:febd35ef45f603c2d74b74655efdbf45e14f55fc0aef4ac82b663ca829b283e0 \
     --hash=sha256:ff88a92cafde90888511242d1c54afcc1a8adbb6dc0a88fa7f87e29e92400d4a
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   python3-saml
     #   xmlsec
 mako==1.4.3 \
     --hash=sha256:723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f \
     --hash=sha256:cd6537fe88d5fec315c55c2f8529bc4ce7a9a352ad7db3eeaa6a66e2dd4ec37a
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   alembic
+    # via alembic
 markupsafe==3.0.4 \
     --hash=sha256:007e1ffd9bf65bb6ee96df7b258fc632a4868dd5566037986c64781f35a36e98 \
     --hash=sha256:02fa4acbc6a3fc5c693c34d4dd8c1130b7fe99cc915181b0ddd6f72aeb296002 \
@@ -1920,7 +1885,6 @@ markupsafe==3.0.4 \
     --hash=sha256:fd9f8797427910198f95bced71ddfed61130d7e349213bfb8466c9c99e2c46a8 \
     --hash=sha256:fdb4ca07ab75ffadab4a8b135ad59cdbb3156b99310f3d565370da74a15d6bd3
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   mako
     #   werkzeug
 moto==5.2.3 \
@@ -1931,15 +1895,12 @@ msal==1.39.0 \
     --hash=sha256:2d2577886906cd7293850dffa2da29119966c213bfc6ec0cecf8bf7621e1ca77 \
     --hash=sha256:6ab7de335e6d7f5717e2c7e1dbf86e4dda2f6acf3c56773b78dc53ebc6395b5f
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   azure-identity
     #   msal-extensions
 msal-extensions==1.3.1 \
     --hash=sha256:96d3de4d034504e969ac5e85bae8106c8373b5c6568e4c8fa7af2eca9dbe6bca \
     --hash=sha256:c5b0fd10f65ef62b5f1d62f4251d51cbcaf003fcedae8c91b040a488614be1a4
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   azure-identity
+    # via azure-identity
 multidict==6.9.1 \
     --hash=sha256:006c4478de0a1876f4834e14255776286f09b9846b505fe63f67f9d173a9487c \
     --hash=sha256:024123f0ab402ab33828e24eb80fa8f25167d0d3783ba5f287e39ed741e6abf9 \
@@ -2113,14 +2074,12 @@ multidict==6.9.1 \
     --hash=sha256:fc0dcb22fa9aeabfe3fa4e0430099acff985ec5d77a851382f76cc6146e780e5 \
     --hash=sha256:fd882aa29bf402b62bf1fd7c19fd5df4b6528cf468a908864b39368572b662a9
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   aiohttp
     #   yarl
 opentelemetry-api==1.45.1 \
     --hash=sha256:aa38ed19bcc084ba42782a73255b3582283eced7ad6dddbd6695189e69adfb75 \
     --hash=sha256:b31553efa588ae44bc306f863c785c5333a9ecc091248c6ee68b4b6c87fdedfb
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asgi
@@ -2130,52 +2089,39 @@ opentelemetry-api==1.45.1 \
 opentelemetry-exporter-otlp-common==0.66b1 \
     --hash=sha256:00ff8592c3a7cb729ff3fdc7ffa12372c243bdf2163e80c180994d0c7bd83ee9 \
     --hash=sha256:6b1403487a2185ac1feb45fd5546fdf8630ce71c36bcefaadf51e2130e9e23f9
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   opentelemetry-exporter-otlp-proto-grpc
+    # via opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-exporter-otlp-proto-common==1.45.1 \
     --hash=sha256:2e4adcc3a67bcf57804fc49514f0ef64974ca7590aa3491da389852b4a0628f6 \
     --hash=sha256:2f446183ae7047b036226f1d846c41a834b0e8755ad13b51a51dd38952eb466c
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   opentelemetry-exporter-otlp-proto-grpc
+    # via opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-exporter-otlp-proto-grpc==1.45.1 \
     --hash=sha256:3b3dcfbfdcb4e35149fcf309972282054b45228f5c10547d0095d6578510a9a0 \
     --hash=sha256:e42ecb789d2fc5d8145e3dadc3e2991c9f18cd166d7c7514e234702540274b76
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 opentelemetry-instrumentation==0.66b1 \
     --hash=sha256:4c4aa14dc9a24a02325a9d4c42c4d0208dbb1374c2b1b8fe6c9392d59f3e1008 \
     --hash=sha256:e79a510f7d87c72d95e964ddb42193a0d9a75668c027d980eab032ea1322a5ce
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   opentelemetry-instrumentation-asgi
     #   opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-asgi==0.66b1 \
     --hash=sha256:78b3f9bdf0fa38c65935a2ab46d59e0f9de873a51e0c95b0329f106e2ccb5274 \
     --hash=sha256:78cdc5e45e897e16a8dac9d282e8d5bdf9af2d58e1313fa0bdd4a134c6f9dafc
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   opentelemetry-instrumentation-fastapi
+    # via opentelemetry-instrumentation-fastapi
 opentelemetry-instrumentation-fastapi==0.66b1 \
     --hash=sha256:584cf9d2c4417ff8b2d6ff2bc606bfe13c8b3456018bf94f50f2cf658492505b \
     --hash=sha256:97f8ac8fd7537517f9e6988bd0aca04bfa5aad564bcd46c245530739e2be72d1
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 opentelemetry-proto==1.45.1 \
     --hash=sha256:79e0fb95e4616691a469439238aa9224d75779b3e108e895d1aa125ab29ca77c \
     --hash=sha256:f38e2a8413053c180cd3d2637fbb279673ec2f6a6e09c995aafa2f452c52b46e
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-sdk==1.45.1 \
     --hash=sha256:63d24a6ca645019a631e6a51999c73e93adcac1196ca640b8ae78a7cc4762bf3 \
     --hash=sha256:c604c11dc429810812348989115fa44bd558772a3d7442afc43d024f2c250ca4
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   opentelemetry-exporter-otlp-common
     #   opentelemetry-exporter-otlp-proto-grpc
@@ -2183,7 +2129,6 @@ opentelemetry-semantic-conventions==0.66b1 \
     --hash=sha256:497ca63bf383723411e8eaf60c8779e9877633c936bb641080adab59d0eb6ec8 \
     --hash=sha256:d4cddeb4315490b35213f55e2bdc9ac54bb1e4d318927475bed62b35545e581b
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asgi
     #   opentelemetry-instrumentation-fastapi
@@ -2192,14 +2137,12 @@ opentelemetry-util-http==0.66b1 \
     --hash=sha256:047dea1a628031f857a5a32261dc0e955bc162d39993ed1cffb8f2cff5ba8a62 \
     --hash=sha256:8f443d7abcaf29c4a07b373bbd31b5b39132c0ed3c27d015a59dc0323d5b1c58
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   opentelemetry-instrumentation-asgi
     #   opentelemetry-instrumentation-fastapi
 packaging==26.3 \
     --hash=sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79 \
     --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   limits
     #   opentelemetry-instrumentation
     #   pytest
@@ -2288,7 +2231,6 @@ pillow==13.0.0 \
     --hash=sha256:ff3fe9eb621fbb9db4c4be33ab946f6bac5f98ab50ca8d3260503653656c961b \
     --hash=sha256:ffea6b2986a797c84b6d1d27d4f43e0b83c73fc16281a930891cd237cf0d08fe
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   reportlab
 pluggy==1.7.0 \
@@ -2298,9 +2240,7 @@ pluggy==1.7.0 \
 prompt-toolkit==3.0.53 \
     --hash=sha256:01c0891d7f9237d5e339f7d3e42cdae80b7534abb1c7c0e3352efba6231492f2 \
     --hash=sha256:9ec8a0ad96d5c56148b3f914aa79c1564c3fde5d2e6b876e7bc327e353cf8fa6
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   click-repl
+    # via click-repl
 propcache==0.5.4 \
     --hash=sha256:004e685b315646c410771836e72a44f143bbe624f29653a42687815069a303d5 \
     --hash=sha256:02c0a34f16889cf800f10f0247a564d8ce6eeab6ffcd7c87198f769067eb8432 \
@@ -2441,14 +2381,12 @@ propcache==0.5.4 \
     --hash=sha256:fc2461ecc45f17893f8207e73b46ea8ba93e33630e51cf4af3fbc21d47462b1a \
     --hash=sha256:ff6b113f50bc066a698db5d944d2c6dc7507168dd3341e255a8892fd0715a558
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   aiohttp
     #   yarl
 proto-plus==1.28.2 \
     --hash=sha256:26d843eb99c1e32fdf1d20ff0faae56607f7748fe774acf9ecd5cfe6c6472501 \
     --hash=sha256:b874236fcac2358f601e4330bcb76cb8b89c851303ccf4078408b3d4774d1c52
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-api-core
     #   google-cloud-asset
     #   google-cloud-org-policy
@@ -2467,7 +2405,6 @@ protobuf==5.29.6 \
     --hash=sha256:da9ee6a5424b6b30fd5e45c5ea663aef540ca95f9ad99d1e887e819cdf9b8723 \
     --hash=sha256:e3387f44798ac1106af0233c04fb8abf543772ff241169946f698b3a9a3d3ab9
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   google-api-core
     #   google-cloud-access-context-manager
@@ -2548,33 +2485,28 @@ psycopg2-binary==2.9.11 \
     --hash=sha256:f090b7ddd13ca842ebfe301cd587a76a4cf0913b1e429eb92c1be5dbeb1a19bc \
     --hash=sha256:fa0f693d3c68ae925966f0b14b8edda71696608039f4ed61b1fe9ffa468d16db \
     --hash=sha256:fcf21be3ce5f5659daefd2b3b3b6e4727b028221ddc94e6c1523425579664747
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 pyasn1==0.6.5 \
     --hash=sha256:4017b0fce125096b8573b39c989fdb1a4b19cf761e683398184550fea0e66587 \
     --hash=sha256:6b11616a6bcf3a40e635f082bb232fa57b5e0dd7f517bd7ddd69ec3794508a47
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   pyasn1-modules
+    #   webauthn
 pyasn1-modules==0.4.2 \
     --hash=sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a \
     --hash=sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   google-auth
+    #   webauthn
 pycparser==3.12 \
     --hash=sha256:a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e \
     --hash=sha256:f03387877eab82ce01bbdfd0ba7252ee55a90b1c708d5129e2ce915475cf1db6
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   cffi
+    # via cffi
 pydantic==2.12.5 \
     --hash=sha256:4d351024c75c0f085a9febbb665ce8c0c6ec5d30e903bdb6394b7ede26aebb49 \
     --hash=sha256:e561593fccf61e8a20fc46dfc2dfe075b8be7d0188df33f221ad1f0139180f9d
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   anthropic
     #   fastapi
@@ -2700,15 +2632,11 @@ pydantic-core==2.41.5 \
     --hash=sha256:f41a7489d32336dbf2199c8c0a215390a751c5b014c2c1c5366e817202e9cdf7 \
     --hash=sha256:f41eb9797986d6ebac5e8edff36d5cef9de40def462311b3eb3eeded1431e425 \
     --hash=sha256:f547144f2966e1e16ae626d8ce72b4cfa0caedc7fa28052001c94fb2fcaa1c52
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   pydantic
+    # via pydantic
 pygithub==2.9.1 \
     --hash=sha256:2ec78fca30092d51a42d76f4ddb02131b6f0c666a35dfdf364cf302cdda115b9 \
     --hash=sha256:59771d7ff63d54d427be2e7d0dad2208dfffc2b0a045fec959263787739b611c
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 pygments==2.21.0 \
     --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9 \
     --hash=sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c
@@ -2719,7 +2647,6 @@ pyjwt==2.15.1 \
     --hash=sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193 \
     --hash=sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   msal
     #   pygithub
@@ -2749,9 +2676,11 @@ pynacl==1.6.2 \
     --hash=sha256:d071c6a9a4c94d79eb665db4ce5cedc537faf74f2355e4d502591d850d3913c0 \
     --hash=sha256:d29bfe37e20e015a7d8b23cfc8bd6aa7909c92a1b8f41ee416bbb3e79ef182b2 \
     --hash=sha256:fe9847ca47d287af41e82be1dd5e23023d3c31a951da134121ab02e42ac218c9
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   pygithub
+    # via pygithub
+pyopenssl==26.4.0 \
+    --hash=sha256:28dfcce0162b9211413e26dfbfdf1d24317fbeba18fc93c12400a1856b2a0bc7 \
+    --hash=sha256:f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c
+    # via webauthn
 pytest==9.1.1 \
     --hash=sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313 \
     --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
@@ -2760,29 +2689,23 @@ python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   botocore
     #   celery
 python-dotenv==1.2.2 \
     --hash=sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a \
     --hash=sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   uvicorn
 python-multipart==0.0.32 \
     --hash=sha256:be54b7f3fa167bb83e4fcd936b887b708f4e57fe75911c02aebf53efaf8d938e \
     --hash=sha256:ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 python3-saml==1.16.0 \
     --hash=sha256:20b97d11b04f01ee22e98f4a38242e2fea2e28fbc7fbc9bdd57cab5ac7fc2d0d \
     --hash=sha256:97c9669aecabc283c6e5fb4eb264f446b6e006f5267d01c9734f9d8bffdac133 \
     --hash=sha256:c49097863c278ff669a337a96c46dc1f25d16307b4bb2679d2d1733cc4f5176a
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \
@@ -2858,33 +2781,26 @@ pyyaml==6.0.3 \
     --hash=sha256:fa160448684b4e94d80416c0fa4aac48967a969efe22931448d853ada8baf926 \
     --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   responses
     #   uvicorn
 redis==7.1.0 \
     --hash=sha256:23c52b208f92b56103e17c5d06bdc1a6c2c0b3106583985a76a18f83b265de2b \
     --hash=sha256:b1cc3cfa5a2cb9c2ab3ba700864fb0ad75617b41f01352ce5779dabf6d5f9c3c
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 referencing==0.37.0 \
     --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231 \
     --hash=sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   jsonschema
     #   jsonschema-specifications
 reportlab==4.5.1 \
     --hash=sha256:06fce8cb56c83307cfa4909cdf4e6a2ddbb44e5d6ef4d2edca896d7e9769f091 \
     --hash=sha256:9fdf68f4de9171ec66acb4a5feed8f8ca2af43479e707a6fbb0daa75d88e5494
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   azure-core
     #   google-api-core
@@ -3027,7 +2943,6 @@ rpds-py==2026.9.1 \
     --hash=sha256:fdcd198979b4ecffcc1beba366a7fbcf4eb41243691a82fe52ceb0b902f09c12 \
     --hash=sha256:fe5ad0664ec772b02c45859041aa17655709cced7a31005817fbbbd988c25567
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   jsonschema
     #   referencing
 ruff==0.16.3 \
@@ -3053,33 +2968,23 @@ ruff==0.16.3 \
 s3transfer==0.19.3 \
     --hash=sha256:24eb7535804306355e31c952a90022bf5b2f9d760f9a11062c7493a217c08553 \
     --hash=sha256:8326acc3d056d7f7b8a37110c7d2aea41f67e83f6ae79cd3b5fbcca34c726406
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   boto3
+    # via boto3
 sentry-sdk==2.64.0 \
     --hash=sha256:68be2c29e14ae310f8a39e1a79916b6d85c6cb41dcce789d14ff05fe293e4c55 \
     --hash=sha256:715ea91ca860a819e8d8a50a7bde3a80d0df3b4ed7b6660a20fb9a2d084188f1
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 six==1.17.0 \
     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 \
     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   python-dateutil
+    # via python-dateutil
 slowapi==0.1.9 \
     --hash=sha256:639192d0f1ca01b1c6d95bf6c71d794c3a9ee189855337b4821f7f457dddad77 \
     --hash=sha256:cfad116cfb84ad9d763ee155c1e5c5cbf00b0d47399a769b227865f5df576e36
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 sniffio==1.3.1 \
     --hash=sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2 \
     --hash=sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   anthropic
+    # via anthropic
 sortedcontainers==2.4.0 \
     --hash=sha256:25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88 \
     --hash=sha256:a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0
@@ -3144,28 +3049,24 @@ sqlalchemy==2.0.51 \
     --hash=sha256:e5ea1a213be1fcd5e49d9904c3b9939211ded90bc2a64e93f4c01963474285de \
     --hash=sha256:fa268106c8987639a17a18514cfe0cd9bf17420ab887e1e1bf486da8836135b1
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   alembic
 starlette==1.6.0 \
     --hash=sha256:a86dd39d14bb45f85a3d18525215a9ef0cfd1f192ac793220e72598c90335f0c \
     --hash=sha256:d4e3ac5e546444960c710297a3c9fc3f7ebae1b7e963f3d36173b49da535be9b
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   fastapi
 truststore==0.10.5 \
     --hash=sha256:30d36967ccaded5cbb38d602c433f53600036c79d502f4533a49b60a03bbefcd \
     --hash=sha256:9aaaedaefaf06d8b206278cf8b5012bc897f485a874503501e12d776df78951c
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   httpcore2
     #   httpx2
 typing-extensions==4.16.0 \
     --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
     --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   aiohttp
     #   aiosignal
     #   alembic
@@ -3187,6 +3088,7 @@ typing-extensions==4.16.0 \
     #   pydantic
     #   pydantic-core
     #   pygithub
+    #   pyopenssl
     #   referencing
     #   sqlalchemy
     #   starlette
@@ -3195,20 +3097,16 @@ typing-inspection==0.4.5 \
     --hash=sha256:7f16c411e7930dc79596d42ab44672a3fe5f60eb34b781a1647e7872363120c7 \
     --hash=sha256:bc210535442b39e1bf2805e0c7a17dfd6a4ace760c84c7f7d16245d23a6b1c39
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   fastapi
     #   pydantic
 tzlocal==5.4.5 \
     --hash=sha256:ba976898bad27945178c9ca25c222c19e322b30c10342b9f40b46714f70d2d5f \
     --hash=sha256:ecab534f6d65d9deb4c4ea52c121ab6dd5958e9b878e71dcb102578269752454
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   celery
+    # via celery
 urllib3==2.8.0 \
     --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3 \
     --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   -r backend/requirements.txt
     #   botocore
     #   pygithub
@@ -3218,9 +3116,7 @@ urllib3==2.8.0 \
 uvicorn==0.38.0 \
     --hash=sha256:48c0afd214ceb59340075b4a052ea1ee91c16fbc2a9b1469cca0e54566977b02 \
     --hash=sha256:fd97093bdd120a2609fc0d3afe931d4d4ad688b6e75f0f929fde1bc36fe0e91d
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   -r backend/requirements.txt
+    # via -r backend/requirements.txt
 uvloop==0.23.0 \
     --hash=sha256:0305871ac712f54b62af73f943dbf21ae3ce80a44bc0f0151424484affa85645 \
     --hash=sha256:090865d8ce7a03986755a3ce711b7dd0d4b44eb14ab74368b717f3fad1180208 \
@@ -3283,14 +3179,11 @@ uvloop==0.23.0 \
     --hash=sha256:fa8ed556fcc87a4091cf61587ef172fa104323dc89ecc085a618ba7ff8629a8f \
     --hash=sha256:fefea5cf8cdda9053b962ca8a90216fb0b1d40907dcb6819382b42e483e6e9f6 \
     --hash=sha256:ff7144d8167e513fe39fbb46bffb4f6f192dfb1f4b0b4e9102e1fd4f212e4747
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   uvicorn
+    # via uvicorn
 vine==5.1.0 \
     --hash=sha256:40fdf3c48b2cfe1c38a49e9ae2da6fda88e4794c810050a728bd7413811fb1dc \
     --hash=sha256:8b62e981d35c41049211cf62a0a1242d8c1ee9bd15bb196ce38aefd6799e61e0
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   amqp
     #   celery
     #   kombu
@@ -3328,9 +3221,7 @@ watchfiles==1.3.0 \
     --hash=sha256:eb94e40b9a0db19636b5e3fed0a9803452ecc7381df13b385272abb779ee83ca \
     --hash=sha256:ec3cd4bb181a7b6329134204c2277c7144ab5f62cce9c5335d6f901ee7ce8d6a \
     --hash=sha256:f0c9865240e065a2247f4b5248528ae3d01e0e8ae071462c250c884dc16e3ee3
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   uvicorn
+    # via uvicorn
 wcwidth==0.9.4 \
     --hash=sha256:093469e01d881bff3db93ff3f56c364dc87c441ea01f9f41c22de0c0bdf5c6ef \
     --hash=sha256:12786620375dc83fabf4b2b2aa52416fef2bc6094522ea29c8a53c75b0dfe9b6 \
@@ -3361,9 +3252,11 @@ wcwidth==0.9.4 \
     --hash=sha256:f279f32c8e206a9092fa350e53ca0c2bd8072e45b1c9fd31bb6d476b59b591c4 \
     --hash=sha256:f28d77153303450ee13ebbe888297e75cf532c754555b6cabafc9bdda16c421c \
     --hash=sha256:fd8d57d3cdfe570e3265c8fab1885c24e34ef40889c0759c0c304a19e9835954
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   prompt-toolkit
+    # via prompt-toolkit
+webauthn==3.0.1 \
+    --hash=sha256:9927b2f530773bd1d7f8194cd643a2e634a20995ea31f2d8f7a3e70b11c93e31 \
+    --hash=sha256:da862342c91fc03fbcf9a89cee7346e55c56f8b93fbaf66cfe8a55e2f0a05f6c
+    # via -r backend/requirements.txt
 websockets==17.4 \
     --hash=sha256:00ad98e4bb0df7a6711c645eec16d5a9fdf99f0692bd4f5b6cb85a68677ba8df \
     --hash=sha256:0132e3cbd3f5cfc1ec77588961b302d72a02e2603b82c2c23fd5fb59dc4fa206 \
@@ -3519,9 +3412,7 @@ websockets==17.4 \
     --hash=sha256:f5b1d315a615cec81a79e2ce3a94221dc5c23e7fd4012897085d3b5e5a5638d0 \
     --hash=sha256:f5f06f59e19aa0770aaf651ce91c196fa620b35aed49a7e6c36e7335f3f83db7 \
     --hash=sha256:fcac44d917672ad6257ad64b80b5168306f168a78cab5c0612e4c699caed18cf
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   uvicorn
+    # via uvicorn
 werkzeug==3.1.9 \
     --hash=sha256:55ca7c70a75689be937aa27f8ff4b018f06ff4838fc73045560bf0f5a1291060 \
     --hash=sha256:6392e50c78460ba618e5b21f08a71f59c99ce99cdc6cf6e3dd7e6ccca8754fab
@@ -3629,7 +3520,6 @@ wrapt==2.5.2 \
     --hash=sha256:fa642d3781c061579cb138773add4a55b16f99de9ebc41603e89a756cf9e62c6 \
     --hash=sha256:fabc60720d1e4a36bbe8aaf1c32024f04c6674991313f5acaca5eeadb564c600
     # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
     #   deprecated
     #   opentelemetry-instrumentation
 xmlsec==1.3.18 \
@@ -3688,9 +3578,7 @@ xmlsec==1.3.18 \
     --hash=sha256:f47d9d301556c246708c09c030fb70aa58f378755311c665516e889bf58b3d13 \
     --hash=sha256:fac8ab7110bdc5a12e9a98654f751071925b3a9c40bc29935c85d60eace6f054 \
     --hash=sha256:fafd9bdbbedc4ad2cd24251e916cbf10c39ac2795612ea7db0d9c885b401d37f
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   python3-saml
+    # via python3-saml
 xmltodict==1.0.4 \
     --hash=sha256:6d94c9f834dd9e44514162799d344d815a3a4faec913717a9ecbfa5be1bb8e61 \
     --hash=sha256:a4a00d300b0e1c59fc2bfccb53d7b2e88c32f200df138a0dd2229f842497026a
@@ -3834,6 +3722,4 @@ yarl==1.25.1 \
     --hash=sha256:f53dcd26694f148f738edc052b5a69234833e739f10f4c3287bdfd8ec0f7b326 \
     --hash=sha256:f61964f235a43738bfac50da46fc4254943a7eea3051aeb0b6fc7c992c29fadc \
     --hash=sha256:fe01645169a2112aa1d4ebc3e4c5f029c5c8f97adfc32e5d37c993b39a994d75
-    # via
-    #   -c C:/Users/Samsung/AppData/Local/Temp/claude/500c1e2befff3b72/8af35111-ff6e-497d-8a4b-4de53eab9b58/scratchpad/runtime-constraints.txt
-    #   aiohttp
+    # via aiohttp

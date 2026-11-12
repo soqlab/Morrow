@@ -102,6 +102,9 @@ def consume(db, token: str, new_password: str) -> Dict[str, Any]:
         raise ResetError(410, "This reset link has already been used. Request a new one if you need to.")
     if expires_at < int(time.time()):
         raise ResetError(410, "This reset link has expired. Request a new one.")
+    from services import passkeys as _passkeys
+    if _passkeys.count_passkeys(db, user_id) > 0:
+        raise ResetError(409, "This account signs in with a passkey, so it has no password. Request a recovery link instead.")
     try:
         auth_issuer._validate_password_strength(str(new_password or ""))
     except ValueError as exc:

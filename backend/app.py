@@ -1750,7 +1750,7 @@ _CSP_VALUE = str(
 # "/r/" carries the trailing slash deliberately: this tuple is matched with str.startswith, and a
 # bare "/r" would also claim /repositories, /remediations and /robots.txt.
 _CSP_STRICT_PREFIXES = ("/vendor-admin", "/invite", "/check", "/public-check", "/abuse", "/scanner",
-                        "/r/", "/trial")   # "/trial" also covers "/trial-request"
+                        "/r/", "/trial", "/join")   # "/trial" also covers "/trial-request"
 _CSP_STRICT_VALUE = str(
     os.getenv(
         "MORROW_CSP_VALUE_STRICT",
@@ -1955,7 +1955,7 @@ def public_information_page(request: Request):
 
 
 _TRIAL_SELF_SIGNUP_SECTION = """<h2>What happens next</h2>
-    <p>We email you a single&#8209;use link. Open it, choose a password, and your workspace is ready. No card, no call, no waiting for a reply.</p>
+    <p>We email you a single&#8209;use link. Open it, create a passkey on your device, and your workspace is ready: there is no password to choose. No card, no call, no waiting for a reply.</p>
     <p>An account here can scan hosts, so it scans only domains you've shown you control: add your domain under <b>Domains</b>, publish the DNS record it gives you, and everything under that domain is yours to scan. That check is what keeps this from being a reconnaissance service pointed at other people's systems.</p>"""
 
 
@@ -2277,6 +2277,18 @@ def _auth_public_path(path: str) -> bool:
         "/reset-password",
         "/auth/password-reset/request",
         "/auth/password-reset/confirm",
+        # Passkey sign-in and registration. Each authenticates from its own payload: a stored,
+        # single-use challenge and a signature, plus an invitation, emailed link or Bearer token
+        # for registration (services/passkeys.py). Rate limited by _RATE_AUTH.
+        "/auth/passkey/login/begin",
+        "/auth/passkey/login/finish",
+        "/auth/passkey/register/begin",
+        "/auth/passkey/register/finish",
+        # Domain team sign-in: the page, the link request (same answer either way) and the link
+        # preview (services/team_join.py).
+        "/join",
+        "/auth/team-join/request",
+        "/auth/team-join/preview",
         # Console banner source. Anonymous callers only see notices addressed to everyone.
         "/announcements/active",
         # Public halves of the migration-proof signing keys, so a proof can be checked without an account.
@@ -2420,9 +2432,30 @@ def _public_auth_config() -> Dict[str, Any]:
         "manual_actor_supported": AUTH_MODE != "jwt" or not AUTH_REQUIRED,
         "password_login_enabled": bool(AUTH_ISSUER_ENABLED),
         "password_reset_enabled": bool(AUTH_ISSUER_ENABLED) and _password_reset_available(),
-        # Hosted for customers: the sign-in screen offers email and password only.
+        # Passkeys (services/passkeys.py): offered once the relying party is configured, and with
+        # MORROW_PASSKEYS_ONLY=1 the only way to create or recover an account.
+        "passkeys_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available(),
+        "passkeys_only": bool(AUTH_ISSUER_ENABLED) and _passkeys_only(),
+        "team_join_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available() and _password_reset_available(),
+        # Hosted for customers: the sign-in screen offers no developer token options.
         "simple_sign_in": str(os.getenv("MORROW_SIGNIN_SIMPLE", "0") or "0").strip().lower() in {"1", "true", "yes", "on"},
     }
+
+
+def _passkeys_available() -> bool:
+    try:
+        from services import passkeys
+        return passkeys.available()
+    except Exception:
+        return False
+
+
+def _passkeys_only() -> bool:
+    try:
+        from services import passkeys
+        return passkeys.passkeys_only()
+    except Exception:
+        return False
 
 
 def _password_reset_available() -> bool:
@@ -24780,16 +24813,29 @@ async def auth_login(request: Request):
     def authenticate():
         try:
             with _db() as db:
-                result = _issuer_login(db, email.strip(), password)
-                if not result:
+                # Refuses accounts without a password and accounts that have a passkey.
+                user = _issuer_verify_password(db, email.strip(), password)
+                if not user:
                     _auth_journal(request, "login.failure", subject=email, status_code=401, required=False)
                     raise HTTPException(401, "Invalid credentials")
+                if _passkeys_only():
+                    # MORROW_PASSKEYS_ONLY=1: the password proves who this is, but buys no session. It
+                    # buys a single-use ticket that can do one thing: register a passkey, which then
+                    # deletes the password and signs the account in.
+                    ticket = _passkeys.issue_ticket(db, "enroll", user_id=user["id"], email=user["email"])
+                    _auth_journal(request, "passkey_enrollment.required", user=user, subject=email, required=False)
+                    return {"passkey_enrollment_required": True, "enrollment_token": ticket,
+                            "enrollment_expires_in": _passkeys.ticket_ttl("enroll"),
+                            "user": {"email": user["email"], "full_name": user.get("full_name") or ""}}
+                result = _issuer_start_session(db, user)
                 try:
                     _auth_journal(request, "login.success", user=result["user"], subject=email)
                 except HTTPException:
                     # Never leave a newly minted refresh token usable after a failed audit commit.
                     _issuer_revoke(db, result["refresh_token"])
                     raise
+                # Signed in, but the console makes adding a passkey the next step (which deletes the password).
+                result["passkey_enrollment_required"] = _passkeys_available()
                 return result
         except HTTPException:
             raise
@@ -24811,6 +24857,9 @@ async def auth_register(request: Request):
     """
     _require_auth_issuer_enabled()
     _require_role(request, ["admin"], "auth.register", "user")
+    if _passkeys_only():
+        raise HTTPException(403, "This server uses passkeys only, so accounts can't be created with a password. "
+                                 "Invite the person instead; they create a passkey when they accept.")
     org_id = _org(request)
     body = await request.json()
     email = str(body.get("email") or "").strip()
@@ -24850,6 +24899,8 @@ async def auth_invite_register(body: InviteRegisterRequest, request: Request):
     and an address that already has an account is sent to sign in instead.
     """
     _require_auth_issuer_enabled()
+    if _passkeys_only():
+        raise HTTPException(403, "This server uses passkeys only. Open the invitation link again to create a passkey.")
 
     def register():
         invitation = _invite_links.usable_invitation(body.token)
@@ -24934,14 +24985,22 @@ async def auth_password_reset_request(body: PasswordResetRequestBody, request: R
 
     def work():
         with _db() as db:
-            created = _password_reset.create(db, body.email)
-        _auth_journal(request, "password_reset.requested", user=created[1] if created else None,
-                      subject=body.email, status_code=200, required=False)
-        if not created:
-            return
-        token, user = created
-        link = f"{base}/reset-password#token={token}"
-        message = _password_reset.email_body(link, user["email"])
+            recovery = _recovery_ticket(db, body.email)
+            created = None if recovery else _password_reset.create(db, body.email)
+        if recovery:
+            token, user = recovery
+            _auth_journal(request, "account_recovery.requested", user=user, subject=body.email, status_code=200,
+                          required=False)
+            link = f"{base}/reset-password#recover={token}"
+            message = _recovery_email_body(link, user["email"])
+        else:
+            _auth_journal(request, "password_reset.requested", user=created[1] if created else None,
+                          subject=body.email, status_code=200, required=False)
+            if not created:
+                return
+            token, user = created
+            link = f"{base}/reset-password#token={token}"
+            message = _password_reset.email_body(link, user["email"])
 
         def send():
             result = _platform_mail.send_text([user["email"]], message["subject"], message["body"])
@@ -24953,11 +25012,49 @@ async def auth_password_reset_request(body: PasswordResetRequestBody, request: R
     return JSONResponse({"detail": _PASSWORD_RESET_SENT}, headers={"Cache-Control": "no-store"})
 
 
+def _recovery_ticket(db, email: str):
+    """(token, user) for an account that recovers with a new passkey instead of a new password.
+
+    That is every account once MORROW_PASSKEYS_ONLY=1, and, either way, an account that already
+    signs in with passkeys (it has no password to reset). None otherwise, and for unknown addresses.
+    """
+    from services.auth_issuer import get_user_by_email
+
+    if not _passkeys_available():
+        return None
+    address = str(email or "").strip().lower()
+    if not address or len(address) > 320:
+        return None
+    user = get_user_by_email(db, address)
+    if not user or not user.get("is_active"):
+        return None
+    if not (_passkeys_only() or not user.get("password_hash") or _passkeys.count_passkeys(db, user["id"]) > 0):
+        return None
+    token = _passkeys.issue_ticket(db, "recover", user_id=user["id"], email=user["email"])
+    return token, {k: v for k, v in user.items() if k != "password_hash"}
+
+
+def _recovery_email_body(link: str, email: str) -> Dict[str, str]:
+    minutes = _passkeys.ticket_ttl("recover") // 60
+    return {
+        "subject": "Recover your Morrow account",
+        "body": (
+            f"Someone asked to recover the Morrow account {email}.\n\n"
+            f"To create a new passkey for it, open this link within {minutes} minutes:\n\n{link}\n\n"
+            "The link works once and signs the account out everywhere else. If you didn't ask for "
+            "this, ignore this email: nothing changes without it.\n"
+        ),
+    }
+
+
 @app.post("/auth/password-reset/confirm")
 @limiter.limit(_RATE_AUTH)
 async def auth_password_reset_confirm(body: PasswordResetConfirmBody, request: Request):
     """Set a new password from a reset link. Every existing session of the account is signed out."""
     _require_auth_issuer_enabled()
+    if _passkeys_only():
+        raise HTTPException(403, "This server uses passkeys only, so passwords can't be set. Request a recovery "
+                                 "link to create a new passkey.")
 
     def work():
         with _db() as db:
@@ -24970,6 +25067,487 @@ async def auth_password_reset_confirm(body: PasswordResetConfirmBody, request: R
 
     await run_in_threadpool(work)
     return JSONResponse({"detail": "Password changed. Sign in with your new password."}, headers={"Cache-Control": "no-store"})
+
+
+# ── Passkeys (services/passkeys.py) and domain team sign-in (services/team_join.py) ────────────
+
+from services import passkeys as _passkeys  # noqa: E402
+from services import team_join as _team_join  # noqa: E402
+from services.auth_issuer import (  # noqa: E402
+    create_passkey_user as _issuer_create_passkey_user,
+    drop_password as _issuer_drop_password,
+    has_password as _issuer_has_password,
+    revoke_refresh_sessions as _issuer_revoke_sessions,
+    start_session as _issuer_start_session,
+    verify_password_login as _issuer_verify_password,
+)
+
+_NO_STORE = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+_MAX_CREDENTIAL_JSON = 16384
+
+
+def _passkey_error(exc: "_passkeys.PasskeyError") -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _issuer_bearer(request: Request) -> Dict[str, Any]:
+    """The verified built-in-issuer token on this request, or 401."""
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token required")
+    try:
+        payload = _issuer_verify_token(auth_header[7:])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from None
+    if _session_revocation.is_revoked(payload):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+    return payload
+
+
+def _check_credential_size(credential: Any) -> None:
+    try:
+        size = len(json.dumps(credential))
+    except Exception:
+        size = _MAX_CREDENTIAL_JSON + 1
+    if size > _MAX_CREDENTIAL_JSON:
+        raise HTTPException(413, "The passkey response is too large.")
+
+
+def _session_or_revoke(db, request: Request, user: Dict[str, Any], event: str = "login.success") -> Dict[str, Any]:
+    """A session for a verified account, only once the sign-in is durably journaled (like /auth/login)."""
+    session = _issuer_start_session(db, user)
+    try:
+        _auth_journal(request, event, user=session["user"], method="passkey", subject=user.get("email") or "")
+    except HTTPException:
+        _issuer_revoke(db, session["refresh_token"])
+        raise
+    return session
+
+
+class PasskeyLoginBeginBody(BaseModel):
+    # Optional: only for authenticators that can't offer their passkeys by themselves.
+    email: str = Field("", max_length=320)
+
+
+class PasskeyFinishBody(BaseModel):
+    challenge_id: str = Field(..., min_length=16, max_length=64)
+    credential: Dict[str, Any]
+
+
+class PasskeyRegisterBeginBody(BaseModel):
+    kind: str = Field(..., min_length=3, max_length=20)
+    token: str = Field("", max_length=256)
+    full_name: str = Field("", max_length=200)
+
+
+class PasskeyRegisterFinishBody(BaseModel):
+    challenge_id: str = Field(..., min_length=16, max_length=64)
+    credential: Dict[str, Any]
+    token: str = Field("", max_length=256)
+    name: str = Field("", max_length=60)
+    # Account recovery only: remove every other passkey (a lost or stolen device).
+    revoke_other_passkeys: bool = False
+
+
+class PasskeyRenameBody(BaseModel):
+    name: str = Field(..., min_length=1, max_length=60)
+
+
+@app.post("/auth/passkey/login/begin")
+@limiter.limit(_RATE_AUTH)
+async def auth_passkey_login_begin(body: PasskeyLoginBeginBody, request: Request):
+    """Options for navigator.credentials.get(). The challenge is stored server side and works once."""
+    _require_auth_issuer_enabled()
+
+    def work():
+        with _db() as db:
+            return _passkeys.begin_login(db, body.email)
+    try:
+        data = await run_in_threadpool(work)
+    except _passkeys.PasskeyError as exc:
+        raise _passkey_error(exc) from None
+    return JSONResponse(data, headers=_NO_STORE)
+
+
+@app.post("/auth/passkey/login/finish")
+@limiter.limit(_RATE_AUTH)
+async def auth_passkey_login_finish(body: PasskeyFinishBody, request: Request):
+    """Verify the passkey's signature and sign in. Same answer shape as /auth/login."""
+    _require_auth_issuer_enabled()
+    _check_credential_size(body.credential)
+
+    def work():
+        with _db() as db:
+            try:
+                result = _passkeys.finish_login(db, body.challenge_id, body.credential)
+            except _passkeys.PasskeyError as exc:
+                _auth_journal(request, "passkey.clone_suspected" if exc.code == "clone_suspected" else "login.failure",
+                              method="passkey", status_code=exc.status_code, required=False)
+                raise _passkey_error(exc) from None
+            user = _issuer_get_user(db, result["user_id"])
+            if not user or not user.get("is_active"):
+                _auth_journal(request, "login.failure", method="passkey", status_code=401, required=False)
+                raise HTTPException(401, "This account is not active.")
+            return _session_or_revoke(db, request, user)
+    result = await run_in_threadpool(work)
+    return JSONResponse(result, headers=_NO_STORE)
+
+
+def _registration_target(db, request: Request, body: PasskeyRegisterBeginBody) -> Dict[str, Any]:
+    """Who the new passkey is for, and the context register/finish needs. Raises HTTPException."""
+    kind = body.kind.strip().lower()
+    if kind not in _passkeys.REGISTRATION_KINDS:
+        raise HTTPException(400, "Unknown kind of passkey registration.")
+    if kind == "account":
+        payload = _issuer_bearer(request)
+        user = _issuer_get_user(db, str(payload.get("sub") or ""))
+        if not user or not user.get("is_active"):
+            raise HTTPException(401, "Sign in again.")
+        # A stolen access token must not be enough to plant a passkey on an account that already has
+        # one: adding another needs a recent sign-in. The first passkey (moving off a password) doesn't.
+        if _passkeys.count_passkeys(db, user["id"]) > 0 and int(time.time()) - int(payload.get("iat") or 0) > _passkeys.reauth_seconds():
+            raise HTTPException(401, "For your security, sign in again with a passkey, then add the new one.")
+        return {"user_id": user["id"], "email": user["email"], "name": user.get("full_name") or "",
+                "context": {"kind": "account"}}
+    if kind in {"enroll", "recover"}:
+        ticket = _passkeys.peek_ticket(db, body.token, kind)
+        user = _issuer_get_user(db, ticket["user_id"])
+        if not user or not user.get("is_active"):
+            raise HTTPException(404, "This link isn't valid. Request a new one.")
+        return {"user_id": user["id"], "email": user["email"], "name": user.get("full_name") or "",
+                "context": {"kind": kind, "ticket": ticket["token_sha256"]}}
+    if kind == "invite":
+        invitation = _invite_links.usable_invitation(body.token)
+        if not invitation:
+            raise HTTPException(404, "This invitation can't be used to create an account: it may have expired or already been used.")
+        if db.execute("SELECT 1 FROM morrow_users WHERE email=?", (invitation["email"].lower(),)).fetchone():
+            raise HTTPException(409, "An account already exists for this address. Sign in to accept the invitation.")
+        return {"user_id": str(uuid.uuid4()), "email": invitation["email"].lower(), "name": body.full_name.strip(),
+                "context": {"kind": "invite", "ticket": _passkeys.ticket_hash(body.token),
+                            "full_name": body.full_name.strip()}}
+    # join
+    ticket = _passkeys.peek_ticket(db, body.token, "join")
+    if db.execute("SELECT 1 FROM morrow_users WHERE email=?", (ticket["email"],)).fetchone():
+        raise HTTPException(409, "An account already exists for this address. Sign in instead.")
+    try:
+        _team_join.check_join_allowed(ticket["org_id"], ticket["domain"])
+    except _team_join.JoinError as exc:
+        _auth_journal(request, "team_join.refused", subject=ticket["email"], status_code=exc.status_code, required=False)
+        raise HTTPException(exc.status_code, exc.detail) from None
+    return {"user_id": str(uuid.uuid4()), "email": ticket["email"], "name": body.full_name.strip(),
+            "context": {"kind": "join", "ticket": ticket["token_sha256"], "full_name": body.full_name.strip()}}
+
+
+@app.post("/auth/passkey/register/begin")
+@limiter.limit(_RATE_AUTH)
+async def auth_passkey_register_begin(body: PasskeyRegisterBeginBody, request: Request):
+    """Options for navigator.credentials.create(), for one of the kinds in services/passkeys.py."""
+    _require_auth_issuer_enabled()
+
+    def work():
+        with _db() as db:
+            try:
+                target = _registration_target(db, request, body)
+                return _passkeys.begin_registration(db, user_id=target["user_id"], email=target["email"],
+                                                    display_name=target["name"], context=target["context"])
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+def _delete_new_account(db, user_id: str) -> None:
+    db.execute("DELETE FROM morrow_passkeys WHERE user_id=?", (user_id,))
+    db.execute("DELETE FROM morrow_users WHERE id=?", (user_id,))
+    db.commit()
+
+
+def _record_team_join(request: Request, user: Dict[str, Any], org_id: str, domain: str) -> None:
+    """Tenant audit log entry for a join, written into the organization joined."""
+    ctx = set_current_organization_id(org_id)
+    try:
+        _audit_event(request, action="domains.team_join.joined", resource_type="user", resource_id=user["id"],
+                     details={"email": user["email"], "domain": domain, "role": _team_join.DEFAULT_ROLE},
+                     actor={"actor_id": user["id"], "actor_role": _team_join.DEFAULT_ROLE})
+    finally:
+        reset_current_organization_id(ctx)
+
+
+@app.post("/auth/passkey/register/finish")
+@limiter.limit(_RATE_AUTH)
+async def auth_passkey_register_finish(body: PasskeyRegisterFinishBody, request: Request):
+    """Verify and store the new passkey, then finish what it was for. The first passkey deletes the password."""
+    _require_auth_issuer_enabled()
+    _check_credential_size(body.credential)
+
+    def work():
+        with _db() as db:
+            try:
+                reg = _passkeys.finish_registration(db, body.challenge_id, body.credential)
+            except _passkeys.PasskeyError as exc:
+                _auth_journal(request, "passkey.refused", method="passkey", status_code=exc.status_code, required=False)
+                raise _passkey_error(exc) from None
+            context, user_id, verified = reg["context"], reg["user_id"], reg["verified"]
+            kind = context.get("kind")
+            if context.get("ticket") and not hmac.compare_digest(str(context["ticket"]), _passkeys.ticket_hash(body.token)):
+                raise HTTPException(400, "This passkey request belongs to a different link. Start again.")
+            try:
+                if kind == "account":
+                    payload = _issuer_bearer(request)
+                    if str(payload.get("sub") or "") != user_id:
+                        raise HTTPException(403, "This passkey request was started by a different account.")
+                    user = _issuer_get_user(db, user_id)
+                    if not user or not user.get("is_active"):
+                        raise HTTPException(401, "Sign in again.")
+                    passkey = _passkeys.store_credential(db, user_id, verified, body.name)
+                    removed = _issuer_drop_password(db, user_id)
+                    _auth_journal(request, "passkey.registered", user=user, method="passkey", subject=user["email"], required=False)
+                    return {"passkey": passkey, "password_removed": removed}
+                if kind in {"enroll", "recover"}:
+                    _passkeys.claim_ticket(db, body.token, kind)
+                    user = _issuer_get_user(db, user_id)
+                    if not user or not user.get("is_active"):
+                        raise HTTPException(404, "This link isn't valid. Request a new one.")
+                    passkey = _passkeys.store_credential(db, user_id, verified, body.name)
+                    revoked = 0
+                    if kind == "recover":
+                        if body.revoke_other_passkeys:
+                            revoked = _passkeys.remove_other_passkeys(db, user_id, passkey["id"])
+                        # Whoever held a session before the recovery is signed out.
+                        _issuer_revoke_sessions(db, user_id=user_id)
+                    removed = _issuer_drop_password(db, user_id)
+                    _auth_journal(request, "account_recovery.completed" if kind == "recover" else "passkey.registered",
+                                  user=user, method="passkey", subject=user["email"], required=False)
+                    session = _session_or_revoke(db, request, user)
+                    return {**session, "passkey": passkey, "password_removed": removed, "other_passkeys_removed": revoked}
+                if kind == "invite":
+                    invitation = _invite_links.usable_invitation(body.token)
+                    if not invitation:
+                        raise HTTPException(404, "This invitation can't be used to create an account: it may have expired or already been used.")
+                    try:
+                        user = _issuer_create_passkey_user(db, user_id, invitation["email"], str(context.get("full_name") or ""),
+                                                           "viewer", invitation["org_id"])
+                    except ValueError:
+                        raise HTTPException(409, "An account already exists for this address. Sign in to accept the invitation.") from None
+                    try:
+                        passkey = _passkeys.store_credential(db, user_id, verified, body.name)
+                        _platform_access.accept_invitation_for_user(body.token, user_id=user_id, email=user["email"])
+                    except _platform_access.InvitationError as exc:
+                        _delete_new_account(db, user_id)
+                        raise HTTPException(exc.status_code, exc.detail) from None
+                    except BaseException:
+                        _delete_new_account(db, user_id)
+                        raise
+                    user = _issuer_get_user(db, user_id)
+                    session = _session_or_revoke(db, request, user)
+                    return {**session, "passkey": passkey}
+                # join: every rule is checked again, DNS included, before the link is used up.
+                ticket = _passkeys.peek_ticket(db, body.token, "join")
+                try:
+                    _team_join.check_join_allowed(ticket["org_id"], ticket["domain"])
+                except _team_join.JoinError as exc:
+                    _auth_journal(request, "team_join.refused", subject=ticket["email"], status_code=exc.status_code, required=False)
+                    raise HTTPException(exc.status_code, exc.detail) from None
+                ticket = _passkeys.claim_ticket(db, body.token, "join")
+                try:
+                    user = _issuer_create_passkey_user(db, user_id, ticket["email"], str(context.get("full_name") or ""),
+                                                       _team_join.DEFAULT_ROLE, ticket["org_id"])
+                except ValueError:
+                    raise HTTPException(409, "An account already exists for this address. Sign in instead.") from None
+                try:
+                    passkey = _passkeys.store_credential(db, user_id, verified, body.name)
+                    _team_join.add_member(ticket["org_id"], ticket["domain"], user_id=user_id, email=user["email"])
+                except BaseException:
+                    _delete_new_account(db, user_id)
+                    raise
+                user = _issuer_get_user(db, user_id)
+                _auth_journal(request, "team_join.joined", user=user, method="passkey", subject=user["email"], required=False)
+                _record_team_join(request, user, ticket["org_id"], ticket["domain"])
+                session = _session_or_revoke(db, request, user)
+                return {**session, "passkey": passkey, "joined": {"org_id": ticket["org_id"], "domain": ticket["domain"],
+                                                                  "role": _team_join.DEFAULT_ROLE}}
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.get("/auth/passkeys")
+async def auth_list_passkeys(request: Request):
+    """The signed-in account's passkeys (never their keys)."""
+    _require_auth_issuer_enabled()
+    payload = _issuer_bearer(request)
+
+    def work():
+        with _db() as db:
+            uid = str(payload.get("sub") or "")
+            return {"passkeys": _passkeys.list_passkeys(db, uid), "has_password": _issuer_has_password(db, uid),
+                    "passkeys_only": _passkeys.passkeys_only()}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.patch("/auth/passkeys/{credential_id}")
+async def auth_rename_passkey(credential_id: str, body: PasskeyRenameBody, request: Request):
+    _require_auth_issuer_enabled()
+    payload = _issuer_bearer(request)
+
+    def work():
+        with _db() as db:
+            try:
+                if not _passkeys.rename_passkey(db, str(payload.get("sub") or ""), credential_id, body.name):
+                    raise HTTPException(404, "No such passkey on your account.")
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+            return {"passkeys": _passkeys.list_passkeys(db, str(payload.get("sub") or ""))}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.delete("/auth/passkeys/{credential_id}")
+async def auth_remove_passkey(credential_id: str, request: Request):
+    """Remove a passkey. The last one can't be removed: the account would have no way in."""
+    _require_auth_issuer_enabled()
+    payload = _issuer_bearer(request)
+
+    def work():
+        uid = str(payload.get("sub") or "")
+        with _db() as db:
+            try:
+                if not _passkeys.remove_passkey(db, uid, credential_id):
+                    raise HTTPException(404, "No such passkey on your account.")
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+            user = _issuer_get_user(db, uid)
+            _auth_journal(request, "passkey.removed", user=user, method="passkey", subject=(user or {}).get("email") or "",
+                          required=False)
+            return {"passkeys": _passkeys.list_passkeys(db, uid)}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+# ── Domain team sign-in ──────────────────────────────────────────────────────────────────────────
+
+class TeamJoinRequestBody(BaseModel):
+    email: str = Field(..., min_length=3, max_length=320)
+
+
+class TeamJoinPreviewBody(BaseModel):
+    token: str = Field(..., min_length=16, max_length=256)
+
+
+class DomainJoinPolicyBody(BaseModel):
+    enabled: bool
+
+
+_TEAM_JOIN_SENT = ("If your organization lets people with this address join, we've emailed you a link. "
+                   "Check your inbox and spam folder.")
+
+
+def _team_join_error(exc: "_team_join.JoinError") -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+@app.get("/join", include_in_schema=False)
+def public_team_join_page():
+    from fastapi.responses import FileResponse
+
+    path = os.path.join(BASE_DIR, "static", "join.html")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="join.html not found")
+    return FileResponse(path, media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-store, must-revalidate", "X-Robots-Tag": "noindex, nofollow"})
+
+
+@app.post("/auth/team-join/request")
+@limiter.limit(_RATE_AUTH)
+async def auth_team_join_request(body: TeamJoinRequestBody, request: Request):
+    """Email a single-use join link when the address's domain admits new members. Same answer otherwise."""
+    _require_auth_issuer_enabled()
+    try:
+        domain = _team_join.email_domain(body.email)
+    except _team_join.JoinError as exc:
+        raise _team_join_error(exc) from None
+    if _team_join.is_free_mail(domain):
+        raise HTTPException(400, f"Use your work email address: {domain} is a free email provider, so it can't show "
+                                 "which organization you belong to.")
+    base = _invite_links.public_base_url_only()
+    if not _platform_mail.configured() or not base or not _passkeys.available():
+        raise HTTPException(503, "Joining by email isn't available on this server. Ask your administrator for an invitation.")
+    address = body.email.strip().lower()
+
+    def work():
+        org_id = _team_join.resolve(domain)
+        if not org_id:
+            _auth_journal(request, "team_join.requested", subject=address, status_code=200, required=False)
+            return
+        with _db() as db:
+            if db.execute("SELECT 1 FROM morrow_users WHERE email=?", (address,)).fetchone():
+                # An existing account signs in (or recovers); no link, and the same answer.
+                _auth_journal(request, "team_join.requested", subject=address, status_code=200, required=False)
+                return
+        try:
+            _team_join.check_join_allowed(org_id, domain)
+        except _team_join.JoinError as exc:
+            _auth_journal(request, "team_join.refused", subject=address, status_code=exc.status_code, required=False)
+            if exc.code == "dns_unavailable":
+                raise _team_join_error(exc) from None
+            return
+        with _db() as db:
+            token = _passkeys.issue_ticket(db, "join", email=address, org_id=org_id, domain=domain)
+        _auth_journal(request, "team_join.requested", subject=address, status_code=200, required=False)
+        link = f"{base}/join#token={token}"
+        message = _team_join.email_body(link, _invite_links.organization_name(org_id), address,
+                                        _passkeys.ticket_ttl("join") // 60)
+
+        def send():
+            result = _platform_mail.send_text([address], message["subject"], message["body"])
+            if not result.get("ok"):
+                logger.warning("[TeamJoin] join email not sent: %s", result.get("error") or "unknown error")
+        threading.Thread(target=send, name="team-join-mail", daemon=True).start()
+
+    await run_in_threadpool(work)
+    return JSONResponse({"detail": _TEAM_JOIN_SENT}, headers=_NO_STORE)
+
+
+@app.post("/auth/team-join/preview")
+@limiter.limit(_RATE_AUTH)
+async def auth_team_join_preview(body: TeamJoinPreviewBody, request: Request):
+    """What a join link is for: the organization's name and the masked address. Uses nothing up."""
+    _require_auth_issuer_enabled()
+
+    def work():
+        with _db() as db:
+            try:
+                ticket = _passkeys.peek_ticket(db, body.token, "join")
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+        return {"organization_name": _invite_links.organization_name(ticket["org_id"]),
+                "email_masked": _invite_links.mask_email(ticket["email"]), "domain": ticket["domain"],
+                "role": _team_join.DEFAULT_ROLE, "expires_at": ticket["expires_at"]}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.get("/domain-join")
+def api_domain_join(request: Request):
+    """Team sign-in for each verified domain of this organization, and who joined that way."""
+    _require_role(request, allowed_roles=["admin"], action="domains.team_join.list", resource_type="domain")
+    org = _org(request)
+    return {"api_version": "v1", "available": _passkeys.available() and _platform_mail.configured(),
+            "default_role": _team_join.DEFAULT_ROLE, "policies": _team_join.list_policies(org),
+            "joined": _team_join.list_joins(org)}
+
+
+@app.put("/domain-join/{domain}")
+@limiter.limit("20/minute")
+def api_set_domain_join(domain: str, body: DomainJoinPolicyBody, request: Request):
+    """Switch team sign-in on or off for one verified domain (admin). Switching on re-checks DNS now."""
+    action = "domains.team_join.enable" if body.enabled else "domains.team_join.disable"
+    _require_role(request, allowed_roles=["admin"], action=action, resource_type="domain", resource_id=domain[:120])
+    try:
+        policy = _team_join.set_policy(_org(request), domain, body.enabled, actor=_actor_id(request))
+    except _team_join.JoinError as exc:
+        _audit_event(request, action=action, resource_type="domain", resource_id=domain[:120], decision="deny",
+                     reason=exc.detail[:200])
+        raise _team_join_error(exc) from None
+    _audit_event(request, action=action, resource_type="domain", resource_id=policy["domain"],
+                 details={"enabled": policy["enabled"]})
+    return {"api_version": "v1", "policy": policy}
 
 
 # ── Verified domains (services/domain_verification) ───────────────────────────────────────────
@@ -25170,6 +25748,9 @@ async def auth_me(request: Request):
     user_id = payload.get("sub")
     with _db() as db:
         user = _issuer_get_user(db, user_id)
+        if user:
+            user["has_password"] = _issuer_has_password(db, user_id)
+            user["passkey_count"] = _passkeys.count_passkeys(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -25353,6 +25934,8 @@ async def auth_deactivate_user(user_id: str, request: Request):
 async def auth_change_password(request: Request):
     """Change the authenticated user's password."""
     _require_auth_issuer_enabled()
+    if _passkeys_only():
+        raise HTTPException(403, "This server uses passkeys only, so there is no password to change.")
     auth_header = request.headers.get("authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Bearer token required")
@@ -25563,6 +26146,7 @@ from services import domain_verification as _domain_verification_schema  # noqa:
 from services import migration_milestones as _migration_milestones_schema  # noqa: E402
 from services import pq_rollout as _pq_rollout_schema  # noqa: E402
 register_deferred_schema("domain_verification", _domain_verification_schema.init_tables)
+register_deferred_schema("team_join", _team_join.init_tables)
 register_deferred_schema("code_hosts", _code_hosts_schema.init_tables)
 register_deferred_schema("migration_milestones", _migration_milestones_schema.init_tables)
 register_deferred_schema("crypto_switch", _crypto_switch_schema.init_tables)

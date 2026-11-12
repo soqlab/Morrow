@@ -1,8 +1,12 @@
-"""Built-in JWT issuer — email/password login when no external IdP is configured.
+"""Built-in JWT issuer — passkey (and legacy password) sign-in when no external IdP is configured.
 
 Activated when MORROW_AUTH_ISSUER_ENABLED=1 (or AUTH_MODE=hosted).
 Issues HS256 JWTs signed with MORROW_AUTH_JWT_SECRET.
 Falls through gracefully if the env var is absent.
+
+An account has a password, passkeys (services/passkeys.py), or, for a moment while it moves from
+one to the other, both. password_hash is NULL for an account without a password; the first passkey
+an account registers sets it to NULL, and login() refuses any account that has a passkey.
 """
 import hashlib
 import logging
@@ -34,7 +38,7 @@ def init_tables(db) -> None:
         CREATE TABLE IF NOT EXISTS morrow_users (
             id TEXT PRIMARY KEY,
             email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
+            password_hash TEXT,
             full_name TEXT,
             role TEXT NOT NULL DEFAULT 'viewer',
             org_id TEXT NOT NULL DEFAULT 'org-alpha',
@@ -52,7 +56,80 @@ def init_tables(db) -> None:
         )
     """)
     db.commit()
+    _allow_accounts_without_password(db)
+    from services import passkeys as _passkeys
+    _passkeys.init_tables(db)
     _ensure_default_admin(db)
+
+
+def _allow_accounts_without_password(db) -> None:
+    """Migration: morrow_users.password_hash was NOT NULL until passkeys; make it nullable.
+
+    Postgres can drop the constraint in place. SQLite can't alter a column, so the table is rebuilt
+    the documented way (https://sqlite.org/lang_altertable.html#otheralter): inside one write
+    transaction, create the new table, copy every row, drop the old one, rename, and recreate the
+    indexes the old table had (platform_analytics adds two). Nothing references morrow_users with a
+    foreign key. It runs once: afterwards the column is already nullable and this returns at once.
+    The API and the worker can both start at the same moment, so the check is repeated after the
+    write lock is held.
+    """
+    import sqlite3
+
+    if not isinstance(db, sqlite3.Connection):
+        try:
+            db.execute("ALTER TABLE morrow_users ALTER COLUMN password_hash DROP NOT NULL")
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        return
+
+    def password_not_null() -> bool:
+        for row in db.execute("PRAGMA table_info(morrow_users)").fetchall():
+            if str(row[1]) == "password_hash":
+                return bool(row[3])
+        return False
+
+    if not password_not_null():
+        return
+    if db.in_transaction:
+        db.commit()
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        if not password_not_null():
+            db.rollback()
+            return
+        indexes = [r[0] for r in db.execute(
+            "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='morrow_users' AND sql IS NOT NULL"
+        ).fetchall()]
+        db.execute("""
+            CREATE TABLE morrow_users_rebuild (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT,
+                full_name TEXT,
+                role TEXT NOT NULL DEFAULT 'viewer',
+                org_id TEXT NOT NULL DEFAULT 'org-alpha',
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL,
+                last_login_at INTEGER
+            )
+        """)
+        db.execute(
+            "INSERT INTO morrow_users_rebuild (id, email, password_hash, full_name, role, org_id, is_active, created_at, last_login_at) "
+            "SELECT id, email, password_hash, full_name, role, org_id, is_active, created_at, last_login_at FROM morrow_users"
+        )
+        db.execute("DROP TABLE morrow_users")
+        db.execute("ALTER TABLE morrow_users_rebuild RENAME TO morrow_users")
+        for sql in indexes:
+            db.execute(sql)
+        db.commit()
+        logger.info("[AuthIssuer] morrow_users.password_hash is now nullable (passkey-only accounts).")
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _ensure_default_admin(db) -> None:
@@ -99,6 +176,34 @@ def _create_user(db, email: str, password: str, full_name: str, role: str, org_i
     )
     db.commit()
     return {"id": uid, "email": email, "role": role, "org_id": org_id}
+
+
+def create_passkey_user(db, user_id: str, email: str, full_name: str = "",
+                        role: str = "viewer", org_id: str = "org-alpha") -> dict:
+    """An account without a password. The caller stores its first passkey right after."""
+    address = email.lower().strip()
+    if db.execute("SELECT id FROM morrow_users WHERE email=?", (address,)).fetchone():
+        raise ValueError("Email already registered")
+    db.execute(
+        "INSERT INTO morrow_users (id, email, password_hash, full_name, role, org_id, is_active, created_at) "
+        "VALUES (?,?,NULL,?,?,?,1,?)",
+        (str(user_id), address, full_name, role, org_id, int(time.time())),
+    )
+    db.commit()
+    return {"id": str(user_id), "email": address, "role": role, "org_id": org_id, "full_name": full_name,
+            "is_active": 1}
+
+
+def has_password(db, user_id: str) -> bool:
+    row = db.execute("SELECT password_hash FROM morrow_users WHERE id=?", (user_id,)).fetchone()
+    return bool(row and row[0])
+
+
+def drop_password(db, user_id: str) -> bool:
+    """Delete the account's password: from now on it signs in with a passkey only."""
+    cur = db.execute("UPDATE morrow_users SET password_hash=NULL WHERE id=? AND password_hash IS NOT NULL", (user_id,))
+    db.commit()
+    return int(cur.rowcount or 0) > 0
 
 
 def create_user(db, email: str, password: str, full_name: str = "",
@@ -197,7 +302,7 @@ def change_password(db, user_id: str, old_password: str, new_password: str) -> b
     if not user:
         return False
     row = db.execute("SELECT password_hash FROM morrow_users WHERE id=?", (user_id,)).fetchone()
-    if not row or not _verify_password(old_password, row[0]):
+    if not row or not row[0] or not _verify_password(old_password, row[0]):
         return False
     _validate_password_strength(new_password)
     db.execute("UPDATE morrow_users SET password_hash=? WHERE id=?", (_hash_password(new_password), user_id))
@@ -361,15 +466,28 @@ def _dummy_hash():
 
 # ── Login flow ─────────────────────────────────────────────────────────────────
 
-def login(db, email: str, password: str) -> Optional[dict]:
-    """Authenticate and return {access_token, refresh_token, user}. None on failure."""
+def verify_password_login(db, email: str, password: str) -> Optional[dict]:
+    """The active account these credentials belong to, or None. Issues nothing.
+
+    None also for an account without a password and for one that has a passkey: once an account
+    has a passkey, its password (if somehow still present) is never accepted.
+    """
     if not _ENABLED:
         return None
     user = get_user_by_email(db, email)
-    # The same bcrypt work factor is used for absent, inactive, and active accounts.
-    valid = _verify_password(password, user["password_hash"] if user else _dummy_hash())
+    stored = user["password_hash"] if user and user.get("password_hash") else None
+    # The same bcrypt work factor is used for absent, inactive, passwordless and active accounts.
+    valid = _verify_password(password, stored or _dummy_hash()) and stored is not None
     if not user or not user["is_active"] or not valid:
         return None
+    from services import passkeys as _passkeys
+    if _passkeys.count_passkeys(db, user["id"]) > 0:
+        return None
+    return {k: v for k, v in user.items() if k != "password_hash"}
+
+
+def start_session(db, user: dict) -> dict:
+    """Record the sign-in and mint {access_token, refresh_token, user} for a verified account."""
     db.execute("UPDATE morrow_users SET last_login_at=? WHERE id=?", (int(time.time()), user["id"]))
     db.commit()
     access_token = issue_access_token(user)
@@ -377,3 +495,11 @@ def login(db, email: str, password: str) -> Optional[dict]:
     safe_user = {k: v for k, v in user.items() if k != "password_hash"}
     return {"access_token": access_token, "refresh_token": refresh_token,
             "token_type": "Bearer", "expires_in": _TOKEN_TTL, "user": safe_user}
+
+
+def login(db, email: str, password: str) -> Optional[dict]:
+    """Authenticate and return {access_token, refresh_token, user}. None on failure."""
+    user = verify_password_login(db, email, password)
+    if not user:
+        return None
+    return start_session(db, user)

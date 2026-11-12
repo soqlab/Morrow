@@ -71,13 +71,20 @@ With mail configured: approving a trial request emails the invitation, the sign-
 account out everywhere when used), and each new trial request is emailed to you. Without it,
 those fall back to copying links by hand, and password reset is not offered.
 
-`MORROW_SIGNIN_SIMPLE=1` keeps the customer sign-in screen to email, password, "Forgot password?"
-and "Request access"; the token fields and server switcher are for self-hosted operators.
+`MORROW_SIGNIN_SIMPLE=1` keeps the customer sign-in screen to the sign-in itself, "Lost your
+passkey?" and "Request access"; the token fields and server switcher are for self-hosted operators.
+
+Customers sign in with passkeys (services/passkeys.py; relying party `morrow.soqlab.com`, from
+`MORROW_PUBLIC_BASE_URL`). `MORROW_PASSKEYS_ONLY=1` is set here: there are no new passwords, an
+account that still has one signs in with it once and must create a passkey before it gets a
+session (the passkey deletes the password), and "forgot password" emails an account-recovery link
+that registers a new passkey. Organizations can also let colleagues join by work email
+(`/join`, team sign-in on `/ui/domains.html`). docs/AUTH_AND_ACCESS_POLICY.md has the details.
 
 ## Customer sign-up: self-serve, limited to verified domains
 
 With `MORROW_SELF_SIGNUP=1`, the form at `/trial` creates the organization at once and emails the
-invitation; opening it, the person chooses a password (`POST /auth/invite/register`). The email
+invitation; opening it, the person creates a passkey (`POST /auth/passkey/register/*`, kind `invite`). The email
 is the address check. Self sign-up turns itself off, and requests wait for approval in
 **Customers → Trial requests** as before, unless all of these hold: mail is configured,
 `MORROW_PUBLIC_BASE_URL` is set, and `MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1`.

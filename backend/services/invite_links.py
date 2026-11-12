@@ -212,10 +212,15 @@ def pending_token(organization_id: str, invite_id: str) -> Optional[Dict[str, An
 
 def email_body(link: str, org_name: str, role: str, expires_at: str) -> Dict[str, str]:
     subject = f"You're invited to {org_name} on Morrow"
+    try:
+        from services import passkeys
+        new_account = "create a passkey there (no password)" if passkeys.available() else "choose a password there"
+    except Exception:
+        new_account = "choose a password there"
     text = (
         f"You have been invited to join {org_name} on Morrow as {ROLE_LABELS.get(role, role)}.\n\n"
         f"Open this link to accept it:\n{link}\n\n"
-        f"New to Morrow? You'll choose a password there. Already have an account for this address? "
+        f"New to Morrow? You'll {new_account}. Already have an account for this address? "
         f"Sign in to accept. The link works once and expires {expires_at}.\n"
         "If you did not expect this invitation, you can ignore this message.\n"
     )

@@ -1161,6 +1161,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 <script src="/ui/ops-motion.js?v=20260917-perf4" defer></script>
 <link rel="stylesheet" href="/ui/oops.css?v=20260913b">
 <script src="/ui/oops.js?v=20260914-3d" defer></script>
+<script src="/ui/passkey.js?v=20261112-passkeys" defer></script>
 </head>
 <body>
 <div class="bgfx" data-fabric="ambient" data-fabric-pointer="off" aria-hidden="true"></div>
@@ -2602,13 +2603,14 @@ function drawer(title, sub, body) {
       <div class="drawerBody">${body}</div>
     </aside></div>`);
 }
-function modal(title, body, foot = "") {
+function modal(title, body, foot = "", sticky = false) {
+  /* sticky: the dialog can't be dismissed (Escape, scrim, close button); used for passkey enrollment. */
   return overlay(`<div class="scrim"><div class="cmd" role="dialog" aria-modal="true" aria-label="${H(title)}" style="width:min(560px,100%)">
     <div class="cmdIn" style="justify-content:space-between"><b style="font-size:14.5px">${H(title)}</b>
       <button class="iconBtn" data-close type="button" aria-label="Close">${I.x}</button></div>
     <div style="padding:18px;max-height:66vh;overflow:auto">${body}</div>
     ${foot ? `<div class="cmdFoot" style="justify-content:flex-end;gap:8px;padding:12px 16px">${foot}</div>` : ""}
-  </div></div>`);
+  </div></div>`, sticky ? { onClose: () => { if (S.pkEnroll) setTimeout(() => passkeyEnrollModal(S.pkEnroll), 0); } } : {});
 }
 
 /* ---------------------------------------------------------------- authentication
@@ -2810,6 +2812,13 @@ function authGateHtml() {
      paste, the server switcher and "retry without signing in" are for operators and developers, and
      on a hosted site they only lead customers to "missing bearer token". */
   const simple = !!c.simple_sign_in && pw;
+  /* Passkeys (MORROW_PUBLIC_BASE_URL set): one "Sign in with passkey" button. The email field is only
+     for authenticators that can't offer their passkeys by themselves, and it also carries the
+     browser's passkey autofill (autocomplete="username webauthn"). Password sign-in stays behind a
+     link for accounts that haven't added a passkey yet; signing in that way leads straight to
+     adding one, which deletes the password. */
+  const pk = !!c.passkeys_enabled && pw;
+  const pkOk = pk && !!window.MorrowPasskey && MorrowPasskey.supported();
   return `<div class="gate" id="gate">
     <div class="gateCard" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
       <div class="gateBrand">
@@ -2819,12 +2828,26 @@ function authGateHtml() {
         <div><b>Morrow</b><small>Quantum Mesh</small></div>
       </div>
       <h2 id="gateTitle">Sign in</h2>
-      ${simple ? `<p class="gsub">Sign in with the email address your invitation was sent to.</p>`
+      ${pk ? `<p class="gsub">Sign in with the passkey on this device, your phone or a security key.</p>`
+        : simple ? `<p class="gsub">Sign in with the email address your invitation was sent to.</p>`
         : `<p class="gsub">This server requires authentication. Signing in with
         <b>${H(provider)}</b> (${H(TITLE(c.mode || "unknown"))} mode).</p>`}
       <div id="gateErr" role="alert" aria-live="assertive"></div>
 
-      ${pw ? `<div class="col">
+      ${pk ? `<div class="col">
+        <button class="btn pri block" data-act="gatePasskey" type="button" style="height:42px" ${pkOk ? "" : "disabled"}>${I.lock}Sign in with passkey</button>
+        ${pkOk ? "" : `<span class="gsub" style="margin:0">This browser can't use passkeys. Open this page in a current browser, or on your phone.</span>`}
+        <div class="field"><label for="gEmail">Email <span style="color:var(--ink3);font-weight:400">(only if your passkey isn't offered)</span></label>
+          <input class="inp" id="gEmail" type="email" autocomplete="username webauthn" placeholder="you@example.com"></div>
+        <span style="display:flex;justify-content:space-between;gap:10px;font-size:12px">
+          ${c.password_reset_enabled ? `<a href="/reset-password" style="color:var(--ink2)">Lost your passkey?</a>` : "<span></span>"}
+          <a href="#" data-act="gateShowPassword" style="color:var(--ink2)">${c.passkeys_only ? "Still have a password? Sign in once to add a passkey" : "Sign in with a password"}</a></span>
+        <div class="col" id="gPwBox" hidden>
+          <div class="field"><label for="gPass">Password</label>
+            <input class="inp" id="gPass" type="password" autocomplete="current-password" placeholder="••••••••••"></div>
+          <button class="btn block" data-act="gateLogin" type="button">Sign in with password</button>
+        </div>
+      </div>` : pw ? `<div class="col">
         <div class="field"><label for="gEmail">Email</label>
           <input class="inp" id="gEmail" type="email" data-autofocus autocomplete="username" placeholder="you@example.com"></div>
         <div class="field"><label for="gPass">Password</label>
@@ -2838,7 +2861,7 @@ function authGateHtml() {
       ${saml ? `<button class="btn block" data-act="loginSaml" type="button">${I.shield}Continue with single sign-on</button>` : ""}
       ${ext ? `<a class="btn block" href="${H(c.login_url)}">${I.link}Sign in with ${H(provider)}</a>` : ""}
 
-      ${simple ? `<div class="gateFoot"><span>No account yet? <a href="/trial">Request access</a></span></div>` : `<div class="orDiv"><i></i><span>or use a token</span><i></i></div>
+      ${simple ? `<div class="gateFoot"><span>No account yet? <a href="/trial">Request access</a>${c.team_join_enabled ? ` · <a href="/join">Join your team</a>` : ""}</span></div>` : `<div class="orDiv"><i></i><span>or use a token</span><i></i></div>
       <div class="col">
         <div class="field"><label for="gTok">Bearer token</label>
           <input class="inp mono" id="gTok" placeholder="paste an access token" spellcheck="false"></div>
@@ -2866,14 +2889,117 @@ async function showAuthGate() {
   $("#overlay").innerHTML = authGateHtml();
   wire($("#overlay"));
   if (S.demo) startDemoRadar();
+  const pk = !!authCfg().passkeys_enabled && !!$("[data-act=gatePasskey]");
   const submit = (e) => { if (e.key === "Enter") { e.preventDefault(); ACTIONS.gateLogin(e.target); } };
-  $("#gEmail")?.addEventListener("keydown", submit);
+  $("#gEmail")?.addEventListener("keydown", pk
+    ? (e) => { if (e.key === "Enter") { e.preventDefault(); ($("#gPwBox")?.hidden === false ? ACTIONS.gateLogin : ACTIONS.gatePasskey)(); } }
+    : submit);
   $("#gPass")?.addEventListener("keydown", submit);
-  ($("#gEmail") || $("#gTok"))?.focus();
+  if (pk) { $("[data-act=gatePasskey]")?.focus(); startPasskeyAutofill(); }
+  else ($("#gEmail") || $("#gTok"))?.focus();
 }
+/* ---- passkeys ---- */
+let passkeyAutofill = null;
+function stopPasskeyAutofill() { try { passkeyAutofill?.abort(); } catch { /* already done */ } passkeyAutofill = null; }
+/** Conditional UI: the browser lists this site's passkeys in the email field's autofill. */
+async function startPasskeyAutofill() {
+  if (!window.MorrowPasskey || !(await MorrowPasskey.conditionalAvailable())) return;
+  stopPasskeyAutofill();
+  const ctl = new AbortController();
+  passkeyAutofill = ctl;
+  const begin = await safe("/auth/passkey/login/begin", { method: "POST", body: {} });
+  if (!begin.ok || ctl.signal.aborted) return;
+  let credential;
+  try { credential = await MorrowPasskey.get(begin.data.options, { conditional: true, signal: ctl.signal }); }
+  catch { return; }   // aborted (the button was pressed) or dismissed
+  await finishPasskeyLogin(begin.data.challenge_id, credential);
+}
+async function finishPasskeyLogin(challengeId, credential) {
+  const r = await safe("/auth/passkey/login/finish", { method: "POST", body: { challenge_id: challengeId, credential } });
+  if (!r.ok) {
+    if (r.status === 401) return showLoginError("Passkey not accepted", (r.err || "").replace(/^\d{3} · /, "") || "This passkey isn't registered here.");
+    return reportLoginFailure(r);
+  }
+  stopPasskeyAutofill();
+  applyLoginResult(r.data, r.data.user?.email || "");
+  if (gateOpen) await afterGateAuth();
+  else { $("#overlay").innerHTML = ""; await afterAuthChange(); }
+}
+ACTIONS.gatePasskey = async () => {
+  stopPasskeyAutofill();
+  if (!window.MorrowPasskey || !MorrowPasskey.supported()) return showLoginError("Passkeys unavailable", "This browser can't use passkeys.");
+  const email = $("#gEmail")?.value.trim() || "";
+  const begin = await safe("/auth/passkey/login/begin", { method: "POST", body: { email } });
+  if (!begin.ok) return showLoginError("Passkey sign-in unavailable", begin.err || "The server refused to start a passkey sign-in.");
+  let credential;
+  try { credential = await MorrowPasskey.get(begin.data.options); }
+  catch (e) {
+    const m = MorrowPasskey.message(e);
+    showLoginError("No passkey used", m || (email ? "No passkey was chosen. Try again, or use another device." :
+      "No passkey was chosen. If yours wasn't offered, enter your email and try again."));
+    startPasskeyAutofill();
+    return;
+  }
+  await finishPasskeyLogin(begin.data.challenge_id, credential);
+};
+ACTIONS.gateShowPassword = () => {
+  const box = $("#gPwBox"); if (!box) return;
+  box.hidden = false;
+  $("#gPass")?.focus();
+};
+/** After a password sign-in: the account must add a passkey. With MORROW_PASSKEYS_ONLY=1 there is no
+    session yet, only an enrollment ticket; otherwise the session is already there. Either way the
+    first passkey deletes the password. */
+function passkeyEnrollModal(data) {
+  stopPasskeyAutofill();
+  const forced = !!data.enrollment_token;
+  const supported = !!window.MorrowPasskey && MorrowPasskey.supported();
+  S.pkEnroll = data;
+  /* Not dismissable: closing it (Escape, the scrim) would leave a password-only session behind, so it
+     comes straight back. "Sign out" (or "Back", before there is a session) is the way out. */
+  const html = modal("Add a passkey to continue", `<div class="col">
+    <p style="margin:0;line-height:1.6">Morrow signs in with passkeys now. Create one for <b>${H(data.user?.email || "your account")}</b>
+      on this device; you'll use your fingerprint, face or device PIN instead of a password.</p>
+    <p style="margin:0;line-height:1.6;color:var(--ink2)">Your password is deleted as soon as the passkey is saved.${forced ? "" : " You can't skip this step."}</p>
+    ${supported ? "" : `<div class="banner bad">${I.alert}<div><span class="bx">This browser can't create passkeys. Open the console in a current browser, or on your phone.</span></div></div>`}
+    <div id="pkEnrollErr" role="alert"></div></div>`,
+    `<button class="btn ${forced ? "" : "danger"}" data-act="pkEnrollLeave" type="button">${forced ? "Back" : "Sign out"}</button><span style="flex:1"></span>
+     <button class="btn pri" data-act="pkEnrollGo" type="button" ${supported ? "" : "disabled"}>${I.lock}Create passkey</button>`, true);
+  return html;
+}
+ACTIONS.pkEnrollLeave = async () => {
+  const forced = !!S.pkEnroll?.enrollment_token;
+  S.pkEnroll = null;
+  $("#overlay").innerHTML = "";
+  if (forced) { gateOpen = false; await showAuthGate(); return; }
+  await ACTIONS.logout();
+};
+ACTIONS.pkEnrollGo = async () => {
+  const data = S.pkEnroll || {};
+  const forced = !!data.enrollment_token;
+  const box = $("#pkEnrollErr");
+  const fail = (m) => { if (box) box.innerHTML = `<div class="banner bad">${I.alert}<div><span class="bx">${H(m)}</span></div></div>`; };
+  const begin = await safe("/auth/passkey/register/begin", { method: "POST",
+    body: forced ? { kind: "enroll", token: data.enrollment_token } : { kind: "account" } });
+  if (!begin.ok) return fail((begin.err || "").replace(/^\d{3} · /, "") || "The server refused to start.");
+  let credential;
+  try { credential = await MorrowPasskey.create(begin.data.options); }
+  catch (e) { return fail(MorrowPasskey.message(e) || "No passkey was created. Press Create passkey to try again."); }
+  const r = await safe("/auth/passkey/register/finish", { method: "POST",
+    body: { challenge_id: begin.data.challenge_id, credential, token: forced ? data.enrollment_token : "" } });
+  if (!r.ok) return fail((r.err || "").replace(/^\d{3} · /, "") || "The passkey wasn't saved.");
+  S.pkEnroll = null;
+  $("#overlay").innerHTML = "";
+  ok("Passkey saved. Your password was deleted; sign in with the passkey from now on.", "Passkey added");
+  if (forced) {
+    applyLoginResult(r.data, data.user?.email || "");
+    if (gateOpen) await afterGateAuth(); else await afterAuthChange();
+  }
+};
 function hideAuthGate() {
   if (!gateOpen) return;
   gateOpen = false;
+  stopPasskeyAutofill();
   demoRadarStop?.();
   $("#overlay").innerHTML = "";
   $("#app").style.display = "";
@@ -2883,8 +3009,10 @@ ACTIONS.gateLogin = async () => {
   if (!email || !password) return showLoginError("Missing details", "Enter both an email and a password.");
   const r = await safe("/auth/login", { method: "POST", body: { email, password } });
   if (!r.ok) return reportLoginFailure(r);
+  if (r.data.passkey_enrollment_required && !r.data.access_token) return passkeyEnrollModal(r.data);
   applyLoginResult(r.data, email);
   await afterGateAuth();
+  if (r.data.passkey_enrollment_required) passkeyEnrollModal(r.data);
 };
 ACTIONS.gateToken = async () => {
   const tok = $("#gTok")?.value.trim(), key = $("#gKey")?.value.trim();
@@ -2969,7 +3097,8 @@ function openLogin() {
           ? "This server requires authenticated requests."
           : "This server accepts unauthenticated requests. Anything you set here is optional."}</span></div></div>
 
-      ${pw ? `<div class="field"><label for="lgEmail">Email</label>
+      ${pw && c.passkeys_enabled ? `<button class="btn pri block" data-act="gatePasskey" type="button">${I.lock}Sign in with passkey</button>` : ""}
+      ${pw && !c.passkeys_only ? `<div class="field"><label for="lgEmail">Email</label>
           <input class="inp" id="lgEmail" type="email" data-autofocus autocomplete="username" placeholder="you@example.com"></div>
         <div class="field"><label for="lgPass">Password</label>
           <input class="inp" id="lgPass" type="password" autocomplete="current-password"></div>
@@ -3019,9 +3148,11 @@ ACTIONS.loginPw = async () => {
   if (!email || !password) return err("Enter both an email and a password");
   const r = await safe("/auth/login", { method: "POST", body: { email, password } });
   if (!r.ok) return reportLoginFailure(r);
+  if (r.data.passkey_enrollment_required && !r.data.access_token) return passkeyEnrollModal(r.data);
   applyLoginResult(r.data, email);
   $("#overlay").innerHTML = "";
   await afterAuthChange();
+  if (r.data.passkey_enrollment_required) passkeyEnrollModal(r.data);
 };
 ACTIONS.loginSaml = async () => {
   const url = authCfg().saml_login_url || `${S.base}/auth/saml/login`;
@@ -3045,6 +3176,54 @@ ACTIONS.logout = async () => {
   S.token = ""; S.refresh = ""; S.role = ""; saveAuth();
   ok("Signed out");
   await afterAuthChange();
+};
+/** The signed-in account's passkeys: add, rename, remove (never the last). */
+ACTIONS.passkeys = async () => {
+  const r = await safe("/auth/passkeys");
+  if (!r.ok) return err(r.err, "Passkeys");
+  const list = r.data.passkeys || [];
+  const when = (t) => t ? new Date(t * 1000).toLocaleString() : "never";
+  modal("Passkeys", `<div class="col">
+    <p style="margin:0;color:var(--ink2);line-height:1.6">You sign in with these. Keep at least two, on different devices, so losing one doesn't lock you out.
+      ${r.data.has_password ? " Adding the first one deletes your password." : ""}</p>
+    ${list.map(p => `<div class="row" style="gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <div class="grow"><b>${H(p.name || "Passkey")}</b>${p.clone_suspected ? ` <span class="pill bad">blocked: may have been copied</span>` : ""}
+        <div style="font-size:11.5px;color:var(--ink3)">${p.backed_up ? "Synced" : "This device or key"} · added ${H(when(p.created_at))} · last used ${H(when(p.last_used_at))}</div></div>
+      <button class="btn ghost" data-act="passkeyRename" data-id="${H(p.id)}" data-name="${H(p.name || "")}" type="button">Rename</button>
+      <button class="btn ghost" data-act="passkeyRemove" data-id="${H(p.id)}" type="button" ${list.length < 2 ? "disabled title=\"Your last passkey can't be removed\"" : ""}>Remove</button>
+    </div>`).join("") || `<p style="margin:0">No passkeys yet.</p>`}
+    <div id="pkErr" role="alert"></div></div>`,
+    `<button class="btn" data-close type="button">Close</button>
+     <button class="btn pri" data-act="passkeyAdd" type="button">${I.lock}Add a passkey</button>`);
+};
+ACTIONS.passkeyAdd = async () => {
+  const box = $("#pkErr");
+  const fail = (m) => { if (box) box.innerHTML = `<div class="banner bad">${I.alert}<div><span class="bx">${H(m)}</span></div></div>`; };
+  if (!window.MorrowPasskey || !MorrowPasskey.supported()) return fail("This browser can't create passkeys.");
+  const begin = await safe("/auth/passkey/register/begin", { method: "POST", body: { kind: "account" } });
+  if (!begin.ok) return fail((begin.err || "").replace(/^\d{3} · /, "") || "The server refused to start.");
+  let credential;
+  try { credential = await MorrowPasskey.create(begin.data.options); }
+  catch (e) { return fail(MorrowPasskey.message(e) || "No passkey was created."); }
+  const name = (prompt("Name this passkey (for example: Work laptop, Phone, YubiKey)", "") || "").trim();
+  const r = await safe("/auth/passkey/register/finish", { method: "POST", body: { challenge_id: begin.data.challenge_id, credential, name } });
+  if (!r.ok) return fail((r.err || "").replace(/^\d{3} · /, "") || "The passkey wasn't saved.");
+  ok(r.data.password_removed ? "Passkey added. Your password was deleted." : "Passkey added.", "Passkeys");
+  await ACTIONS.passkeys();
+};
+ACTIONS.passkeyRename = async (el) => {
+  const name = (prompt("New name for this passkey", el?.dataset?.name || "") || "").trim();
+  if (!name) return;
+  const r = await safe(`/auth/passkeys/${encodeURIComponent(el.dataset.id)}`, { method: "PATCH", body: { name } });
+  if (!r.ok) return err(r.err, "Passkeys");
+  await ACTIONS.passkeys();
+};
+ACTIONS.passkeyRemove = async (el) => {
+  if (!confirm("Remove this passkey? It won't be able to sign in to Morrow any more.")) return;
+  const r = await safe(`/auth/passkeys/${encodeURIComponent(el.dataset.id)}`, { method: "DELETE" });
+  if (!r.ok) return err(r.err, "Passkeys");
+  ok("Passkey removed.", "Passkeys");
+  await ACTIONS.passkeys();
 };
 ACTIONS.changePw = () => modal("Change password", `<div class="col">
   <div class="field"><label for="cpOld">Current password</label><input class="inp" id="cpOld" type="password" autocomplete="current-password"></div>
@@ -3336,7 +3515,8 @@ function openIdentityMenu() {
       ])}
     </div>`,
     `${S.token || S.key ? `<button class="btn danger" data-act="logout" type="button">Sign out</button>` : ""}
-     ${cfg.mode === "jwt" ? `<button class="btn ghost" data-act="changePw" type="button">Change password…</button>` : ""}
+     ${cfg.mode === "jwt" && cfg.passkeys_enabled && S.token ? `<button class="btn ghost" data-act="passkeys" type="button">Passkeys…</button>` : ""}
+     ${cfg.mode === "jwt" && !cfg.passkeys_only ? `<button class="btn ghost" data-act="changePw" type="button">Change password…</button>` : ""}
      <span style="flex:1"></span>
      <button class="btn" data-close type="button">Close</button>
      <button class="btn pri" data-act="openLogin" type="button">${S.token ? "Switch account" : "Sign in"}</button>`);
