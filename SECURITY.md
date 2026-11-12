@@ -160,6 +160,15 @@ cosign verify-attestation ghcr.io/soqlab/morrow@sha256:<digest from IMAGES.txt> 
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
+Each image is also signed with a plain keyless cosign signature, for `cosign verify` and for
+admission controllers that check signatures rather than attestations:
+
+```sh
+cosign verify ghcr.io/soqlab/morrow@sha256:<digest from IMAGES.txt> \
+  --certificate-identity "https://github.com/soqlab/Morrow/.github/workflows/release.yml@refs/tags/v1.2.3" \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
 **Rebuild it yourself.** Releases after 0.7.0 are reproducible: rebuilding the tag from source gives
 the same image digests and byte-identical SBOMs and bundle, so you can check that the published
 images are what the source produces, not only who signed them:

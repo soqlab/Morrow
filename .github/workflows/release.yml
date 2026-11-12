@@ -6,7 +6,8 @@
 #                  ghcr.io/soqlab/morrow:<version>      deploy/render-hosted/Dockerfile (Render, offline bundle)
 #                  ghcr.io/soqlab/morrow:<version>-api  backend/Dockerfile (docker-compose.prod.yml)
 #                then writes a CycloneDX SBOM of each image and attaches two keyless Sigstore
-#                attestations to it in the registry: SLSA build provenance and the SBOM.
+#                attestations to it in the registry: SLSA build provenance and the SBOM, plus a
+#                keyless cosign signature for `cosign verify`.
 #   3. python-sbom  a CycloneDX SBOM of the Python environment backend/requirements.lock installs.
 #   4. bundle    the offline bundle (deploy/internal/make-bundle.sh) built from the image pushed in
 #                step 2, by digest, so the bundle carries the same bytes that were signed.
@@ -159,6 +160,16 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           sbom-path: morrow-${{ steps.version.outputs.version }}${{ matrix.suffix }}-image.cdx.json
           push-to-registry: true
+
+      # A plain cosign signature next to the attestations, so `cosign verify` and admission
+      # controllers that check signatures (sigstore policy-controller, Kyverno) accept the image.
+      # Keyless like the attestations; the image digest does not change.
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign the image (cosign keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE@$DIGEST"
 
       - name: Record the digest
         env:
