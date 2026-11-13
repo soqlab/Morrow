@@ -82,6 +82,7 @@ const CONSOLE_VIEWS = [
   ["data-control", "Data Control"],
   ["airlock", "Quantum Airlock"],
   ["gateway", "Website Gateway"],
+  ["signing", "Signing"],
   ["remediation", "Remediation"],
   ["scanners", "Deep Scanners"],
   ["operations", "Operations"],

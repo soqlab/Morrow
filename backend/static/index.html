@@ -2277,6 +2277,7 @@ const NAV = [
     { id: "data-control", n: "Data Control", i: I.lock, d: "AI permissions, data boundary, support access and signed processing receipts" },
     { id: "airlock",    n: "Quantum Airlock",  i: I.lock,      d: "Privacy wall, Trust Passports, proof packages and sovereign AI controls" },
     { id: "gateway",    n: "Website Gateway", i: I.shield,    d: "Domain ownership, compatibility, filtering policies and verified gateway observations" },
+    { id: "signing",    n: "Signing",          i: I.lock,      d: "Post-quantum signatures for your releases and pages: keys, signatures, revocations" },
     { id: "remediation",n: "Remediation",      i: I.wrench,    d: "Fix queue, autopilot, playbooks and code generation" },
     { id: "scanners",   n: "Deep Scanners",    i: I.bug,       d: "SAST, secrets, dependencies, binary, mobile and IaC" },
     { id: "operations", n: "Operations",       i: I.activity,  d: "Observatory, drift, SLA, schedules and telemetry" },
@@ -10472,6 +10473,21 @@ const GUIDE = [
       <b>Developer portal</b> (route findings to the team that owns the code).</p>
       <p><b>Use IaC checks in CI</b> — catching a weak TLS policy in review is far cheaper than
       finding it in production.</p>` },
+    { id: "g-signing", n: "Signing", i: I.lock, body: `
+      <p><b>What it is:</b> post-quantum signatures for your releases and your website. You sign on
+      your own machines with <code>morrow-sign</code>; each signature is ML-DSA-65 (FIPS 204) and
+      Ed25519 together, and is valid only when both verify. Morrow never sees your private keys or
+      your files.</p>
+      <p><b>Steps:</b> verify your domain under Domains · <code>morrow-sign keygen --domain
+      example.com</code> · <b>Register a key</b> with its <code>.morrow-pub.json</code> file ·
+      optionally <b>Upload keys › Create</b> for your CI (it can only upload signatures) ·
+      <code>morrow-sign sign FILE --upload</code> or <code>morrow-sign sign-site DIR --upload</code> ·
+      put the badge next to your downloads. Visitors drop a file at <code>/verify/&lt;domain&gt;</code>
+      and it is checked in their browser.</p>
+      <p><b>Rotate</b> registers a new key and retires the old one: what it signed before stays valid.
+      <b>Revoke</b> when a key may have leaked: from the time you name, only signatures already on
+      Morrow's record stay valid. <b>Withdraw</b> takes back one signature. Nothing is deleted, and
+      every key change is in the audit log. Details: docs/PQ_SIGNING.md.</p>` },
     { id: "g-operations", n: "Operations", i: I.activity, body: `
       <p><b>What it is:</b> the day-two screen. Posture decays unless something watches it.</p>
       <p><b>Tabs:</b> <b>Observatory</b> (continuous monitoring and alerts) · <b>Drift</b>
@@ -10702,6 +10718,195 @@ const GUIDE = [
         update the server.</p></details>` },
   ]},
 ];
+/* ---------------------------------------------------------------- Signing (routers/pq_signing.py)
+   Post-quantum signatures for the customer's releases and pages. The customer signs with
+   morrow-sign on their own machine (ML-DSA-65 + Ed25519); this view registers the public keys,
+   lists what was put on the public record, and handles rotation, revocation and withdrawals.
+   Answer first: the sentence comes from the server (pq_signing.summary_sentence). */
+const SIGN = { data: null };
+function signPill(status) {
+  const tone = status === "active" ? "ok" : status === "retired" ? "warn" : "bad";
+  return `<span class="pill ${tone}"><i class="pd"></i>${H(status)}</span>`;
+}
+function signKeyStatus(k) { return k.state.domain_verified ? k.state.status : "domain unverified"; }
+VIEWS.signing = async (host) => {
+  const r = await safe("/pq-signing");
+  if (!r.ok) { host.innerHTML = errBox(r.err, "/pq-signing"); return; }
+  const D = SIGN.data = r.data;
+  const keys = D.keys || [], sigs = D.signatures || [], base = D.public_base || location.origin;
+  const verified = (D.domains || []).filter(d => d.verified).map(d => d.domain);
+  const activeDomains = [...new Set(keys.filter(k => k.state.usable).map(k => k.domain))];
+  const firstDomain = activeDomains[0] || verified[0] || "your-domain.com";
+  const next = !verified.length ? "Verify a domain first, under Domains: Morrow accepts a signing key only for a domain you have shown you control."
+    : !keys.length ? `Make a key on your own machine with morrow-sign keygen --domain ${firstDomain}, then register its .morrow-pub.json file here.`
+    : activeDomains.length ? `Visitors check your files at ${base}/verify/${activeDomains[0]}${activeDomains.length > 1 ? ` and ${activeDomains.length - 1} more` : ""}.`
+    : "No key is active. Register a new one to sign again.";
+  const admin = !!D.can_admin;
+  const hero = `<section class="consoleHero">
+    <div class="overviewEyebrow"><span>Signing</span><span>Read at ${H(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))}</span></div>
+    <div class="overviewHeading"><h2>${H(D.summary)}</h2><p>${H(next)}</p>
+      <div class="overviewActions">
+        ${admin && verified.length ? actBtn("Register a key", "signRegister", { cls: "btn pri", icon: I.lock }) : ""}
+        ${activeDomains.length ? `<a class="btn" href="/verify/${encodeURIComponent(activeDomains[0])}" target="_blank" rel="noopener">${I.link || ""}Public page</a>` : ""}
+        ${!verified.length ? `<a class="btn pri" href="/ui/domains.html">Verify a domain</a>` : ""}
+      </div></div></section>`;
+
+  const keyRows = keys.map(k => ({ ...k, __attrs: "" }));
+  const keysCard = card("Keys", table([
+    { h: "Domain", f: k => `<b>${H(k.domain)}</b>` },
+    { h: "Key", f: k => `${H(k.label || "unnamed")}<div class="mono small">${H(k.key_id)}</div>
+        <pre class="out">ML-DSA-65 ${H(k.ml_dsa_65)}\nEd25519   ${H(k.ed25519)}</pre>` },
+    { h: "State", f: k => signPill(signKeyStatus(k)) + (k.state.status === "revoked" ? `<div class="sub">untrusted from ${H(DT(k.state.compromised_since))}</div>`
+        : k.state.status === "retired" ? `<div class="sub">retired ${H(DT(k.state.retired_at))}</div>` : "") },
+    { h: "Registered", f: k => `${H(DT(k.registered_at))}<div class="sub">${H(k.registered_by || "")}</div>` },
+    { h: "", f: k => admin && k.state.status !== "revoked" ? `<div class="row" style="gap:6px;justify-content:flex-end">
+        ${k.state.status === "active" ? actBtn("Rotate", "signRegister", { cls: "btn xs", data: { rotates: k.key_id, domain: k.domain } }) : ""}
+        ${k.state.status === "active" ? actBtn("Retire", "signRetire", { cls: "btn xs", data: { key: k.key_id, domain: k.domain } }) : ""}
+        ${actBtn("Revoke", "signRevoke", { cls: "btn xs", data: { key: k.key_id, domain: k.domain } })}</div>` : "" },
+  ], keyRows, { empty: verified.length ? "No key registered yet." : "Verify a domain first." }),
+    { icon: I.lock, sub: "Public keys only: the private keys stay on your machines. Each key signs for one verified domain." });
+
+  const sigCard = card("Signatures on the public record", table([
+    { h: "File", f: s => `${H(s.name)}${s.type === "manifest" ? `<div class="sub">site manifest, ${NUM(s.entry_count)} files</div>` : ""}
+        <div class="mono small">sha512 ${H(s.sha512.slice(0, 32))}…</div>` },
+    { h: "Domain", f: s => H(s.domain) },
+    { h: "Size", num: true, f: s => H(signBytes(s.size)) },
+    { h: "Recorded", f: s => `${H(DT(s.recorded_at))}<div class="sub">signed ${H(DT(s.signed_at))}</div>` },
+    { h: "State", f: s => s.withdrawn ? `${signPill("withdrawn")}<div class="sub">${H(s.withdrawn.note)}</div>` : signPill("recorded") },
+    { h: "", f: s => `<div class="row" style="gap:6px;justify-content:flex-end">
+        <a class="btn xs" href="/verify/${encodeURIComponent(s.domain)}?sha512=${H(s.sha512)}&file=${encodeURIComponent(s.name)}" target="_blank" rel="noopener">Verify link</a>
+        ${admin && !s.withdrawn ? actBtn("Withdraw", "signWithdraw", { cls: "btn xs", data: { id: s.id, name: s.name } }) : ""}</div>` },
+  ], sigs, { empty: "Nothing on the record yet. Sign with morrow-sign sign FILE --upload, or check signature files without uploading them." }),
+    { icon: I.file, sub: `Signatures, hashes and manifest file lists only; never the files. At most ${NUM(D.daily_limit)} per 24 hours.` });
+
+  const events = keys.flatMap(k => (k.events || []).filter(e => e.event !== "registered")
+    .map(e => ({ at: e.created_at, what: `${e.event === "revoked" ? "Key revoked" : "Key retired"}: ${k.label || k.key_id}`, domain: k.domain, note: e.note,
+      detail: e.event === "revoked" ? `untrusted from ${DT(e.effective_at)}` : "" })))
+    .concat((D.withdrawals || []).map(w => ({ at: w.at, what: `Signature withdrawn: ${w.name || w.signature_id}`, domain: w.domain, note: w.note, detail: "" })))
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  const revCard = card("Revocations and withdrawals", table([
+    { h: "When", f: e => H(DT(e.at)) },
+    { h: "What", f: e => `${H(e.what)}${e.detail ? `<div class="sub">${H(e.detail)}</div>` : ""}` },
+    { h: "Domain", f: e => H(e.domain) },
+    { h: "Reason", f: e => H(e.note || "") },
+  ], events, { empty: "Nothing retired, revoked or withdrawn." }), { icon: I.alert, sub: "Kept for good: a revocation is a new record, nothing is deleted." });
+
+  const upload = Array.isArray(D.upload_keys) ? card("Upload keys", table([
+    { h: "Name", f: k => `${H(String(k.name).replace(/^morrow-sign: /, ""))}<div class="mono small">${H(k.prefix)}…</div>` },
+    { h: "State", f: k => signPill(k.status === "active" ? "active" : k.status) },
+    { h: "Expires", f: k => H(DT(k.expires_at)) },
+    { h: "Last used", f: k => H(k.last_used_at ? DT(k.last_used_at) : "never") },
+    { h: "", f: k => k.status === "active" ? actBtn("Revoke", "signUploadRevoke", { cls: "btn xs", data: { id: k.id } }) : "" },
+  ], D.upload_keys, { empty: "No upload key. Create one for your release pipeline: it can only put signatures on the record." }),
+    { icon: I.plug, sub: "For morrow-sign --upload in CI (MORROW_SIGN_UPLOAD_KEY). It can do nothing else.", act: actBtn("Create", "signUploadCreate", { cls: "btn xs pri" }) }) : "";
+
+  const badgeDomain = activeDomains[0] || firstDomain;
+  const snippet = `<a href="${base}/verify/${badgeDomain}"><img src="${base}/verify/${badgeDomain}/badge.svg" alt="Post-quantum signed. Verify on Morrow" height="20"></a>`;
+  const badge = card("Badge for your downloads", `
+    <p class="sub" style="margin-top:0">Put this next to your downloads. It links to the page where visitors drop a file and check it in their browser.</p>
+    ${activeDomains.length ? `<p><img src="/verify/${encodeURIComponent(badgeDomain)}/badge.svg" alt="Post-quantum signed badge for ${H(badgeDomain)}" height="20"></p>` : ""}
+    <pre class="mono" style="white-space:pre-wrap;word-break:break-all;font-size:12px">${H(snippet)}</pre>
+    <div class="row">${`<button class="btn xs" data-copy="${H(snippet)}">Copy</button>`}</div>
+    <p class="sub">For one file, link to <span class="mono">/verify/${H(badgeDomain)}?sha512=&lt;its SHA-512&gt;</span>; <span class="mono">morrow-sign badge --domain ${H(badgeDomain)} --file FILE</span> prints it.</p>`,
+    { icon: I.shield });
+
+  const how = card("Sign on your machine", `<pre class="mono" style="white-space:pre-wrap;font-size:12px">morrow-sign keygen --domain ${H(firstDomain)}
+morrow-sign sign dist/app-1.0.tar.gz --key ${H(firstDomain)}-mk-….morrow-key --upload
+morrow-sign sign-site ./public --key ${H(firstDomain)}-mk-….morrow-key --upload
+morrow-sign verify app-1.0.tar.gz --domain ${H(firstDomain)}</pre>
+    <p class="sub">Each signature is ML-DSA-65 (FIPS 204) and Ed25519 together; it is valid only when both verify. Rotating registers the new key and retires the old one: what it signed before stays valid. Revoking says the key may be in someone else's hands: from the time you name, only signatures already on this record stay valid.</p>`,
+    { icon: I.terminal });
+
+  host.innerHTML = hero + `<div class="g-2-1">${keysCard}${badge}</div>` + sigCard + `<div class="g-2-1">${revCard}${upload || how}</div>` + (upload ? how : "");
+};
+function signBytes(n) {
+  const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0, v = Number(n || 0);
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return (i ? v.toFixed(1) : String(v)) + " " + u[i];
+}
+const DT = (iso) => iso ? String(iso).replace("T", " ").replace(/:\d\dZ$/, " UTC") : "—";
+ACTIONS.signRegister = (b) => {
+  const rotates = b.dataset.rotates || "";
+  modal(rotates ? "Rotate a signing key" : "Register a signing key", `
+    <p style="margin-top:0">Make the key on your own machine: <span class="mono">morrow-sign keygen --domain ${H(b.dataset.domain || "example.com")}</span>.
+    Then choose or paste its <b>.morrow-pub.json</b> file. Never the .morrow-key file: that is the private key.</p>
+    ${rotates ? `<p class="sub">The new key replaces <span class="mono">${H(rotates)}</span>, which is retired: it signs nothing new, and what it signed before stays valid.</p>` : ""}
+    <div class="field"><label for="sgFile">Public key file</label><input class="inp" type="file" id="sgFile" accept=".json,application/json"></div>
+    <div class="field"><label for="sgPub">or paste it</label><textarea class="inp" id="sgPub" rows="5" spellcheck="false" placeholder='{"format": "morrow-public-key/1", ...}'></textarea></div>
+    <div class="field"><label for="sgLabel">Name (shown to visitors)</label><input class="inp" id="sgLabel" maxlength="80" placeholder="Release key 2026"></div>`,
+    `<button class="btn" data-close>Cancel</button>${actBtn(rotates ? "Rotate" : "Register", "signRegisterSubmit", { cls: "btn pri", data: { rotates } })}`);
+  $("#sgFile").onchange = async (e) => { const f = e.target.files[0]; if (f && f.size < 32768) $("#sgPub").value = await f.text(); };
+};
+ACTIONS.signRegisterSubmit = async (b) => {
+  let doc;
+  try { doc = JSON.parse($("#sgPub").value); } catch { err("That is not a public key file (not JSON)."); return; }
+  if (doc && (doc.secret || doc.encrypted)) { err("That is the PRIVATE key file. Register the .morrow-pub.json file; keep the private key on your machine."); return; }
+  const body = { public_key: doc, label: $("#sgLabel").value.trim() };
+  if (b.dataset.rotates) body.rotates = b.dataset.rotates;
+  const r = await safe("/pq-signing/keys", { method: "POST", body });
+  if (!r.ok) { err(r.err, "Key not registered"); return; }
+  $("#overlay").innerHTML = "";
+  ok(`${r.data.key.key_id} now signs for ${r.data.key.domain}`, r.data.retired ? "Key rotated" : "Key registered");
+  retry();
+};
+ACTIONS.signRetire = (b) => modal("Retire this key", `
+    <p style="margin-top:0">The key <span class="mono">${H(b.dataset.key)}</span> signs nothing new. Signatures dated before now stay valid. Destroy the private key afterwards; if it may have leaked, revoke it instead.</p>
+    <div class="field"><label for="sgNote">Note (shown to visitors, optional)</label><input class="inp" id="sgNote" maxlength="500"></div>`,
+  `<button class="btn" data-close>Cancel</button>${actBtn("Retire", "signRetireSubmit", { cls: "btn pri", data: { key: b.dataset.key, domain: b.dataset.domain } })}`);
+ACTIONS.signRetireSubmit = async (b) => {
+  const r = await safe(`/pq-signing/domains/${encodeURIComponent(b.dataset.domain)}/keys/${encodeURIComponent(b.dataset.key)}/retire`, { method: "POST", body: { note: $("#sgNote").value.trim() } });
+  if (!r.ok) { err(r.err, "Not retired"); return; }
+  $("#overlay").innerHTML = ""; ok("The key signs nothing new", "Key retired"); retry();
+};
+ACTIONS.signRevoke = (b) => modal("Revoke this key", `
+    <p style="margin-top:0">Revoke when the private key of <span class="mono">${H(b.dataset.key)}</span> may be in someone else's hands. A signature's date is written by whoever holds the key, so it proves nothing now: from the moment below, only signatures already on Morrow's record from before it stay valid. This cannot be undone.</p>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:6px 0"><input type="radio" name="sgSince" value="all" checked> Since it was registered: nothing it signed stays valid (safest)</label>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:6px 0"><input type="radio" name="sgSince" value="at"> From this time, in your time zone:</label>
+    <div class="field"><input class="inp" type="datetime-local" id="sgAt" aria-label="Untrusted from"></div>
+    <div class="field"><label for="sgNote">Why (shown to visitors)</label><input class="inp" id="sgNote" maxlength="500" placeholder="Laptop with the key was lost"></div>`,
+  `<button class="btn" data-close>Cancel</button>${actBtn("Revoke", "signRevokeSubmit", { cls: "btn pri", data: { key: b.dataset.key, domain: b.dataset.domain } })}`);
+ACTIONS.signRevokeSubmit = async (b) => {
+  const note = $("#sgNote").value.trim();
+  if (!note) { err("Say why the key is revoked: visitors see it."); return; }
+  const body = { note };
+  if ($("input[name=sgSince]:checked").value === "at") {
+    const at = $("#sgAt").value;
+    if (!at) { err("Choose the time, or revoke since it was registered."); return; }
+    body.compromised_since = new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z");
+  }
+  const r = await safe(`/pq-signing/domains/${encodeURIComponent(b.dataset.domain)}/keys/${encodeURIComponent(b.dataset.key)}/revoke`, { method: "POST", body });
+  if (!r.ok) { err(r.err, "Not revoked"); return; }
+  $("#overlay").innerHTML = ""; ok("Visitors now see the key as revoked", "Key revoked"); retry();
+};
+ACTIONS.signWithdraw = (b) => modal("Withdraw this signature", `
+    <p style="margin-top:0"><b>${H(b.dataset.name)}</b> will no longer verify, here or in anyone's browser. The record stays, marked withdrawn, with your reason. This cannot be undone.</p>
+    <div class="field"><label for="sgNote">Why (shown to visitors)</label><input class="inp" id="sgNote" maxlength="500" placeholder="Built from the wrong commit"></div>`,
+  `<button class="btn" data-close>Cancel</button>${actBtn("Withdraw", "signWithdrawSubmit", { cls: "btn pri", data: { id: b.dataset.id } })}`);
+ACTIONS.signWithdrawSubmit = async (b) => {
+  const note = $("#sgNote").value.trim();
+  if (!note) { err("Say why: visitors see it."); return; }
+  const r = await safe(`/pq-signing/signatures/${encodeURIComponent(b.dataset.id)}/withdraw`, { method: "POST", body: { note } });
+  if (!r.ok) { err(r.err, "Not withdrawn"); return; }
+  $("#overlay").innerHTML = ""; ok("The signature no longer verifies", "Withdrawn"); retry();
+};
+ACTIONS.signUploadCreate = () => modal("Create an upload key", `
+    <p style="margin-top:0">An API key that can only put signatures on the public record (POST /pq-signing/signatures). It expires in a year. Keep it in your CI secrets as <span class="mono">MORROW_SIGN_UPLOAD_KEY</span>.</p>
+    <div class="field"><label for="sgName">Name</label><input class="inp" id="sgName" maxlength="60" placeholder="release pipeline"></div>`,
+  `<button class="btn" data-close>Cancel</button>${actBtn("Create", "signUploadCreateSubmit", { cls: "btn pri" })}`);
+ACTIONS.signUploadCreateSubmit = async () => {
+  const r = await safe("/pq-signing/upload-keys", { method: "POST", body: { name: $("#sgName").value.trim() } });
+  if (!r.ok) { err(r.err, "Not created"); return; }
+  modal("Copy the upload key now", `<p style="margin-top:0">It is shown once and not stored.</p>
+    <pre class="mono" style="white-space:pre-wrap;word-break:break-all">${H(r.data.secret)}</pre>`,
+    `<button class="btn" data-copy="${H(r.data.secret)}">Copy</button><button class="btn pri" data-close>Done</button>`);
+  retry();
+};
+ACTIONS.signUploadRevoke = async (b) => {
+  const r = await safe(`/pq-signing/upload-keys/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" });
+  if (!r.ok) { err(r.err, "Not revoked"); return; }
+  ok("The upload key no longer works", "Revoked"); retry();
+};
+
 VIEWS.guide = async (host) => {
   const flat = GUIDE.flatMap(g => g.items);
   host.innerHTML = `
