@@ -137,6 +137,8 @@ Copied into this repository verbatim rather than installed as a dependency:
 | `backend/schemas/cyclonedx/jsf-0.82.schema.json` | JSON Signature Format schema, developed by Anders Rundgren as part of the OpenKeyStore project | Apache-2.0 |
 | `backend/schemas/cyclonedx/spdx.schema.json` | SPDX licence-list enumeration, as redistributed by CycloneDX | Apache-2.0; the SPDX licence list itself is CC-BY-3.0 |
 | `backend/tests/fixtures/cbomkit/kafka-cbom.json`, `keycloak-cbom.json` | Example CBOMs produced by IBM's CBOMkit, copied from `example/` in https://github.com/cbomkit/cbomkit (commit ca2968f). Test data only | Apache-2.0, © IBM / the CBOMkit authors |
+| `backend/static/vendor/morrow-pq-verify.js` | A bundle of @noble/post-quantum 0.7.1, @noble/curves 2.4.0 and @noble/hashes 2.4.0 (ML-DSA-65, Ed25519 and SHA-512 verification for `/verify`), built by `tools/pq-verify-js` and served from Morrow's own origin | MIT, © Paul Miller (paulmillr.com) |
+| `backend/fixtures/acvp/ml_dsa_65_fips204.json` | ML-DSA-65 keyGen and sigVer test vectors from NIST's ACVP-Server (`gen-val/json-files`, commit 975de31), values unmodified. Test data only | Work of the US Government (NIST), not subject to copyright in the United States |
 
 These are vendored deliberately so that `backend/test_cbom_conformance.py` validates CBOM output
 against the official schema on every test run, with no network access. The same schema validates
