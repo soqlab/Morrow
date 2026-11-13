@@ -2040,6 +2040,7 @@ _SITEMAP_PAGES = (
     ("/public-check/privacy", "0.4", "yearly"),
     ("/abuse", "0.5", "yearly"),
     ("/scanner", "0.5", "yearly"),
+    ("/about-scanner", "0.5", "monthly"),
     ("/terms", "0.3", "yearly"),
     ("/privacy", "0.3", "yearly"),
     ("/dpa", "0.3", "yearly"),
@@ -2557,6 +2558,9 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/public-check/privacy", "purpose": "privacy notice for the free checker: the requester and the checked party"},
             {"path": "/abuse", "purpose": "abuse reports and the never-check-my-domain opt-out"},
             {"path": "/scanner", "purpose": "scanner identity: what our connections are, for an operator reading their logs"},
+            {"path": "/about-scanner", "purpose": "the MorrowPQCheck user agent: what the grade, outside-service and watch checks send, how often, and the opt-out"},
+            {"path": "/api/public/claim/{domain}", "purpose": "whether a domain's owner claimed it by DNS, since when, and their public reply; never who"},
+            {"path": "/api/public/watch-feed/{token}.atom", "purpose": "a person's private feed of changes on the domains they watch; the random token is the credential"},
             {"path": "/auth/login", "purpose": "credential exchange"},
             {"path": "/auth/config", "purpose": "front-end auth bootstrapping"},
         ],
@@ -26615,6 +26619,19 @@ app.include_router(create_vendor_console_router(_PlatformAdminDeps(
     audit=lambda request, action, resource_type, resource_id, details: _audit_event(
         request, action=action, resource_type=resource_type, resource_id=resource_id, details=details),
     client_ip=lambda request: _client_ip_for_monitoring(request),
+)))
+
+# Watch mode and domain claims (services/watch.py, routers/watch.py): re-checks watched domains on
+# the Celery beat tick and tells watchers what changed by push, webhook and a private feed; owners
+# claim a domain with the existing DNS TXT proof. No email anywhere in it.
+from routers.watch import create_watch_router as _create_watch_router  # noqa: E402
+from services import watch as _watch_schema  # noqa: E402
+
+register_deferred_schema("watch", _watch_schema.init_tables)
+app.include_router(_create_watch_router(_PlatformAdminDeps(
+    require_role=_require_role,
+    org_id=lambda: current_organization_id(),
+    audit=_audit_event,
 )))
 
 # The instrument views and /plain (routers/instrument.py). Included last: its /{domain} route

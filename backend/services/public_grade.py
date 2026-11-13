@@ -108,7 +108,10 @@ logger = logging.getLogger(__name__)
 RUBRIC_VERSION = "2026-11.1"
 PORT = 443
 GRADES = ("A", "B", "C", "D", "E", "F")
-USER_AGENT = "SOQLAB-Morrow-PublicGrade/1 (+https://soqlab.com)"
+#: Every HTTP request the public grade and the outside-service check send carries this name and the
+#: page that explains it, so an operator who finds Morrow in a log can find their own result.
+USER_AGENT = "MorrowPQCheck/1.0 (+https://morrow.soqlab.com/about-scanner)"
+SCANNER_INFO_HEADER = "X-Morrow-Check"
 
 #: Standardised hybrid groups probed one at a time for ``offered_pq_groups_accepted``.
 #: 0x11EC X25519MLKEM768, 0x11EB SecP256r1MLKEM768, 0x11ED SecP384r1MLKEM1024
@@ -442,10 +445,24 @@ def _cert_facts(der: Optional[bytes]) -> Dict[str, Any]:
     }
 
 
+def scanner_info(host: str) -> str:
+    """A descriptive request header value: what this is, where the host's own result is, how to stop it."""
+    from services.public_config import public_base_url
+
+    base = (public_base_url() or "https://morrow.soqlab.com").rstrip("/")
+    name = "".join(ch for ch in str(host or "") if ch.isalnum() or ch in ".-")[:253]
+    return (f"post-quantum readiness check by Morrow (SOQLAB); reads the TLS handshake and this page's headers; "
+            f"your result: {base}/{name}; what this is and how to opt out: {base}/about-scanner")
+
+
+def identity_header_lines(host: str) -> str:
+    """User-Agent and the descriptive header as raw HTTP/1.x lines. No From header: nobody to write to."""
+    return f"User-Agent: {USER_AGENT}\r\n{SCANNER_INFO_HEADER}: {scanner_info(host)}\r\n"
+
 def _http_head(address: str, host: str, timeout: float, max_bytes: int = 8192) -> Dict[str, str]:
     """Response headers from one ``HEAD /`` over TLS to the pinned address. Follows nothing."""
     ctx = _context(verify=False, alpn=["http/1.1"])
-    request = (f"HEAD / HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {USER_AGENT}\r\n"
+    request = (f"HEAD / HTTP/1.1\r\nHost: {host}\r\n{identity_header_lines(host)}"
                "Accept: */*\r\nConnection: close\r\n\r\n").encode("ascii")
     sock = socket.create_connection((address, PORT), timeout=timeout)
     data = b""

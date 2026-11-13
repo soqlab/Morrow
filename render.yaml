@@ -142,3 +142,10 @@ services:
       # Admin dashboard figures are precomputed snapshots; at this size a minute is cheap.
       - key: MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS
         value: "60"
+      # Browser push for watched domains (services/web_push.py). Set in the dashboard: the output of
+      # `npx web-push generate-vapid-keys`. Unset, push is off and the page says so; the feed and
+      # webhooks still work.
+      - key: MORROW_VAPID_PRIVATE_KEY
+        sync: false
+      - key: MORROW_VAPID_PUBLIC_KEY
+        sync: false

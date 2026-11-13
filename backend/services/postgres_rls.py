@@ -97,6 +97,14 @@ ORG_SCOPED_TABLES: List[str] = [
     # Vendor check reports and saved vendor lists (services/vendor_check.py); org_id is empty for an
     # anonymous report. Reads by link and the background runner use a named platform scope.
     "vendor_check_reports",
+    # Watch mode and domain claims (services/watch.py): who watches what, what changed, where it is
+    # delivered, and which organization claimed a domain by DNS.
+    "watch_domains",
+    "watch_events",
+    "watch_push_subscriptions",
+    "watch_channels",
+    "watch_feed_tokens",
+    "domain_claims",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -128,6 +136,12 @@ TENANT_COLUMNS: Dict[str, str] = {
     "pq_ready_listings": "org_id",
     "not_ready_replies": "org_id",
     "vendor_check_reports": "org_id",
+    "watch_domains": "org_id",
+    "watch_events": "org_id",
+    "watch_push_subscriptions": "org_id",
+    "watch_channels": "org_id",
+    "watch_feed_tokens": "org_id",
+    "domain_claims": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".

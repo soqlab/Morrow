@@ -10,6 +10,8 @@
   GET /estate[/scan/<id>|/asset/<key>]  your estate through time, one scan, one endpoint (signed in)
   GET /algorithms[/<id>]     the algorithm reference and the dated history of internet cryptography
   GET /trust                 which commit runs here, checked against the signed manifest and deploy log
+  GET /watching              the domains you watch and what changed on them (signed in)
+  GET /about-scanner         what Morrow's checker connects to, how often, and how to opt out
   GET /plain[...]            the same answers as plain HTML: no script, no stylesheet
 
 Every page view above is the same static file (static/instrument.html); the views read the
@@ -34,11 +36,12 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 #: only from this origin or data: URIs, styles only from files on this origin, fonts the same.
 CSP = ("default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; "
        "object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-       "font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'none'")
+       "font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'")
 #: The plain pages run no script at all.
 CSP_PLAIN = CSP.replace("script-src 'self'", "script-src 'none'")
 
-VIEW_PREFIXES = ("/league", "/atlas", "/algorithms", "/trust", "/estate", "/vendors", "/changes", "/report")
+VIEW_PREFIXES = ("/league", "/atlas", "/algorithms", "/trust", "/estate", "/vendors", "/changes", "/report",
+                 "/watching", "/about-scanner")
 _DOMAIN_RE = re.compile(r"^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 #: Last labels that are file extensions, not top-level domains: /wp-login.php is a probe, not a site.
 #: (.zip and .mov are real TLDs and stay allowed.)
@@ -199,6 +202,8 @@ def create_instrument_router(deps: Any) -> APIRouter:
     @router.api_route("/atlas", methods=["GET", "HEAD"])
     @router.api_route("/algorithms", methods=["GET", "HEAD"])
     @router.api_route("/trust", methods=["GET", "HEAD"])
+    @router.api_route("/watching", methods=["GET", "HEAD"])
+    @router.api_route("/about-scanner", methods=["GET", "HEAD"])
     def instrument_view():
         return _view()
 
@@ -340,6 +345,23 @@ def create_instrument_router(deps: Any) -> APIRouter:
                 + "".join(f"<li>{_e(x)}</li>" for x in m["sources"]) + "</ul>"
                 f"<p><a href=\"{_e(r['csv'])}\">CSV</a> | <a href=\"/report/{_e(r['id'])}\">Full version</a></p>")
         return _page(r["name"] + " report", body)
+
+    @router.get("/plain/about-scanner")
+    def plain_about_scanner():
+        from services import watch
+
+        f = watch.about_scanner()
+        body = ("<h1>You found Morrow in your logs</h1>"
+                f"<p>Every HTTP request Morrow's checker makes says <code>User-Agent: {_e(f['user_agent'])}</code> and "
+                f"<code>{_e(f['header']['name'])}</code>, which names the page with your own result. There is no From header: "
+                "Morrow never writes to anyone about a check.</p><h2>What it sends</h2><ul>"
+                + "".join(f"<li><b>{_e(w['part'])}</b>: {_e(w['sends'])}</li>" for w in f["what"]) + "</ul><h2>How often</h2><ul>"
+                + "".join(f"<li>{_e(w['why'])}: {_e(w['how_often'])}</li>" for w in f["when"]) + "</ul><h2>Never</h2><ul>"
+                + "".join(f"<li>{_e(n)}</li>" for n in f["never"]) + "</ul>"
+                "<h2>Your own result</h2><p>Open <code>/your-domain.com</code> on this server, for example "
+                f"<a href=\"/plain/example.com\">/plain/example.com</a>.</p><h2>Make it stop</h2><p>{_e(f['opt_out']['how'])} "
+                f"<a href=\"{_e(f['opt_out']['page'])}\">Opt a domain out</a>.</p><p>{_e(f['stored'])}</p>")
+        return _page("About the scanner", body)
 
     @router.get("/plain/{domain}")
     async def plain_domain(request: Request, domain: str, fresh: str = ""):

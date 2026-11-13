@@ -154,7 +154,9 @@ makes about 11 short connections, at most 6 in parallel:
    standardised hybrid group.
 4. One TLS ≤1.2 handshake offering only RSA key transport.
 5. One offering only weak suites.
-6. One `HEAD /` that reads at most 8 KB of headers and follows nothing.
+6. One `HEAD /` that reads at most 8 KB of headers and follows nothing. It sends
+   `User-Agent: MorrowPQCheck/1.0 (+https://morrow.soqlab.com/about-scanner)` and an `X-Morrow-Check`
+   header naming the host's own result page (see "The scanner says who it is" below).
 
 A typical check takes 3-4 seconds. The connection timeout defaults to 5 s, and the whole check is
 cut off after 25 s.
@@ -457,3 +459,65 @@ sample (listed, graded, not reachable, not graded yet, opted out and left out), 
 not measured, and an "as of" time. No site is named. `GET /api/public/report[/<sector>[.csv]]`; plain
 versions at `/plain/report` and `/plain/changes`. The read routes allow
 `MORROW_PUBLIC_REPORTS_IP_PER_MINUTE` (60) requests a minute per address.
+
+## Watch mode, claims and the scanner's name
+
+### The scanner says who it is
+
+Every HTTP request the grade (`HEAD /`) and the outside-service check (`GET /`) send carries
+`User-Agent: MorrowPQCheck/1.0 (+https://morrow.soqlab.com/about-scanner)` and a descriptive
+`X-Morrow-Check` header naming the host's own result page (`<base>/<host>`) and the opt-out. There is
+no `From` header: nobody is written to. `/about-scanner` (instrument view, `/plain/about-scanner`
+without script, `GET /api/public/scanner` as JSON) says what is sent, how often, with this server's
+live settings, and how to opt out (`/abuse`, or the owner's own button after a claim).
+
+### Watching
+
+A signed-in person presses **Watch this domain** on `/<domain>`. The Celery beat entry
+`watch-tick-every-15m` (`morrow.watch_tick`) re-checks watched domains whose last check is older than
+the interval, with `public_grade.grade_one` (SSRF guard, pinned address, opt-outs) and
+`third_party.run`; a domain watched by many people is checked once. A change is the handshake
+becoming or stopping being post-quantum, the grade moving, a certificate change that moved the grade
+or stopped verifying, or an outside service switching key exchange (or a new classical one). Each
+change is one answer-first sentence, e.g. "statements.example.com became post-quantum ready on
+Tue 14 Nov — the handshake now uses X25519MLKEM768.", delivered to every watcher:
+
+* the in-app list on `/watching` and on the domain page;
+* browser push (Web Push, VAPID + RFC 8291 aes128gcm, services/web_push.py), only to known push
+  services on 443 behind the webhook SSRF guard;
+* the person's own Slack or generic JSON webhooks (validated and sent by services/alert_routing,
+  targets sealed with the vault key);
+* a private Atom feed, `GET /api/public/watch-feed/<token>.atom` (32 random bytes; only the SHA-256 is
+  stored; a new address ends the old one).
+
+Never email.
+
+### Claims
+
+`POST /instrument/claims/<domain>` gives the existing DNS record (services/domain_verification:
+`_morrow-verify.<domain> TXT morrow-verify=<token>`), `POST /instrument/claims/<domain>/check` reads it
+live and claims. One organization holds a claim while its record stays published; when it is gone the
+claim moves. A claim turns watching on, shows the fix plan, the public reply
+(`PUT /instrument/replies/<domain>`), the owner's own opt-out, and "Talk to SOQLAB about migrating"
+(a `mailto:` draft to `MORROW_SALES_CONTACT`, default contact@soqlab.com, sent from the owner's own mail
+app). `GET /api/public/claim/<domain>` says whether a domain is claimed and since when, never by whom.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MORROW_WATCH_SCAN` | 1 | Celery beat runs the watch tick every 15 minutes; `0` turns it off |
+| `MORROW_WATCH_INTERVAL_HOURS` | 24 | Re-check a watched domain after this long (1-168) |
+| `MORROW_WATCH_TICK_MAX` | 10 | Domains re-checked per tick (1-50) |
+| `MORROW_WATCH_MAX_PER_USER` | 25 | Domains one person can watch (1-200) |
+| `MORROW_WATCH_THIRD_PARTY` | 1 | Also re-check the outside services; `0` checks the domain only |
+| `MORROW_VAPID_PRIVATE_KEY` | "" | P-256 private key for Web Push: base64url of the 32-byte scalar or a PEM. Unset: push is off and the page says so |
+| `MORROW_VAPID_PUBLIC_KEY` | derived | Optional; must match the private key |
+| `MORROW_VAPID_SUBJECT` | `<base>/about-scanner` | Contact sent to push services (`https://` or `mailto:`) |
+| `MORROW_WEB_PUSH_HOSTS` | "" | Extra push-service host suffixes (comma separated) |
+| `MORROW_SALES_CONTACT` | contact@soqlab.com | Address the owner's "Talk to SOQLAB" draft goes to |
+
+To make VAPID keys: `npx web-push generate-vapid-keys` (the private key goes in
+`MORROW_VAPID_PRIVATE_KEY`, the public key optionally in `MORROW_VAPID_PUBLIC_KEY`).
+
+Tables (feature store, deferred schema `watch`): `watch_domains`, `watch_events`,
+`watch_push_subscriptions`, `watch_channels`, `watch_feed_tokens` and `domain_claims` are org-scoped
+(`org_id`, in the RLS plan); `watch_domain_state` (the last answer per domain) has no organisation.
