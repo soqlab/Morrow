@@ -323,7 +323,7 @@ _KEY_COLUMNS = ("org_id, domain, key_id, label, ml_dsa_65, ed25519, proof_ml_dsa
 
 def _keys_with_state(conn: Any, where: str, params: tuple) -> List[Dict[str, Any]]:
     keys = [_key_row(r) for r in conn.execute(
-        f"SELECT {_KEY_COLUMNS} FROM pq_signing_keys WHERE {where} ORDER BY registered_at DESC, key_id",
+        f"SELECT {_KEY_COLUMNS} FROM pq_signing_keys WHERE {where} ORDER BY registered_at DESC, key_id",  # nosec B608: the column list and WHERE text are module constants; values are bound
         params).fetchall()]
     if not keys:
         return []
@@ -404,7 +404,7 @@ def register_key(org_id: str, public_key: Any, *, label: str = "", rotates: str 
         try:
             with atomic(conn):
                 conn.execute(
-                    f"INSERT INTO pq_signing_keys ({_KEY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    f"INSERT INTO pq_signing_keys ({_KEY_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",  # nosec B608: the column list and WHERE text are module constants; values are bound
                     (org_id, domain, kid, _clip(label, MAX_LABEL), fmt.b64(parsed["ml_dsa_65"]),
                      fmt.b64(parsed["ed25519"]), parsed["proof"]["ml_dsa_65"], parsed["proof"]["ed25519"], rotates,
                      now, _clip(actor, 160)))
@@ -541,7 +541,7 @@ def record_signature(org_id: str, document: Any, *, entries: Any = None, actor: 
             failed = " and ".join(n for n, ok in (("ML-DSA-65", ml_ok), ("Ed25519", ed_ok)) if not ok)
             raise SigningError(400, f"The {failed} signature does not verify against key {sig['key']}.",
                                "bad_signature")
-        existing = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sig_digest = ?",
+        existing = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sig_digest = ?",  # nosec B608: the column list and WHERE text are module constants; values are bound
                                 (sig["domain"], digest)).fetchone()
         if existing:
             return {"signature": _attach_revocations(conn, [_sig_row(existing)])[0], "created": False}
@@ -556,12 +556,12 @@ def record_signature(org_id: str, document: Any, *, entries: Any = None, actor: 
         try:
             with atomic(conn):
                 conn.execute(
-                    f"INSERT INTO pq_signatures ({_SIG_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    f"INSERT INTO pq_signatures ({_SIG_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",  # nosec B608: the column list and WHERE text are module constants; values are bound
                     (sig_id, org_id, sig["domain"], sig["key"], sig["type"], sig["name"], sig["size"], sig["sha512"],
                      sig["signed_at"], _now(), fmt.b64(sig["ml_dsa_65"]), fmt.b64(sig["ed25519"]), digest,
                      len(clean_entries), _clip(actor, 160)))
         except INTEGRITY_ERRORS:
-            row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sig_digest = ?",
+            row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sig_digest = ?",  # nosec B608: the column list and WHERE text are module constants; values are bound
                                (sig["domain"], digest)).fetchone()
             if row:
                 return {"signature": _attach_revocations(conn, [_sig_row(row)])[0], "created": False}
@@ -571,7 +571,7 @@ def record_signature(org_id: str, document: Any, *, entries: Any = None, actor: 
                 "INSERT INTO pq_signature_entries (signature_id, org_id, position, path, size, sha512) "
                 "VALUES (?, ?, ?, ?, ?, ?)", (sig_id, org_id, position, entry["path"], entry["size"], entry["sha512"]))
         conn.commit()
-        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE id = ?", (sig_id,)).fetchone()
+        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE id = ?", (sig_id,)).fetchone()  # nosec B608: the column list and WHERE text are module constants; values are bound
         return {"signature": _attach_revocations(conn, [_sig_row(row)])[0], "created": True}
 
 
@@ -580,7 +580,7 @@ def withdraw_signature(org_id: str, sig_id: str, *, note: str = "", actor: str =
         raise SigningError(400, "Say why the signature is withdrawn. Visitors see this note.", "note_required")
     _init()
     with feature_conn() as conn:
-        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE id = ? AND org_id = ?",
+        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE id = ? AND org_id = ?",  # nosec B608: the column list and WHERE text are module constants; values are bound
                            (str(sig_id or ""), org_id)).fetchone()
         if not row:
             raise SigningError(404, "There is no such signature in this organization.", "signature_not_found")
@@ -600,7 +600,7 @@ def withdraw_signature(org_id: str, sig_id: str, *, note: str = "", actor: str =
 def org_signatures(org_id: str, limit: int = 100) -> List[Dict[str, Any]]:
     _init()
     with feature_conn() as conn:
-        rows = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE org_id = ? ORDER BY recorded_at DESC, id "
+        rows = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE org_id = ? ORDER BY recorded_at DESC, id "  # nosec B608: the column list and WHERE text are module constants; values are bound
                             "LIMIT ?", (org_id, max(1, min(int(limit), 500)))).fetchall()
         return _attach_revocations(conn, [_sig_row(r) for r in rows])
 
@@ -657,7 +657,7 @@ def public_domain(domain: Any, limit: int = PUBLIC_LIST_DEFAULT) -> Dict[str, An
     with _scope("public record of a domain"), feature_conn() as conn:
         keys = _keys_with_state(conn, "domain = ?", (name,))
         sigs = [_sig_row(r) for r in conn.execute(
-            f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? ORDER BY recorded_at DESC, id LIMIT ?",
+            f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? ORDER BY recorded_at DESC, id LIMIT ?",  # nosec B608: the column list and WHERE text are module constants; values are bound
             (name, limit)).fetchall()]
         _attach_revocations(conn, sigs)
         totals = conn.execute("SELECT COUNT(*) AS n, MAX(recorded_at) AS last FROM pq_signatures WHERE domain = ?",
@@ -679,7 +679,7 @@ def public_signature(domain: Any, sig_id: str) -> Dict[str, Any]:
     name = _normalize(domain)
     _init()
     with _scope("one public signature"), feature_conn() as conn:
-        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND id = ?",
+        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND id = ?",  # nosec B608: the column list and WHERE text are module constants; values are bound
                            (name, str(sig_id or ""))).fetchone()
         if not row:
             raise SigningError(404, "There is no such signature on this domain's record.", "signature_not_found")
@@ -702,14 +702,14 @@ def lookup(domain: Any, sha512: Any, limit: int = 20) -> Dict[str, Any]:
     _init()
     with _scope("find a file's signature on a domain's record"), feature_conn() as conn:
         direct = [_sig_row(r) for r in conn.execute(
-            f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sha512 = ? ORDER BY recorded_at DESC "
+            f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sha512 = ? ORDER BY recorded_at DESC "  # nosec B608: the column list and WHERE text are module constants; values are bound
             "LIMIT ?", (name, digest, limit)).fetchall()]
         listed = conn.execute(
             "SELECT e.signature_id, e.path FROM pq_signature_entries e JOIN pq_signatures s ON s.id = e.signature_id "
             "WHERE e.sha512 = ? AND s.domain = ? ORDER BY s.recorded_at DESC LIMIT ?", (digest, name, limit)).fetchall()
         in_manifests = []
         for r in listed:
-            row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE id = ?", (r["signature_id"],)).fetchone()
+            row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE id = ?", (r["signature_id"],)).fetchone()  # nosec B608: the column list and WHERE text are module constants; values are bound
             if row:
                 sig = _sig_row(row)
                 sig["path"] = r["path"]
@@ -790,7 +790,7 @@ def verify_document(document: Any, file_sha512: Optional[str] = None, file_size:
     dv._init()
     with _scope("check a signature against a domain's public record"), feature_conn() as conn:
         keys = _keys_with_state(conn, "domain = ? AND key_id = ?", (sig["domain"], sig["key"]))
-        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sig_digest = ?",
+        row = conn.execute(f"SELECT {_SIG_COLUMNS} FROM pq_signatures WHERE domain = ? AND sig_digest = ?",  # nosec B608: the column list and WHERE text are module constants; values are bound
                            (sig["domain"], fmt.signature_digest(sig))).fetchone()
         record = _attach_revocations(conn, [_sig_row(row)])[0] if row else None
     result = assess(sig, keys[0] if keys else None, record, file_sha512, file_size)
