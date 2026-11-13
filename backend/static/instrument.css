@@ -239,3 +239,7 @@ svg.atlas[data-zoom="near"] .atlas-region-label { font-size: 2.2px; }
 .i-main .i-channels { margin: 14px 0; }
 .i-main ul { padding-left: 18px; }
 select.i-btn { background: var(--bg-2); }
+.i-field input:focus-visible { outline: none; }
+.ins pre { font-size: 13px; line-height: 1.5; }
+.i-big { font: 500 clamp(26px, 3vw, 38px)/1.1 var(--sans); letter-spacing: -.02em; margin: 0 0 10px; }
+.i-h1 { margin-bottom: 18px; }

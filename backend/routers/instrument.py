@@ -187,14 +187,14 @@ def create_instrument_router(deps: Any) -> APIRouter:
         except Exception:
             return str(request.client.host if request.client else "")
 
-    @router.get("/league")
-    @router.get("/atlas")
-    @router.get("/algorithms")
-    @router.get("/trust")
+    @router.api_route("/league", methods=["GET", "HEAD"])
+    @router.api_route("/atlas", methods=["GET", "HEAD"])
+    @router.api_route("/algorithms", methods=["GET", "HEAD"])
+    @router.api_route("/trust", methods=["GET", "HEAD"])
     def instrument_view():
         return _view()
 
-    @router.get("/algorithms/{algorithm_id}")
+    @router.api_route("/algorithms/{algorithm_id}", methods=["GET", "HEAD"])
     def instrument_algorithm(algorithm_id: str):
         if not _ID_RE.match(algorithm_id.lower()):
             raise HTTPException(status_code=404, detail="no such algorithm")
@@ -260,7 +260,7 @@ def create_instrument_router(deps: Any) -> APIRouter:
         return _page(f"{host}: grade {result.get('grade')}", _plain_result(result, rows) + _form())
 
     # Last: a single dotted segment is a domain view, unless the app has a route of that name.
-    @router.get("/{domain}")
+    @router.api_route("/{domain}", methods=["GET", "HEAD"])
     def instrument_domain(domain: str):
         if not domain_segment(domain):
             raise HTTPException(status_code=404, detail="Not Found")

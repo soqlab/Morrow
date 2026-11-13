@@ -1865,7 +1865,7 @@ async def _pool_exhausted_handler(request: Request, exc: _pg_pool.PoolError):
     )
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root():
     """The live instrument: the one input, the visitor's own connection and live counts.
 

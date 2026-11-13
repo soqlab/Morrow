@@ -384,13 +384,13 @@
         reading("Signature", esc(cert.signature_algorithm || "-")) + reading("Issuer", "<small>" + esc(cert.issuer || "-") + "</small>") + reading("Connections opened", num(r.connections));
 
       var exposure = ex.recorded_traffic_at_risk && ex.decrypt_year_low
-        ? '<p class="i-h1 v-warn">' + esc(ex.decrypt_year_low) + "–" + esc(ex.decrypt_year_high) + "</p><p>" + esc(byDepth({
+        ? '<p class="i-big v-warn">' + esc(ex.decrypt_year_low) + "–" + esc(ex.decrypt_year_high) + "</p><p>" + esc(byDepth({
             plain: "Someone recording traffic to " + d + " today could read it from about then.",
             standard: "Traffic recorded today could be decrypted from about " + ex.decrypt_year_low + ", likely by " + ex.decrypt_year_high + ".",
             expert: ex.basis })) + "</p>"
         : ex.recorded_traffic_at_risk
           ? "<p>" + esc(ex.basis || "No encryption was negotiated.") + "</p>"
-          : '<p class="i-h1 v-ok">Not by a quantum computer</p><p>' + esc(depth === "plain" ? "The key exchange already includes post-quantum protection." : ex.basis) + "</p>";
+          : '<p class="i-big v-ok">Not by a quantum computer</p><p>' + esc(depth === "plain" ? "The key exchange already includes post-quantum protection." : ex.basis) + "</p>";
       exposure += '<p class="i-fine">Source: <a href="' + esc(ex.source_url) + '" rel="noopener">' + esc(ex.source_url) + "</a></p>";
       if (ex.recorded_traffic_at_risk && ex.decrypt_year_low) {
         exposure += '<div class="i-row"><label for="d-life">What is sent here must stay secret for</label><select id="d-life" class="i-btn">' +
@@ -400,7 +400,7 @@
 
       var fixes = r.fixes || [];
       var fixHtml = fixes.length ? fixes.map(function (f, i) {
-        return '<div class="ch" data-ch="tools"><div class="ch-head"><span>' + esc(f.applies_to || "any") + "</span><span>" + esc(f.title) + '</span><span class="ch-r"><button type="button" class="i-btn" data-copy="' + i + '">Copy</button></span></div><div class="ch-body"><pre>' + esc(f.snippet) + "</pre>" +
+        return '<div class="ch" data-ch="tools"><div class="ch-head"><span>' + esc(f.title) + '</span><span class="ch-r"><button type="button" class="i-btn" data-copy="' + i + '">Copy</button></span></div><div class="ch-body"><pre>' + esc(f.snippet) + "</pre>" +
           (depth !== "plain" && f.notes ? '<p class="i-fine">' + esc(f.notes) + "</p>" : "") + '<p class="i-fine">Needs: ' + esc(f.requires) + "</p></div></div>";
       }).join("") : '<p>Nothing to change. ' + (r.grade === "A" ? "This is the top grade." : "") + "</p>";
       if (fixes.length > 1 && r.platform === "unknown") fixHtml = '<p class="i-fine">The server software is not disclosed, so here is the change for each common server. Use the one you run.</p>' + fixHtml;
@@ -476,7 +476,7 @@
     var input = $("#lg-q"), t = null;
     input.addEventListener("input", function () { clearTimeout(t); t = setTimeout(function () { q = input.value.trim(); setParam("q", q); load(); }, 250); });
     function load() {
-      var qs = "?limit=500&sort=" + enc(sort) + "&dir=" + enc(dir) + (sector ? "&sector=" + enc(sector) : "") + (q ? "&q=" + enc(q) : "");
+      var qs = "?limit=200&sort=" + enc(sort) + "&dir=" + enc(dir) + (sector ? "&sector=" + enc(sector) : "") + (q ? "&q=" + enc(q) : "");
       getJSON("/api/public/league" + qs, { cache: "no-store" }).then(paint).catch(function (e) { say("The league is not available right now."); $("#lg-body").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
     }
     function paint(L) {
@@ -743,7 +743,7 @@
       return check.then(function (ok) {
         results.chain = entries.length ? ok : null;
         $("#tr-log").innerHTML = !entries.length ? "<p>No deploy has been recorded yet. A deploy is recorded when the server starts on a commit different from the last one.</p>" :
-          "<p class=\"" + (ok ? "v-ok" : "v-bad") + "\">" + (ok ? "Chain of " + entries.length + " entries recomputed in your browser: every entry links to the one before." : "The chain does not recompute: an entry was changed or removed.") + "</p>" +
+          "<p class=\"" + (ok ? "v-ok" : "v-bad") + "\">" + (ok ? "Chain of " + entries.length + (entries.length === 1 ? " entry" : " entries") + " recomputed in your browser: every entry links to the one before." : "The chain does not recompute: an entry was changed or removed.") + "</p>" +
           '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>#</th><th>Commit</th><th>First seen</th><th>Entry hash</th></tr></thead><tbody>' +
           entries.slice().reverse().slice(0, 50).map(function (e) { return '<tr><td class="num">' + e.seq + '</td><td class="mono"><a href="https://github.com/soqlab/Morrow/commit/' + esc(e.commit) + '" rel="noopener">' + esc(e.commit.slice(0, 12)) + '</a></td><td class="mono">' + esc(stamp(e.first_seen)) + '</td><td class="mono"><small>' + esc(e.entry_hash.slice(0, 16)) + "&hellip;</small></td></tr>"; }).join("") +
           '</tbody></table></div><p class="i-fine">Head hash <code>' + esc(L.head_hash || "") + "</code>. Keep a copy: if the whole log were ever rewritten, the head you saved would no longer be in it.</p>";
@@ -753,7 +753,7 @@
 
     function requests() {
       var csp = null;
-      fetch(location.href, { method: "HEAD", cache: "no-store" }).then(function (r) { csp = r.headers.get("content-security-policy"); }).catch(function () {}).finally(function () {
+      fetch(location.href, { cache: "no-store" }).then(function (r) { csp = r.headers.get("content-security-policy"); }).catch(function () {}).finally(function () {
         var entries = performance.getEntriesByType("resource").map(function (e) { return e.name; });
         entries.unshift(location.href);
         var origins = {}; entries.forEach(function (u) { try { var o = new URL(u).origin; origins[o] = (origins[o] || 0) + 1; } catch (e) { /* ignore */ } });
