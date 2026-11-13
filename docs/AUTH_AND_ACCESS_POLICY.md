@@ -10,6 +10,7 @@ No-login is allowed only for:
 - Auth bootstrap and credential exchange: `/auth/config`, `/auth/login`, `/auth/refresh`, `/auth/logout`.
 - Passkey ceremonies, each authenticated by its own payload (a stored single-use challenge plus a signature, and for registration an invitation, emailed link or Bearer token): `/auth/passkey/login/begin|finish`, `/auth/passkey/register/begin|finish`.
 - Account recovery and team sign-in links: `/reset-password`, `/auth/password-reset/request|confirm`, `/join`, `/auth/team-join/request|preview`.
+- Recovery without email: `/auth/recovery-codes/redeem` (the one-time code in the body is the credential; it buys only a short-lived ticket that can register a passkey).
 - Non-sensitive proof demos: `/trust-passport-demo`.
 - Future signed read-only proof links, if they are scoped, expiring, and contain no raw asset/IP inventory.
 
@@ -49,6 +50,54 @@ identity provider; none of this changes that check.
   table rebuild in a write transaction, indexes recreated; Postgres: `DROP NOT NULL`). Existing rows
   and passwords are kept.
 - The operator portal (`/vendor-admin`, operator key + TOTP) is unchanged.
+
+## Sign-in without email
+
+- **No username.** The console shows one "Sign in with a passkey" button. `login/begin` is called
+  without an email, so `allowCredentials` is empty and the browser offers this site's discoverable
+  passkeys (every passkey is registered with `residentKey: required`, `userVerification: required`).
+  No `transports` are ever sent in `allowCredentials`/`excludeCredentials` and no authenticator
+  attachment is requested, so the browser may also offer a security key or a phone by QR code
+  (hybrid). The old email fallback (`login/begin {email}`) still works for authenticators that can't
+  discover credentials; the console no longer asks for it. Password sign-in stays behind
+  "Sign in with a password" for accounts that still have one (the bootstrap admin from
+  `MORROW_ADMIN_EMAIL`/`MORROW_ADMIN_PASSWORD` included), unchanged under `MORROW_PASSKEYS_ONLY`.
+- **Email is optional.** `morrow_users.email` is nullable (still UNIQUE; NULLs are distinct). An admin
+  creates an account with only a display name (and optionally an email) with `POST /auth/accounts`
+  (console: Users › Set up account). The answer carries a single-use setup link
+  (`/reset-password#setup=…`, `MORROW_ACCOUNT_SETUP_TTL_SECONDS`, default 259200 = 3 days, a newer
+  link replaces older ones) that the admin hands over; nothing is emailed. Opening it creates the
+  account's first passkey (`register` kind `setup`) and signs in. `POST /auth/accounts/{id}/setup-link`
+  issues a new link, only for an account in the admin's organization that has neither a passkey nor a
+  password, so a setup link can never take over an account someone already uses. Invitations and
+  domain team join still carry an email: team join must prove a work mailbox on the domain, exactly
+  as before. An account without an email can't accept email-addressed invitations.
+- **Recovery codes** (`backend/services/recovery_codes.py`). `POST /auth/recovery-codes` (signed in,
+  within `MORROW_PASSKEY_REAUTH_SECONDS`) returns 10 codes once (16 characters from a 31-character
+  alphabet, about 79 bits each). Only `HMAC-SHA256(pepper, code)` is stored in `morrow_recovery_codes`;
+  the pepper is `MORROW_RECOVERY_CODE_PEPPER` (16+ characters) or, when unset, derived from
+  `MORROW_AUTH_JWT_SECRET`. Rotating it invalidates outstanding codes (passkeys keep working; make a
+  new set). A deterministic keyed hash, not a per-code salt, is what lets a code be found without a
+  username. Each code works once (claimed atomically); making a new set replaces the old one in the
+  same transaction, so an account never has neither. `POST /auth/recovery-codes/redeem {code}` is rate
+  limited like every auth endpoint and journaled (`recovery_code.used` / `recovery_code.refused`,
+  method `recovery_code`); it returns a `recover` ticket (`MORROW_RECOVERY_CODE_TICKET_TTL_SECONDS`,
+  default 600) that is not a session and can only register a passkey, exactly like an emailed
+  recovery link: it signs the account out everywhere else and can remove the other passkeys.
+  `GET /auth/recovery-codes` reports how many are left.
+- **Emailed recovery is per account** (`morrow_users.email_recovery`, default 1). Existing accounts
+  keep emailed recovery (lost-passkey links and password resets) exactly as before, so nobody is
+  locked out by the upgrade; new accounts with an email get it too. The owner switches it off with
+  `PUT /auth/email-recovery {enabled}` (signed in recently) only while they hold unused recovery codes;
+  an account without an email can't switch it on. When it is off, `/auth/password-reset/request`
+  sends nothing and answers exactly as for an unknown address.
+- **Never locked out.** The last passkey still can't be removed; recovery codes are not counted as
+  a way to sign in. Passwords that exist keep working until the account adds a passkey.
+- Schema: `auth_issuer.init_tables` migrates `morrow_users` once (SQLite: one table rebuild inside a
+  write transaction with its indexes recreated; Postgres: `ALTER COLUMN … DROP NOT NULL` and
+  `ADD COLUMN IF NOT EXISTS email_recovery`), keeping every row, password and address, and creates
+  `morrow_recovery_codes`. Like the other passkey tables it is keyed by account, has no tenant
+  column and lives in the main database, so it is not in the Postgres RLS plan.
 
 ## Domain team sign-in
 

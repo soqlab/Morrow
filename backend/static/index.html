@@ -2812,13 +2812,16 @@ function authGateHtml() {
      paste, the server switcher and "retry without signing in" are for operators and developers, and
      on a hosted site they only lead customers to "missing bearer token". */
   const simple = !!c.simple_sign_in && pw;
-  /* Passkeys (MORROW_PUBLIC_BASE_URL set): one "Sign in with passkey" button. The email field is only
-     for authenticators that can't offer their passkeys by themselves, and it also carries the
-     browser's passkey autofill (autocomplete="username webauthn"). Password sign-in stays behind a
-     link for accounts that haven't added a passkey yet; signing in that way leads straight to
-     adding one, which deletes the password. */
+  /* Passkeys (MORROW_PUBLIC_BASE_URL set): one "Sign in with a passkey" button and no username: the
+     browser offers this site's passkeys itself (an empty allowCredentials), including one on a phone
+     by QR code. "Lost your passkey?" opens the recovery-code box (and links to emailed recovery when
+     the server can send mail). Password sign-in stays behind a link for accounts that haven't added
+     a passkey yet; its email field also carries the browser's passkey autofill
+     (autocomplete="username webauthn"). Signing in with a password leads straight to adding a
+     passkey, which deletes the password. */
   const pk = !!c.passkeys_enabled && pw;
   const pkOk = pk && !!window.MorrowPasskey && MorrowPasskey.supported();
+  const codes = pk && !!c.recovery_codes_enabled;
   return `<div class="gate" id="gate">
     <div class="gateCard" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
       <div class="gateBrand">
@@ -2828,21 +2831,30 @@ function authGateHtml() {
         <div><b>Morrow</b><small>Quantum Mesh</small></div>
       </div>
       <h2 id="gateTitle">Sign in</h2>
-      ${pk ? `<p class="gsub">Sign in with the passkey on this device, your phone or a security key.</p>`
+      ${pk ? `<p class="gsub">Use the passkey on this device, on your phone, or on a security key. No email or password needed.</p>`
         : simple ? `<p class="gsub">Sign in with the email address your invitation was sent to.</p>`
         : `<p class="gsub">This server requires authentication. Signing in with
         <b>${H(provider)}</b> (${H(TITLE(c.mode || "unknown"))} mode).</p>`}
       <div id="gateErr" role="alert" aria-live="assertive"></div>
 
       ${pk ? `<div class="col">
-        <button class="btn pri block" data-act="gatePasskey" type="button" style="height:42px" ${pkOk ? "" : "disabled"}>${I.lock}Sign in with passkey</button>
+        <button class="btn pri block" data-act="gatePasskey" type="button" style="height:42px" ${pkOk ? "" : "disabled"}>${I.lock}Sign in with a passkey</button>
         ${pkOk ? "" : `<span class="gsub" style="margin:0">This browser can't use passkeys. Open this page in a current browser, or on your phone.</span>`}
-        <div class="field"><label for="gEmail">Email <span style="color:var(--ink3);font-weight:400">(only if your passkey isn't offered)</span></label>
-          <input class="inp" id="gEmail" type="email" autocomplete="username webauthn" placeholder="you@example.com"></div>
-        <span style="display:flex;justify-content:space-between;gap:10px;font-size:12px">
-          ${c.password_reset_enabled ? `<a href="/reset-password" style="color:var(--ink2)">Lost your passkey?</a>` : "<span></span>"}
+        <span style="display:flex;justify-content:space-between;gap:10px;font-size:12px;flex-wrap:wrap">
+          ${codes ? `<a href="#" data-act="gateShowRecovery" style="color:var(--ink2)">Lost your passkey?</a>`
+            : c.password_reset_enabled ? `<a href="/reset-password" style="color:var(--ink2)">Lost your passkey?</a>` : "<span></span>"}
           <a href="#" data-act="gateShowPassword" style="color:var(--ink2)">${c.passkeys_only ? "Still have a password? Sign in once to add a passkey" : "Sign in with a password"}</a></span>
+        ${codes ? `<div class="col" id="gCodeBox" hidden>
+          <div class="field"><label for="gCode">Recovery code</label>
+            <input class="inp mono" id="gCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX"></div>
+          <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink2)">
+            <input id="gCodeRevoke" type="checkbox"> Also remove my other passkeys (a lost or stolen device)</label>
+          <button class="btn block" data-act="gateRecoveryCode" type="button" style="white-space:normal;height:auto;min-height:38px" ${pkOk ? "" : "disabled"}>Use recovery code</button>
+          <span class="gsub" style="margin:0">Each code works once. You'll create a new passkey on this device, and you'll be signed out everywhere else.${c.password_reset_enabled ? ` No code? <a href="/reset-password" style="color:var(--ink2)">Get a recovery link by email</a> (if your account allows it).` : ""}</span>
+        </div>` : ""}
         <div class="col" id="gPwBox" hidden>
+          <div class="field"><label for="gEmail">Email</label>
+            <input class="inp" id="gEmail" type="email" autocomplete="username webauthn" placeholder="you@example.com"></div>
           <div class="field"><label for="gPass">Password</label>
             <input class="inp" id="gPass" type="password" autocomplete="current-password" placeholder="••••••••••"></div>
           <button class="btn block" data-act="gateLogin" type="button">Sign in with password</button>
@@ -2891,17 +2903,16 @@ async function showAuthGate() {
   if (S.demo) startDemoRadar();
   const pk = !!authCfg().passkeys_enabled && !!$("[data-act=gatePasskey]");
   const submit = (e) => { if (e.key === "Enter") { e.preventDefault(); ACTIONS.gateLogin(e.target); } };
-  $("#gEmail")?.addEventListener("keydown", pk
-    ? (e) => { if (e.key === "Enter") { e.preventDefault(); ($("#gPwBox")?.hidden === false ? ACTIONS.gateLogin : ACTIONS.gatePasskey)(); } }
-    : submit);
+  $("#gEmail")?.addEventListener("keydown", submit);
   $("#gPass")?.addEventListener("keydown", submit);
+  $("#gCode")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ACTIONS.gateRecoveryCode(); } });
   if (pk) { $("[data-act=gatePasskey]")?.focus(); startPasskeyAutofill(); }
   else ($("#gEmail") || $("#gTok"))?.focus();
 }
 /* ---- passkeys ---- */
 let passkeyAutofill = null;
 function stopPasskeyAutofill() { try { passkeyAutofill?.abort(); } catch { /* already done */ } passkeyAutofill = null; }
-/** Conditional UI: the browser lists this site's passkeys in the email field's autofill. */
+/** Conditional UI: the browser lists this site's passkeys in the (password sign-in) email field's autofill. */
 async function startPasskeyAutofill() {
   if (!window.MorrowPasskey || !(await MorrowPasskey.conditionalAvailable())) return;
   stopPasskeyAutofill();
@@ -2921,22 +2932,22 @@ async function finishPasskeyLogin(challengeId, credential) {
     return reportLoginFailure(r);
   }
   stopPasskeyAutofill();
-  applyLoginResult(r.data, r.data.user?.email || "");
+  applyLoginResult(r.data, "");
   if (gateOpen) await afterGateAuth();
   else { $("#overlay").innerHTML = ""; await afterAuthChange(); }
 }
+/* Usernameless: no email is sent, so the browser offers whichever passkeys it has for this site,
+   or "use a phone or tablet" (a QR code) when this device has none. */
 ACTIONS.gatePasskey = async () => {
   stopPasskeyAutofill();
   if (!window.MorrowPasskey || !MorrowPasskey.supported()) return showLoginError("Passkeys unavailable", "This browser can't use passkeys.");
-  const email = $("#gEmail")?.value.trim() || "";
-  const begin = await safe("/auth/passkey/login/begin", { method: "POST", body: { email } });
+  const begin = await safe("/auth/passkey/login/begin", { method: "POST", body: {} });
   if (!begin.ok) return showLoginError("Passkey sign-in unavailable", begin.err || "The server refused to start a passkey sign-in.");
   let credential;
   try { credential = await MorrowPasskey.get(begin.data.options); }
   catch (e) {
     const m = MorrowPasskey.message(e);
-    showLoginError("No passkey used", m || (email ? "No passkey was chosen. Try again, or use another device." :
-      "No passkey was chosen. If yours wasn't offered, enter your email and try again."));
+    showLoginError("No passkey used", m || "No passkey was chosen. Try again. If your passkey is on your phone, pick the option to use another device and scan the QR code.");
     startPasskeyAutofill();
     return;
   }
@@ -2945,7 +2956,43 @@ ACTIONS.gatePasskey = async () => {
 ACTIONS.gateShowPassword = () => {
   const box = $("#gPwBox"); if (!box) return;
   box.hidden = false;
-  $("#gPass")?.focus();
+  if ($("#gCodeBox")) $("#gCodeBox").hidden = true;
+  $("#gEmail")?.focus();
+};
+ACTIONS.gateShowRecovery = () => {
+  const box = $("#gCodeBox"); if (!box) return;
+  box.hidden = false;
+  if ($("#gPwBox")) $("#gPwBox").hidden = true;
+  $("#gCode")?.focus();
+};
+/** A recovery code buys a ticket (not a session) that can only register a new passkey; registering it
+    signs in. Same ceremony as an emailed recovery link (kind "recover"). */
+ACTIONS.gateRecoveryCode = async () => {
+  stopPasskeyAutofill();
+  const code = $("#gCode")?.value.trim() || "";
+  if (!code) return showLoginError("Missing code", "Enter one of your recovery codes.");
+  if (!window.MorrowPasskey || !MorrowPasskey.supported()) return showLoginError("Passkeys unavailable", "This browser can't create a passkey.");
+  const redeemed = await safe("/auth/recovery-codes/redeem", { method: "POST", body: { code } });
+  if (!redeemed.ok) {
+    if (redeemed.status === 429) return showLoginError("Too many attempts", "Wait a minute, then try again.");
+    return showLoginError("Code not accepted", (redeemed.err || "").replace(/^\d{3} · /, "") || "That recovery code didn't work.");
+  }
+  const token = redeemed.data.recovery_token;
+  const begin = await safe("/auth/passkey/register/begin", { method: "POST", body: { kind: "recover", token } });
+  if (!begin.ok) return showLoginError("Recovery didn't start", (begin.err || "").replace(/^\d{3} · /, "") || "Try again.");
+  let credential;
+  try { credential = await MorrowPasskey.create(begin.data.options); }
+  catch (e) {
+    return showLoginError("No passkey created", (MorrowPasskey.message(e) || "No passkey was created.") +
+      ` Your code is used up, but you can press the button again with the same code for the next ${Math.round((redeemed.data.expires_in || 600) / 60)} minutes.`);
+  }
+  const r = await safe("/auth/passkey/register/finish", { method: "POST",
+    body: { challenge_id: begin.data.challenge_id, credential, token, revoke_other_passkeys: !!$("#gCodeRevoke")?.checked } });
+  if (!r.ok) return showLoginError("Passkey not saved", (r.err || "").replace(/^\d{3} · /, "") || "The passkey wasn't saved.");
+  applyLoginResult(r.data, redeemed.data.account || "");
+  const left = redeemed.data.recovery_codes_remaining;
+  ok(`New passkey saved. You have ${left} recovery code${left === 1 ? "" : "s"} left${left < 4 ? ": make new ones under Sign-in & recovery" : ""}.`, "You're back in");
+  if (gateOpen) await afterGateAuth(); else { $("#overlay").innerHTML = ""; await afterAuthChange(); }
 };
 /** After a password sign-in: the account must add a passkey. With MORROW_PASSKEYS_ONLY=1 there is no
     session yet, only an enrollment ticket; otherwise the session is already there. Either way the
@@ -3050,7 +3097,7 @@ function applyLoginResult(d, email) {
   if (d.user?.id) S.actor = d.user.id;
   S.role = "";   // a real token carries the role; stop sending a spoofed header
   saveAuth();
-  ok(`Signed in as ${d.user?.email || email}`, "Welcome");
+  ok(`Signed in as ${d.user?.email || d.user?.full_name || email || "your account"}`, "Welcome");
 }
 /** Show a sign-in error where the user is looking: inline in the gate, and as a toast elsewhere. */
 function showLoginError(title, detail) {
@@ -3097,7 +3144,7 @@ function openLogin() {
           ? "This server requires authenticated requests."
           : "This server accepts unauthenticated requests. Anything you set here is optional."}</span></div></div>
 
-      ${pw && c.passkeys_enabled ? `<button class="btn pri block" data-act="gatePasskey" type="button">${I.lock}Sign in with passkey</button>` : ""}
+      ${pw && c.passkeys_enabled ? `<button class="btn pri block" data-act="gatePasskey" type="button">${I.lock}Sign in with a passkey</button>` : ""}
       ${pw && !c.passkeys_only ? `<div class="field"><label for="lgEmail">Email</label>
           <input class="inp" id="lgEmail" type="email" data-autofocus autocomplete="username" placeholder="you@example.com"></div>
         <div class="field"><label for="lgPass">Password</label>
@@ -3177,13 +3224,16 @@ ACTIONS.logout = async () => {
   ok("Signed out");
   await afterAuthChange();
 };
-/** The signed-in account's passkeys: add, rename, remove (never the last). */
+/** Sign-in & recovery for the signed-in account: its passkeys (add, rename, remove, never the last),
+    its one-time recovery codes, and whether a recovery link may be emailed to it. */
 ACTIONS.passkeys = async () => {
   const r = await safe("/auth/passkeys");
   if (!r.ok) return err(r.err, "Passkeys");
+  const rc = authCfg().recovery_codes_enabled ? await safe("/auth/recovery-codes") : { ok: false };
+  const rec = rc.ok ? rc.data : null;
   const list = r.data.passkeys || [];
   const when = (t) => t ? new Date(t * 1000).toLocaleString() : "never";
-  modal("Passkeys", `<div class="col">
+  modal("Sign-in & recovery", `<div class="col">
     <p style="margin:0;color:var(--ink2);line-height:1.6">You sign in with these. Keep at least two, on different devices, so losing one doesn't lock you out.
       ${r.data.has_password ? " Adding the first one deletes your password." : ""}</p>
     ${list.map(p => `<div class="row" style="gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
@@ -3192,9 +3242,60 @@ ACTIONS.passkeys = async () => {
       <button class="btn ghost" data-act="passkeyRename" data-id="${H(p.id)}" data-name="${H(p.name || "")}" type="button">Rename</button>
       <button class="btn ghost" data-act="passkeyRemove" data-id="${H(p.id)}" type="button" ${list.length < 2 ? "disabled title=\"Your last passkey can't be removed\"" : ""}>Remove</button>
     </div>`).join("") || `<p style="margin:0">No passkeys yet.</p>`}
-    <div id="pkErr" role="alert"></div></div>`,
+    <div id="pkErr" role="alert"></div>
+    <p style="margin:0;font-size:12px;color:var(--ink2);line-height:1.6">To add a passkey on your phone or another computer: press <b>Add a passkey</b> and choose your phone when the browser offers it (it shows a QR code), or sign in on that device and add one there.</p>
+    ${rec ? `<hr style="border:0;border-top:1px solid var(--line);margin:4px 0">
+    <div class="col" style="gap:6px">
+      <b>Recovery codes</b>
+      <span style="font-size:12.5px;line-height:1.6">${rec.recovery_codes.total
+        ? `${rec.recovery_codes.remaining} of ${rec.recovery_codes.total} unused. Each one lets you create a new passkey once if you lose yours.`
+        : "You have none yet. Make a set and keep it somewhere safe: it's how you get back in without email if you lose your passkeys."}</span>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-act="recoveryCodesNew" data-had="${rec.recovery_codes.total ? "1" : ""}" type="button">${rec.recovery_codes.total ? "Make new codes" : "Make recovery codes"}</button>
+      ${rec.recovery_codes.total ? `<span style="font-size:11.5px;color:var(--ink3)">Making new codes cancels the old ones.</span>` : ""}</div>
+    </div>
+    ${rec.has_email && rec.email_recovery_available ? `<div class="col" style="gap:6px">
+      <b>Recovery by email</b>
+      <span style="font-size:12.5px;line-height:1.6">${rec.email_recovery ? "On: if you lose your passkeys, you can ask for a recovery link at this account's email address."
+        : "Off: no recovery link is ever emailed for this account. You get back in with a recovery code."}</span>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-act="emailRecoveryToggle" data-enable="${rec.email_recovery ? "0" : "1"}" type="button" ${!rec.email_recovery || rec.recovery_codes.remaining ? "" : "disabled"}>${rec.email_recovery ? "Turn off" : "Turn on"}</button>
+      ${!rec.recovery_codes.remaining && rec.email_recovery ? `<span style="font-size:11.5px;color:var(--ink3)">Make recovery codes before you turn this off.</span>` : ""}</div>
+    </div>` : ""}` : ""}
+    </div>`,
     `<button class="btn" data-close type="button">Close</button>
      <button class="btn pri" data-act="passkeyAdd" type="button">${I.lock}Add a passkey</button>`);
+};
+/** A new set of recovery codes, shown this once (the server keeps only keyed hashes of them). */
+ACTIONS.recoveryCodesNew = async (btn) => {
+  const replaced = btn?.dataset?.had === "1";
+  const box = $("#pkErr");
+  const fail = (m) => { if (box) box.innerHTML = `<div class="banner bad">${I.alert}<div><span class="bx">${H(m)}</span></div></div>`; };
+  const r = await safe("/auth/recovery-codes", { method: "POST", body: {} });
+  if (!r.ok) return fail((r.err || "").replace(/^\d{3} · /, "") || "No codes were made.");
+  const codes = r.data.codes || [];
+  const text = `Morrow recovery codes\nEach code works once. Keep them somewhere safe and private.\n\n${codes.join("\n")}\n`;
+  modal("Your recovery codes", `<div class="col">
+    <div class="banner warn">${I.alert}<div><span class="bx">This is the only time these codes are shown. Save them now: print them, or keep them in a password manager.${replaced ? " Your old codes no longer work." : ""}</span></div></div>
+    <div class="mono" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;font-size:14px;padding:12px;border:1px solid var(--line);border-radius:10px;user-select:all">
+      ${codes.map(c => `<span>${H(c)}</span>`).join("")}</div>
+    <p style="margin:0;font-size:12.5px;color:var(--ink2);line-height:1.6">If you lose your passkeys, choose <b>Lost your passkey?</b> on the sign-in screen and enter one code. It lets you create a new passkey; each code works once.</p>
+  </div>`, `<button class="btn" data-copy="${H(text)}" type="button">Copy</button>
+    <button class="btn" data-act="recoveryCodesSave" data-text="${H(text)}" type="button">Download</button>
+    <span style="flex:1"></span>
+    <button class="btn pri" data-act="passkeys" type="button">I've saved them</button>`);
+};
+ACTIONS.recoveryCodesSave = (b) => {
+  const blob = new Blob([b?.dataset?.text || ""], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "morrow-recovery-codes.txt";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+ACTIONS.emailRecoveryToggle = async (el) => {
+  const enabled = el?.dataset?.enable === "1";
+  const r = await safe("/auth/email-recovery", { method: "PUT", body: { enabled } });
+  if (!r.ok) return err((r.err || "").replace(/^\d{3} · /, ""), "Recovery by email");
+  ok(enabled ? "A recovery link can be emailed to you." : "Recovery links won't be emailed. Use your recovery codes if you lose your passkeys.", "Recovery by email");
+  await ACTIONS.passkeys();
 };
 ACTIONS.passkeyAdd = async () => {
   const box = $("#pkErr");
@@ -3515,7 +3616,7 @@ function openIdentityMenu() {
       ])}
     </div>`,
     `${S.token || S.key ? `<button class="btn danger" data-act="logout" type="button">Sign out</button>` : ""}
-     ${cfg.mode === "jwt" && cfg.passkeys_enabled && S.token ? `<button class="btn ghost" data-act="passkeys" type="button">Passkeys…</button>` : ""}
+     ${cfg.mode === "jwt" && cfg.passkeys_enabled && S.token ? `<button class="btn ghost" data-act="passkeys" type="button">Sign-in &amp; recovery…</button>` : ""}
      ${cfg.mode === "jwt" && !cfg.passkeys_only ? `<button class="btn ghost" data-act="changePw" type="button">Change password…</button>` : ""}
      <span style="flex:1"></span>
      <button class="btn" data-close type="button">Close</button>
@@ -9532,7 +9633,7 @@ VIEWS.admin = async (host) => {
     <div data-pane="ad" data-key="ident">
       <div class="g g-2-1">
         ${bind(users, () => card("Users", table([
-          { h: "User", w: "26%", f: u => `<b>${H(u.email || u.username || u.id)}</b><span class="sub mono">${H(String(u.id || "").slice(0, 20))}</span>` },
+          { h: "User", w: "26%", f: u => `<b>${H(u.email || u.full_name || u.username || u.id)}</b><span class="sub mono">${H(String(u.id || "").slice(0, 20))}</span>` },
           { h: "Role", f: u => pill(u.role) },
           { h: "Status", f: u => u.is_active === false || u.active === false ? `<span class="pill">Deactivated</span>` : `<span class="pill ok">Active</span>` },
           { h: "Created", f: u => `<span style="font-size:11px;color:var(--ink3)">${H(AGO(u.created_at))}</span>` },
@@ -9540,7 +9641,7 @@ VIEWS.admin = async (host) => {
             ${actBtn("Role", "userRole", { cls: "btn xs", data: { id: u.id } })}
             ${actBtn("Disable", "userOff", { cls: "btn xs danger", data: { id: u.id } })}</div>` },
         ], U, { max: "420px", empty: "No users — the server is running in header-auth mode." }), {
-          icon: I.users, flush: true, act: actBtn("Register user", "userNew", { cls: "btn sm pri", icon: I.plus }) }), "/auth/users")}
+          icon: I.users, flush: true, act: `${authCfg().passkeys_enabled ? actBtn("Set up account", "userSetup", { cls: "btn sm", icon: I.link }) : ""}${actBtn("Register user", "userNew", { cls: "btn sm pri", icon: I.plus })}` }), "/auth/users")}
         <div class="col">
           ${card("Your context", kvList([
             ["Authenticated", C.authenticated ? `<span class="pill ok">Yes</span>` : `<span class="pill warn">No</span>`],
@@ -9881,6 +9982,26 @@ ACTIONS.platKeyClear = async () => {
 ACTIONS.platGet = async (b) => adOut("#platOut", await safe(`/platform/${b.dataset.p}`), `/platform/${b.dataset.p}`, TITLE(b.dataset.p.replace("/", " ")), I.shield);
 ACTIONS.rawGet  = async (b) => adOut("#diagOut", await safe(b.dataset.p), b.dataset.p, TITLE(b.dataset.p.replace(/\//g, " ")), I.terminal);
 ACTIONS.authGet = async (b) => adOut("#identOut", await safe(`/auth/${b.dataset.p}`), `/auth/${b.dataset.p}`, TITLE(b.dataset.p.replace("/", " ")), I.lock);
+/** An account with a display name only (email optional), set up by the person with a passkey from a
+    single-use link the admin hands over. Nothing is emailed. */
+ACTIONS.userSetup = () => modal("Set up an account", `<div class="col">
+  <p style="margin:0;font-size:12.5px;color:var(--ink2);line-height:1.6">You get a link to give to the person. They open it and create a passkey; they never need a password, and an email is optional.</p>
+  <div class="field"><label for="usName">Name</label><input class="inp" id="usName" maxlength="200" placeholder="Alice Martin"></div>
+  <div class="field"><label for="usEmail">Email <span style="color:var(--ink3);font-weight:400">(optional)</span></label><input class="inp" id="usEmail" type="email" placeholder="alice@acme.com"></div>
+  <div class="field"><label for="usRole">Role</label>
+    <select class="inp" id="usRole">${ROLES.map(r => `<option value="${r}">${TITLE(r)}</option>`).join("")}</select></div>
+</div>`, `<button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="userSetupGo" type="button">Create setup link</button>`);
+ACTIONS.userSetupGo = async () => {
+  const r = await safe("/auth/accounts", { method: "POST", body: {
+    full_name: $("#usName").value, email: $("#usEmail").value, role: $("#usRole").value } });
+  if (!r.ok) return err(r.err);
+  const days = Math.round((r.data.expires_in || 0) / 86400);
+  modal("Setup link", `<div class="col">
+    <p style="margin:0;line-height:1.6">Give this link to <b>${H(r.data.user?.full_name || "the person")}</b>. It works once${days ? ` and expires in ${days} day${days === 1 ? "" : "s"}` : ""}. Anyone who has it can set up this account, so send it privately.</p>
+    <input class="inp mono" readonly value="${H(r.data.setup_link)}" onfocus="this.select()">
+  </div>`, `<button class="btn" data-copy="${H(r.data.setup_link)}" type="button">Copy link</button><span style="flex:1"></span><button class="btn pri" data-close type="button">Done</button>`);
+  retry();
+};
 ACTIONS.userNew = () => modal("Register a user", `<div class="col">
   <div class="field"><label for="unEmail">Email</label><input class="inp" id="unEmail" type="email" placeholder="alice@acme.com"></div>
   <div class="field"><label for="unPass">Password</label><input class="inp" id="unPass" type="password"></div>

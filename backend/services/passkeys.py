@@ -11,8 +11,15 @@ Registration `kind` says what the new passkey is for, and what proves the right 
   account  the signed-in account adds one (Bearer token; a recent sign-in when it already has one)
   invite   an invitation creates the invited account (the invitation token)
   join     domain team sign-in creates an account (the emailed join link, services/team_join.py)
-  recover  account recovery (the emailed recovery link)
+  recover  account recovery (an emailed recovery link, or the ticket a recovery code buys:
+           services/recovery_codes.py)
   enroll   a password account, signed in with its password, must add one (MORROW_PASSKEYS_ONLY=1)
+  setup    an account an administrator created, possibly without an email (the setup link they hand over)
+
+Sign-in needs no username: login/begin without an email asks for a discoverable credential (empty
+allowCredentials), and every passkey is registered as one (resident key required). No transports
+are ever put in allowCredentials or excludeCredentials and no authenticator attachment is asked for,
+so the browser may offer this device, a security key, or a phone by QR code (hybrid).
 
 Relying party. The RP ID is the host of MORROW_PUBLIC_BASE_URL and the only accepted origin is
 that URL's origin (override with MORROW_WEBAUTHN_RP_ID and MORROW_WEBAUTHN_ORIGINS). Without
@@ -28,7 +35,8 @@ Attestation is "none": what is checked is the key, not the make of the authentic
 Sign counter. The stored count is compared with every assertion (py_webauthn refuses a count that
 did not increase when either side is non-zero). A refusal on the count is treated as a possible
 cloned authenticator: that passkey is flagged and refused from then on, and the event is
-journaled. Its owner removes it and signs in with another passkey or recovers the account by email.
+journaled. Its owner removes it and signs in with another passkey or recovers the account (a recovery
+code, or an emailed link where that is switched on).
 Synced passkeys (iCloud, Google) report 0 every time and never trip this.
 
 Passwords. The first passkey on an account deletes its password (password_hash set to NULL) and from
@@ -95,8 +103,8 @@ TICKET_TABLE = """
     )
 """
 
-TICKET_PURPOSES = {"enroll", "recover", "join"}
-REGISTRATION_KINDS = {"account", "invite", "join", "recover", "enroll"}
+TICKET_PURPOSES = {"enroll", "recover", "join", "setup"}
+REGISTRATION_KINDS = {"account", "invite", "join", "recover", "enroll", "setup"}
 MAX_PASSKEYS_PER_USER = 20
 _TOKEN_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
 
@@ -132,6 +140,8 @@ def ticket_ttl(purpose: str) -> int:
         return _int_env("MORROW_PASSKEY_ENROLL_TTL_SECONDS", 600, 120, 3600)
     if purpose == "join":
         return _int_env("MORROW_TEAM_JOIN_TTL_SECONDS", 1800, 300, 86400)
+    if purpose == "setup":
+        return _int_env("MORROW_ACCOUNT_SETUP_TTL_SECONDS", 259200, 600, 1209600)
     return _int_env("MORROW_ACCOUNT_RECOVERY_TTL_SECONDS", 1800, 300, 86400)
 
 
@@ -311,9 +321,11 @@ def default_name(verified: Dict[str, Any]) -> str:
 # ── Tickets ────────────────────────────────────────────────────────────────────
 
 def issue_ticket(db, purpose: str, *, user_id: str = "", email: str = "", org_id: str = "", domain: str = "",
-                 replace_previous: bool = True) -> str:
+                 replace_previous: bool = True, ttl: Optional[int] = None) -> str:
+    """A new single-use ticket. `ttl` shortens (never lengthens) the purpose's lifetime."""
     if purpose not in TICKET_PURPOSES:
         raise ValueError("unknown ticket purpose")
+    lifetime = ticket_ttl(purpose) if ttl is None else max(60, min(int(ttl), ticket_ttl(purpose)))
     token = secrets.token_urlsafe(32)
     now = _now()
     if replace_previous:
@@ -326,13 +338,13 @@ def issue_ticket(db, purpose: str, *, user_id: str = "", email: str = "", org_id
         "INSERT INTO morrow_auth_tickets (token_sha256, purpose, user_id, email, org_id, domain, created_at, expires_at, used_at) "
         "VALUES (?,?,?,?,?,?,?,?,NULL)",
         (_digest(token), purpose, str(user_id or ""), str(email or "").lower(), str(org_id or ""), str(domain or ""),
-         now, now + ticket_ttl(purpose)),
+         now, now + lifetime),
     )
     db.commit()
     return token
 
 
-_TICKET_WORDS = {"recover": "recovery link", "join": "join link", "enroll": "passkey setup"}
+_TICKET_WORDS = {"recover": "recovery link", "join": "join link", "enroll": "passkey setup", "setup": "setup link"}
 
 
 def peek_ticket(db, token: str, purpose: str) -> Dict[str, Any]:
@@ -475,7 +487,7 @@ def finish_login(db, challenge_id: str, credential: Any) -> Dict[str, Any]:
     user_id, public_key, sign_count, flagged = row[0], row[1], int(row[2] or 0), int(row[3] or 0)
     if flagged:
         raise PasskeyError(401, "This passkey was blocked because it may have been copied. Sign in with another passkey "
-                                "or recover your account by email.", "clone_suspected")
+                                "or recover your account.", "clone_suspected")
     handle = ""
     response = credential.get("response") if isinstance(credential.get("response"), dict) else {}
     if response.get("userHandle"):
@@ -496,7 +508,7 @@ def finish_login(db, challenge_id: str, credential: Any) -> Dict[str, Any]:
             db.execute("UPDATE morrow_passkeys SET clone_suspected=1 WHERE credential_id=?", (cred_id,))
             db.commit()
             raise PasskeyError(401, "This passkey was blocked because it may have been copied. Sign in with another "
-                                    "passkey or recover your account by email.", "clone_suspected") from None
+                                    "passkey or recover your account.", "clone_suspected") from None
         raise PasskeyError(401, "The passkey could not be verified.", "verification_failed") from None
     except Exception:
         raise PasskeyError(401, "The passkey could not be verified.", "verification_failed") from None
@@ -528,7 +540,9 @@ def begin_registration(db, *, user_id: str, email: str, display_name: str = "",
         rp_id=rp["id"], rp_name=rp["name"],
         # The user handle is the account's random id, never its email: it is stored on the device
         # and returned with every assertion.
-        user_id=str(user_id).encode("utf-8"), user_name=str(email), user_display_name=str(display_name or email),
+        # user_name is what the device lists: the email, or for an account without one its display name.
+        user_id=str(user_id).encode("utf-8"), user_name=str(email or display_name or "Morrow account"),
+        user_display_name=str(display_name or email or "Morrow account"),
         challenge=created["challenge"], timeout=challenge_ttl() * 1000,
         attestation=AttestationConveyancePreference.NONE,
         authenticator_selection=AuthenticatorSelectionCriteria(

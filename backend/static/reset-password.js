@@ -9,10 +9,16 @@
      registers a new passkey (POST /auth/passkey/register/begin and /finish, kind "recover", through
      /ui/passkey.js) and can remove the others. The token arrives in the URL fragment, which never
      reaches a server log or a Referer header; it is kept in sessionStorage for this tab and removed
-     from the address bar. No third-party requests. */
+     from the address bar. No third-party requests.
+
+     Without email: "I have a recovery code" trades one recovery code (POST /auth/recovery-codes/redeem)
+     for the same kind of short-lived recovery ticket, then runs the same passkey ceremony. And
+     /reset-password#setup=... is the single-use link an administrator hands to someone whose account
+     they created (possibly without an email): it creates the account's first passkey (kind "setup"). */
 
   const TOKEN_KEY = "pq_reset_token";
   const RECOVER_KEY = "pq_recover_token";
+  const SETUP_KEY = "pq_setup_token";
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
   const store = {
@@ -30,15 +36,20 @@
     }
     return store.get(key);
   }
-  const recoverToken = readToken("recover", RECOVER_KEY);
-  const token = recoverToken ? "" : readToken("token", TOKEN_KEY);
+  const setupToken = readToken("setup", SETUP_KEY);
+  let recoverToken = setupToken ? "" : readToken("recover", RECOVER_KEY);
+  const token = setupToken || recoverToken ? "" : readToken("token", TOKEN_KEY);
 
   let passkeysOnly = false;
+  let codesEnabled = false;
+  let mailEnabled = true;
   async function loadConfig() {
     try {
       const res = await fetch("/auth/config", { cache: "no-store", credentials: "same-origin" });
       const cfg = res.ok ? await res.json() : {};
       passkeysOnly = !!(cfg && cfg.passkeys_only);
+      codesEnabled = !!(cfg && cfg.recovery_codes_enabled);
+      mailEnabled = !cfg || cfg.password_reset_enabled !== false;
     } catch { passkeysOnly = false; }
   }
 
@@ -90,15 +101,50 @@
     if (passkeysOnly) {
       $("resetTitle").textContent = "Recover your account.";
     }
+    if (!mailEnabled && codesEnabled) return askCode();
     state({ title: passkeysOnly ? "Recover your account." : "Reset your password or recover your account.",
-      lead: passkeysOnly ? "Lost your passkey? Enter the email address you sign in with. We'll email you a link to create a new one."
-        : "Enter the email address you sign in with. We'll email you a link to choose a new password, or to create a new passkey if you sign in with one.",
+      lead: passkeysOnly ? "Lost your passkey? Enter your account's email address and we'll email you a link to create a new one, if your account allows recovery by email."
+        : "Enter your account's email address. We'll email you a link to choose a new password, or to create a new passkey if you sign in with one, if your account allows recovery by email.",
       body: `<form class="invite-form" novalidate>
           <label>Email<input id="resetEmail" type="email" autocomplete="username" required maxlength="320"></label>
           <p class="invite-error" id="resetError" role="alert"></p>
         </form>`,
-      actions: [{ label: passkeysOnly ? "Email me a recovery link" : "Email me a link", primary: true, run: sendLink }, { label: "Back to sign in", href: "/ui/" }] });
+      actions: [{ label: passkeysOnly ? "Email me a recovery link" : "Email me a link", primary: true, run: sendLink },
+        ...(codesEnabled ? [{ label: "I have a recovery code", run: askCode }] : []), { label: "Back to sign in", href: "/ui/" }] });
     $("resetEmail").focus();
+  }
+
+  // ---------- a recovery code instead of email ----------
+  function askCode() {
+    const supported = window.MorrowPasskey && MorrowPasskey.supported();
+    state({ title: "Use a recovery code.", lead: "Enter one of the recovery codes you saved. You'll create a new passkey, and you'll be signed out everywhere else. Each code works once.",
+      body: `<form class="invite-form" novalidate>
+          <label>Recovery code<input id="resetCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX"></label>
+          <label class="invite-check" style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px">
+            <input id="recoverRevoke" type="checkbox" style="width:auto"> Also remove my other passkeys (a lost or stolen device)</label>
+          <p class="invite-error" id="resetError" role="alert">${supported ? "" : "This browser can't create a passkey. Open this page in a current browser, or on your phone."}</p>
+        </form>`,
+      actions: [{ label: "Use code and create a passkey", primary: true, run: useCode },
+        ...(mailEnabled ? [{ label: "Use email instead", run: askEmail }] : []), { label: "Back to sign in", href: "/ui/" }] });
+    $("resetCode").focus();
+  }
+  async function useCode() {
+    const error = $("resetError");
+    if (!window.MorrowPasskey || !MorrowPasskey.supported()) { error.textContent = "This browser can't create a passkey."; return; }
+    const code = $("resetCode").value.trim();
+    if (!code) { error.textContent = "Enter one of your recovery codes."; return; }
+    if (!recoverToken) {
+      const r = await request("/auth/recovery-codes/redeem", { code });
+      if (!r.ok || !r.data) {
+        if (r.status === 429) { error.textContent = "Too many attempts. Wait a minute, then try again."; return; }
+        error.textContent = detail(r) || (r.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${r.status}.`);
+        return;
+      }
+      // Kept for this tab only: if creating the passkey fails, pressing the button again reuses it.
+      recoverToken = r.data.recovery_token;
+      store.set(RECOVER_KEY, recoverToken);
+    }
+    await recover();
   }
   async function sendLink() {
     const email = $("resetEmail").value.trim();
@@ -161,6 +207,7 @@
   }
   function linkUnusable(r) {
     store.del(RECOVER_KEY);
+    recoverToken = "";
     return state({ title: "This link can't be used.", lead: detail(r) || "It may have expired or already been used.", tone: "bad",
       actions: [{ label: "Request a new link", primary: true, run: askEmail }] });
   }
@@ -181,6 +228,7 @@
       revoke_other_passkeys: !!$("recoverRevoke").checked });
     if (r.ok && r.data && r.data.access_token) {
       store.del(RECOVER_KEY);
+      recoverToken = "";
       try {
         localStorage.setItem("morrow_token", r.data.access_token);
         if (r.data.refresh_token) localStorage.setItem("morrow_refresh", r.data.refresh_token);
@@ -193,5 +241,47 @@
     error.textContent = detail(r) || (r.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${r.status}.`);
   }
 
-  loadConfig().then(() => { recoverToken ? askPasskey() : token ? askPassword() : askEmail(); });
+  // ---------- with a setup link: the account's first passkey ----------
+  function askSetup() {
+    const supported = window.MorrowPasskey && MorrowPasskey.supported();
+    state({ title: "Set up your account.", lead: "Create a passkey to sign in to Morrow. You'll use your fingerprint, face, device PIN or a security key; there is no password.",
+      body: `<form class="invite-form" novalidate>
+          <p class="invite-error" id="resetError" role="alert">${supported ? "" : "This browser can't create a passkey. Open the link in a current browser, or on your phone."}</p>
+        </form>`,
+      actions: [{ label: "Create passkey", primary: true, run: setup }] });
+  }
+  async function setup() {
+    const error = $("resetError");
+    if (!window.MorrowPasskey || !MorrowPasskey.supported()) { error.textContent = "This browser can't create a passkey."; return; }
+    error.textContent = "";
+    const unusable = r => {
+      store.del(SETUP_KEY);
+      return state({ title: "This link can't be used.", lead: detail(r) || "It may have expired or already been used. Ask the person who set up your account for a new one.", tone: "bad",
+        actions: [{ label: "Go to sign in", href: "/ui/" }] });
+    };
+    const begin = await request("/auth/passkey/register/begin", { kind: "setup", token: setupToken });
+    if (!begin.ok || !begin.data) {
+      if ([404, 409, 410].includes(begin.status)) return unusable(begin);
+      error.textContent = detail(begin) || (begin.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${begin.status}.`);
+      return;
+    }
+    let credential;
+    try { credential = await MorrowPasskey.create(begin.data.options); }
+    catch (e) { error.textContent = MorrowPasskey.message(e) || "No passkey was created. Press the button to try again."; return; }
+    const r = await request("/auth/passkey/register/finish", { challenge_id: begin.data.challenge_id, credential, token: setupToken });
+    if (r.ok && r.data && r.data.access_token) {
+      store.del(SETUP_KEY);
+      try {
+        localStorage.setItem("morrow_token", r.data.access_token);
+        if (r.data.refresh_token) localStorage.setItem("morrow_refresh", r.data.refresh_token);
+      } catch { /* storage blocked: sign in with the new passkey */ }
+      return state({ title: "You're in.", lead: "Your passkey is ready. Next, make recovery codes (under Sign-in & recovery in the console) so you can get back in if you lose it.", tone: "ok",
+        actions: [{ label: "Open the console", primary: true, href: "/ui/" }] });
+    }
+    if ([404, 409, 410].includes(r.status)) return unusable(r);
+    if (r.status === 429) { error.textContent = "Too many attempts. Wait a minute, then try again."; return; }
+    error.textContent = detail(r) || (r.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${r.status}.`);
+  }
+
+  loadConfig().then(() => { setupToken ? askSetup() : recoverToken ? askPasskey() : token ? askPassword() : askEmail(); });
 })();
