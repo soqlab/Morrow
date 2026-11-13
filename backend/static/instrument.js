@@ -187,14 +187,22 @@
       .forEach(function (p) { if (!out.some(function (o) { return o.h === p.h; })) out.push(p); });
     return out.slice(0, limit);
   }
+  /* Remediation states in plain words. The server's values (verified_closed, pr_created ...) never
+     reach a suggestion row; an unknown one reads "status recorded" rather than leaking through. */
+  var FIX_STATUS = { suggested: "Suggested", pending: "Waiting for approval", open: "Open", approved: "Approved",
+    rejected: "Rejected", in_progress: "In progress", pr_created: "Change proposed in a pull request",
+    merged: "Change merged, not yet verified", validated: "Change validated", verified: "Verified",
+    verified_closed: "Fixed and verified", closed: "Closed" };
+  function fixStatus(v) { return FIX_STATUS[String(v || "").toLowerCase()] || "Status recorded"; }
   /* Your own assets and remediations, searched live in your workspace as you type. */
   function searchMine(q) {
     if (!WS || q.length < 2 || scanCommand(q)) return Promise.resolve([]);
     return getJSON("/search?limit=8&q=" + enc(q), { auth: token, cache: "no-store" }).then(function (r) {
       return ((r && r.results) || []).filter(function (x) { return x.type === "asset" || x.type === "remediation"; }).slice(0, 6).map(function (x) {
+        var d = x.data || {};
         return x.type === "asset"
-          ? { kind: "asset", t: x.title, h: "/asset/" + enc(x.title), hint: x.subtitle }
-          : { kind: "fix", t: x.title, h: "/ui/#remediation", hint: x.subtitle };
+          ? { kind: "asset", t: x.title, h: "/estate/asset/" + enc(x.title), hint: [d.algorithm, d.tls_version, d.risk_level ? d.risk_level + " risk" : ""].filter(Boolean).join(" \u00b7 ") }
+          : { kind: "fix", t: x.title, h: "/ui/#remediation", hint: fixStatus(d.status) + (d.target_host ? " \u00b7 " + d.target_host : "") };
       });
     }).catch(function () { return []; });
   }
@@ -494,8 +502,9 @@
     say(byDepth({ plain: "Type a website's address to see whether traffic to it could be read by a future quantum computer, and how to fix it.",
       standard: "Type a domain, an algorithm, a CVE or a commit. A domain gets its answer, its grade and the fix.",
       expert: "Hostname → grade (rubric on /api/public); algorithm → reference; CVE → NVD; hex → commit check; “scan host” → your workspace." }));
-    main.innerHTML = inputBlock("home-q") + '<p class="i-fine">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p><div id="home-reading"></div>';
+    main.innerHTML = inputBlock("home-q") + '<p class="i-fine" id="home-hint">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p><div id="home-reading"></div>';
     bindRecognizer($("#home-q"), $("#home-q-l"));
+    $("#home-q").addEventListener("input", function () { $("#home-hint").hidden = !!this.value; });
     $("#home-q").focus();
     workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
   }

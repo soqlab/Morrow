@@ -195,3 +195,22 @@ def test_every_algorithm_the_recognizer_links_to_has_a_reference_entry():
     for history_refs in re.findall(r'\ba: \[([^\]]*)\]', data):
         for ref in re.findall(r'"([a-z0-9-]+)"', history_refs):
             assert ref in ids, ref
+
+
+def test_suggestion_rows_never_show_a_raw_status():
+    """Remediation states reach the recognizer and Ctrl+K as words. The server's values come from
+    db.py and app.py (suggested, pending, open, approved, rejected, in_progress, pr_created, merged,
+    validated, verified, verified_closed, closed); every one needs a phrase, and the rows must not
+    print the server's own subtitle, which carries the raw value."""
+    with open(os.path.join(STATIC, "instrument.js"), encoding="utf-8") as fh:
+        js = fh.read()
+    table = re.search(r"var FIX_STATUS = \{(.*?)\};", js, re.S).group(1)
+    words = dict(re.findall(r"(\w+): \"([^\"]+)\"", table))
+    for status in ("suggested", "pending", "open", "approved", "rejected", "in_progress", "pr_created", "merged",
+                   "validated", "verified", "verified_closed", "closed"):
+        assert status in words, status
+        assert "_" not in words[status] and words[status][0].isupper(), words[status]
+    assert words["verified_closed"] == "Fixed and verified"
+    search = js[js.index("function searchMine("):js.index("function startScan(")]
+    assert "subtitle" not in search
+    assert 'fixStatus(d.status)' in search and '"Status recorded"' in js
