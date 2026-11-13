@@ -59,9 +59,9 @@ azure-identity==1.25.3
 # Must track the FastAPI version: instrumentation 0.50b0 and earlier read scope["route"].path,
 # which raises AttributeError on FastAPI 0.141 ('_IncludedRouter' object has no attribute
 # 'path') and fails every instrumented request. Upgrade these together with fastapi.
-opentelemetry-sdk==1.45.1
-opentelemetry-instrumentation-fastapi==0.66b1
-opentelemetry-exporter-otlp-proto-grpc==1.45.1
+opentelemetry-sdk==1.45.2
+opentelemetry-instrumentation-fastapi==0.66b2
+opentelemetry-exporter-otlp-proto-grpc==1.45.2
 
 # Transitive dependencies pinned for security only.
 #
