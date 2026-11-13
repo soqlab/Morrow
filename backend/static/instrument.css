@@ -269,3 +269,25 @@ select.i-btn { background: var(--bg-2); }
 .nr-list li { border-top: 1px solid var(--line); padding: 10px 0; }
 .nr-list p { margin: 0 0 6px; }
 .ins textarea.i-btn, .ins input.i-btn { display: block; width: 100%; max-width: 520px; min-height: 34px; padding: 6px 10px; font: 14px var(--sans); white-space: normal; }
+/* The harvest clock: two dials and one line, answered as they move. */
+.ins .hv-say, .ins .tp-say { font: 500 clamp(19px, 2.1vw, 25px)/1.3 var(--sans); letter-spacing: -.01em; margin: 0 0 14px; max-width: 64ch; }
+.hv-dials { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 24px; margin: 4px 0 18px; }
+.hv-dial { min-width: 0; }
+.hv-dial label { display: block; font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 6px; }
+.hv-dial input[type="range"] { width: 100%; margin: 0; accent-color: var(--ch); }
+.hv-dial input[type="range"]:disabled { opacity: .4; }
+.hv-dial output { display: block; font: 500 14px var(--mono); margin-top: 4px; overflow-wrap: anywhere; }
+.hv-exs { margin-top: 8px; gap: 6px; }
+.ins .hv-ex { min-height: 26px; padding: 0 8px; font-size: 11.5px; }
+.hv-line { position: relative; height: 58px; border-bottom: 1px solid var(--line-2); margin: 6px 0 26px; }
+.hv-line [hidden] { display: none; }
+.hv-band { position: absolute; bottom: 0; height: 10px; background: color-mix(in srgb, var(--warn) 24%, transparent); }
+.hv-gap { position: absolute; bottom: 0; height: 4px; background: var(--bad); }
+.hv-mark { position: absolute; bottom: 0; width: 1px; height: 44px; background: var(--text); }
+.hv-mark b { position: absolute; top: 0; left: 5px; font: 400 11px var(--mono); white-space: nowrap; color: var(--muted); }
+.hv-mark.flip b { left: auto; right: 5px; }
+.hv-z { background: var(--warn); height: 26px; }
+.hv-u b { top: 0; } .hv-z b { top: -2px; }
+.hv-a0, .hv-a1 { position: absolute; top: 100%; margin-top: 4px; font: 11px var(--mono); color: var(--dim); }
+.hv-a0 { left: 0; } .hv-a1 { right: 0; }
+#tp-list td:first-child { white-space: nowrap; }

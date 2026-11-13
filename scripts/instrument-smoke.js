@@ -14,6 +14,36 @@ const assert = require("node:assert/strict");
 const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 const origin = new URL(base).origin;
 
+const SMOKE_DOMAIN = "harvest-smoke.example";
+const SMOKE_GRADE = {
+  domain: SMOKE_DOMAIN, scanned_at: new Date().toISOString(), cached: false, grade: "C",
+  summary: "classical", summaries: { executive: "classical", cryptographer: "x25519 only" },
+  tls: { versions: { "1.3": true, "1.2": true, "1.1": false, "1.0": false }, negotiated: "TLSv1.3", untested: [] },
+  key_exchange: { group: "x25519", post_quantum: false, hybrid: false, offered_pq_groups_accepted: [], observed: true },
+  certificate: { key_type: "EC", key_bits: 256, signature_algorithm: "ecdsa-with-SHA256", not_after: "2027-01-01T00:00:00Z", issuer: "CN=Test", verified: true },
+  forward_secrecy: true, server_software: "nginx", platform: "nginx",
+  exposure: { recorded_traffic_at_risk: true, decrypt_year_low: 2035, decrypt_year_high: 2040, basis: "basis", source_url: "https://globalriskinstitute.org/" },
+  fixes: [{ title: "Turn on X25519MLKEM768", snippet: "ssl_ecdh_curve X25519MLKEM768:X25519;", notes: "", requires: "OpenSSL 3.5", applies_to: "nginx" }],
+  reasons: ["TLS 1.3 with classical key exchange only (x25519)."], rubric_version: "test", connections: 9, notes: [],
+};
+const SMOKE_EXPOSURE = {
+  domain: SMOKE_DOMAIN, checked_at: new Date().toISOString(), cached: false,
+  homepage: { url: `https://${SMOKE_DOMAIN}/`, read: true, notes: [] },
+  own: { grade: "C", post_quantum: false, key_exchange: "x25519" },
+  services: [
+    { host: "js.stripe.com", role: "payment", vendor: "Stripe", via: "script on the homepage", status: "classical", key_exchange: "x25519", readable_from: 2035, fix: "Ask Stripe when js.stripe.com will offer X25519MLKEM768." },
+    { host: "fonts.googleapis.com", role: "fonts", vendor: "Google Fonts", via: "stylesheet on the homepage", status: "pq", key_exchange: "X25519MLKEM768", readable_from: null, fix: "Nothing to ask for." },
+  ],
+  counts: { found: 2, probed: 2, exposed: 1, graded: 2, over_cap: 0 }, probed: 2, limits: { max_hosts: 12 },
+  summaries: { plain: "You're not ready yet, and neither is your payment provider (js.stripe.com).",
+    standard: "You're ready, but your payment provider isn't (js.stripe.com).", expert: "1/2 graded third-party hosts are classical." },
+};
+async function routeDomain(page) {
+  await page.route(`**/api/public/grade/${SMOKE_DOMAIN}*`, (r) => r.fulfill({ json: SMOKE_GRADE }));
+  await page.route(`**/api/public/history/${SMOKE_DOMAIN}*`, (r) => r.fulfill({ json: [] }));
+  await page.route(`**/api/public/exposure/${SMOKE_DOMAIN}*`, (r) => r.fulfill({ json: SMOKE_EXPOSURE }));
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const errors = [];
@@ -61,13 +91,37 @@ async function main() {
     await page.locator("#tr-req p").first().waitFor({ timeout: 30000 });
     assert.match(await page.locator("#tr-req").innerText(), /went to/);
 
+    // A domain view, its API answered here (CI has nothing it may grade): the harvest clock answers
+    // as its dials move, and the outside services are listed worst first with the answer on top.
+    await routeDomain(page);
+    await page.goto(`${base}/${SMOKE_DOMAIN}?depth=standard&keep=15`, { waitUntil: "networkidle" });
+    await page.locator("#hv-say").waitFor({ timeout: 15000 });
+    const year = new Date().getUTCFullYear();
+    let clock = await page.locator("#hv-say").innerText();
+    assert.match(clock, /could be read around 2035/, clock);
+    assert.ok(clock.includes(`until ${year + 15}`) && /short\./.test(clock), clock);
+    await page.locator("#hv-keep").fill("2");
+    clock = await page.locator("#hv-say").innerText();
+    assert.match(clock, /to spare/, "the clock did not answer the shelf-life dial: " + clock);
+    await page.locator("#hv-q").fill("2045");
+    assert.match(await page.locator("#hv-say").innerText(), /around 2045/, "the clock did not answer the quantum dial");
+    await page.locator("#hv-q").dispatchEvent("change");
+    assert.ok(page.url().includes("keep=2") && page.url().includes("qday=2045"), "the dials are not kept in the URL");
+    await page.locator("#tp-list").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#tp-say").innerText(), /payment provider isn't \(js\.stripe\.com\)/);
+    assert.match(await page.locator("#tp-list tbody tr").first().innerText(), /js\.stripe\.com/);
+    await page.locator('#i-dial button[data-d="plain"]').click();
+    await page.locator("#hv-say").waitFor();
+    assert.ok(!(await page.locator("#hv-sw").count()), "the plain dial shows the expert migration control");
+
     await page.goto(`${base}/wp-login.php`);
     assert.equal(await page.locator("#home-q").count(), 0, "a file path was treated as a domain");
 
     const phone = await browser.newContext({ viewport: { width: 360, height: 780 } });
     const small = await phone.newPage();
     small.on("pageerror", (e) => errors.push(String(e)));
-    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas"]) {
+    await routeDomain(small);
+    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", `/${SMOKE_DOMAIN}?depth=expert`]) {
       await small.goto(`${base}${path}`, { waitUntil: "networkidle" });
       const wide = await small.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(wide <= 1, `${path} overflows a 360px screen by ${wide}px`);
@@ -82,7 +136,7 @@ async function main() {
 
     assert.deepEqual(foreign, [], "the instrument contacted another origin");
     assert.deepEqual(errors, [], "JavaScript errors");
-    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, trust readout, plain without JS, 360px layout.");
+    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, outside services worst first, trust readout, plain without JS, 360px layout.");
   } finally {
     await browser.close();
   }

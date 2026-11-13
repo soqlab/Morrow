@@ -646,12 +646,169 @@
   }
 
   /* A domain, public: the answer first, then what to do, then the evidence. */
+  /* ── the harvest clock ──────────────────────────────────────────────────
+     Will what is sent today still be secret as long as it has to be? Mosca's inequality, read from
+     the domain's own scan: x years the data must stay secret, y years to finish switching, z years
+     until a quantum computer can break the key exchange. The same arithmetic as
+     services/decrypt_window.harvest, which the tests pin; it runs here so the dials answer at once. */
+  function harvestClock(tls, pq, x, y, zYear, year) {
+    var z = zYear;
+    var secretUntil = year + x;
+    var out = { year: year, x: x, y: y, z: z, secretUntil: secretUntil };
+    if (!tls) { out.harvestable = true; out.readableFrom = year; out.short = x; out.margin = 0; out.exposed = x > 0; out.mosca = x > 0; return out; }
+    if (pq) { out.harvestable = false; out.readableFrom = null; out.short = 0; out.margin = null; out.exposed = false; out.mosca = false; return out; }
+    out.harvestable = true; out.readableFrom = z;
+    out.short = Math.max(0, secretUntil - z);
+    out.margin = Math.max(0, z - secretUntil);
+    out.exposed = secretUntil > z;
+    out.lastUntil = secretUntil + y;
+    out.shortAfter = Math.max(0, out.lastUntil - z);
+    out.mosca = x + y > z - year;
+    return out;
+  }
+  var SHELF_EXAMPLES = [[1, "sessions, one-time codes"], [7, "financial records"], [10, "customer data"], [25, "health records"], [50, "state secrets"]];
+  function yrs(n) { return n + " year" + (n === 1 ? "" : "s"); }
+  function harvestState(est) {
+    var year = new Date().getUTCFullYear();
+    var keep = parseInt(param("keep") || LS.get("morrow_keep", "10"), 10);
+    if (isNaN(keep)) keep = 10;
+    var q = parseInt(param("qday") || "", 10);
+    if (isNaN(q)) q = est.low;
+    var sw = parseInt(param("switch") || "1", 10);
+    if (isNaN(sw)) sw = 1;
+    return { year: year, keep: Math.max(0, Math.min(50, keep)), qday: Math.max(est.low, Math.min(est.high, q)), sw: Math.max(0, Math.min(10, sw)) };
+  }
+  function harvestSentence(d, r, h, est) {
+    var kx = r.key_exchange || {}, group = kx.group || "a classical group";
+    if (!h.harvestable) return byDepth({
+      plain: "Traffic captured today can't be read later: " + d + " uses a post-quantum key exchange. Data that must stay private until " + h.secretUntil + " stays private on this connection.",
+      standard: "Traffic captured today stays unreadable: " + d + " negotiated " + group + ", so a recording kept until " + h.secretUntil + " or beyond cannot be decrypted with a quantum computer.",
+      expert: "Not harvestable: " + group + " includes ML-KEM (FIPS 203). Mosca's z does not bound x for this handshake; x = " + h.x + " (until " + h.secretUntil + ") is safe against Shor."
+    });
+    if (h.readableFrom === h.year) return "Nothing is encrypted: traffic captured today can be read today, and your data needs to stay private until " + h.secretUntil + ".";
+    var when = h.z === est.low ? "around " + h.z : h.z === est.likely ? "around " + h.z + " (the likely estimate)" : "around " + h.z;
+    var tail = h.exposed ? " — " + yrs(h.short) + " short." : ", so it makes it, with " + yrs(h.margin) + " to spare.";
+    return byDepth({
+      plain: "Traffic captured today could be read " + when + ". Your data needs to stay private until " + h.secretUntil + tail,
+      standard: "Traffic to " + d + " captured today could be read " + when + ", once a quantum computer breaks " + group + ". Data that must stay private for " + yrs(h.x) + " has to last until " + h.secretUntil + tail,
+      expert: "Mosca: x + y " + (h.mosca ? ">" : "≤") + " z with x = " + h.x + ", y = " + h.y + ", z = " + (h.z - h.year) + " (CRQC " + h.z + "; " + group + " is classical). Today's traffic: " +
+        (h.exposed ? yrs(h.short) + " short" : yrs(h.margin) + " spare") + ". Data sent until " + (h.year + h.y) + ", when the switch is done, must last until " + h.lastUntil + ": " + (h.shortAfter ? yrs(h.shortAfter) + " short." : "inside the window.")
+    });
+  }
+  function harvestPanelHtml(est) {
+    var examples = SHELF_EXAMPLES.map(function (e) { return '<button type="button" class="i-btn hv-ex" data-keep="' + e[0] + '">' + e[0] + " y: " + esc(e[1]) + "</button>"; }).join("");
+    return panel("", "Harvest clock", '<p class="i-big hv-say" id="hv-say" aria-live="polite"></p>' +
+      '<div class="hv-dials">' +
+      '<div class="hv-dial"><label for="hv-keep">How long the data must stay private</label><input type="range" id="hv-keep" min="0" max="50" step="1"><output id="hv-keep-o" for="hv-keep"></output>' +
+      (depth === "plain" ? "" : '<div class="i-row hv-exs" aria-label="Examples">' + examples + "</div>") + "</div>" +
+      '<div class="hv-dial"><label for="hv-q">When a quantum computer can break it (estimate)</label><input type="range" id="hv-q" min="' + est.low + '" max="' + est.high + '" step="1" list="hv-q-marks"><output id="hv-q-o" for="hv-q"></output>' +
+      '<datalist id="hv-q-marks"><option value="' + est.low + '" label="low"></option><option value="' + est.likely + '" label="likely"></option><option value="' + est.high + '" label="high"></option></datalist></div>' +
+      (depth === "expert" ? '<div class="hv-dial"><label for="hv-sw">Years to finish switching (y)</label><input type="range" id="hv-sw" min="0" max="10" step="1"><output id="hv-sw-o" for="hv-sw"></output></div>' : "") +
+      "</div>" +
+      '<div class="hv-line" id="hv-line" aria-hidden="true"><i class="hv-band" id="hv-band"></i><i class="hv-gap" id="hv-gap"></i><i class="hv-mark hv-z" id="hv-z"><b></b></i><i class="hv-mark hv-u" id="hv-u"><b></b></i><span class="hv-a0" id="hv-a0"></span><span class="hv-a1" id="hv-a1"></span></div>' +
+      '<p class="i-fine" id="hv-src"></p>', { ch: "conn", id: "hv" });
+  }
+  function bindHarvest(d, r, est, sourceUrl) {
+    var box = $("#hv"); if (!box) return;
+    var st = harvestState(est), ex = r.exposure || {}, kx = r.key_exchange || {};
+    var tls = !!(r.tls && r.tls.negotiated), pq = !!kx.post_quantum;
+    if (!tls && ex.recorded_traffic_at_risk === false) tls = true;
+    var keep = $("#hv-keep", box), q = $("#hv-q", box), sw = $("#hv-sw", box);
+    keep.value = st.keep; q.value = st.qday; if (sw) sw.value = st.sw;
+    // The quantum year matters only to a classical exchange.
+    q.disabled = pq || !tls;
+    function place(el, yr, lo, hi) { var f = Math.max(0, Math.min(1, (yr - lo) / (hi - lo))); el.style.left = (f * 100).toFixed(2) + "%"; el.classList.toggle("flip", f > 0.55); }
+    function paint() {
+      var x = +keep.value, z = +q.value, y = sw ? +sw.value : st.sw;
+      var h = harvestClock(tls, pq, x, y, z, st.year);
+      $("#hv-say", box).textContent = harvestSentence(d, r, h, est);
+      box.setAttribute("data-exposed", String(!!h.exposed));
+      $("#hv-keep-o", box).textContent = yrs(x) + ", until " + h.secretUntil;
+      $("#hv-q-o", box).textContent = pq ? "no effect on " + (kx.group || "this exchange") : z + (z === est.low ? ": low, " + est.low_label : z === est.likely ? ": likely, " + est.likely_label : z === est.high ? ": high, " + est.high_label : "");
+      if (sw) $("#hv-sw-o", box).textContent = yrs(y) + ", done in " + (st.year + y);
+      var lo = st.year, hi = Math.max(est.high, h.secretUntil + (depth === "expert" ? y : 0)) + 2;
+      var band = $("#hv-band", box); place(band, est.low, lo, hi); band.style.width = ((est.high - est.low) / (hi - lo) * 100).toFixed(2) + "%";
+      var zm = $("#hv-z", box), um = $("#hv-u", box), gap = $("#hv-gap", box);
+      place(zm, z, lo, hi); place(um, h.secretUntil, lo, hi);
+      zm.hidden = pq || !tls;
+      $("b", zm).textContent = "readable " + z;
+      $("b", um).textContent = "private until " + h.secretUntil;
+      gap.hidden = !h.exposed || h.readableFrom == null;
+      if (!gap.hidden) { place(gap, h.readableFrom, lo, hi); gap.style.width = ((h.secretUntil - h.readableFrom) / (hi - lo) * 100).toFixed(2) + "%"; }
+      $("#hv-a0", box).textContent = String(lo); $("#hv-a1", box).textContent = String(hi);
+    }
+    function keepUrl() {
+      LS.set("morrow_keep", keep.value);
+      setParam("keep", keep.value === "10" ? null : keep.value);
+      setParam("qday", +q.value === est.low ? null : q.value);
+      if (sw) setParam("switch", sw.value === "1" ? null : sw.value);
+    }
+    [keep, q, sw].forEach(function (el) { if (!el) return; el.addEventListener("input", paint); el.addEventListener("change", keepUrl); });
+    $$(".hv-ex", box).forEach(function (b) { b.addEventListener("click", function () { keep.value = b.getAttribute("data-keep"); paint(); keepUrl(); }); });
+    $("#hv-src", box).innerHTML = (pq ? "Read from this check's key exchange, " + esc(kx.group || "") + ". " : tls ? "Read from this check's key exchange, " + esc(kx.group || "not observed, so treated as classical") + ". " : "") +
+      "The quantum year is an estimate, not a fact: " + esc(est.low) + " (low) to " + esc(est.likely) + " (likely) are from the " +
+      '<a href="' + esc(sourceUrl) + '" rel="noopener">Global Risk Institute expert survey</a>; ' + esc(est.high) + " (high) is Morrow's outer bound. Your choices stay in the address and on this device.";
+    paint();
+  }
+
+  /* ── who else is exposing you: the outside services a domain depends on ── */
+  var TP_ROLE = { payment: "payment", auth: "sign-in", form: "form target", shop: "shop", captcha: "bot check", support: "chat/support",
+    analytics: "analytics", script: "script", library: "script library", embed: "embed", video: "video", maps: "maps", ads: "ads",
+    social: "social", styles: "styles", fonts: "fonts", images: "images", cdn: "CDN / host", mail: "mail", other: "other" };
+  function tpStatus(s) {
+    if (s.status === "pq") return '<span class="v-ok">post-quantum</span>';
+    if (s.status === "classical") return '<span class="v-warn">readable from ' + esc(s.readable_from || "") + "</span>";
+    if (s.status === "no_tls") return '<span class="v-bad">no TLS</span>';
+    if (s.status === "refused") return '<span class="v-bad">refused: internal address</span>';
+    if (s.status === "unreachable") return '<span class="i-dim">no answer</span>';
+    if (s.status === "not_graded") return '<span class="i-dim">mail: not graded</span>';
+    if (s.status === "not_checked") return '<span class="i-dim">over the limit</span>';
+    if (s.status === "skipped") return '<span class="i-dim">skipped</span>';
+    return '<span class="i-dim">key exchange not seen</span>';
+  }
+  function tpHtml(x) {
+    var list = x.services || [];
+    var sm = x.summaries || {};
+    var line = byDepth({ plain: sm.plain, standard: sm.standard, expert: sm.expert });
+    var shown = depth === "plain" ? list.filter(function (s) { return s.status === "classical" || s.status === "no_tls"; }).slice(0, 5) : list;
+    var rows = shown.map(function (s) {
+      return "<tr><td>" + tpStatus(s) + '</td><td class="i-dim">' + esc(TP_ROLE[s.role] || s.role) + '</td><td><span class="mono">' + esc(s.host) + "</span>" +
+        (s.vendor && s.vendor !== s.host ? ' <span class="i-dim">' + esc(s.vendor) + "</span>" : "") +
+        (depth === "expert" ? '<br><small class="i-dim">' + esc(s.via || "") + (s.key_exchange ? " · " + esc(s.key_exchange) : "") + (s.tls_version ? " · " + esc(s.tls_version) : "") + "</small>" : "") +
+        "</td><td>" + esc(s.fix || "") + "</td></tr>";
+    }).join("");
+    var c = x.counts || {};
+    return '<p class="i-big tp-say" id="tp-say">' + esc(line || "") + "</p>" +
+      (rows ? '<div class="i-table-wrap"><table class="i-table" id="tp-list"><thead><tr><th>Key exchange</th><th>Role</th><th>Service</th><th>What to do</th></tr></thead><tbody>' + rows + "</tbody></table></div>" : "") +
+      '<div class="i-row"><button type="button" class="i-btn" id="tp-recheck">Re-check outside services</button><span class="i-fine">' +
+      esc((x.cached ? "Stored result" : "Checked") + " " + stamp(x.checked_at) + ". " + (c.found || 0) + " found, " + (c.probed || 0) + " contacted" + (c.over_cap ? ", " + c.over_cap + " over the limit of " + ((x.limits || {}).max_hosts || "") : "") + ".") + "</span></div>" +
+      (depth === "plain" ? "" : '<p class="i-fine">Found in ' + esc(d0(x)) + "'s homepage (scripts, styles, images, frames, form targets), its CNAME chain, its MX records and common sign-in and checkout names. " +
+        "Each one gets the same key-exchange check as this page, only on public addresses." + ((x.homepage || {}).notes || []).map(function (n) { return " " + esc(n[0].toUpperCase() + n.slice(1)) + "."; }).join("") + "</p>");
+  }
+  function d0(x) { return x.domain || "this domain"; }
+
   function viewDomain(d) {
     setView("grade", d);
     remember("domain", d, d);
     say("Checking " + d + "…");
     main.innerHTML = '<p class="i-status" id="d-status" role="status" aria-live="polite">Asking Morrow\'s server to check ' + esc(d) + '. A first check opens a few TLS connections to port 443 and takes up to half a minute.</p><div id="d-body"></div>';
     var history_ = [], current = null, latest = null;
+    var tp = null, tpErr = null, tpBusy = false;
+    function loadTp(fresh) {
+      if (tpBusy) return;
+      tpBusy = true; tpErr = null;
+      paintTp();
+      getJSON("/api/public/exposure/" + enc(d) + (fresh ? "?fresh=1" : ""), { cache: fresh ? "no-store" : "default", timeout: 90000 })
+        .then(function (x) { var before = tp; tp = x; tpBusy = false; paintTp(); if (before && fresh) flash($("#tp-say")); })
+        .catch(function (e) { tpBusy = false; tpErr = e.message + (e.retryAfter ? " Try again in " + e.retryAfter + " s." : ""); paintTp(); });
+    }
+    function paintTp() {
+      var box = $("#tp-body"); if (!box) return;
+      if (tp) box.innerHTML = tpHtml(tp) + (tpBusy ? '<p class="i-status">Re-checking the outside services…</p>' : "") + (tpErr ? '<p class="i-status" data-tone="bad">' + esc(tpErr) + "</p>" : "");
+      else if (tpErr) box.innerHTML = '<p class="i-status" data-tone="bad">' + esc(tpErr) + '</p><div class="i-row"><button type="button" class="i-btn" id="tp-recheck">Try again</button></div>';
+      else box.innerHTML = '<p class="i-status" role="status">Reading ' + esc(d) + "'s homepage and DNS for the services it depends on, then checking each one's key exchange. Up to half a minute.</p>";
+      var b = $("#tp-recheck"); if (b) { if (tpBusy) b.setAttribute("aria-busy", "true"); b.addEventListener("click", function () { loadTp(true); }); }
+    }
     var at = param("at");
 
     function load(fresh) {
@@ -669,6 +826,7 @@
               current = pick ? pick.result : r;
               if (fresh) setParam("at", null);
               render();
+              if (!tp && !tpBusy && !tpErr) loadTp(false);
               if (fresh) {
                 var changed = before && before.grade !== r.grade;
                 status($("#d-status"), changed ? "Grade changed from " + before.grade + " to " + r.grade + " on this re-check." : "Re-checked " + stamp(r.scanned_at) + ": same grade, " + r.grade + ".", changed ? "ok" : null);
@@ -734,7 +892,16 @@
             '<pre id="d-curl">' + esc("curl " + location.origin + "/api/public/grade/" + d + ".txt") + '</pre><button type="button" class="i-btn" data-copy-el="d-curl">Copy</button>' +
             '<p class="i-fine"><a href="/check/' + enc(d) + '">Certificate-transparency check</a> &middot; <a href="/plain/' + enc(d) + '">plain</a> &middot; <a href="/api/public/grade/' + enc(d) + '">JSON</a></p>', { ch: "ref" });
       }
-      $("#d-body").innerHTML = gradeBlock + what + evidence;
+      var outside = panel("", "Who else is exposing you", '<div id="tp-body"></div>', { ch: "atlas", id: "tp" });
+      $("#d-body").innerHTML = gradeBlock + '<div id="hv-wrap"></div>' + what + outside + evidence;
+      paintTp();
+      basis().then(function (b) {
+        var wrap = $("#hv-wrap"); if (!wrap || current !== r) return;
+        var est = (b && b.crqc_estimate) || { low: ex.decrypt_year_low || 2035, likely: ex.decrypt_year_high || 2040, high: (ex.decrypt_year_high || 2040) + 5,
+          low_label: "quite possible", likely_label: "likely", high_label: "Morrow's outer bound" };
+        wrap.innerHTML = harvestPanelHtml(est);
+        bindHarvest(d, r, est, (b && b.source_url) || ex.source_url || "");
+      });
       $$("[data-copy]").forEach(function (b) { b.addEventListener("click", function () { copy(fixes[+b.getAttribute("data-copy")].snippet, b); }); });
       $$("[data-copy-el]").forEach(function (b) { b.addEventListener("click", function () { copy($("#" + b.getAttribute("data-copy-el")).textContent, b); }); });
       $("#d-recheck").addEventListener("click", function () { load(true); });

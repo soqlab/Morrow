@@ -113,6 +113,81 @@ def secret_outlives(lifetime_years: Optional[int], now: Optional[datetime] = Non
             "exposed": until >= DECRYPT_YEAR_LOW, "years_exposed": max(0, until - DECRYPT_YEAR_LOW)}
 
 
+#: The range the harvest clock lets a person pick the quantum year from. ``low`` and ``likely`` are
+#: the survey's two answers above (10 and 15 years from the 2025 survey). The survey names no
+#: single upper date, so ``high`` is Morrow's own outer bound for the dial, and is labelled so.
+CRQC_ESTIMATE = {
+    "low": DECRYPT_YEAR_LOW,
+    "likely": DECRYPT_YEAR_HIGH,
+    "high": DECRYPT_YEAR_HIGH + 5,
+    "low_label": "quite possible: experts give it 28-49% by then",
+    "likely_label": "likely: experts give it 51-70% by then",
+    "high_label": "a cautious outer bound Morrow uses for the dial, not a survey answer",
+    "is_estimate": True,
+}
+#: How long a secret can be asked to last, in years. Past this the answer no longer changes.
+SHELF_YEARS_MAX = 75
+MIGRATION_YEARS_MAX = 20
+
+
+def _clamp_int(value: Any, low: int, high: int, default: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(low, min(high, number))
+
+
+def harvest(tls: bool, post_quantum: bool, shelf_years: Any, crqc_year: Any = None,
+            migration_years: Any = 0, now: Optional[datetime] = None) -> Dict[str, Any]:
+    """The harvest clock: will what is sent today stay secret as long as it has to?
+
+    Mosca's inequality: data that must stay secret for ``x`` years (``shelf_years``), protected by a
+    key exchange it takes ``y`` years to replace (``migration_years``), is exposed when
+    ``x + y > z``, ``z`` being the years until a cryptographically relevant quantum computer
+    (``crqc_year``, an estimate inside :data:`CRQC_ESTIMATE`).
+
+    What a recording of today's traffic can be read with depends only on the key exchange the scan
+    saw: a hybrid or pure ML-KEM exchange is not harvestable, a classical one is readable from
+    ``crqc_year``, and no TLS at all is readable now. Pure: no I/O; the clock is only read for the
+    current year.
+
+    The browser computes the same thing as the dials move (static/instrument.js, harvestClock);
+    this function is the reference the tests pin.
+    """
+    year = (now or datetime.now(timezone.utc)).year
+    x = _clamp_int(shelf_years, 0, SHELF_YEARS_MAX, 0)
+    y = _clamp_int(migration_years, 0, MIGRATION_YEARS_MAX, 0)
+    z_year = _clamp_int(crqc_year, year, int(CRQC_ESTIMATE["high"]) + 20, int(CRQC_ESTIMATE["low"]))
+    secret_until = year + x
+    out: Dict[str, Any] = {
+        "year": year, "shelf_years": x, "migration_years": y, "crqc_year": z_year,
+        "secret_until": secret_until, "crqc_estimate": dict(CRQC_ESTIMATE),
+        "mosca": {"x": x, "y": y, "z": z_year - year},
+    }
+    if not tls:
+        out.update({"harvestable": True, "readable_from": year, "years_short": x, "margin_years": 0,
+                    "exposed": x > 0, "basis": NO_TLS_BASIS})
+        out["mosca"]["exposed"] = x > 0
+        return out
+    if post_quantum:
+        out.update({"harvestable": False, "readable_from": None, "years_short": 0, "margin_years": None,
+                    "exposed": False, "basis": PQ_BASIS})
+        # Nothing is left to migrate for this handshake, so y does not apply to it.
+        out["mosca"].update({"y": 0, "exposed": False})
+        return out
+    # With y years to finish switching, the last exposed secret is sent y years from now.
+    last_until = secret_until + y
+    out.update({
+        "harvestable": True, "readable_from": z_year, "years_short": max(0, secret_until - z_year),
+        "margin_years": max(0, z_year - secret_until), "exposed": secret_until > z_year,
+        "basis": EXPOSURE_BASIS,
+        "last_exposed_secret_until": last_until, "years_short_after_migration": max(0, last_until - z_year),
+    })
+    out["mosca"]["exposed"] = x + y > z_year - year
+    return out
+
+
 def basis() -> Dict[str, Any]:
     """Everything a page needs to quote the dates, with their source. Served at /api/public/basis."""
     return {
@@ -123,4 +198,5 @@ def basis() -> Dict[str, Any]:
         "basis": EXPOSURE_BASIS,
         "pq_basis": PQ_BASIS,
         "pq_source_url": PQ_SOURCE_URL,
+        "crqc_estimate": dict(CRQC_ESTIMATE),
     }
