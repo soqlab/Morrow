@@ -354,6 +354,9 @@ def test_an_admin_issues_a_recovery_link_for_a_member_who_lost_everything(hosted
 def test_flag_off_keeps_emailed_recovery_and_closes_sign_up(api, mail, monkeypatch):
     client, app = api
     monkeypatch.setenv("MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS", "1")
+    monkeypatch.setattr(dv, "_ready", False)  # each test has its own database file
+    monkeypatch.setattr(team_join, "_ready", False)
+    dv._cache.clear()
     cfg = client.get("/auth/config").json()
     assert cfg["password_reset_enabled"] is True and cfg["team_join_enabled"] is True and cfg["signup_enabled"] is False
     password_account(app, "user@acme.example")
