@@ -515,7 +515,7 @@ const input = JSON.parse(fs.readFileSync(0, "utf8"));
 const ctx = { TextEncoder, Uint8Array, crypto: globalThis.crypto };
 ctx.globalThis = ctx; vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(input.bundle, "utf8"), ctx);
-const hex = (h) => Uint8Array.from(h.match(/../g).map((b) => parseInt(b, 16)));
+const hex = (h) => Uint8Array.from((h.match(/../g) || []).map((b) => parseInt(b, 16)));
 const b64 = (s) => Uint8Array.from(Buffer.from(s, "base64"));
 const P = ctx.MorrowPQ, out = { kat: [], hybrid: null };
 for (const c of input.cases) out.kat.push(P.mlDsa65Verify(hex(c.sig), hex(c.msg), hex(c.pk), hex(c.ctx)) === c.ok);
