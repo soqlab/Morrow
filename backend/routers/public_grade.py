@@ -8,6 +8,7 @@
                                           each full stored result
   GET /api/public/history/{domain}.atom   Atom feed, one entry per grade change
   GET /api/public/basis                   the decrypt years and their cited source
+  GET /api/public/exposure/{domain}       the outside services it depends on, worst first; ?fresh=1
   GET /api/public/build                   the running commit (services/build_info.py)
   GET /api/public/deploys                 the hash-chained deploy log (services/deploy_log.py)
   GET /api/public/manifest                signed hashes of every /ui/ file (services/page_manifest.py)
@@ -114,6 +115,18 @@ def create_public_grade_router(deps: Any) -> APIRouter:
         grade = await run_in_threadpool(_badge_grade, domain, _ip(request))
         return Response(_grade.badge_svg(grade), media_type="image/svg+xml",
                         headers={"Cache-Control": _BADGE_CACHE if grade else _BADGE_UNKNOWN_CACHE})
+
+    # Who else is exposing you: the outside services the domain's homepage and DNS point at, each
+    # given the same key-exchange check behind the same SSRF guard (services/third_party.py).
+    @router.get("/exposure/{domain}")
+    async def public_exposure(request: Request, domain: str, fresh: str = ""):
+        from services import third_party
+
+        try:
+            result = await run_in_threadpool(third_party.exposure, domain, _ip(request), _truthy(fresh))
+        except _grade.GradeError as exc:
+            return JSONResponse(exc.as_dict(), status_code=exc.status_code, headers=_error_headers(exc))
+        return JSONResponse(result, headers={"Cache-Control": "no-store" if _truthy(fresh) else _RESULT_CACHE})
 
     @router.get("/stats")
     async def public_grade_stats():

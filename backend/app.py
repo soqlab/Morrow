@@ -2548,6 +2548,7 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/api/public/badge/{domain}.svg", "purpose": "embeddable quantum-readiness grade badge"},
             {"path": "/api/public/stats", "purpose": "aggregate counts of public grade checks; no names"},
             {"path": "/api/public/history/{domain}", "purpose": "stored public grades for one public domain"},
+            {"path": "/api/public/exposure/{domain}", "purpose": "the outside services a public domain loads or points at, each given the same guarded key-exchange check; rate limited and cached"},
             # The free checker's public documents. A domain owner who found one of our handshakes in
             # their logs has no account and never will, so every one of these has to answer without
             # a login -- /scanner and /abuse most of all.
