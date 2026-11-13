@@ -1,0 +1,397 @@
+/* ==========================================================================
+   The console in the instrument look (tokens and parts from instrument.css).
+
+   Loaded last in the console's head. It maps the console's own token set onto
+   the instrument palette and turns the shell into a tool: a monochrome ground,
+   1px rules, mono readouts, one accent, and one colour per channel (the nav
+   group a view belongs to, set as data-ch on the nav group and on #view).
+   No shadows, no gradients, no ornament; nothing loops. The only motion left
+   is the loading spinner on a busy button, which answers a request in flight.
+
+   Selectors carry html[data-theme]:root so they outrank the inline <style>,
+   console.css, gateway.css and data-control.css without !important; the
+   animation reset at the end is the one deliberate exception.
+   ========================================================================== */
+@font-face { font-family: "Instrument Sans"; src: url("/ui/fonts/instrument-sans.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/ui/fonts/plex-mono-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/ui/fonts/plex-mono-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "IBM Plex Mono"; src: url("/ui/fonts/plex-mono-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+
+/* ---------- tokens ---------- */
+html[data-theme="dark"]:root, html[data-theme="dark"]:root body {
+  --bg: #050607; --bg2: #0b0d10; --bg-2: #0b0d10; --bg-3: #12151a;
+  --surface: #050607; --surface2: #0b0d10; --surface3: #12151a;
+  --slab: #0b0d10; --slab-2: #12151a;
+  --line: rgba(232, 240, 248, .10); --line2: rgba(232, 240, 248, .20); --line-2: rgba(232, 240, 248, .20);
+  --line-soft: rgba(232, 240, 248, .07);
+  --text: #eef1f4; --muted: #9aa3ac; --dim: #7d868f;
+  --ink: #eef1f4; --ink2: #9aa3ac; --ink3: #7d868f;
+  --chalk: #eef1f4; --fog: #9aa3ac; --fog-dim: #7d868f;
+  --accent: #a6ecff; --brand: #a6ecff; --brand2: #c9a6ff; --info: #a6ecff;
+  --iris: #a6ecff; --iris-text: #a6ecff; --iris-solid: #eef1f4; --iris-dim: #12151a;
+  --on-solid: #000;
+  --ok: #3ee38f; --warn: #ffb547; --bad: #ff7676;
+  --okbg: rgba(62, 227, 143, .08); --warnbg: rgba(255, 181, 71, .08); --badbg: rgba(255, 118, 118, .08); --infobg: rgba(166, 236, 255, .07);
+  /* Graph edges carry meaning, so they keep 3:1 against the ground. */
+  --edge: rgba(232, 240, 248, .42); --edge-flow: #a6ecff;
+  --ch-grade: #b9f26b; --ch-conn: #a6ecff; --ch-league: #ffd36b; --ch-atlas: #c9a6ff;
+  --ch-ref: #7fd6c2; --ch-trust: #ff9fb5; --ch-tools: #e6e6e6;
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body: var(--sans); --display: var(--sans); --air-font: var(--sans);
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --shadow: none; --shadow-sm: none; --shadow-lg: none; --glow: none; --grid-line: transparent;
+  --r: 0px; --r-sm: 0px; --r-lg: 0px; --top: 58px;
+  color-scheme: dark;
+}
+html[data-theme="light"]:root, html[data-theme="light"]:root body {
+  --bg: #f4f5f6; --bg2: #eceef0; --bg-2: #eceef0; --bg-3: #e2e5e8;
+  --surface: #f4f5f6; --surface2: #eceef0; --surface3: #e2e5e8;
+  --slab: #eceef0; --slab-2: #e2e5e8;
+  --line: rgba(12, 16, 20, .12); --line2: rgba(12, 16, 20, .26); --line-2: rgba(12, 16, 20, .26);
+  --line-soft: rgba(12, 16, 20, .08);
+  --text: #0c1014; --muted: #454e57; --dim: #5a636c;
+  --ink: #0c1014; --ink2: #454e57; --ink3: #5a636c;
+  --chalk: #0c1014; --fog: #454e57; --fog-dim: #5a636c;
+  --accent: #006f8f; --brand: #006f8f; --brand2: #6a3fb0; --info: #006f8f;
+  --iris: #006f8f; --iris-text: #006f8f; --iris-solid: #0c1014; --iris-dim: #e2e5e8;
+  --on-solid: #fff;
+  --ok: #0f7a45; --warn: #8f5200; --bad: #b42b28;
+  --okbg: rgba(15, 122, 69, .07); --warnbg: rgba(143, 82, 0, .07); --badbg: rgba(180, 43, 40, .07); --infobg: rgba(0, 111, 143, .07);
+  --edge: rgba(12, 16, 20, .5); --edge-flow: #006f8f;
+  --ch-grade: #3f6b00; --ch-conn: #006f8f; --ch-league: #7a5a00; --ch-atlas: #6a3fb0;
+  --ch-ref: #0d6b58; --ch-trust: #a3304f; --ch-tools: #333;
+  --sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --body: var(--sans); --display: var(--sans); --air-font: var(--sans);
+  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --shadow: none; --shadow-sm: none; --shadow-lg: none; --glow: none; --grid-line: transparent;
+  --r: 0px; --r-sm: 0px; --r-lg: 0px; --top: 58px;
+  color-scheme: light;
+}
+/* Channels: each nav group is a part of the tool with its own colour. */
+html[data-theme]:root { --ch: var(--accent); }
+[data-ch="grade"] { --ch: var(--ch-grade); }
+[data-ch="conn"] { --ch: var(--ch-conn); }
+[data-ch="league"] { --ch: var(--ch-league); }
+[data-ch="atlas"] { --ch: var(--ch-atlas); }
+[data-ch="ref"] { --ch: var(--ch-ref); }
+[data-ch="trust"] { --ch: var(--ch-trust); }
+[data-ch="tools"] { --ch: var(--ch-tools); }
+
+html[data-theme]:root body {
+  background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans);
+  font-feature-settings: normal; -webkit-font-smoothing: antialiased;
+}
+html[data-theme]:root h1, html[data-theme]:root h2, html[data-theme]:root h3, html[data-theme]:root h4 {
+  font-family: var(--sans); font-weight: 500; letter-spacing: -.01em;
+}
+html[data-theme]:root ::selection { background: var(--accent); color: var(--on-solid); }
+html[data-theme]:root :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+html[data-theme]:root a { color: var(--accent); }
+html[data-theme]:root code, html[data-theme]:root kbd, html[data-theme]:root pre { font-family: var(--mono); }
+html[data-theme]:root kbd { border: 1px solid var(--line2); border-radius: 0; padding: 1px 5px; background: var(--bg2); color: var(--muted); font-size: 11px; box-shadow: none; }
+html[data-theme]:root *::-webkit-scrollbar-thumb { background: var(--line2); background-clip: content-box; }
+
+/* ---------- shell: rail ---------- */
+html[data-theme]:root .side {
+  background: var(--bg); border-right: 1px solid var(--line); backdrop-filter: none; background-image: none;
+}
+html[data-theme]:root .side .brand { height: var(--top); padding: 0 16px; gap: 10px; border-bottom: 1px solid var(--line); }
+html[data-theme]:root .logo {
+  width: 10px; height: 10px; flex: none; background: var(--ch-grade); border: 0; box-shadow: none; background-image: none;
+}
+html[data-theme]:root .logo svg { display: none; }
+html[data-theme]:root .brandTxt b { font: 600 13px var(--mono); letter-spacing: .28em; text-transform: uppercase; color: var(--text); }
+html[data-theme]:root .brandTxt small { font: 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-top: 3px; }
+html[data-theme]:root .workspaceSwitch { margin: 12px 12px 6px; padding: 10px 10px 8px; border: 1px solid var(--line); background: transparent; }
+html[data-theme]:root .workspaceSwitch label { font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+html[data-theme]:root .workspaceSwitch .orgSel { color: var(--text); font: 500 13px var(--mono); background: transparent; border: 0; }
+html[data-theme]:root .workspaceSwitch .orgSel option { background: var(--bg2); color: var(--text); }
+html[data-theme]:root .workspaceSwitch > span { font-size: 11.5px; color: var(--dim); }
+html[data-theme]:root .navScroll { padding: 8px 10px 16px; }
+html[data-theme]:root .navGroup + .navGroup { margin-top: 14px; }
+html[data-theme]:root .side .navLabel {
+  display: flex; align-items: center; gap: 8px; padding: 0 10px 6px;
+  font: 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim);
+}
+html[data-theme]:root .side .navLabel::before { content: ""; width: 6px; height: 6px; background: var(--ch); flex: none; }
+html[data-theme]:root .side .nav {
+  margin: 1px 0; padding: 6px 10px; border: 1px solid transparent; background: transparent; box-shadow: none;
+  font: 400 13.5px var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted);
+}
+html[data-theme]:root .side .nav:hover { background: transparent; color: var(--text); }
+html[data-theme]:root .side .nav.on { background: var(--bg2); border-color: var(--line2); color: var(--text); box-shadow: none; font-weight: 500; }
+html[data-theme]:root .side .nav.on::before { display: none; }
+html[data-theme]:root .side .nav svg { width: 15px; height: 15px; color: var(--dim); }
+html[data-theme]:root .side .nav.on svg { color: var(--ch); }
+html[data-theme]:root .side .cnt, html[data-theme]:root .side .nav.on .cnt {
+  font: 10.5px var(--mono); padding: 0 5px; background: transparent; border: 1px solid var(--line2); color: var(--muted);
+}
+html[data-theme]:root .sideFoot { border-top: 1px solid var(--line); background: transparent; padding: 10px; }
+html[data-theme]:root #identity { color: var(--muted); font: 12px var(--mono); background: transparent; border: 0; }
+html[data-theme]:root #identity .dot { width: 8px; height: 8px; border: 0; background: var(--dim) !important; }
+html[data-theme]:root .navBackdrop { background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: none; }
+
+/* ---------- shell: top strip ---------- */
+html[data-theme]:root .top {
+  height: var(--top); padding: 0 24px; gap: 10px; background: var(--bg); border-bottom: 1px solid var(--line);
+  backdrop-filter: none; background-image: none; box-shadow: none;
+}
+html[data-theme]:root .workspaceCrumb { font: 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-bottom: 2px; }
+html[data-theme]:root .crumb h1 { font: 500 18px/1.2 var(--sans); letter-spacing: -.01em; text-transform: none; color: var(--text); }
+html[data-theme]:root .iconBtn {
+  width: 34px; height: 34px; border: 1px solid var(--line2); background: transparent; color: var(--muted); box-shadow: none;
+}
+html[data-theme]:root .iconBtn:hover { color: var(--text); border-color: var(--text); background: transparent; }
+html[data-theme]:root .cmdBtn {
+  height: 34px; min-width: 220px; border: 1px solid var(--line2); background: var(--bg2); color: var(--dim);
+  font: 14px var(--sans); letter-spacing: 0; text-transform: none; box-shadow: none;
+}
+html[data-theme]:root .cmdBtn:hover { color: var(--muted); border-color: var(--text); }
+html[data-theme]:root .cmdBtn kbd { margin-left: auto; }
+html[data-theme]:root .copilotBtn {
+  height: 34px; border: 1px solid var(--line2); background: transparent; color: var(--text); box-shadow: none; background-image: none;
+  font: 13px var(--sans); letter-spacing: 0; text-transform: none;
+}
+html[data-theme]:root .copilotBtn:hover { border-color: var(--text); }
+html[data-theme]:root .healthDot {
+  border: 1px solid var(--line2); background: transparent; color: var(--muted);
+  font: 12px var(--mono); letter-spacing: .02em; text-transform: none;
+}
+html[data-theme]:root .dot { box-shadow: none; }
+html[data-theme]:root .dot::after { display: none; }
+
+/* The data-control strip reads like the instrument's connection strip. */
+html[data-theme]:root .dc-strip {
+  background: var(--bg2); border-bottom: 1px solid var(--line); color: var(--muted);
+  font: 12.5px var(--mono); padding: 6px 24px; box-shadow: none;
+}
+html[data-theme]:root .dc-strip strong { color: var(--text); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; }
+html[data-theme]:root .dc-strip a { color: var(--muted); }
+
+/* ---------- view ---------- */
+html[data-theme]:root .view { padding: 20px 24px 56px; }
+html[data-theme]:root .notices { box-shadow: none; }
+
+/* Section heads: a labelled rule with the channel's square. */
+html[data-theme]:root .secHead { margin: 24px 0 10px; gap: 10px; align-items: center; }
+html[data-theme]:root .secHead h2 {
+  display: flex; align-items: center; gap: 10px;
+  font: 500 11px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--dim);
+}
+html[data-theme]:root .secHead h2::before { content: ""; width: 8px; height: 8px; background: var(--ch); flex: none; }
+html[data-theme]:root .secHead .rule { background: var(--line); background-image: none; height: 1px; }
+
+/* Cards become channel panels: a labelled rule, never a floating card. */
+html[data-theme]:root .card {
+  border: 1px solid var(--line); background: var(--bg); box-shadow: none; background-image: none;
+}
+html[data-theme]:root .lift:hover { transform: none; box-shadow: none; }
+html[data-theme]:root .cardHead { padding: 8px 12px; border-bottom: 1px solid var(--line); background: transparent; gap: 10px; align-items: center; }
+html[data-theme]:root .cardHead h3 {
+  display: flex; align-items: center; gap: 10px;
+  font: 500 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim);
+}
+html[data-theme]:root .cardHead h3::before { content: ""; width: 8px; height: 8px; background: var(--ch); flex: none; }
+html[data-theme]:root .cardHead h3 svg { display: none; }
+html[data-theme]:root .cardHead p { font: 12.5px/1.5 var(--sans); letter-spacing: 0; text-transform: none; color: var(--muted); margin-top: 3px; }
+html[data-theme]:root .cardBody { padding: 14px 12px; background-image: none; }
+html[data-theme]:root .cardBody.flush { padding: 0; }
+html[data-theme]:root #missionLive > .card:first-child {
+  --surface: var(--bg); --surface2: var(--bg2); --surface3: var(--bg-3);
+  --line: inherit; --line2: inherit; --ink: inherit; --ink2: inherit; --ink3: inherit;
+  --brand: inherit; --accent: inherit; --edge: inherit; --edge-flow: inherit;
+  --ok: inherit; --warn: inherit; --bad: inherit; --info: inherit;
+  background: var(--bg); background-image: none; border-color: var(--line);
+}
+html[data-theme]:root #missionLive > .card:first-child .cardBody { background-image: none; }
+
+/* KPI tiles become readouts: label above, mono value below. */
+html[data-theme]:root .kpi {
+  border: 1px solid var(--line); background: var(--bg); box-shadow: none; background-image: none; padding: 10px 12px;
+}
+html[data-theme]:root .kpi::before, html[data-theme]:root .kpi::after { display: none; }
+html[data-theme]:root .kpi .kh svg { display: none; }
+html[data-theme]:root .kpi .kh small { font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+html[data-theme]:root .kpi b { font: 500 22px/1.25 var(--mono); letter-spacing: 0; color: var(--text); }
+html[data-theme]:root .kpi .sub { font: 12px/1.45 var(--sans); color: var(--muted); }
+html[data-theme]:root .overviewMetrics, html[data-theme]:root .modelStats {
+  border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line); background: transparent; padding: 12px 0;
+}
+html[data-theme]:root .overviewMetrics small, html[data-theme]:root .modelStats small {
+  font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim);
+}
+html[data-theme]:root .overviewMetrics b, html[data-theme]:root .modelStats b {
+  font: 500 24px/1.2 var(--mono); letter-spacing: 0; color: var(--text);
+}
+html[data-theme]:root .overviewMetrics p { font: 12px/1.45 var(--sans); color: var(--muted); }
+
+/* Overview opening: the current reading and the next action, no slogan. */
+html[data-theme]:root .consoleHero { margin: 16px 0 16px; padding: 0; }
+html[data-theme]:root .overviewEyebrow { font: 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+html[data-theme]:root .overviewEyebrow > span:last-child { font: 12px var(--mono); letter-spacing: 0; text-transform: none; }
+html[data-theme]:root .overviewHeading { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 32px; align-items: start; margin-top: 10px; }
+html[data-theme]:root .overviewHeading h2 {
+  grid-column: 1; font: 500 clamp(24px, 2.6vw, 34px)/1.15 var(--sans); letter-spacing: -.02em; color: var(--text); text-wrap: balance;
+}
+html[data-theme]:root .overviewHeading > p { grid-column: 1; grid-row: 2; align-self: start; font-size: 14px; color: var(--muted); max-width: 72ch; margin: 0; }
+html[data-theme]:root .overviewActions { grid-column: 2; grid-row: 1 / span 2; flex-direction: row; flex-wrap: wrap; min-width: 0; align-self: start; }
+html[data-theme]:root .overviewActions .btn { justify-content: flex-start; min-height: 38px; padding: 0 14px; }
+html[data-theme]:root .consoleAdvisories { border: 1px solid var(--line); border-left: 2px solid var(--warn); background: var(--bg); color: var(--warn); }
+
+/* View leads: a short header, not a poster. */
+html[data-theme]:root .viewLead { border-top: 0; border-bottom: 1px solid var(--line); padding: 4px 0 16px; margin-bottom: 16px; }
+html[data-theme]:root .viewLead::before, html[data-theme]:root .viewLead::after { display: none; }
+html[data-theme]:root .viewLead h2 { font: 500 clamp(20px, 2vw, 26px)/1.2 var(--sans); letter-spacing: -.01em; text-wrap: balance; }
+html[data-theme]:root .viewLead p { font-size: 14px; color: var(--muted); }
+html[data-theme]:root .leadEyebrow { font: 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+html[data-theme]:root .viewFacts dt { font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+html[data-theme]:root .viewFacts dd { font: 500 15px var(--mono); letter-spacing: 0; color: var(--text); }
+
+/* ---------- parts ---------- */
+html[data-theme]:root .btn {
+  border: 1px solid var(--line2); background: transparent; background-image: none; color: var(--text); box-shadow: none; filter: none;
+  font: 500 13px var(--sans); letter-spacing: 0; text-transform: none; border-radius: 0;
+}
+html[data-theme]:root .btn:hover:not(:disabled) { border-color: var(--text); background: transparent; transform: none; filter: none; }
+html[data-theme]:root .btn.pri, html[data-theme]:root .btn.primary {
+  background: var(--text); background-image: none; color: var(--on-solid); border-color: var(--text); font-weight: 500;
+}
+html[data-theme]:root .btn.pri:hover:not(:disabled), html[data-theme]:root .btn.primary:hover:not(:disabled) {
+  background: var(--text); background-image: none; color: var(--on-solid); border-color: var(--text); filter: none;
+}
+html[data-theme]:root .btn.ghost { border-color: transparent; }
+html[data-theme]:root .btn.ghost:hover:not(:disabled) { border-color: var(--line2); }
+html[data-theme]:root .btn.xs { font-size: 12px; }
+html[data-theme]:root .btn:disabled { opacity: .5; }
+
+html[data-theme]:root .pill, html[data-theme]:root .tag, html[data-theme]:root .chip, html[data-theme]:root .status {
+  font: 500 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; border-radius: 0; box-shadow: none;
+}
+html[data-theme]:root .pill .pd, html[data-theme]:root .eyebrow .pd { animation: none; }
+
+html[data-theme]:root .inp, html[data-theme]:root select.inp, html[data-theme]:root textarea.inp {
+  border: 1px solid var(--line2); background-color: var(--bg2); color: var(--text); box-shadow: none; font-family: var(--sans); font-size: 14px;
+}
+html[data-theme]:root textarea.inp, html[data-theme]:root .inp.mono, html[data-theme]:root input.mono { font-family: var(--mono); }
+html[data-theme]:root .inp:focus { border-color: var(--accent); outline: 1px solid var(--accent); outline-offset: 0; }
+html[data-theme]:root .inp::placeholder { color: var(--dim); opacity: 1; }
+html[data-theme]:root .field label, html[data-theme]:root .field > label, html[data-theme]:root .label {
+  font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim);
+}
+
+html[data-theme]:root .tabs { border-bottom: 1px solid var(--line); background: transparent; gap: 18px; }
+html[data-theme]:root .tab { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); background: transparent; box-shadow: none; }
+html[data-theme]:root .tab:hover { color: var(--text); }
+html[data-theme]:root .tab.on { color: var(--text); border-bottom-color: var(--ch); background: transparent; }
+
+html[data-theme]:root th {
+  background: transparent; color: var(--dim); border-bottom: 1px solid var(--line2);
+  font: 400 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase;
+}
+html[data-theme]:root td { border-color: var(--line); color: var(--text); font: 13px/1.45 var(--sans); }
+html[data-theme]:root td.num, html[data-theme]:root td .mono, html[data-theme]:root td.mono, html[data-theme]:root td .m { font-family: var(--mono); }
+html[data-theme]:root tr:hover td { background: var(--bg2); }
+
+html[data-theme]:root .banner {
+  border: 1px solid var(--line); border-left: 2px solid var(--accent); background: var(--bg2); color: var(--muted); box-shadow: none;
+}
+html[data-theme]:root .banner b { font-family: var(--sans); font-weight: 500; color: var(--text); letter-spacing: 0; }
+html[data-theme]:root .banner.bad { border-left-color: var(--bad); }
+html[data-theme]:root .banner.warn { border-left-color: var(--warn); }
+html[data-theme]:root .banner.ok { border-left-color: var(--ok); }
+html[data-theme]:root .banner.info { border-left-color: var(--info); }
+
+/* Empty states: what is missing and the one action that fixes it. No glyph. */
+html[data-theme]:root .empty { background: transparent; border-color: var(--line); padding: 18px 12px; text-align: left; align-items: flex-start; color: var(--muted); }
+html[data-theme]:root .empty > svg { display: none; }
+html[data-theme]:root .empty b { font: 500 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--text); }
+html[data-theme]:root .empty p { font: 13px/1.5 var(--sans); color: var(--muted); max-width: 60ch; margin-left: 0; margin-right: 0; }
+html[data-theme]:root .empty .row { justify-content: flex-start !important; }
+
+/* Bars and meters plot real values, so they stay, flat and in the channel's colour. */
+html[data-theme]:root .bar, html[data-theme]:root .meter { background: var(--line); border-radius: 0; }
+html[data-theme]:root .bar > i, html[data-theme]:root .meter > i, html[data-theme]:root .metricRow .meter i {
+  background: var(--ch); background-image: none; border-radius: 0;
+}
+/* Loading placeholders hold still. */
+html[data-theme]:root .sk { background: var(--bg2); background-image: none; }
+
+html[data-theme]:root .nextAction .rank { background: transparent; border: 1px solid var(--line2); color: var(--text); font-family: var(--mono); }
+html[data-theme]:root .capabilityLane, html[data-theme]:root .missionBoard { background: transparent; background-image: none; box-shadow: none; }
+html[data-theme]:root .capabilityLane::before, html[data-theme]:root .missionBoard::before { display: none; }
+html[data-theme]:root .capabilityGlyph { display: none; }
+html[data-theme]:root .workspaceFold > summary > span { font: 500 16px var(--sans); letter-spacing: -.01em; }
+html[data-theme]:root .workspaceFold > summary > small, html[data-theme]:root .liveMeta {
+  font: 11px var(--mono); letter-spacing: .06em; text-transform: none; color: var(--dim);
+}
+html[data-theme]:root .scanOutputGlyph { display: none; }
+html[data-theme]:root .hero, html[data-theme]:root .hero::before { background: transparent; background-image: none; box-shadow: none; }
+html[data-theme]:root .basisBadge { border-radius: 0; font-family: var(--mono); }
+
+/* Overlays: a ruled panel on the ground, no shadow. */
+html[data-theme]:root .modal, html[data-theme]:root .cmd, html[data-theme]:root .drawer {
+  background: var(--bg2); border: 1px solid var(--line2); border-radius: 0; box-shadow: none;
+}
+html[data-theme]:root .modalHead, html[data-theme]:root .modalFoot, html[data-theme]:root .drawerHead { background: var(--bg2); border-color: var(--line); }
+html[data-theme]:root .scrim { background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: none; }
+html[data-theme]:root .toast { background: var(--bg2); border: 1px solid var(--line2); box-shadow: none; border-radius: 0; color: var(--text); }
+
+/* The sign-in gate sits on the plain ground. (Markup and logic untouched.) */
+html[data-theme]:root .gate, html[data-theme]:root .gate.demo { background: var(--bg); background-image: none; }
+html[data-theme]:root .gate::before, html[data-theme]:root .gate.demo::before { display: none; }
+html[data-theme]:root .gateCard { background: var(--bg); border: 1px solid var(--line); box-shadow: none; border-radius: 0; }
+html[data-theme]:root .gateCard h2 { font: 500 20px var(--sans); }
+html[data-theme]:root .dgTitle { font: 500 clamp(28px, 3.4vw, 44px)/1.08 var(--sans); letter-spacing: -.02em; }
+html[data-theme]:root .dgTitle em { font-style: normal; color: var(--text); }
+
+/* Demo gate: the sample estate as a table of its endpoints. */
+html[data-theme]:root .dgEstate { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin: 0; }
+html[data-theme]:root .dgEstate .dgLegend { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); }
+html[data-theme]:root .dgEstate .dgLegend > div { border-right: 1px solid var(--line); padding: 10px 12px; }
+html[data-theme]:root .dgEstate .dgLegend > div:last-child { border-right: 0; }
+html[data-theme]:root .dgEstate .dgLegend b { font: 500 22px var(--mono); }
+.dgList { max-height: 260px; overflow: auto; border: 1px solid var(--line); }
+.dgList table { width: 100%; border-collapse: collapse; }
+.dgList th { position: sticky; top: 0; background: var(--bg); text-align: left; padding: 6px 10px; }
+.dgList td { padding: 5px 10px; border-top: 1px solid var(--line); font: 12.5px var(--mono); overflow-wrap: anywhere; }
+.dgSt { font: 11px var(--mono); }
+.dgSt-w { color: var(--bad); } .dgSt-v { color: var(--warn); } .dgSt-p { color: var(--ok); }
+@media (max-width: 640px) {
+  html[data-theme]:root .dgEstate .dgLegend { grid-template-columns: 1fr; }
+  html[data-theme]:root .dgEstate .dgLegend > div { border-right: 0; border-bottom: 1px solid var(--line); }
+}
+
+/* Eyebrows are labels, not badges. */
+html[data-theme]:root .eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: transparent;
+  font: 500 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim);
+}
+html[data-theme]:root .eyebrow::before { content: ""; width: 8px; height: 8px; background: var(--ch); flex: none; }
+html[data-theme]:root .eyebrow .pd { display: none; }
+
+/* Gateway intro (gateway.js): the plain heading. */
+html[data-theme]:root .gw-intro h2 { font: 500 clamp(20px, 2vw, 26px)/1.2 var(--sans); letter-spacing: -.01em; }
+
+@media (max-width: 900px) {
+  html[data-theme]:root .overviewHeading { grid-template-columns: minmax(0, 1fr); }
+  html[data-theme]:root .overviewActions { grid-column: 1; grid-row: auto; }
+  html[data-theme]:root .top { padding: 0 12px; }
+  html[data-theme]:root .view { padding: 16px 16px 48px; }
+  html[data-theme]:root .dc-strip { padding: 6px 16px; }
+  html[data-theme]:root .cmdBtn { min-width: 0; }
+}
+
+/* ---------- motion: none on its own ----------
+   Views no longer slide in, rows no longer land, dots no longer ping, edges no
+   longer flow. Every animation is run once in no time, not removed, so the ones
+   that reveal a chart (a line drawn by dash offset, a fill faded in "forwards")
+   land on their final frame instead of staying hidden. A busy button keeps its
+   spinner: it answers a request in flight. */
+html[data-theme]:root *, html[data-theme]:root *::before, html[data-theme]:root *::after {
+  animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
+}
+html[data-theme]:root .btn.load::after { animation: spin .6s linear infinite !important; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme]:root .btn.load::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+  html[data-theme]:root * { transition: none !important; }
+}

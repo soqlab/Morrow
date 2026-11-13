@@ -34,7 +34,7 @@ VIEWS.gateway = async host => {
   function render() {
     clearTimeout(expiryTimer);
     const site = selected, policy = site?.policy, coverage = site?.coverage;
-    root.innerHTML = `<header class="gw-intro"><div class="gw-intro-copy"><span class="eyebrow">WEBSITE GATEWAY / CUSTOMER CONTROLLED</span><h2>Your website.<br>A controlled perimeter.</h2><p>Connect without rewriting application code. Adding a site does not reroute traffic: ownership, deployment, DNS, and runtime checks remain separate steps.</p></div><figure class="gw-scene"></figure></header>
+    root.innerHTML = `<header class="gw-intro"><div class="gw-intro-copy"><span class="eyebrow">WEBSITE GATEWAY / CUSTOMER CONTROLLED</span><h2>Website gateway</h2><p>Adding a site does not reroute traffic: ownership, deployment, DNS and runtime checks are separate steps, each shown below with its current state.</p></div></header>
       <p id="gwMessage" role="status" aria-live="polite"></p>
       <form id="gwCreate" class="gw-connect"><label>Public website<input name="website" placeholder="https://www.your-company.com" required maxlength="300" ${write ? "" : "disabled"}></label><label>Separate origin hostname<input name="origin" placeholder="https://origin.your-company.com" required maxlength="300" ${write ? "" : "disabled"}></label><button class="btn pri" ${write ? "" : "disabled"}>Add website</button></form>
       <div class="gw-layout"><nav class="gw-sites" aria-label="Gateway websites">${sites.length ? sites.map(item => `<button type="button" data-site="${H(item.id)}" aria-current="${item.id === site?.id ? "true" : "false"}"><strong>${H(item.hostname)}</strong><span>${H(item.coverage.filtering.replaceAll("_", " "))}</span></button>`).join("") : "No websites added yet."}</nav><div class="gw-detail">${site ? `
@@ -53,29 +53,11 @@ VIEWS.gateway = async host => {
       <section class="gw-section" id="gwPolicySection"><span class="eyebrow">04 / FILTERING POLICY</span><h3>Observe. Review. Enforce.</h3><form id="gwPolicy"><div class="gw-policy-fields"><label>Desired mode<select name="mode"><option value="observe" ${policy.mode === "observe" ? "selected" : ""}>Observe - record CRS rule matches</option><option value="enforce" ${policy.mode === "enforce" ? "selected" : ""}>Enforce - apply CRS blocking rules</option></select></label><label>Metadata retention (hours)<input name="retention" type="number" min="0" max="24" value="${policy.retention_hours}" required></label><label>Request body limit (bytes)<input name="bodyLimit" type="number" min="32768" max="8388608" value="${policy.max_body_bytes}" required></label></div>
         <details><summary>Exact-path, expiring rule exceptions</summary><p class="gw-note">JSON array: rule_id, path, method, expires_at (Unix seconds), reason. Maximum 20; expiry within 7 days. No global WAF-disable exceptions.</p><textarea name="exceptions" rows="5" spellcheck="false">${H(JSON.stringify(policy.exceptions, null, 2))}</textarea></details><label>Change reason<input name="reason" required minlength="8" maxlength="200" placeholder="Why this change is approved"></label><button class="btn sm" ${admin ? "" : "disabled"}>Publish desired policy</button></form>
         <div class="row">${button("Verify running gateway", "probe")}${button("Apply published policy", "apply", admin)}</div><p class="gw-note">Apply authenticates the gateway before sending its credential. Invalid configurations retain the last known-good policy. Upstream failure returns an error, never a silent bypass.</p></section>
-      <section class="gw-section" id="gwObservations"><span class="eyebrow">05 / PRIVACY-SAFE OBSERVATIONS</span><h3>Measured, not manufactured.</h3>${site.statistics ? `<p class="gw-note">${H(site.statistics.scope)}. Checked ${H(stamp(site.statistics.checked_at))}. The gateway keeps at most 10,000 metadata events; counts are not fleet-wide traffic totals.</p><dl class="gw-coverage">${["requests", "matched", "blocked", "upstream_errors"].map(key => `<div><dt>${key.replaceAll("_", " ")}</dt><dd>${NUM(site.statistics[key])}</dd></div>`).join("")}</dl><div class="gw-rule-list">${Object.entries(site.statistics.rule_counts || {}).map(([id, count]) => `<span>CRS rule ${H(id)}: ${NUM(count)} matches</span>`).join("") || "No rule matches in this observation window."}</div>` : `<p>No current gateway statistics. Zero traffic is not assumed.</p>`}${button("Erase responding gateway's statistics", "purge", admin)}</section>
+      <section class="gw-section" id="gwObservations"><span class="eyebrow">05 / PRIVACY-SAFE OBSERVATIONS</span><h3>What the gateway recorded</h3>${site.statistics ? `<p class="gw-note">${H(site.statistics.scope)}. Checked ${H(stamp(site.statistics.checked_at))}. The gateway keeps at most 10,000 metadata events; counts are not fleet-wide traffic totals.</p><dl class="gw-coverage">${["requests", "matched", "blocked", "upstream_errors"].map(key => `<div><dt>${key.replaceAll("_", " ")}</dt><dd>${NUM(site.statistics[key])}</dd></div>`).join("")}</dl><div class="gw-rule-list">${Object.entries(site.statistics.rule_counts || {}).map(([id, count]) => `<span>CRS rule ${H(id)}: ${NUM(count)} matches</span>`).join("") || "No rule matches in this observation window."}</div>` : `<p>No current gateway statistics. Zero traffic is not assumed.</p>`}${button("Erase responding gateway's statistics", "purge", admin)}</section>
       <section class="gw-section"><span class="eyebrow">06 / RECOVERY JOURNAL</span><h3>Every policy has a previous version.</h3><div class="gw-table"><table><thead><tr><th>Version</th><th>Mode</th><th>Actor</th><th>Reason</th><th>Published</th><th>Recovery</th></tr></thead><tbody id="gwHistory"><tr><td colspan="6">Loading version history...</td></tr></tbody></table></div></section>` : `<section class="gw-section"><h3>Start with a domain you control.</h3><p>Your website stays at its own address. This workspace manages configuration and checks; traffic must be routed to a separately deployed gateway.</p></section>`}</div></div>`;
     root.querySelector("#gwCreate").onsubmit = event => perform(event, async form => {
       const value = await api("/gateway/sites", { method: "POST", body: { website: form.get("website"), origin: form.get("origin") } });
       await load(value.id); message("Site added. Ownership and routing are not yet verified.");
-    });
-    // The perimeter map reads the coverage values rendered above, so it always
-    // agrees with them, including after expireEvidence() downgrades one.
-    const scene = window.airlockGatewayScene?.mount(root.querySelector(".gw-scene"), {
-      site,
-      preview: root.querySelector("#gwCreate [name=website]"),
-      states: () => Object.fromEntries([...root.querySelectorAll("[data-coverage]")].map(el => [el.dataset.coverage, el.textContent.trim()])),
-      stats: () => {
-        const values = [...root.querySelectorAll("#gwObservations dd")].map(el => Number(el.textContent.replace(/,/g, "")));
-        return values.length >= 3 && values.every(Number.isFinite) ? { requests: values[0], matched: values[1], blocked: values[2] } : null;
-      },
-      pick: key => {
-        if (!site) { root.querySelector("#gwCreate [name=website]")?.focus(); return; }
-        const target = root.querySelector({ ownership: "#gwOwnershipSection", routing: "#gwCoverageSection", gateway: "#gwPolicySection", origin: "#gwCompatSection" }[key]);
-        if (!target) return;
-        target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
-        target.classList.remove("gw-flash"); void target.offsetWidth; target.classList.add("gw-flash");
-      },
     });
     if (!site) return;
     function expireEvidence() {
@@ -106,7 +88,6 @@ VIEWS.gateway = async host => {
         }
       }
       if (deadlines.length) expiryTimer = setTimeout(expireEvidence, Math.min(...deadlines) - now);
-      scene?.refresh();
     }
     expireEvidence();
     root.querySelector("#gwChecks").onsubmit = event => perform(event, async form => {

@@ -1152,19 +1152,12 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 </style>
 <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
 <link rel="stylesheet" href="/ui/console.css?v=20260920-nohint">
-<script src="/ui/fabric.js?v=20260915-perf2" defer></script>
-<script src="/ui/motion.js?v=20260918-idle" defer></script>
-<script src="/ui/console-motion.js?v=20260918-idle" defer></script>
-<link rel="stylesheet" href="/ui/ops-motion.css?v=20260915-perf3">
-<script src="/ui/space3d.js?v=20260917-perf4" defer></script>
-<script src="/ui/charts3d.js?v=20260920-nohint" defer></script>
-<script src="/ui/ops-motion.js?v=20260917-perf4" defer></script>
-<link rel="stylesheet" href="/ui/oops.css?v=20260913b">
-<script src="/ui/oops.js?v=20260914-3d" defer></script>
+<link rel="stylesheet" href="/ui/oops.css?v=20261113-instrument">
+<link rel="stylesheet" href="/ui/console-instrument.css?v=20261113">
+<script src="/ui/oops.js?v=20261113-instrument" defer></script>
 <script src="/ui/passkey.js?v=20261112-passkeys" defer></script>
 </head>
 <body>
-<div class="bgfx" data-fabric="ambient" data-fabric-pointer="off" aria-hidden="true"></div>
 <div class="supportBar" id="supportBar" role="region" aria-label="Vendor support session" hidden></div>
 
 <div class="app" id="app">
@@ -1215,10 +1208,6 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.7 9.7 0 0 1-2.8-.4L3 21l1.6-4.6A8.2 8.2 0 0 1 3.6 11.5C3.6 6.9 7.5 3 12.3 3S21 6.9 21 11.5Z"/></svg>
       </button>
       <button class="iconBtn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme"></button>
-      <button class="iconBtn motionBtn" type="button" data-motion-toggle title="Pause the background fabric" hidden>
-        <span class="motionGlyph" aria-hidden="true"></span>
-        <span class="srOnly" data-motion-label>Pause motion</span>
-      </button>
     </header>
     <div id="dataControlStrip" class="dc-strip" aria-live="polite"><strong>Data Control</strong><span>State not checked</span><a href="#data-control">Review boundary &amp; access</a></div>
     <div id="notices" class="notices" aria-live="polite" hidden></div>
@@ -1692,12 +1681,11 @@ const ok  = (m, t) => toast(m, "ok", t);
 const err = (m, t = "Request failed") => toast(m, "bad", t);
 
 /* ---------------------------------------------------------------- charts (inline SVG) */
-/* charts3d.js takes over each [data-c3d] block and draws it in 3D with drag
- * and hover. The flat markup stays inside it: screen readers read it, and it is
- * what shows when canvas or the space kit is unavailable. cfg carries only
- * values already computed from the data passed to the helper. */
+/* Charts are drawn flat, from the data passed to each helper. The 3D layer that
+ * used to take over these blocks (charts3d.js) was decoration and is gone; the
+ * helpers still pass their cfg here, which is now unused. */
 function c3dWrap(type, cfg, inner) {
-  return cfg ? `<div class="c3d" data-c3d="${type}" data-c3d-cfg="${H(JSON.stringify(cfg))}">${inner}</div>` : inner;
+  return inner;
 }
 /* Modelled or reference output says so, with its date, sources and assumptions
  * one hover or focus away. Endpoints mark themselves with `model_basis`. */
@@ -2075,19 +2063,19 @@ const actBtn = (label, act, { cls = "btn sm", icon = "", data = {} } = {}) =>
 
 /* ---------------------------------------------------------------- nav registry */
 const NAV = [
-  { g: "Command", items: [
+  { g: "Command", ch: "grade", items: [
     { id: "overview",   n: "Overview",         i: I.grid,      d: "Executive posture, Q-Day horizon and evidence signals" },
     { id: "scans",      n: "TLS Scanner",      i: I.radar,     d: "Run external TLS posture scans and diff against baseline" },
     { id: "assets",     n: "Asset Inventory",  i: I.server,    d: "Cryptographic asset registry, owners, tags and collections" },
     { id: "cbom",       n: "CBOM / SBOM",      i: I.layers,    d: "CycloneDX cryptographic bill of materials" },
   ]},
-  { g: "Quantum Risk", items: [
+  { g: "Quantum Risk", ch: "league", items: [
     { id: "hndl",       n: "HNDL Exposure",    i: I.hourglass, d: "Harvest-now-decrypt-later exposure and priority queue" },
     { id: "qday",       n: "Q-Day Forecast",   i: I.clock,     d: "CRQC trajectory, milestones and quantum intelligence" },
     { id: "graph",      n: "Blast Radius",     i: I.network,   d: "Security graph, certificate blast radius and CA contagion" },
     { id: "canaries",   n: "Canaries & QTISN", i: I.bird,      d: "Cryptographic canary tokens and threat-intel network" },
   ]},
-  { g: "Enterprise Airlock", items: [
+  { g: "Enterprise Airlock", ch: "trust", items: [
     { id: "g-airlock", n: "Airlock Guide", i: I.lock, body: `
       <p><b>What it is:</b> the minimum-access customer onboarding path. Airlock lets a customer run
       a reviewed collector inside their own boundary and send signed cryptographic evidence without
@@ -2272,7 +2260,7 @@ const NAV = [
       <ul><li>Fixed since the first edition: vault key rotation now covers alert channel targets; break-glass and support-session notifications are selectable kinds and auto-resolve in PagerDuty; Traffic Lens accepts SSO sessions; the console shows the vendor portal link to operators only; CipherLens answers without an AI key; customers see every page a support session requested; deleting or disabling a PagerDuty channel resolves the incidents it left open.</li></ul>
       </details>` },
   ]},
-  { g: "Act", items: [
+  { g: "Act", ch: "conn", items: [
     { id: "data-control", n: "Data Control", i: I.lock, d: "AI permissions, data boundary, support access and signed processing receipts" },
     { id: "airlock",    n: "Quantum Airlock",  i: I.lock,      d: "Privacy wall, Trust Passports, proof packages and sovereign AI controls" },
     { id: "gateway",    n: "Website Gateway", i: I.shield,    d: "Domain ownership, compatibility, filtering policies and verified gateway observations" },
@@ -2280,23 +2268,23 @@ const NAV = [
     { id: "scanners",   n: "Deep Scanners",    i: I.bug,       d: "SAST, secrets, dependencies, binary, mobile and IaC" },
     { id: "operations", n: "Operations",       i: I.activity,  d: "Observatory, drift, SLA, schedules and telemetry" },
   ]},
-  { g: "Assure", items: [
+  { g: "Assure", ch: "atlas", items: [
     { id: "governance", n: "Governance",       i: I.scale,     d: "Policies, enforcement, compliance evidence and maturity" },
     { id: "board",      n: "Board & ROI",      i: I.briefcase, d: "Board risk weather, ROI modelling and actuarial models" },
     { id: "vendors",    n: "Third Party",      i: I.truck,     d: "Vendor assessments, scorecards and attestations" },
   ]},
-  { g: "System", items: [
+  { g: "System", ch: "tools", items: [
     { id: "integrations",n: "Integrations",    i: I.plug,      d: "GitHub, Cloudflare, Slack, Jira, webhooks and CI/CD gates" },
     { id: "knowledge",  n: "Knowledge",        i: I.book,      d: "Post-quantum knowledge base, provider capabilities and search" },
     { id: "admin",      n: "Administration",   i: I.shield,    d: "Launch readiness, users, organizations, audit trail and platform control" },
     { id: "api",        n: "API Explorer",     i: I.terminal,  d: "Browse the endpoint catalog or call any backend route directly" },
   ]},
-  { g: "Help", items: [
+  { g: "Help", ch: "ref", items: [
     { id: "guide",      n: "Guide & Tutorial", i: I.book,      d: "What every screen does, how to use it, and a first-run walkthrough" },
   ]},
 ];
 const VIEWS = {};                                  // id ? async render(host)
-const FLAT = NAV.flatMap(g => g.items.map(x => ({ ...x, g: g.g })));
+const FLAT = NAV.flatMap(g => g.items.map(x => ({ ...x, g: g.g, ch: g.ch })));
 const META = Object.fromEntries(FLAT.map(v => [v.id, v]));
 for (const item of FLAT.filter(x => x.body)) {
   VIEWS[item.id] = async (host) => {
@@ -2328,7 +2316,7 @@ async function verifyOperator() {
 function paintNav() {
   $("#nav").innerHTML = NAV.map(g => {
     const items = g.items.filter(x => !x.operator || S.operator);
-    return items.length ? `<div class="navGroup"><div class="navLabel">${H(g.g)}</div>
+    return items.length ? `<div class="navGroup" data-ch="${H(g.ch || "tools")}"><div class="navLabel">${H(g.g)}</div>
     ${items.map(x => `<button class="nav" type="button" data-go="${x.id}" title="${H(x.n)}">${x.i}<span>${H(x.n)}</span>
       <i class="cnt" id="cnt-${x.id}" hidden></i></button>`).join("")}</div>` : "";
   }).join("");
@@ -2392,6 +2380,7 @@ async function go(id, { push = true } = {}) {
   $$(".nav[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === id));
   setConsoleNav(false);
   $("#view").dataset.route = id;
+  $("#view").dataset.ch = m.ch || "tools";
   if (push && location.hash.slice(1) !== id) history.pushState({}, "", "#" + id);
   const host = $("#view");
   host.innerHTML = skel(4, 66);
@@ -2410,9 +2399,7 @@ async function go(id, { push = true } = {}) {
   }
   if (token !== S.navToken) return;
   wire(host);
-  window.airlockOps?.scan(host);
   balanceRows(host);
-  window.consoleMotion?.(host);
 }
 const retry = () => go(S.route, { push: false });
 
@@ -2650,15 +2637,18 @@ function demoGateHtml() {
         <p class="dgLede">Morrow maps the RSA and elliptic-curve cryptography across your endpoints,
           certificates and code, ranks it by what it protects and for how long, and tracks every
           fix through to post-quantum algorithms.</p>
-        <figure class="dgRadar" style="margin:0">
-          <canvas id="dgCanvas" role="img" aria-label="Radar of the sample bank's ${DEMO_ESTATE.length} endpoints, coloured by cryptographic status"></canvas>
-          <figcaption class="dgLegend">
+        <div class="dgRadar dgEstate">
+          <div class="dgLegend">
             <div><i style="background:var(--bad)"></i><span>Below policy</span><b>${n("w")}</b><small>RSA-2048 or TLS 1.2 on data that must stay secret for years</small></div>
             <div><i style="background:var(--warn)"></i><span>Quantum-vulnerable</span><b>${n("v")}</b><small>Compliant today, broken by a large quantum computer</small></div>
             <div><i style="background:var(--ok)"></i><span>Hybrid post-quantum</span><b>${n("p")}</b><small>Already negotiating a hybrid key exchange</small></div>
-            <div class="dgReadout" id="dgReadout" aria-hidden="true" style="display:block"></div>
-          </figcaption>
-        </figure>
+          </div>
+          <div class="dgList" tabindex="0" role="region" aria-label="The sample bank's ${DEMO_ESTATE.length} endpoints">
+            <table><thead><tr><th>Endpoint</th><th>Env</th><th>Key</th><th>Status</th></tr></thead>
+            <tbody>${DEMO_ESTATE.map(([host, env, st, key]) => `<tr><td>${H(host)}</td><td>${H({ p: "prod", s: "staging", d: "dev" }[env] || env)}</td><td>${H(key)}</td>
+              <td><span class="dgSt dgSt-${H(st)}">${H({ w: "below policy", v: "quantum-vulnerable", p: "hybrid PQ" }[st] || st)}</span></td></tr>`).join("")}</tbody></table>
+          </div>
+        </div>
       </section>
 
       <div class="gateCard" aria-labelledby="gateTitle">
@@ -2686,96 +2676,9 @@ function demoGateHtml() {
    [host, environment p/s/d, status w=below policy · v=quantum-vulnerable · p=hybrid PQ, key]. */
 const DEMO_ESTATE = [["www.example.com","p","v","EC-256"],["secure.example.com","p","v","EC-384"],["payments.example.com","p","v","RSA-3072"],["api.example.com","p","v","EC-256"],["openbanking.example.com","p","v","EC-384"],["mobile-gw.example.com","p","p","EC-256"],["auth.example.com","p","v","RSA-3072"],["statements.example.com","p","w","RSA-2048"],["treasury.example.com","p","v","RSA-3072"],["cards.example.com","p","v","EC-256"],["fx.example.com","p","w","RSA-2048"],["docs.example.com","p","v","EC-256"],["partner.example.com","p","w","RSA-2048"],["payments-hub.internal.example","p","v","RSA-3072"],["ledger.internal.example","p","v","RSA-3072"],["kyc.internal.example","p","v","EC-256"],["reporting.internal.example","p","v","RSA-3072"],["ldap.internal.example","p","w","RSA-2048"],["mq.internal.example","p","w","RSA-2048"],["vault.internal.example","p","v","EC-256"],["staging-www.example.com","s","v","EC-256"],["staging-api.example.com","s","v","EC-256"],["staging-payments.example.com","s","w","RSA-2048"],["staging-auth.example.com","s","w","RSA-2048"],["staging-mobile-gw.example.com","s","v","EC-256"],["staging-cards.example.com","s","v","EC-256"],["staging-partner.example.com","s","w","RSA-2048"],["staging-ledger.internal.example","s","w","RSA-2048"],["staging-kyc.internal.example","s","v","EC-256"],["staging-reporting.internal.example","s","w","RSA-2048"],["dev-api.example.com","d","v","EC-256"],["dev-payments.example.com","d","w","RSA-2048"],["dev-auth.example.com","d","w","RSA-2048"],["dev-mobile-gw.example.com","d","v","EC-256"],["dev-portal.example.com","d","w","RSA-2048"],["sandbox-api.example.com","d","v","EC-256"],["sandbox-partner.example.com","d","w","RSA-2048"],["lab-ledger.internal.example","d","w","RSA-2048"]];
 let demoRadarStop = null;
-/** Rings are environments (production innermost); a sweep lights each endpoint in its status colour. */
-function startDemoRadar() {
-  const cv = $("#dgCanvas");
-  if (!cv) return;
-  const ctx2 = cv.getContext("2d");
-  const out = $("#dgReadout");
-  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-  const ring = { p: 0.42, s: 0.68, d: 0.9 };
-  const envName = { p: "production", s: "staging", d: "development" };
-  const pts = [], GAP = 0.8;
-  for (const env of ["p", "s", "d"]) {
-    const list = DEMO_ESTATE.filter((e) => e[1] === env);
-    list.forEach((e, i) => {
-      // Spread round the ring but leave a gap at 12 o'clock for the ring labels.
-      const a = -Math.PI / 2 + GAP / 2 + ((i + (env === "s" ? 0.5 : env === "d" ? 0.25 : 0)) / list.length) * (Math.PI * 2 - GAP);
-      const jitter = ((e[0].length * 37) % 11 - 5) / 220;   // stable, so nodes never jump between frames
-      pts.push({ e, a, r: ring[env] + jitter, lit: -1e9 });
-    });
-  }
-  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let raf = 0, t0 = performance.now(), lastShown = null;
-  const draw = (now) => {
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    const w = cv.clientWidth, h = cv.clientHeight;
-    if (!w || !h) { raf = requestAnimationFrame(draw); return; }
-    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-    const c = ctx2, R = Math.min(w, h) / 2 - 6, cx = w / 2, cy = h / 2;
-    const col = { w: css("--bad"), v: css("--warn"), p: css("--ok") }, line = css("--line2"), brand = css("--brand"), ink3 = css("--ink3");
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.clearRect(0, 0, w, h);
-    c.lineWidth = 1;
-    c.strokeStyle = line;
-    for (const k of ["p", "s", "d"]) { c.beginPath(); c.arc(cx, cy, ring[k] * R, 0, Math.PI * 2); c.stroke(); }
-    c.setLineDash([2, 4]);
-    for (const i of [0, 1, 3]) { const a = i * Math.PI / 4; /* no vertical axis: the ring labels sit there */ c.beginPath(); c.moveTo(cx - Math.cos(a) * R, cy - Math.sin(a) * R); c.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); c.stroke(); }
-    c.setLineDash([]);
-    c.fillStyle = ink3;
-    c.font = `600 9px ${css("--mono") || "monospace"}`;
-    c.textAlign = "center";
-    for (const k of ["p", "s", "d"]) c.fillText(envName[k].toUpperCase(), cx, cy - ring[k] * R + 12);
-
-    const sweep = still ? null : (((now - t0) / 5200) * Math.PI * 2) % (Math.PI * 2);
-    if (sweep !== null) {
-      const g = c.createConicGradient ? c.createConicGradient(sweep - 0.9, cx, cy) : null;
-      if (g) {
-        g.addColorStop(0, "transparent");
-        g.addColorStop(0.9 / (Math.PI * 2), brand + "38");
-        g.addColorStop(0.9 / (Math.PI * 2) + 0.0001, "transparent");
-        c.fillStyle = g;
-        c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, R, sweep - 0.9, sweep); c.closePath(); c.fill();
-      }
-      c.strokeStyle = brand; c.lineWidth = 1.5;
-      c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(sweep) * R, cy + Math.sin(sweep) * R); c.stroke();
-    }
-    let newest = null;
-    for (const p of pts) {
-      const ang = ((p.a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      if (sweep !== null) {
-        const d = (sweep - ang + Math.PI * 2) % (Math.PI * 2);
-        if (d < 0.05 && now - p.lit > 1000) { p.lit = now; newest = p; }
-      }
-      const age = still ? 0 : (now - p.lit) / 1000;
-      const glow = still ? 1 : Math.max(0, 1 - age / 4.5);
-      const x = cx + Math.cos(p.a) * p.r * R, y = cy + Math.sin(p.a) * p.r * R;
-      const k = col[p.e[2]];
-      c.globalAlpha = 0.28 + 0.72 * glow;
-      c.fillStyle = k;
-      const s = p.e[2] === "p" ? 7 : 5;
-      c.fillRect(x - s / 2, y - s / 2, s, s);
-      if (!still && age < 1.2) {
-        c.globalAlpha = 1 - age / 1.2;
-        c.strokeStyle = k; c.lineWidth = 1;
-        const rr = s + age * 14;
-        c.strokeRect(x - rr / 2, y - rr / 2, rr, rr);
-      }
-    }
-    c.globalAlpha = 1;
-    if (newest && out && newest !== lastShown) {
-      lastShown = newest;
-      const label = { w: "below policy", v: "quantum-vulnerable", p: "hybrid post-quantum" }[newest.e[2]];
-      out.innerHTML = `<b>${H(newest.e[0])}</b><br>${H(newest.e[3])} · ${label}`;
-    }
-    if (!still) raf = requestAnimationFrame(draw);
-  };
-  if (still && out) out.innerHTML = `<b>${DEMO_ESTATE.length} endpoints</b><br>across three environments`;
-  raf = requestAnimationFrame(draw);
-  const onResize = () => { if (still) requestAnimationFrame(draw); };
-  addEventListener("resize", onResize);
-  demoRadarStop = () => { cancelAnimationFrame(raf); removeEventListener("resize", onResize); demoRadarStop = null; };
-}
+/* The demo gate used to draw the sample estate as a sweeping radar. It is a table now (demoGateHtml);
+   the gate still calls these, so they stay as no-ops. */
+function startDemoRadar() {}
 ACTIONS.demoStart = async (b) => {
   b.disabled = true;
   const label = b.innerHTML;
@@ -3766,14 +3669,22 @@ VIEWS.overview = async (host) => {
   const med = Q?.estimates?.median, secs = Q?.countdown_seconds?.median;
   const days = Number.isFinite(secs) ? Math.floor(secs / 86400) : null;
   const snapshot = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  /* The opening line is a reading, not a slogan: what the evidence says now, and the one thing to
+     do next. An empty inventory says so instead of reporting clear skies over nothing. */
+  const nothingYet = assets.ok && !AS.length && !SC.length;
+  const nextFix = FX[0];
+  const reading = nothingYet ? "Nothing measured yet"
+    : W ? weatherHeadline(W) : "Risk reading unavailable";
+  const nextLine = nothingYet ? "Scan a host you run to get the first reading: TLS version, key exchange and certificate, with what to change."
+    : nextFix ? `Next fix: ${nextFix.asset_key || nextFix.host || nextFix.repository || "top of the queue"}${nextFix.priority_score != null ? ` (priority ${NUM(nextFix.priority_score)})` : ""}`
+    : `${NUM(AS.length)} assets in inventory, ${NUM(SC.length)} recent scans.`;
   const hero = `<section class="consoleHero">
-    <div class="overviewEyebrow"><span>Intelligence / Overview</span><span>Overview snapshot · ${H(snapshot)}</span></div>
-    <div class="overviewHeading"><h2>Your security.<br>In perspective.</h2>
-      <p>${H(W ? weatherHeadline(W) : "Connect your evidence. Understand your exposure. Decide what comes next.")}</p>
+    <div class="overviewEyebrow"><span>Overview</span><span>Read at ${H(snapshot)}</span></div>
+    <div class="overviewHeading"><h2>${H(reading)}</h2>
+      <p>${H(nextLine)}</p>
       <div class="overviewActions">
         ${actBtn("Start a TLS scan", "nav", { cls: "btn pri", icon: I.radar, data: { to: "scans" } })}
         ${actBtn("Open Quantum Airlock", "nav", { cls: "btn", icon: I.lock, data: { to: "airlock" } })}
-        <span>Discover. Prioritize. Act with evidence.</span>
       </div>
     </div>
   </section>`;
@@ -3863,11 +3774,7 @@ VIEWS.overview = async (host) => {
   /* --- subsystem runway: long-form rows instead of small square tiles --- */
   const tiles = exec.ok ? subsystemRunway(E, O) : errBox(exec.err, "/executive-dashboard");
 
-  // The estate panel replays the latest completed scan against the inventory.
-  const latestScanRow = SC.find(s => /complete/i.test(String(s.status || "")));
-  const latestScan = latestScanRow ? await safe(`/scans/${encodeURIComponent(latestScanRow.id)}/results`) : null;
   host.innerHTML = advis + hero + kpiRow
-    + opsPanel("scanLive", scanLiveData(latestScanRow, latestScan?.ok ? latestScan.data.results : [], AS), "live · latest scan")
     + sec("Your risk landscape", `<div class="warRoom" id="missionLive">${missionRiskMapCard(AS, RP, RM, FX, SC)}${evidenceTelemetryCard(missionCtx)}</div>`,
       `<span class="liveMeta" id="missionFreshness">Risk panels refresh every ${MISSION_LIVE_MS / 1000}s</span>`)
     + sec("Move the work forward", `<div class="warRoom">${nextBestActionsCard(FX, RM, RD)}${evidenceTimelineCard(SC, RM, RD)}</div>`)
@@ -4084,10 +3991,10 @@ function subsystemRunway(E, O) {
 function weatherHeadline(w) {
   const st = String(w.state || "").toLowerCase();
   const crit = w.summary?.critical_signals_total ?? 0, high = w.summary?.high_signals_total ?? 0;
-  if (crit) return `${crit} critical cryptographic risk front${crit > 1 ? "s" : ""} require board attention`;
-  if (high) return `${high} elevated risk signal${high > 1 ? "s" : ""} developing across the estate`;
-  if (st === "clear") return "Skies clear — no board-level cryptographic risk signals active";
-  return `Risk weather: ${TITLE(st)}`;
+  if (crit) return `${crit} critical risk signal${crit > 1 ? "s" : ""} open`;
+  if (high) return `${high} high risk signal${high > 1 ? "s" : ""} open`;
+  if (st === "clear") return "No board-level risk signals open";
+  return `Risk state: ${TITLE(st)}`;
 }
 function hndlMini(hndl) {
   return bind(hndl, (h) => {
@@ -5164,41 +5071,11 @@ function scanLiveData(scanRow, results, assets) {
     score: scanRow?.summary?.quantum_risk_score ?? null, level: scanRow?.summary?.quantum_risk_level || "",
   };
 }
-function blastLiveData(graph) {
-  const nodes = rows(graph || {}, "nodes").map(n => ({
-    id: n.id, label: lgLabel(n), type: n.type || "node", risk: lgRisk(n), usd: Number(n.exposure_usd) || 0,
-    key: n.key_type ? `${n.key_type}${Number(n.key_bits) ? ` ${n.key_bits}` : ""}` : "",
-  }));
-  const edges = (graph?.edges || []).map(e => ({ from: e.source ?? e.from, to: e.target ?? e.to }));
-  return { nodes, edges, exposure: nodes.reduce((s, n) => s + n.usd, 0) };
-}
-function hndlLiveData(dash) {
-  return {
-    qday: dash?.q_day_year ?? null,
-    assets: (dash?.priority_queue || []).map(r => ({
-      name: r.asset_key || `${r.host}:${r.port}`, usd: Number(r.exposure_usd) || 0, p: Number(r.p_broken) || 0,
-      cls: hndlClass(r.algo_class), pq: /pq/i.test(String(r.algo_class || "")),
-    })),
-  };
-}
-function pipelineLiveData(remediations, tasks, fixes) {
-  const stageOf = s => /verified|closed|done|complete|resolved/i.test(s) ? "done"
-    : /merged/i.test(s) ? "merged"
-    : /progress|review|pending|proposed|pr[_ ]?open|approved|in_pr/i.test(s) ? "progress" : "open";
-  const items = [
-    ...(tasks || []).map(x => ({ kind: "task", name: x.asset_key || x.repository_name || `task #${x.id}`, status: String(x.status || "open").replace(/_/g, " "), stage: stageOf(String(x.status || "")) })),
-    ...(remediations || []).map(x => ({ kind: "fix", name: x.asset_key || x.repository || `remediation #${x.id}`, status: String(x.status || "open").replace(/_/g, " "), stage: stageOf(String(x.status || "")) })),
-  ];
-  const next = (fixes || [])[0];
-  return { items, next: next ? { name: next.asset_key || next.host || "—", priority: next.priority_score ?? null } : null };
-}
-
-/** A live operational panel (ops-motion.js): a graph beside a log that plays in
- *  step with it. Everything in it is illustrative unless `data` carries real
- *  input, and `tag` says which the reader is looking at. */
-function opsPanel(scene, data, tag) {
-  const attr = s => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
-  return `<div class="opsPanel viewOps" data-ops="${attr(scene)}"${data ? ` data-ops-data="${attr(JSON.stringify(data))}"` : ""}${tag ? ` data-ops-tag="${attr(tag)}"` : ""}></div>`;
+/** The animated operational panel (ops-motion.js) was decoration: a scene that
+ *  replayed data the page already lists. It is gone; the TLS Scanner view still
+ *  calls this, so it renders nothing until that call is removed. */
+function opsPanel() {
+  return "";
 }
 const emptyCard = (title, msg, icon) => `<section class="card"><div class="cardBody">${emptyBox(msg, icon, title)}</div></section>`;
 const SCAN_OUTPUTS = [
@@ -5605,8 +5482,8 @@ ACTIONS.scanDetail = (b) => {
    VIEW: ASSETS — inventory, tags, collections, repositories
    ========================================================================== */
 VIEWS.assets = async (host) => {
-  const [assets, tags, colls, repos, baselines, gov, chain, passive] = await all([
-    "/assets", "/tags", "/collections", "/repositories", "/baselines", "/governance/certificates", "/blast-radius/graph",
+  const [assets, tags, colls, repos, baselines, gov, passive] = await all([
+    "/assets", "/tags", "/collections", "/repositories", "/baselines", "/governance/certificates",
     "/v1/runtime/passive/endpoints",
   ]);
   const A = assets.ok ? rows(assets.data) : [];
@@ -5627,7 +5504,6 @@ VIEWS.assets = async (host) => {
       ${kpi("Healthy certs", NUM(G?.summary?.healthy ?? 0), { icon: I.check, tone: "var(--ok)" })}
       ${kpi("Baselines", NUM(baselines.ok ? rows(baselines.data, "baselines").length : 0), { icon: I.target, tone: "var(--accent)", sub: "assets pinned to a reference scan" })}
     </div>
-    ${opsPanel("blastLive", blastLiveData(chain.ok ? chain.data : null), "live · certificate graph")}
 
     ${sec("Inventory", `<div class="row" style="margin-bottom:12px">
       <input class="inp" id="aq" placeholder="Filter by asset, owner, team or environment…" style="max-width:340px">
@@ -6230,9 +6106,9 @@ ACTIONS.hcNew = async () => {
    VIEW: Q-DAY — forecast, milestones, intelligence
    ========================================================================== */
 VIEWS.qday = async (host) => {
-  const [cd, fc, ms, actors, feed, sim, hndlModel] = await all([
+  const [cd, fc, ms, actors, feed, sim] = await all([
     "/qday/countdown", "/qday-forecast", "/qday-forecast/milestones",
-    "/qday-forecast/threat-actors", "/q-intel/feed", "/quantum-sim/graph", "/hndl/dashboard",
+    "/qday-forecast/threat-actors", "/q-intel/feed", "/quantum-sim/graph",
   ]);
   const CD = cd.ok ? cd.data : null;
   const F = fc.ok ? fc.data : null;
@@ -6251,7 +6127,6 @@ VIEWS.qday = async (host) => {
         sub: F ? `${NUM(F.crqc_trajectory.blended_estimate_years, 1)} years · ${H(F.crqc_trajectory.confidence)} confidence` : "" })}
     </div>
 
-    ${opsPanel("hndlLive", hndlLiveData(hndlModel.ok ? hndlModel.data : null), "live · hndl model")}
     ${sec("Probability distribution", bind(fc, (d) => {
       const dist = (d.distribution || []).map(x => ({ k: x.year, v: x.cumulative_pct }));
       return card("Cumulative probability of CRQC by year", areaChart(dist, { color: "var(--brand2)", yFmt: v => PCT(v), label: "CRQC probability" }), {
@@ -7105,7 +6980,6 @@ VIEWS.remediation = async (host) => {
       ${kpi("Migration tasks", NUM(T.length), { icon: I.flag, tone: "var(--accent)", sub: `${NUM(T.filter(x => /done|complete/i.test(x.status || "")).length)} complete` })}
       ${kpi("Next best fix", fix.ok && rows(fix.data).length ? NUM(rows(fix.data).length) : "0", { icon: I.zap, tone: "var(--brand2)", sub: "prioritized queue depth" })}
     </div>
-    ${opsPanel("pipeline", pipelineLiveData(R, T, fix.ok ? rows(fix.data) : []), "live · remediation queue")}
 
     <div class="row" style="margin:16px 0">
       <div class="tabs" data-tabs="rm">
@@ -10244,24 +10118,17 @@ const GUIDE = [
         <li><b>R</b> refreshes the current screen when you are not typing in a field.</li>
         <li>Tab groups are keyboard navigable: arrow keys, <code>Home</code>, <code>End</code>.</li>
         <li>The badge on a sidebar item is a live count: open findings, alerts, pending items.</li>
-        <li>The top bar holds <b>CipherLens</b> (the assistant), the API health dot, refresh, feedback,
-          the theme switch and <b>Pause motion</b>. The hamburger collapses the sidebar.</li>
-        <li><b>Pause motion</b> stops the animated background and the grow-in of charts. Your choice is
-          remembered in this browser. If your operating system asks for reduced motion, the button
-          reads <b>Reduced motion</b> and motion stays off.</li>
+        <li>The top bar holds <b>CipherLens</b> (the assistant), the API health dot, refresh, feedback
+          and the theme switch. The hamburger collapses the sidebar.</li>
+        <li>Nothing on screen moves on its own: no animated background and no looping effects. The
+          only motion is a loading indicator while data is on its way.</li>
       </ul>` },
     { id: "reading-charts", n: "Reading charts", i: I.chart, body: `
-      <p><b>What it is:</b> most charts in the console are drawn in 3D: bars, rings, gauges, radar
-      shapes, the risk map and the HNDL timelines. The numbers are the same as in the flat version;
-      the 3D view just makes comparisons easier to see.</p>
+      <p><b>What it is:</b> the console's charts are flat bars, rings, gauges, radar shapes, the risk
+      map and the HNDL timelines, drawn from the same figures the page lists beside them.</p>
       <ul>
-        <li><b>Drag</b> a chart to turn it. With a mouse, dragging up or down also tilts it.</li>
         <li><b>Hover</b> over a bar, slice or point to see its exact value.</li>
-        <li><b>Double-click</b> to put the chart back to its starting angle.</li>
-        <li><b>Keyboard:</b> press <code>Tab</code> until the chart is focused, then use the left and
-          right arrow keys to turn it.</li>
-        <li>Screen readers get the underlying flat chart. If your browser cannot draw the 3D view, you
-          see the flat chart instead.</li>
+        <li>A chart with fewer than two data points is not drawn; the panel says what data is missing instead.</li>
       </ul>
       <p><b>Model badges.</b> A small badge next to a figure tells you where it comes from:</p>
       <ul>
@@ -10920,9 +10787,8 @@ function autoTable(list) {
   })), list.slice(0, 200), { max: "420px" });
 }
 </script>
-<link rel="stylesheet" href="/ui/gateway.css?v=20260914-3d">
-<script src="/ui/gateway-scene.js?v=20260915-perf2"></script>
-<script src="/ui/gateway.js?v=20260914-3d"></script>
+<link rel="stylesheet" href="/ui/gateway.css?v=20261113-instrument">
+<script src="/ui/gateway.js?v=20261113-instrument"></script>
 <link rel="stylesheet" href="/ui/data-control.css?v=20260925">
 <script src="/ui/data-control.js?v=20260925"></script>
 <script>document.addEventListener("DOMContentLoaded", boot);</script>

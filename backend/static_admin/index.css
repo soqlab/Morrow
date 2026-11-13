@@ -334,7 +334,7 @@ td.empty { padding: 26px 12px; }
 .chBarTrack i { display: block; height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; }
 .chBarValue { font: 500 12px var(--mono); color: var(--chalk); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* 3D summaries (charts3d.js). Local text tokens: the console's --ink is the ground, not text. */
+/* Chart summaries, drawn flat. Local text tokens: the console's --ink is the ground, not text. */
 .c3d { position: relative; min-width: 0; --ink: #E9EDF4; --ink2: #B7BFCC; --ink3: #8A94A6; --surface: #0A0E15; --surface2: rgba(123, 107, 255, .1); --surface3: #131925; --brand: #7B6BFF; --ok: #4FB58B; --warn: #D4913F; --bad: #E46E62; }
 .c3d.c3dOn > .c3dFallback { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .c3d.c3dOn > .c3dFallback, .c3d.c3dOn > .c3dFallback * { animation: none !important; transition: none !important; }

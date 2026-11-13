@@ -1180,37 +1180,6 @@ html[data-theme] .ingList small { font: 10.5px var(--mono); color: var(--ink3); 
 html[data-theme] .qChips { gap: 6px; background: transparent; border: 0; }
 html[data-theme] .qChips span { border: 1px solid var(--line); }
 
-/* ==========================================================================
-   3D charts (charts3d.js). The flat chart stays in the block for assistive
-   technology and as the fallback; once a 3D stage mounts it is hidden visually.
-   ========================================================================== */
-.c3d { position: relative; min-width: 0; }
-.c3d.c3dOn > .c3dFallback {
-  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
-  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
-}
-/* Clipped is not stopped: the flat chart's flowing edges and breathing shapes
-   kept restyling and repainting every frame behind the 3D stage. */
-.c3d.c3dOn > .c3dFallback, .c3d.c3dOn > .c3dFallback * { animation: none !important; transition: none !important; }
-.c3dStage { position: relative; min-width: 0; }
-.c3dStage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; outline: none; }
-.c3dStage.dragging canvas { cursor: grabbing; }
-.c3dStage canvas:focus-visible { box-shadow: inset 0 0 0 2px var(--brand); }
-.c3dTip {
-  position: absolute; z-index: 2; display: grid; gap: 1px; max-width: 220px; padding: 6px 9px; pointer-events: none;
-  border: 1px solid var(--line); border-left: 2px solid var(--brand); background: color-mix(in srgb, var(--surface) 94%, transparent);
-}
-.c3dTip b { font-size: 12px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
-.c3dTip span { font: 11px var(--mono); color: var(--ink2); }
-.c3dLegend { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 16px; }
-.c3dLegend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 3px 4px; font-size: 12px; color: var(--ink2); }
-.c3dLegend li.on { background: var(--surface2); color: var(--ink); }
-.c3dLegend i { width: 9px; height: 9px; }
-.c3dLegend span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.c3dLegend b { font: 500 11.5px var(--mono); color: var(--ink); }
-.c3dLegend small { font: 10.5px var(--mono); color: var(--ink3); }
-@media (max-width: 700px) {  }
-
 /* Model / reference / seed data badge (basisBadge in index.html). */
 .basisBadge {
   display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; padding: 3px 8px; cursor: help; white-space: nowrap;
