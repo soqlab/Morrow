@@ -1,7 +1,7 @@
 """The public, unauthenticated post-quantum readiness checker.
 
 Pages (no account, no tenant)
-  GET  /check                               the form (static/check.html)
+  GET  /check                               308 to the instrument: / , or /{domain} for ?domain=
   GET  /check/{domain}                      301 to /r/{domain}, the permanent record
 
 The registry: the permanent record (server-rendered, services/registry_page.py)
@@ -39,12 +39,11 @@ global check budgets, which only an actual check spends.
 from __future__ import annotations
 
 import hashlib
-import os
 from typing import Any, Dict, Iterable, Optional
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from services import platform_operators as _operators
@@ -105,21 +104,23 @@ def create_public_check_router(deps: Any) -> APIRouter:
                 pass
         return str(request.client.host if request.client else "")
 
-    def _page() -> FileResponse:
-        path = os.path.join(deps.static_dir, "check.html")
-        if not os.path.exists(path):
-            raise HTTPException(status_code=404, detail="check.html not found")
-        return FileResponse(path, media_type="text/html; charset=utf-8",
-                            headers={"Cache-Control": _PAGE_CACHE_CONTROL})
-
     def guard(request: Request, roles: Optional[Iterable[str]] = None) -> Dict[str, Any]:
         return deps.require_platform_admin(request, set(roles) if roles else None)
 
     # ── Pages ────────────────────────────────────────────────────────────────
 
-    @router.get("/check", include_in_schema=False)
-    def public_check_page() -> FileResponse:
-        return _page()
+    @router.api_route("/check", methods=["GET", "HEAD"], include_in_schema=False)
+    def public_check_page(domain: str = "") -> Response:
+        # The checker's own page is retired: the instrument's one input at / asks the same question,
+        # and /{domain} is the answer. ?domain= was the old page's way of arriving pre-filled, so it
+        # maps onto that domain's page; anything that is not a hostname lands on the input itself.
+        host = ""
+        if str(domain or "").strip():
+            try:
+                host = _check.normalize_domain(domain)
+            except _check.PublicCheckError:
+                host = ""
+        return RedirectResponse(f"/{host}" if host else "/", status_code=308)
 
     @router.get("/check/{domain}", include_in_schema=False)
     def public_check_permalink_page(domain: str) -> Response:
@@ -493,7 +494,7 @@ def acceptable_use() -> Dict[str, Any]:
             "acceptable_use": "/public-check/acceptable-use",
             "privacy": "/public-check/privacy",
             "abuse_and_opt_out": "/abuse",
-            "scanner_identity": "/scanner",
+            "scanner_identity": "/about-scanner",
         },
         "self_hoster_note": ("If you run your own copy of this service, the responsibility for what "
                              "it contacts is yours, under your own jurisdiction's rules."),

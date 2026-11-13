@@ -1627,11 +1627,11 @@
       }
       const items = d.requests || [];
       const head = `<div class="riskItem"><b>${fmt.format(asNum(counts.total))} total</b><span>${["pending", "approved", "declined", "spam"].map(k => `${k} ${fmt.format(asNum(counts[k]))}`).join(" - ")}</span></div>`;
-      if (body) body.innerHTML = head + (items.map(trialRow).join("") || empty("No trial requests match this filter."));
+      if (body) body.innerHTML = head + (items.map(trialRow).join("") || empty("No account requests match this filter."));
       applyRoleControls();
       return d;
     } catch (err) {
-      if (body) body.innerHTML = failBox(`Trial requests unavailable: ${err.message || err}`, "trials");
+      if (body) body.innerHTML = failBox(`Account requests unavailable: ${err.message || err}`, "trials");
       throw err;
     }
   }

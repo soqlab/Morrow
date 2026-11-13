@@ -31,7 +31,7 @@
       { route: "customers", label: "Organizations", desc: "Every tenant with status, plan, risk and activity", count: "organizations" },
       { route: "customer-360", label: "Customer 360", desc: "One organization: activity, members, keys, lifecycle" },
       { route: "users", label: "Users", desc: "Accounts, role assignments and deactivation" },
-      { route: "trials", label: "Trial requests", desc: "Strangers asking for an account, and the decision on each", count: "pendingTrials" },
+      { route: "trials", label: "Account requests", desc: "Requests from the old public form, and the decision on each", count: "pendingTrials" },
       { route: "invitations", label: "Invitations", desc: "Single-use, expiring invitations to a tenant" },
       { route: "support-sessions", label: "Support sessions", desc: "Read-only view-as-customer sessions and revocation" },
       { route: "onboarding", label: "Onboarding", desc: "Activation risk and per-tenant checklists", count: "atRisk" },

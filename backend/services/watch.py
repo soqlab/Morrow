@@ -985,6 +985,12 @@ def about_scanner(example_host: str = "example.com") -> Dict[str, Any]:
                                                   "fixed list of common sign-in and payment names), then one TLS "
                                                   f"ClientHello to each of at most {third_party.max_hosts()} outside hosts "
                                                   "the page or DNS names."},
+            {"part": "The certificate-transparency record", "sends": "Your certificates are read from a public "
+                                                                    "Certificate Transparency search, not from your server. Then "
+                                                                    f"at most two TLS connections to port {public_check.PORT}: one "
+                                                                    "ordinary verified handshake, and one ClientHello offering "
+                                                                    "post-quantum groups that is closed after the ServerHello. "
+                                                                    "No HTTP request to your host."},
         ],
         "when": [
             {"why": "Somebody opens your page", "how_often": f"the stored answer is reused for "

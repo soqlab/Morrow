@@ -196,18 +196,18 @@ Turn it on with `MORROW_PUBLIC_CHECK_ENABLED=1` once 4 and 5 are real.
 ## 9. Smoke test what a stranger sees
 
 ```bash
-for p in / /check /trial /pricing /security /r/example.com /robots.txt; do
+for p in / /pricing /security /terms /abuse /r/example.com /robots.txt; do
   printf "%-18s %s\n" "$p" "$(curl -s -o /dev/null -w '%{http_code}' https://your-domain.com$p)"
 done
 ```
 
 `/r/example.com` answering 404 is correct — no record exists until someone checks that domain.
-Everything else should be 200. Then run a check from `/check` on a domain you own, and confirm the
-record appears at `/r/<that-domain>` with a working badge.
+Everything else should be 200. Then type a domain you own at `/`, and confirm its page answers
+with a grade and a working badge.
 
-Last, submit `/trial` yourself and approve it from **Customers → Trial requests** in
-`/vendor-admin`. That is the whole path a customer takes, and it is the one worth walking before
-anyone else does.
+Last, create an account for yourself as an administrator would for a customer (a setup link from
+**Users → Set up account** in the console), open the link, create a passkey and sign in. That is
+the whole path a customer takes, and it is the one worth walking before anyone else does.
 
 ## Updating later
 

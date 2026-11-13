@@ -6,19 +6,19 @@
   <title>Terms of use for the free checker | Morrow</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="description" content="Terms for the free post-quantum readiness check at /check. There is no account and no signup, so these terms bind on use. Draft for legal review.">
-  <link rel="stylesheet" href="/ui/public.css?v=7">
-  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
-  <link rel="stylesheet" href="/ui/experience.css?v=20261113-instrument">
-  <link rel="stylesheet" href="/ui/check.css?v=20261005">
   <script src="/ui/check-pages.js?v=20261005" defer></script>
+<link rel="stylesheet" href="/ui/instrument.css?v=20261113">
+<link rel="stylesheet" href="/ui/doc.css?v=20261113">
 </head>
-<body class="public-document">
-<a class="skip-link" href="#content">Skip to content</a>
+<body class="ins doc" data-ch="ref">
+<a class="skip" href="#content">Skip to the content</a>
+<header class="i-top">
+  <div class="i-top-in">
+    <a class="i-mark" href="/">MORROW</a>
+    <div class="i-top-right"><a class="i-btn" href="/ui/">Sign in</a></div>
+  </div>
+</header>
 <main class="doc-shell" id="content">
-  <header class="topbar">
-    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
-    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a href="/trial">Sign up</a><a class="nav-cta" href="/ui/">Sign in &#8599;</a></nav>
-  </header>
 
   <section class="doc-hero">
     <div>
@@ -47,7 +47,7 @@
       <div class="matrix-row"><strong>Active part</strong><p>At most two connections, to one hostname, on port 443. One ordinary verified TLS handshake, and one ClientHello that offers post-quantum key-exchange groups so hybrid support can be observed. No HTTP request is ever sent to the checked host.</p></div>
       <div class="matrix-row"><strong>The result</strong><p>Published at <code>/r/{domain}</code> and readable by anyone with that URL, with JSON and CycloneDX exports and an embeddable badge. It is cached, so a popular domain is checked once per cache window rather than once per visitor, and it is recorded, so the address keeps resolving indefinitely. Both are described in the <a href="/public-check/privacy">privacy notice</a>.</p></div>
     </div>
-    <p>The exact technical behaviour is set out on the <a href="/scanner">scanner identity page</a>, and the live limits this deployment enforces are published by <code>GET /api/public-check/config</code> and shown on <a href="/check#guardrails">/check</a>.</p>
+    <p>The exact technical behaviour is set out on the <a href="/about-scanner">scanner identity page</a>, and the live limits this deployment enforces are published by <code>GET /api/public-check/config</code> and shown on <a href="/check#guardrails">/check</a>.</p>
   </section>
 
   <section class="doc-section">
@@ -118,10 +118,21 @@
     <p>Notices, abuse reports and opt-out requests: <span data-abuse-contact>no abuse address is configured on this deployment, so the only route is the <a href="/support">contact page</a></span>. The same address is published on <a href="/check">/check</a> and on the <a href="/abuse">abuse and opt-out page</a>.</p>
   </section>
 
-  <footer>
-    <span>Morrow / Free checker</span>
-    <nav><a href="/check">Free check</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/abuse">Abuse &amp; opt-out</a> / <a href="/public-check/privacy">Checker privacy</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
-  </footer>
 </main>
+<footer class="i-foot">
+  <div class="i-foot-in">
+    <a href="/">Check a domain</a>
+    <a href="/terms">Terms</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/dpa">Data processing</a>
+    <a href="/security">Security</a>
+    <a href="/public-check/terms">Checker terms</a>
+    <a href="/public-check/acceptable-use">Acceptable use</a>
+    <a href="/public-check/privacy">Checker privacy</a>
+    <a href="/abuse">Opt a domain out</a>
+    <a href="/about-scanner">What connects to your server</a>
+    <a href="/support">Support</a>
+  </div>
+</footer>
 </body>
 </html>

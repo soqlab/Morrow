@@ -45,9 +45,9 @@ version of this. The decisions it needs from you:
 - [ ] **A backup has been restored.** Not taken — restored, onto a scratch server.
       `deploy/single-host/backup.sh` covers Postgres, the SQLite feature store and (encrypted) the
       env file. A backup you have never restored is a guess.
-- [ ] **Walk the customer path yourself.** Submit `/trial`, approve it from **Customers → Trial
-      requests**, accept the invitation, sign in, run a scan, export the CBOM. End to end, as a
-      stranger, on the real deployment.
+- [ ] **Walk the customer path yourself.** Create an account with a setup link, open it, create a
+      passkey, sign in, run a scan, export the CBOM. End to end, as a stranger, on the real
+      deployment.
 - [ ] **MFA enrolled on your operator account.** The self-enrolment window closes once the first
       owner has an authenticator, so do this before anyone else is enrolled.
 - [ ] **Tenant isolation verified on the real database**: `POST /platform/tenant-isolation/verify`.
@@ -153,15 +153,15 @@ Certificate Transparency seeding is safe at any scale and active measurement is 
 
 ## What is deliberately not on this list
 
-**Self-service signup.** `/auth/register` is admin-only and a trial request is reviewed by a
-person. That is a choice, not a gap: an authenticated account can scan arbitrary hosts, and none of
+**Self-service signup.** `/auth/register` is admin-only, and the emailed trial request is retired
+(`/trial` redirects to passkey sign-in, the API answers 410). That is a choice, not a gap: an authenticated account can scan arbitrary hosts, and none of
 the free checker's guardrails apply to the full scanner. Open signup would make this a free
 reconnaissance service pointed at other people's infrastructure, from your IP addresses, under your
 name. The staged path was to launch with review, then build verified-domain self-serve — where
 scanning is limited to domains the account has proved it controls — which is the only design that
-makes open signup safe. That now exists: `MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1` with
-`MORROW_SELF_SIGNUP=1` (see deploy/render-hosted/README.md). Without the first, the second does
-nothing and requests wait for a person.
+makes open signup safe. The verified-domain limit exists (`MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1`);
+the emailed self sign-up that used it is gone with the trial form, so accounts are created by an
+administrator with a setup link and signed into with a passkey.
 
 **A status page, SOC 2, a SIEM integration, SSO for customers.** All real asks from real buyers,
 none of them a launch blocker. Wait until someone asks; the answer "not yet, and here is when"

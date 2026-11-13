@@ -1,14 +1,12 @@
-"""The only route from a stranger to an account: the public form, and the operator queue.
+"""Trial requests: the retired public form, and the operator queue that still reads old rows.
 
-What these tests are really guarding is that the route exists and stays closed by default. A public
-site with no intake is an invisible failure -- everything works, nobody can sign up, and the only
-symptom is silence -- and an intake that provisions automatically is the opposite failure: a free
-scanner pointed at other people's hosts.
+The form asked for an email address and answered by emailing a link, the one kind of sign-in Morrow
+no longer offers. What these tests guard now is that the retirement is complete -- nothing is
+recorded and nothing is sent, and the old addresses lead to passkey sign-in instead of a 404 -- and
+that requests made before it can still be read and decided by an operator.
 """
 
 from __future__ import annotations
-
-from typing import Any, Dict
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,92 +37,40 @@ def client(store, monkeypatch):
     return TestClient(app_module.app, raise_server_exceptions=False)
 
 
-def _submit(client: TestClient, **fields: Any):
-    data: Dict[str, str] = {"email": "ada@example.com"}
-    data.update({k: str(v) for k, v in fields.items()})
-    return client.post("/trial-request", data=data)
+# ── The retired public form ──────────────────────────────────────────────
 
 
-# ── The public form ──────────────────────────────────────────────────────────
+def test_both_public_routes_answer_410_and_record_nothing(client, store, monkeypatch):
+    from services import platform_mail
 
+    sent = []
+    monkeypatch.setattr(platform_mail, "send_text", lambda *a, **k: sent.append(a) or {"ok": True})
+    monkeypatch.setenv("MORROW_TRIAL_NOTIFY_EMAIL", "owner@example.com")
+    monkeypatch.setenv("MORROW_SELF_SIGNUP", "1")
 
-def test_the_form_records_a_request_and_says_a_person_reads_it(client, store):
-    response = _submit(client, name="Ada", company="Example Ltd", domain="example.com",
-                       use_case="Scoping a migration before the 2030 deadline.")
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-    # The applicant has to leave knowing that nothing is automatic, or they will wait for an
-    # email that an automated system was never going to send.
-    assert "a person reads it" in response.text or "a person checks every request" in response.text
-    assert "no automatic approval" in response.text.lower()
-
-    pending = store.list_requests()
-    assert len(pending) == 1
-    assert pending[0]["email"] == "ada@example.com"
-    assert pending[0]["domain"] == "example.com"
-    assert pending[0]["status"] == store.STATUS_PENDING
-    # The address itself is never stored, only a salted hash of it.
-    assert pending[0].get("requester_ip") is None
-
-
-def test_the_form_works_without_javascript(client):
-    """It is a plain POST form. If this ever needs a script, the thing a stranger does once breaks
-    for anyone whose script did not load."""
-    page = client.get("/trial")
-    assert page.status_code == 200
-    assert '<form class="signup-form" method="post" action="/trial-request">' in page.text
-    assert "<script" not in page.text, "the trial form must not depend on JavaScript"
-    assert "style=" not in page.text, "no inline style under the strict CSP"
-    assert page.headers["content-security-policy"].count("script-src 'self'") == 1
-
-
-def test_a_bad_address_is_refused_with_a_reason_not_a_stack_trace(client, store):
-    response = client.post("/trial-request", data={"email": "not-an-address"})
-    assert response.status_code == 400
-    assert "does not look like an email address" in response.text
-    assert "Back to the form" in response.text
+    form = client.post("/trial-request", data={"email": "ada@example.com", "company": "Example Ltd"})
+    api = client.post("/api/trial-request", json={"email": "grace@example.com"})
+    for response in (form, api):
+        assert response.status_code == 410
+        body = response.json()
+        assert body["recorded"] is False
+        assert body["sign_in"] == "/ui/"
+        assert "passkey" in body["detail"]
+        assert response.headers["cache-control"] == "no-store"
+    # Even an empty or malformed body is the same answer: there is nothing left to validate.
+    assert client.post("/api/trial-request", json={}).status_code == 410
     assert store.list_requests() == []
+    assert sent == [], "a retired form must not send any email"
 
 
-def test_a_malformed_domain_is_refused_but_blank_is_fine(client, store):
-    refused = _submit(client, domain="not a domain at all")
-    assert refused.status_code == 400
-    assert "does not look like a domain" in refused.text
-
-    accepted = _submit(client, domain="")
-    assert accepted.status_code == 200
-    assert len(store.list_requests()) == 1
+def test_the_old_pages_redirect_to_passkey_sign_in(client):
+    for path in ("/trial", "/trial-request"):
+        moved = client.get(path, follow_redirects=False)
+        assert moved.status_code == 308, path
+        assert moved.headers["location"] == "/ui/", path
 
 
-def test_the_honeypot_is_discarded_silently(client, store):
-    """A bot that knows which field caught it fixes that in the next version."""
-    response = _submit(client, website="https://spam.example")
-    assert response.status_code == 200, "it must look exactly like success"
-    assert "Request received" in response.text
-    assert store.list_requests() == [], "and record nothing"
-
-
-def test_resubmitting_returns_the_existing_request_rather_than_a_duplicate(client, store):
-    _submit(client)
-    _submit(client)
-    _submit(client)
-    assert len(store.list_requests()) == 1, "an impatient reload is not three requests to triage"
-
-
-def test_the_json_route_answers_the_same_way(client, store):
-    response = client.post("/api/trial-request", json={"email": "grace@example.com",
-                                                       "domain": "example.org"})
-    assert response.status_code == 200
-    body = response.json()
-    assert body["recorded"] is True
-    assert "not automatic" in body["detail"].lower()
-
-    duplicate = client.post("/api/trial-request", json={"email": "grace@example.com"})
-    assert duplicate.json()["duplicate"] is True
-    assert len(store.list_requests()) == 1
-
-
-def test_the_intake_is_reachable_without_an_account(client):
+def test_the_retired_routes_still_answer_without_an_account(client):
     import app as app_module
 
     for path in ("/trial", "/trial-request", "/api/trial-request"):
@@ -300,17 +246,15 @@ def test_the_operator_portal_is_wired_to_the_queue():
     assert "/invite?token=" not in index_js
 
 
-def test_the_public_funnel_points_at_the_free_paths():
-    """The landing hero used to send a stranger to /ui/, which is a sign-in wall."""
+def test_nothing_public_points_at_the_retired_form():
+    """The landing page and pricing used to send a stranger to /trial; nothing does now."""
     import pathlib
 
     static = pathlib.Path(__file__).parent / "static"
-    landing = (static / "instrument.html").read_text(encoding="utf-8")  # what / serves now
-    pricing = (static / "pricing.html").read_text(encoding="utf-8")
-
-    assert 'href="/check"' in landing and 'href="/trial"' in landing
-    assert 'class="hero-primary" href="/ui/"' not in landing
-    assert 'href="/trial"' in pricing and 'href="/check"' in pricing
+    for name in ("instrument.html", "pricing.html", "pilot.html", "index.html"):
+        body = (static / name).read_text(encoding="utf-8")
+        assert 'href="/trial' not in body, name
+    assert not (static / "trial.html").exists()
 
 
 # ── Trial caps ───────────────────────────────────────────────────────────────
@@ -387,17 +331,3 @@ def test_a_cap_that_cannot_be_applied_does_not_half_approve_the_request(client, 
     assert body["invite_token"]
     # And it says so, instead of reporting a cap that was never written.
     assert "not applied" in body["caps"]["error"]
-
-
-def test_the_trial_page_does_not_promise_a_cap_nothing_enforces():
-    """It used to promise "a smaller target allowance". The only asset ceiling in the code is
-    gated on billing enforcement, so on this deployment that was not true."""
-    import pathlib
-
-    page = (pathlib.Path(__file__).parent / "static" / "trial.html").read_text(encoding="utf-8")
-    assert "target allowance" not in page
-    assert "rate limits" in page
-    # Nor a console screen for the numbers: there is no customer-facing view of an organization's
-    # own limits. What does exist is the header on every response, so that is what it promises.
-    assert "under your organization's settings" not in page
-    assert "RateLimit&#8209;Limit" in page or "X-RateLimit-Limit" in page

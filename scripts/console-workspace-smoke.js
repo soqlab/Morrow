@@ -107,17 +107,25 @@ async function main() {
     assert.equal(await page.locator(".overviewMetrics .metricRow").first().locator("b").innerText(), "—");
     assert.ok((await page.locator(".overviewMetrics").innerText()).includes("Inventory source unavailable"));
     await page.unroute("**/assets");
-    for (const route of ["/security","/privacy","/terms","/support","/pricing","/pilot","/data-boundary","/airlock-deployment","/dpa","/trust-passport-demo","/enterprise-admin","/invite"]) {
+    for (const route of ["/security","/privacy","/terms","/support","/pricing","/pilot","/data-boundary","/airlock-deployment","/dpa","/trust-passport-demo","/enterprise-admin","/abuse","/invite"]) {
       await page.goto(base + route);
-      assert.equal(await page.locator('link[href*="/ui/experience.css"]').count(), 1);
-      assert.equal(await page.locator(".topbar .nav .nav-cta").getAttribute("href"), "/ui/");
+      if (route === "/invite") {
+        assert.equal(await page.locator('link[href*="/ui/experience.css"]').count(), 1);
+        assert.equal(await page.locator(".topbar .nav .nav-cta").getAttribute("href"), "/ui/");
+      } else {
+        // The documents wear the instrument's chrome: the mark home, Sign in, and the opt-out in the footer.
+        assert.equal(await page.locator('link[href*="/ui/doc.css"]').count(), 1, route);
+        assert.equal(await page.locator(".i-top .i-mark").getAttribute("href"), "/", route);
+        assert.equal(await page.locator(".i-top .i-btn").getAttribute("href"), "/ui/", route);
+        assert.equal(await page.locator('.i-foot a[href="/abuse"]').count(), 1, route);
+      }
       for (const width of [390, 1440]) {
         await page.setViewportSize({ width, height: 900 });
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), route + " fits " + width);
       }
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: missing inventory stays unavailable, 12 public pages share navigation/styles and fit mobile/desktop, no JS errors.");
+    console.log("PASS: missing inventory stays unavailable, 13 public pages share navigation/styles and fit mobile/desktop, no JS errors.");
   } finally { await browser.close(); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

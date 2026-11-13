@@ -640,7 +640,7 @@ footer a:hover { color: var(--blue); }
 }
 
 /* ------------------------------------------------------------- public forms
-   Used by /trial (static/trial.html) and any other public page that has to take
+   Was used by /trial (retired) and by any other public page that has to take
    input. Scoped to .signup-form so it cannot reach the console's own controls. */
 .signup-form {
   display: grid;

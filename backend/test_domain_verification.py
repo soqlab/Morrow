@@ -6,8 +6,6 @@ refuses every real network connection, so a scan that is *allowed* fails on the 
 of with NOT_PERMITTED, and that difference is what these tests read.
 """
 
-from types import SimpleNamespace
-
 import pytest
 
 from test_invite_landing import PASSWORD, api_fixture, make_org  # noqa: F401  (api_fixture registers the "api" fixture)
@@ -142,17 +140,10 @@ def test_viewer_cannot_add_domains(enforced):
     assert client.get("/domains", headers=auth).status_code == 200
 
 
-class InlineThread:
-    def __init__(self, target=None, **kwargs):
-        self.target = target
-
-    def start(self):
-        self.target()
-
-
-def test_self_signup_creates_the_org_and_emails_the_invitation(enforced, monkeypatch):
+def test_self_signup_by_email_is_retired_even_when_switched_on(enforced, monkeypatch):
+    """MORROW_SELF_SIGNUP used to approve a request at once and email the invitation link. Sign-in
+    is passkeys only now, so the request answers 410 and neither creates an organization nor mails."""
     client, app = enforced
-    from routers import trial_requests as trial_router
     from services import platform_mail
 
     sent = []
@@ -161,22 +152,7 @@ def test_self_signup_creates_the_org_and_emails_the_invitation(enforced, monkeyp
     monkeypatch.setattr(platform_mail, "configured", lambda: True)
     monkeypatch.setattr(platform_mail, "send_text",
                         lambda to, subject, body, timeout=20.0: sent.append((to, subject, body)) or {"ok": True})
-    monkeypatch.setattr(trial_router, "threading", SimpleNamespace(Thread=InlineThread))
     res = client.post("/api/trial-request", json={"email": "founder@newco.example", "name": "Founder", "company": "NewCo",
                                                   "domain": "newco.example", "use_case": "Self sign-up test."})
-    assert res.status_code == 200 and res.json()["self_serve"] is True
-    invite = [m for m in sent if m[0] == ["founder@newco.example"]]
-    assert len(invite) == 1 and "https://app.example/invite#token=" in invite[0][2]
-
-
-def test_self_signup_needs_verified_domain_enforcement(api, monkeypatch):
-    client, app = api
-    from services import platform_mail
-
-    monkeypatch.setenv("MORROW_SELF_SIGNUP", "1")
-    monkeypatch.delenv("MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS", raising=False)
-    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://app.example")
-    monkeypatch.setattr(platform_mail, "configured", lambda: True)
-    res = client.post("/api/trial-request", json={"email": "x@newco.example", "name": "X", "company": "NewCo",
-                                                  "domain": "newco.example", "use_case": "Should wait for a person."})
-    assert res.status_code == 200 and res.json()["self_serve"] is False
+    assert res.status_code == 410 and res.json()["recorded"] is False
+    assert sent == []
