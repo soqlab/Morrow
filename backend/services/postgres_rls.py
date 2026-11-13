@@ -83,6 +83,10 @@ ORG_SCOPED_TABLES: List[str] = [
     # Domain team sign-in (services/team_join.py): which verified domains admit people, and who joined.
     "org_domain_join_policies",
     "org_domain_joins",
+    # The opt-in public post-quantum ready list (services/pq_ready.py): which domains an org listed.
+    "pq_ready_listings",
+    # Owners' replies on the "Not yet post-quantum" list (services/not_ready.py).
+    "not_ready_replies",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -106,6 +110,8 @@ TENANT_COLUMNS: Dict[str, str] = {
     "pq_rollouts": "org_id",
     "org_domain_join_policies": "org_id",
     "org_domain_joins": "org_id",
+    "pq_ready_listings": "org_id",
+    "not_ready_replies": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".

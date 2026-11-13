@@ -19,6 +19,8 @@ os.environ.setdefault("MORROW_ADMIN_PASSWORD", "changeme123!")
 # This is a fixed throwaway key so the vault-backed tests are deterministic — never a real one.
 # base64url of b"pqc-scanner-test-only-key-32byte" (exactly 32 bytes, as Fernet requires).
 os.environ.setdefault("MORROW_VAULT_MASTER_KEY", "cHFjLXNjYW5uZXItdGVzdC1vbmx5LWtleS0zMmJ5dGU=")
+# The league tick downloads the Tranco list when it is stale; tests never reach the network for it.
+os.environ.setdefault("MORROW_LEAGUE_TRANCO_SIZE", "0")
 
 
 def _isolate_test_database():

@@ -251,6 +251,23 @@ def due_domains(limit: int, now: Optional[Any] = None) -> List[str]:
     from services import public_grade
 
     domains = league_list()
+    # Domains on the opt-in post-quantum ready list are re-graded on the same weekly rhythm.
+    try:
+        from services import pq_ready
+
+        extra = [d for d in pq_ready.listed_domains() if d not in set(domains)]
+    except Exception:
+        logger.warning("league: could not read the post-quantum ready list")
+        extra = []
+    # So are the popular sites of the Tranco list, the only source of the "Not yet post-quantum" list.
+    try:
+        from services import tranco
+
+        known = set(domains) | set(extra)
+        extra += [d for d in tranco.domains() if d not in known]
+    except Exception:
+        logger.warning("league: could not read the Tranco list")
+    domains = domains + extra
     cutoff = public_grade.iso((now or public_grade.now_utc()) - timedelta(days=REFRESH_DAYS))
     grades = _grade_rows(domains)
     misses = _latest_misses(domains)
@@ -277,6 +294,12 @@ def tick(max_domains: int = DEFAULT_TICK, threads: int = MAX_THREADS, timeout: f
                 "failed": 0, "skipped": 0, "busy": True}
     try:
         started = public_grade.iso(public_grade.now_utc())
+        try:
+            from services import tranco
+
+            tranco.refresh_if_stale()
+        except Exception:
+            logger.warning("league: the Tranco list could not be refreshed; using the stored one")
         limit = max(0, min(500, int(max_domains)))
         todo, skipped = [], 0
         for d in due_domains(limit * 2 + 10):
@@ -321,6 +344,12 @@ def tick(max_domains: int = DEFAULT_TICK, threads: int = MAX_THREADS, timeout: f
                          "VALUES (?, ?, ?, ?, ?)", (started, finished, run["graded"], run["failed"], skipped))
             conn.commit()
         _table_cache.clear()
+        try:
+            from services import pq_ready
+
+            run["pq_ready"] = pq_ready.refresh()
+        except Exception:
+            logger.warning("league: the post-quantum ready re-check failed")
         return run
     finally:
         _TICK_LOCK.release()
