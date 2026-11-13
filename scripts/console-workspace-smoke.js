@@ -13,7 +13,11 @@ async function main() {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
+    // /ui/ with no view named goes to the instrument at /, the one input; views have addresses.
     await page.goto(base + "/ui/");
+    await page.waitForURL(base + "/");
+    await page.locator("#home-q").waitFor();
+    await page.goto(base + "/ui/#overview");
     await page.locator(".consoleHero").waitFor({ timeout: 60000 });
     assert.equal(await page.locator("#orgSel").count(), 1);
     assert.equal(await page.locator("#identity").count(), 1);
@@ -22,14 +26,23 @@ async function main() {
     await page.locator(".workspaceFold").first().locator("summary").click();
     assert.equal(await page.locator(".modelStats").isVisible(), true);
     await page.locator(".workspaceFold").first().locator("summary").click();
+    // No permanent sidebar: Places opens the old navigation as a drawer over the page, at any width.
+    assert.equal(await page.locator("#consoleSidebar").evaluate(el => el.getBoundingClientRect().right <= 0), true);
     await page.locator("#navToggle").click();
-    assert.ok((await page.locator("#app").getAttribute("class")).includes("collapsed"));
-    await page.locator("#navToggle").click();
+    assert.equal(await page.locator(".main").evaluate(el => el.inert), true);
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator(".main").evaluate(el => el.inert), false);
+    // The dial is shared with the instrument and kept in the address.
+    await page.locator('#depthDial button[data-d="plain"]').click();
+    assert.equal(await page.locator("html").getAttribute("data-depth"), "plain");
+    assert.ok(page.url().includes("depth=plain"));
+    await page.locator('#depthDial button[data-d="standard"]').click();
 
     await page.locator("#cmdOpen").click();
     await page.locator("#cmdQ").fill("Asset Inventory");
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => document.querySelector("#vTitle").textContent === "Asset Inventory" && document.querySelector("#view").innerText.length > 40);
+    await page.locator("#navToggle").click();   // Places: the old navigation, as a drawer
     await page.locator('.nav[data-go="overview"]').click();
     await page.locator(".consoleHero").waitFor({ timeout: 60000 });
     let themeFetches = 0;
@@ -89,7 +102,7 @@ async function main() {
     console.log("PASS: mobile navigation, focus trap, Escape, route selection, and 320/390/768px layout.");
 
     await page.route("**/assets", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "Test source failure" }) }));
-    await page.goto(base + "/ui/");
+    await page.goto(base + "/ui/#overview");
     await page.locator(".consoleHero").waitFor({ timeout: 60000 });
     assert.equal(await page.locator(".overviewMetrics .metricRow").first().locator("b").innerText(), "—");
     assert.ok((await page.locator(".overviewMetrics").innerText()).includes("Inventory source unavailable"));

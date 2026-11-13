@@ -107,7 +107,8 @@ const MIN_VIEW_TEXT = 40;
 
 async function testMainUi(page) {
   log("console loads");
-  await page.goto(`${baseUrl}/ui/`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  // /ui/ with no view named sends a signed-in visitor to the instrument at /; name a view.
+  await page.goto(`${baseUrl}/ui/#overview`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.locator("#app").waitFor({ timeout: 15000 });
   await page.locator("#nav .nav[data-go]").first().waitFor({ timeout: 15000 });
 

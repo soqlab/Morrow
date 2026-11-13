@@ -769,11 +769,21 @@ pre.out{
 
 /* ---------- responsive ---------- */
 @media(max-width:1200px){.g5,.g6{grid-template-columns:repeat(3,minmax(0,1fr))}.g4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* No permanent sidebar at any width: the old navigation is a drawer of places (see setConsoleNav). */
+.app{grid-template-columns:1fr}
+.side{position:fixed;left:0;top:0;width:272px;transform:translateX(-100%);transition:transform .24s cubic-bezier(.2,.8,.3,1)}
+.app.navOpen .side{transform:none}
+.app.navOpen::after{content:"";position:fixed;inset:0;background:rgba(4,8,16,.5);z-index:35}
+html[data-depth="plain"] .sub, html[data-depth="plain"] pre.out, html[data-depth="plain"] .workspaceFold,
+html[data-depth="plain"] .metricRow span, html[data-depth="plain"] .cardHead p, html[data-depth="plain"] .mono.small { display:none !important }
+html[data-depth="standard"] pre.out { display:none !important }
+.depthDial{display:inline-flex;border:1px solid var(--line2);font:12px var(--mono)}
+.depthDial button{padding:6px 9px;background:none;border:0;color:var(--ink3);cursor:pointer}
+.depthDial button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.homeLink{font:600 12px var(--mono);letter-spacing:.2em;color:var(--ink);text-decoration:none;white-space:nowrap}
+@media(max-width:760px){.homeLink{display:none}.depthDial button{padding:5px 6px;font-size:11px}}
+@media(max-width:480px){.depthDial{display:none}}
 @media(max-width:1024px){
-  .app{grid-template-columns:1fr}
-  .side{position:fixed;left:0;top:0;width:272px;transform:translateX(-100%);transition:transform .24s cubic-bezier(.2,.8,.3,1)}
-  .app.navOpen .side{transform:none}
-  .app.navOpen::after{content:"";position:fixed;inset:0;background:rgba(4,8,16,.5);z-index:35;backdrop-filter:blur(2px)}
   .heroIn{grid-template-columns:1fr}
   .ring{margin-inline:auto}
   .g-2-1,.g-1-2,.g-3-2,.g3{grid-template-columns:1fr}
@@ -1151,7 +1161,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 .supportEnded p { margin: 0 0 16px; color: var(--ink2); line-height: 1.55 }
 </style>
 <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
-<link rel="stylesheet" href="/ui/console.css?v=20260920-nohint">
+<link rel="stylesheet" href="/ui/console.css?v=20261113-drawer">
 <link rel="stylesheet" href="/ui/oops.css?v=20261113-instrument">
 <link rel="stylesheet" href="/ui/console-instrument.css?v=20261113">
 <script src="/ui/oops.js?v=20261113-instrument" defer></script>
@@ -1188,14 +1198,16 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
   <!-- ============ MAIN ============ -->
   <div class="main">
     <header class="top">
-      <button class="iconBtn" id="navToggle" type="button" title="Toggle navigation" aria-label="Toggle navigation" aria-controls="consoleSidebar" aria-expanded="true">
+      <a class="homeLink" href="/" title="Back to the one input">MORROW</a>
+      <button class="iconBtn" id="navToggle" type="button" title="Places: every view of the console" aria-label="Places" aria-controls="consoleSidebar" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </button>
       <div class="crumb"><span class="workspaceCrumb">Workspace /</span><h1 id="vTitle">Overview</h1><p id="vSub"></p></div>
       <button class="cmdBtn" id="cmdOpen" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <span>Search the workspace</span><kbd>Ctrl K</kbd>
+        <span>A view, a domain, a command</span><kbd>Ctrl K</kbd>
       </button>
+      <div class="depthDial" id="depthDial" role="group" aria-label="How technical"></div>
       <button class="copilotBtn" data-act="openCopilot" type="button" title="Open CipherLens">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
         <span>CipherLens</span>
@@ -2992,6 +3004,7 @@ async function afterGateAuth() {
   const invitePath = inviteReturnPath(true);
   if (invitePath) { location.replace(invitePath); return; }
   hideAuthGate();
+  if (!location.hash.slice(1)) { location.replace("/"); return; }   // home is the instrument
   paintIdentity();          // reflect the new session immediately, before the slower reloads
   ok("Signed in");
   await afterAuthChange();
@@ -3380,10 +3393,16 @@ function recognizeCmd(raw) {
   const algo = CMD_ALGOS[q.replace(/\s+/g, "-")];
   if (algo) out.push({ label: `${raw.trim()}: algorithm reference`, hint: "Reference", icon: I.book || I.search, run: () => { location.href = "/algorithms/" + algo; } });
   if (/^cve-\d{4}-\d{4,}$/.test(q)) out.push({ label: `${q.toUpperCase()} in the NVD`, hint: "Opens nvd.nist.gov", icon: I.link || I.search, run: () => window.open("https://nvd.nist.gov/vuln/detail/" + q.toUpperCase(), "_blank", "noopener") });
-  const host = q.replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/\.$/, "");
+  const command = /^(scan|rescan)\s+/.test(q);
+  const host = q.replace(/^(scan|rescan)\s+/, "").replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/\.$/, "");
   if (!algo && /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/.test(host)) {
-    out.push({ label: `Grade ${host}`, hint: "Public grade, decrypt year and fix", icon: I.shield, run: () => { location.href = "/" + host; } });
-    out.push({ label: `Scan ${host} in this workspace`, hint: "TLS Scanner", icon: I.play, run: () => { LS.set("pq_targets", host); go("scans"); } });
+    const grade = { label: `Grade ${host}`, hint: "Public grade, decrypt year and fix", icon: I.shield, run: () => { location.href = "/" + host; } };
+    const scan = { label: `Scan ${host} in this workspace`, hint: "Starts now; the result opens when it lands", icon: I.play, run: async () => {
+      const r = await safe("/scans", { method: "POST", body: { targets: [host] } });
+      if (r.ok && r.data?.id) location.href = "/estate/scan/" + encodeURIComponent(r.data.id);
+      else err(r.err || "The scan did not start");
+    } };
+    if (command) out.push(scan, grade); else out.push(grade, scan);
   }
   if (/^[0-9a-f]{7,40}$/.test(q) && /\d/.test(q)) out.push({ label: `Is commit ${q.slice(0, 12)} running here?`, hint: "Trust", icon: I.lock, run: () => { location.href = "/trust?commit=" + q; } });
   return out;
@@ -3569,7 +3588,9 @@ async function loadOrgs() {
 
 /* ---------------------------------------------------------------- boot */
 function setConsoleNav(open, restoreFocus = true) {
-  const app = $("#app"), mobile = matchMedia("(max-width:1024px)").matches;
+  // The navigation is a drawer at every width now (no permanent sidebar), so it always behaves the
+  // way it used to on a phone: open over the page, focus trapped, Escape closes.
+  const app = $("#app"), mobile = true;
   const wasOpen = app.classList.contains("navOpen");
   app.classList.toggle("navOpen", Boolean(open && mobile));
   $("#navBackdrop").hidden = !(open && mobile);
@@ -3594,7 +3615,30 @@ function connectionPill() {
       $("#connPill").hidden = false;
     }).catch(() => {});
 }
+/* How technical: plain hides the fine print, standard hides raw JSON, expert shows everything.
+   Shared with the instrument at / (localStorage morrow_depth, ?depth= in the address). */
+function depthDial() {
+  const depths = ["plain", "standard", "expert"];
+  const fromUrl = new URLSearchParams(location.search).get("depth");
+  let depth = depths.includes(fromUrl) ? fromUrl : LS.get("morrow_depth", "standard");
+  if (!depths.includes(depth)) depth = "standard";
+  const box = $("#depthDial");
+  const paint = () => {
+    document.documentElement.dataset.depth = depth;
+    box.innerHTML = depths.map(d => `<button type="button" data-d="${d}" aria-pressed="${d === depth}">${d}</button>`).join("");
+  };
+  box.onclick = (e) => {
+    const b = e.target.closest("button[data-d]"); if (!b) return;
+    depth = b.dataset.d; LS.set("morrow_depth", depth);
+    const u = new URL(location.href);
+    if (depth === "standard") u.searchParams.delete("depth"); else u.searchParams.set("depth", depth);
+    history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    paint();
+  };
+  paint();
+}
 function boot() {
+  depthDial();
   connectionPill();
   applyTheme();
   paintNav();
@@ -3605,8 +3649,7 @@ function boot() {
   $("#refreshBtn").onclick = retry;
   $("#navToggle").onclick = () => {
     const a = $("#app");
-    if (matchMedia("(max-width:1024px)").matches) setConsoleNav(!a.classList.contains("navOpen"));
-    else { a.classList.toggle("collapsed"); setConsoleNav(false); }
+    setConsoleNav(!a.classList.contains("navOpen"));
   };
   $("#navClose").onclick = () => setConsoleNav(false);
   $("#navBackdrop").onclick = () => setConsoleNav(false);
@@ -3659,8 +3702,9 @@ function boot() {
         return;                       // nothing to render behind the gate
       }
     }
+    if (!location.hash.slice(1)) { location.replace("/" + location.search); return; }
     await Promise.all([health(), loadOrgs(), loadNotices()]);
-    go(location.hash.slice(1) || "overview", { push: false });
+    go(location.hash.slice(1), { push: false });
   })();
   setInterval(() => { health(); loadNotices(); }, 60000);
 }

@@ -11,7 +11,7 @@ const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
 const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 
-const SURFACES = ["/", "/league", "/atlas", "/algorithms", "/trust", "/ui/", "/security", "/pricing", "/check",
+const SURFACES = ["/", "/league", "/estate", "/algorithms", "/trust", "/ui/#overview", "/security", "/pricing", "/check",
   "/vendor-admin/", "/vendor-admin/traffic.html"];
 
 async function main() {

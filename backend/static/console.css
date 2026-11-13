@@ -337,12 +337,9 @@ html[data-theme] .btn:hover { background: var(--surface3); }
    to keep navigation legible while it moves underneath. */
 html[data-theme] .top { background: color-mix(in srgb,var(--bg) 88%,transparent); }
 html[data-theme] .side { z-index: 40; }
-/* Sticky only while the rail is part of the grid. Below 1024px the console
-   makes it a fixed drawer; a sticky rail there still claims a full-height grid
-   row and pushed every view a screen down on phones. */
-@media (min-width: 1025px) {
-  html[data-theme] .side { position: sticky; }
-}
+/* The rail is never part of the grid now: at every width it is a fixed drawer of places
+   (index.html, setConsoleNav). A sticky rail would claim a full-height grid row and push every
+   view a screen down. */
 
 @media (prefers-reduced-motion: reduce) {
   .bgfx { transition: none; }
