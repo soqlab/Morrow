@@ -203,6 +203,7 @@ def test_notes_link_to_the_vendor_page_and_use_measured_words(fake_check):
     notes = {v["domain"]: v.get("note") for v in report["vendors"]}
     assert notes["mail.example"] is None
     assert "https://morrow.example/crm.example" in notes["crm.example"]
+    assert "https://morrow.example/crm.example#w-claim" in notes["crm.example"]      # the owner's claim flow
     assert "negotiates x25519, a classical key exchange only" in notes["crm.example"]
     assert "RSA key exchange, which has no forward secrecy" in notes["payroll.example"]
     text = json.dumps(report).lower()

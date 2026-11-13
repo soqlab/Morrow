@@ -373,6 +373,8 @@ def note(entry: Dict[str, Any], base_url: str) -> str:
         f"A public check on {day} found that {domain} {_fact(entry)}. The details, and the configuration "
         f"change that adds a hybrid post-quantum key exchange (X25519MLKEM768), are here:\n{link}\n\n"
         "Could you tell us whether this is planned, and roughly when? A short reply is enough.\n\n"
+        f"If you run {domain}, you can claim it on that page with a DNS record, to be told when the result "
+        f"changes and to add a public reply:\n{link}#w-claim\n\n"
         "Thank you."
     )
 
