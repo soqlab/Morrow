@@ -32,6 +32,10 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setenv("MORROW_FEATURE_STORE_BACKEND", "sqlite")
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_SALT", "test-salt")
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "")
+    # The rate limits under test count in this process: with REDIS_URL or CELERY_BROKER_URL set
+    # (as in CI) they would count in Redis, which org_rate_limits.reset() does not clear.
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     _reset()
     yield
     _reset()

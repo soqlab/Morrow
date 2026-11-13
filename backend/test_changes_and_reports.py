@@ -2,6 +2,7 @@
 trend on fixtures, CSV, feeds and the routes. No network."""
 
 import os
+import uuid
 import xml.etree.ElementTree as ET
 
 os.environ.setdefault("MORROW_AUTH_JWT_SECRET", "test-secret-for-unit-tests-only-x9z7q8r1m2n3")
@@ -41,6 +42,10 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_IP_SALT", "test-salt")
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "")
     monkeypatch.setenv("MORROW_LEAGUE_TRANCO_SIZE", "10000")
+    # The rate limits under test count in this process: with REDIS_URL or CELERY_BROKER_URL set
+    # (as in CI) they would count in Redis, which org_rate_limits.reset() does not clear.
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     monkeypatch.setattr(league, "load_spec", lambda path=None: SPEC)
     _reset()
     yield
@@ -210,6 +215,8 @@ def test_the_routes_and_their_rate_limit(monkeypatch):
             assert client.get(path).status_code == 200, path
         assert "50%" not in client.get("/plain/report/finance").text
         monkeypatch.setenv("MORROW_PUBLIC_REPORTS_IP_PER_MINUTE", "2")
-        _limits.reset()
+        # A key of its own: with Redis configured (CI), reset() clears only the in-process windows.
+        fresh = "reports-limit-" + uuid.uuid4().hex
+        monkeypatch.setattr(_check, "hash_ip", lambda ip: fresh)
         codes = [client.get("/api/public/report").status_code for _ in range(3)]
         assert codes == [200, 200, 429]
