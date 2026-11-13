@@ -168,7 +168,7 @@ jobs:
           curl -fsS http://127.0.0.1:8052/health/deep | tee /tmp/deep.json
           grep -q security_warnings /tmp/deep.json || {
             echo "::error::/health/deep did not report configuration warnings"; exit 1; }
-          for path in / /ui/ /launch; do
+          for path in / /ui/ /league /plain /example.com; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8052$path")
             [ "$code" = "200" ] || { echo "::error::$path returned $code"; exit 1; }
           done
@@ -218,7 +218,7 @@ jobs:
 
       - name: Probe the console
         run: |
-          for path in /status /health/deep / /ui/ /launch; do
+          for path in /status /health/deep / /ui/ /league /plain; do
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8001$path")
             echo "$code $path"
             [ "$code" = "200" ] || { echo "::error::$path returned $code"; exit 1; }

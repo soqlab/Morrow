@@ -72,7 +72,7 @@ $routesChecked = New-Object System.Collections.Generic.List[object]
 if (-not $SkipHttp -and $BaseUrl) {
   $BaseUrl = $BaseUrl.TrimEnd("/")
   $routes = @(
-    @{ path = "/launch"; phrase = "Prove quantum readiness without deep customer access." },
+    @{ path = "/"; phrase = "Go to anything" },
     @{ path = "/landing"; phrase = "Prove quantum readiness without deep customer access." },
     @{ path = "/enterprise-admin"; phrase = "Enterprise Control Center" },
     @{ path = "/admin-page"; phrase = "Enterprise Control Center" },
