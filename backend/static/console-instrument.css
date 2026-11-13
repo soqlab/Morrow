@@ -395,3 +395,17 @@ html[data-theme]:root .btn.load::after { animation: spin .6s linear infinite !im
   html[data-theme]:root .btn.load::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
   html[data-theme]:root * { transition: none !important; }
 }
+
+/* Motion only on real events. Nothing loops on its own: links of the risk map are drawn still
+   (colour and dash carry the risk), risky nodes, radar shapes, tripped canaries, the "live" dots
+   and the lead underline no longer breathe or sweep. A busy button's spinner stays: it shows a
+   request in flight. */
+html[data-theme]:root .gedge.flow, html[data-theme]:root .graphChart .gedge.flow,
+html[data-theme]:root .lgWrap.focused .lgEdge.lit { animation: none !important; }
+html[data-theme]:root .gnode.hot circle, html[data-theme]:root .graphChart .gnode.hot circle { animation: none !important; }
+html[data-theme]:root .radarShape.live, html[data-theme]:root .tripStep.tripped .tripState i,
+html[data-theme]:root .dot.ok::after, html[data-theme]:root .eyebrow .pd, html[data-theme]:root .live i,
+html[data-theme]:root .viewLead::after, html[data-theme]:root .ticker-track { animation: none !important; }
+html[data-theme]:root .viewLead::after { display: none; }
+/* Modelled money and scores sit at expert depth, where their basis is shown with them. */
+html:not([data-depth="expert"]) .metricRow.modelled { display: none; }
