@@ -2,8 +2,9 @@
 
   GET /                      the one input, your own connection, live counts
   GET /<domain>              that domain's grade (the address is the interface: /example.com)
-  GET /league                top sites by sector, graded weekly by this server
-  GET /atlas                 every graded site as a zoomable map (plus your estate when signed in)
+  GET /league                sector averages and their weekly trend; no site is named
+  GET /atlas                 retired: forwards to /estate when signed in, /league otherwise
+  GET /estate[/scan/<id>|/asset/<key>]  your estate through time, one scan, one endpoint (signed in)
   GET /algorithms[/<id>]     the algorithm reference and the dated history of internet cryptography
   GET /trust                 which commit runs here, checked against the signed manifest and deploy log
   GET /plain[...]            the same answers as plain HTML: no script, no stylesheet
@@ -34,7 +35,7 @@ CSP = ("default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action
 #: The plain pages run no script at all.
 CSP_PLAIN = CSP.replace("script-src 'self'", "script-src 'none'")
 
-VIEW_PREFIXES = ("/league", "/atlas", "/algorithms", "/trust")
+VIEW_PREFIXES = ("/league", "/atlas", "/algorithms", "/trust", "/estate")
 _DOMAIN_RE = re.compile(r"^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 #: Last labels that are file extensions, not top-level domains: /wp-login.php is a probe, not a site.
 #: (.zip and .mov are real TLDs and stay allowed.)
@@ -105,7 +106,7 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
     doc = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
            f"<title>{_e(title)} - Morrow, plain</title></head><body>"
-           "<p><a href=\"/plain\">Morrow, plain version</a> | <a href=\"/plain/league\">League</a> | "
+           "<p><a href=\"/plain\">Morrow, plain version</a> | <a href=\"/plain/league\">Sector averages</a> | "
            "<a href=\"/\">Full version</a></p><hr>"
            f"{body}<hr><p>No script, no stylesheet, no tracking. The same answers as the full version, "
            "from the same server.</p></body></html>")
@@ -194,6 +195,13 @@ def create_instrument_router(deps: Any) -> APIRouter:
     def instrument_view():
         return _view()
 
+    # Your estate, a scan, an endpoint: the page is static; the data comes from your own signed-in
+    # API calls (/scans, /search), so the page itself is public and shows nothing without them.
+    @router.api_route("/estate", methods=["GET", "HEAD"])
+    @router.api_route("/estate/{rest:path}", methods=["GET", "HEAD"])
+    def instrument_estate(rest: str = ""):
+        return _view()
+
     @router.api_route("/algorithms/{algorithm_id}", methods=["GET", "HEAD"])
     def instrument_algorithm(algorithm_id: str):
         if not _ID_RE.match(algorithm_id.lower()):
@@ -215,7 +223,7 @@ def create_instrument_router(deps: Any) -> APIRouter:
                 "<p>Type a domain. Morrow connects to it once over HTTPS and tells you its grade, from which year "
                 "recorded traffic could be read, and the exact configuration change that fixes it.</p>"
                 + _form() + stats +
-                "<p><a href=\"/plain/league\">League of top sites by sector</a></p>")
+                "<p><a href=\"/plain/league\">Sector averages</a></p>")
         return _page("Check a domain", body)
 
     @router.get("/plain/go")
@@ -227,22 +235,21 @@ def create_instrument_router(deps: Any) -> APIRouter:
         return RedirectResponse(f"/plain/{host}", status_code=303)
 
     @router.get("/plain/league")
-    def plain_league(sector: str = ""):
+    def plain_league():
         from services import league
 
-        data = league.table(sector, "", "grade", "asc", 500, 0)
-        sectors = data.get("sectors") or []
-        links = " | ".join(f"<a href=\"/plain/league?sector={_e(s['id'])}\">{_e(s['name'])}</a>" for s in sectors)
-        rows = data.get("rows") or []
-        table = ("<table><thead><tr><th>Domain</th><th>Grade</th><th>Key exchange</th><th>Checked</th></tr></thead><tbody>"
-                 + "".join(f"<tr><td><a href=\"/plain/{_e(r['domain'])}\">{_e(r['domain'])}</a></td>"
-                           f"<td>{_e(r.get('grade') or ('not reachable' if r.get('miss') else 'not yet'))}</td>"
-                           f"<td>{_e(r.get('group') or '')}</td><td>{_e(str(r.get('scanned_at') or '')[:10])}</td></tr>"
-                           for r in rows) + "</tbody></table>")
-        body = (f"<h1>League</h1><p><a href=\"/plain/league\">All</a> | {links}</p>"
-                f"<p>{data.get('graded', 0)} of {data.get('list_size', 0)} named sites graded by this server.</p>"
+        data = league.sector_averages()
+        rows = "".join(
+            f"<tr><td>{_e(s['name'])}</td><td>{s['graded']}</td>"
+            + "".join(f"<td>{_e(s['grades'].get(g, 0))}</td>" for g in "ABCDEF")
+            + f"<td>{_e('-' if s['pq_share'] is None else str(round(s['pq_share'] * 100, 1)) + '%')}</td></tr>"
+            for s in data.get("sectors") or [] if s.get("graded"))
+        table = ("<table><thead><tr><th>Sector</th><th>Graded</th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>"
+                 "<th>F</th><th>Post-quantum</th></tr></thead><tbody>" + rows + "</tbody></table>")
+        body = ("<h1>Sector averages</h1><p>How each sector's well-known sites are spread over the grades. "
+                "No site is named or ranked; any single domain can be checked above.</p>"
                 + (table if rows else "<p>Nothing graded yet.</p>"))
-        return _page("League", body)
+        return _page("Sector averages", body)
 
     @router.get("/plain/{domain}")
     async def plain_domain(request: Request, domain: str, fresh: str = ""):

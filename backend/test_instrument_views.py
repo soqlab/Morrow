@@ -41,7 +41,8 @@ def test_a_path_segment_is_a_domain_only_when_it_looks_like_one(segment, expecte
     assert instrument.domain_segment(segment) == expected
 
 
-@pytest.mark.parametrize("path", ["/", "/example.com", "/league", "/atlas", "/algorithms", "/algorithms/ml-kem", "/trust"])
+@pytest.mark.parametrize("path", ["/", "/example.com", "/league", "/atlas", "/algorithms", "/algorithms/ml-kem", "/trust",
+                                  "/estate", "/estate/scan/0b6e", "/estate/asset/example.com:443"])
 def test_every_view_is_the_instrument_page_under_the_strictest_policy(client, path):
     r = client.get(path, headers={"Accept": "text/html"})
     assert r.status_code == 200, path

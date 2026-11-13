@@ -26,7 +26,8 @@ async function main() {
 
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
     await page.locator("#home-q").waitFor();
-    await page.waitForFunction(() => document.querySelector("#home-stats .reading, #home-stats .i-empty") !== null, null, { timeout: 30000 });
+    // Signed out it shows public counts; with a workspace (CI runs without sign-in) it reads the estate.
+    await page.waitForFunction(() => document.querySelector("#home-stats .reading, #home-stats .i-empty, #home-estate p, #home-estate .scrub") !== null, null, { timeout: 30000 });
     const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running").length);
     assert.equal(running, 0, "something animates on its own after load");
     assert.ok(await page.locator("#i-build").innerText(), "the commit line is empty");

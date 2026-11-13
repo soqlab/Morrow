@@ -72,7 +72,6 @@
     if (Array.isArray(v)) return "[" + v.map(canonical).join(",") + "]";
     return "{" + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ":" + canonical(v[k]); }).join(",") + "}";
   }
-  function b64bytes(s) { var bin = atob(s); var out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
   function copy(text, btn) {
     var done = function () { if (btn) { var o = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = o; }, 1400); } };
     if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
@@ -109,66 +108,137 @@
     if (s.indexOf("*.") === 0) s = s.slice(2);
     return DOMAIN_RE.test(s) ? s : null;
   }
-  var PAGES = [
-    { t: "Check a domain", h: "/", k: "home grade check domain start", g: "Page" },
-    { t: "League of top sites by sector", h: "/league", k: "league table sector ranking banks government", g: "Page" },
-    { t: "Atlas: zoom through every graded site", h: "/atlas", k: "atlas map zoom estate space", g: "Page" },
-    { t: "Algorithms and their history", h: "/algorithms", k: "algorithms reference history timeline pqc", g: "Page" },
-    { t: "What this server runs, and how to check it", h: "/trust", k: "trust commit verify signed manifest deploy log csp tracking reproducible", g: "Page" },
-    { t: "Plain version, no scripts", h: "/plain", k: "plain text accessible screen reader no javascript", g: "Page" },
-    { t: "Open the console", h: "/ui/", k: "console sign in login estate scans account", g: "Console" },
-    { t: "Full certificate-transparency check", h: "/check", k: "check ct certificate transparency deadlines", g: "Page" }
+  /* Places: everything Morrow can show, reached by typing, from Ctrl+K, or by a link inside an
+     answer. There is no menu. The console's views are places too (opened at /ui/#<view>). */
+  var PLACES = [
+    { t: "Sector averages", h: "/league", k: "league sectors averages banks government health", g: "Public" },
+    { t: "Algorithms, with their history", h: "/algorithms", k: "algorithms reference history timeline pqc", g: "Public" },
+    { t: "What this server runs, and how to check it", h: "/trust", k: "trust commit verify deploy log csp tracking reproducible", g: "Public" },
+    { t: "Plain version, no scripts", h: "/plain", k: "plain text accessible screen reader no javascript", g: "Public" },
+    { t: "Certificate-transparency check", h: "/check", k: "check ct certificate transparency deadlines", g: "Public" },
+    { t: "Your estate through time", h: "/estate", k: "estate history scans time progress map atlas my", g: "Yours", ws: true }
   ];
+  var CONSOLE_PLACES = [["overview", "Overview", "posture summary"], ["scans", "TLS Scanner", "run scans, diff against a baseline"],
+    ["assets", "Asset Inventory", "owners, tags, collections"], ["cbom", "CBOM / SBOM", "CycloneDX bill of materials"],
+    ["hndl", "HNDL Exposure", "harvest-now-decrypt-later queue"], ["qday", "Q-Day Forecast", "CRQC trajectory, milestones"],
+    ["graph", "Blast Radius", "certificate blast radius, CA contagion"], ["canaries", "Canaries & QTISN", "canary tokens, threat intel"],
+    ["data-control", "Data Control", "AI permissions, data boundary, receipts"], ["airlock", "Quantum Airlock", "privacy wall, trust passports"],
+    ["gateway", "Website Gateway", "domain ownership, filtering"], ["remediation", "Remediation", "fix queue, playbooks, code generation"],
+    ["scanners", "Deep Scanners", "SAST, secrets, dependencies, IaC"], ["operations", "Operations", "drift, SLA, schedules"],
+    ["governance", "Governance", "policies, compliance evidence"], ["board", "Board & ROI", "board risk, ROI models"],
+    ["vendors", "Third Party", "vendor assessments"], ["integrations", "Integrations", "GitHub, Slack, Jira, webhooks, CI"],
+    ["knowledge", "Knowledge", "knowledge base, provider capabilities"], ["admin", "Administration", "users, organizations, audit"],
+    ["api", "API Explorer", "every endpoint"], ["guide", "Guide & Tutorial", "what every screen does"],
+    ["g-airlock", "Airlock Guide", "deploying the collector"], ["g-trust-passport", "Passport Guide", "sharing proof"], ["g-admin-page", "Administrator Guide", "running the platform"]];
+  CONSOLE_PLACES.forEach(function (p) { PLACES.push({ t: p[1], h: "/ui/#" + p[0], k: p[0] + " " + p[2] + " console", g: "Console", hint: p[2] }); });
+
+  /* The signed-in workspace, if this browser has one: the console's own token, same origin. */
+  var wsP = null;
+  function workspace() {
+    if (!wsP) wsP = getJSON("/scans?limit=100", { auth: token, cache: "no-store" })
+      .then(function (r) { return { scans: Array.isArray(r) ? r : (r && (r.scans || r.items)) || [] }; })
+      .catch(function () { return null; });
+    return wsP;
+  }
+  var WS = null, CONN = null;
+  workspace().then(function (w) { WS = w; });
+
+  function scanCommand(q) {
+    var m = /^(?:scan|rescan)\s+(.+)$/i.exec(q);
+    return m ? asDomain(m[1]) : null;
+  }
   function recognize(raw, limit) {
     var q = String(raw || "").trim(); var out = [];
     limit = limit || 10;
     if (!q) {
-      recent().forEach(function (r) { out.push({ kind: r.kind, t: r.label, h: r.kind === "domain" ? "/" + r.id : r.kind === "algorithm" ? "/algorithms/" + r.id : r.id, hint: "Looked at " + ago(r.at) }); });
-      return out.concat(PAGES.map(function (p) { return { kind: "page", t: p.t, h: p.h, hint: p.g }; })).slice(0, limit);
+      // Things, not pages: what this person looked at, and what they might do next.
+      recent().forEach(function (r) {
+        out.push({ kind: r.kind, t: r.label, h: r.kind === "domain" ? "/" + r.id : r.kind === "algorithm" ? "/algorithms/" + r.id : r.id, hint: "looked at " + ago(r.at) });
+        if (r.kind === "domain" && WS) out.push({ kind: "command", t: "scan " + r.id, h: "#scan", run: function () { startScan(r.id); }, hint: "add it to your estate" });
+      });
+      if (WS && WS.scans.length) out.unshift({ kind: "estate", t: "Your estate through time", h: "/estate", hint: WS.scans.length + " scan" + (WS.scans.length === 1 ? "" : "s") });
+      if (CONN && CONN.kex) out.push({ kind: "algorithm", t: CONN.kex + ": what your browser used just now", h: "/algorithms/" + (CONN.status === "pq" ? "x25519mlkem768" : "x25519"), hint: CONN.status === "pq" ? "post-quantum" : "classical" });
+      if (!out.length) out.push({ kind: "hint", t: "Type a domain, for example your bank's", h: "#", hint: "or an algorithm, a CVE, a commit" + (WS ? ", or scan example.com" : "") });
+      return out.slice(0, limit);
+    }
+    var cmd = scanCommand(q);
+    if (cmd) {
+      out.push(WS ? { kind: "command", t: "scan " + cmd, h: "#scan", run: function () { startScan(cmd); }, hint: "in your workspace" }
+                  : { kind: "command", t: "Sign in to scan " + cmd + " in your workspace", h: "/ui/", hint: "or grade it publicly below" });
+      out.push({ kind: "domain", t: "Grade " + cmd + " publicly", h: "/" + cmd, hint: "no account needed" });
+      return out;
     }
     var ref = window.MORROW_REF;
     var algo = ref && ref.find(q);
     if (algo) out.push({ kind: "algorithm", t: algo.name, h: "/algorithms/" + algo.id, hint: algo.kind });
     var cve = /^cve-\d{4}-\d{4,}$/i.test(q) ? q.toUpperCase() : null;
-    if (cve) out.push({ kind: "cve", t: cve + " in the NVD", h: "https://nvd.nist.gov/vuln/detail/" + cve, hint: "Opens nvd.nist.gov", ext: true });
+    if (cve) out.push({ kind: "cve", t: cve + " in the NVD", h: "https://nvd.nist.gov/vuln/detail/" + cve, hint: "opens nvd.nist.gov", ext: true });
     var d = !algo && !cve ? asDomain(q) : null;
     if (d) {
-      out.push({ kind: "domain", t: "Grade " + d, h: "/" + d, hint: "Is its connection quantum-safe?" });
-      out.push({ kind: "domain", t: d + " on the atlas", h: "/atlas?focus=" + enc(d), hint: "Where it sits among the rest" });
+      out.push({ kind: "domain", t: "Grade " + d, h: "/" + d, hint: "is its connection quantum-safe?" });
+      if (WS) out.push({ kind: "command", t: "scan " + d, h: "#scan", run: function () { startScan(d); }, hint: "add it to your estate" });
     }
     var sha = !d && /^[0-9a-f]{7,40}$/i.test(q) && /\d/.test(q) ? q.toLowerCase() : null;
-    if (sha) out.push({ kind: "commit", t: "Commit " + sha.slice(0, 12), h: "/trust?commit=" + sha, hint: "Is it the one this server runs?" });
+    if (sha) out.push({ kind: "commit", t: "Commit " + sha.slice(0, 12), h: "/trust?commit=" + sha, hint: "is it the one this server runs?" });
     var words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    var pool = PAGES.map(function (p) { return { kind: "page", t: p.t, h: p.h, hay: (p.t + " " + p.k + " " + p.g).toLowerCase(), hint: p.g }; });
+    var pool = PLACES.filter(function (p) { return !p.ws || WS; }).map(function (p) { return { kind: "place", t: p.t, h: p.h, hay: (p.t + " " + p.k + " " + p.g).toLowerCase(), hint: p.hint || p.g }; });
     if (ref) ref.algorithms.forEach(function (a) { pool.push({ kind: "algorithm", t: a.name, h: "/algorithms/" + a.id, hay: [a.name, a.kind, a.family].concat(a.aka).join(" ").toLowerCase(), hint: a.kind }); });
-    (SECTORS || []).forEach(function (s) { pool.push({ kind: "page", t: s.name + " in the league", h: "/league?sector=" + enc(s.id), hay: (s.name + " " + s.id + " league sector").toLowerCase(), hint: "Sector" }); });
     pool.filter(function (p) { return words.every(function (w) { return p.hay.indexOf(w) >= 0; }); })
       .forEach(function (p) { if (!out.some(function (o) { return o.h === p.h; })) out.push(p); });
     return out.slice(0, limit);
   }
-  var SECTORS = null;
+  /* Your own assets and remediations, searched live in your workspace as you type. */
+  function searchMine(q) {
+    if (!WS || q.length < 2 || scanCommand(q)) return Promise.resolve([]);
+    return getJSON("/search?limit=8&q=" + enc(q), { auth: token, cache: "no-store" }).then(function (r) {
+      return ((r && r.results) || []).filter(function (x) { return x.type === "asset" || x.type === "remediation"; }).slice(0, 6).map(function (x) {
+        return x.type === "asset"
+          ? { kind: "asset", t: x.title, h: "/asset/" + enc(x.title), hint: x.subtitle }
+          : { kind: "fix", t: x.title, h: "/ui/#remediation", hint: x.subtitle };
+      });
+    }).catch(function () { return []; });
+  }
+  function startScan(host) {
+    say("Starting a scan of " + host + "…");
+    var headers = { "Content-Type": "application/json", Accept: "application/json" };
+    if (token) headers.Authorization = "Bearer " + token;
+    fetch("/scans", { method: "POST", credentials: "same-origin", headers: headers, body: JSON.stringify({ targets: [host] }) })
+      .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.detail || ("HTTP " + r.status)); return b; }); })
+      .then(function (s) { location.href = "/scan/" + enc(s.id); })
+      .catch(function (e) { say("The scan of " + host + " did not start: " + e.message); });
+  }
 
   function optionsHtml(list, sel) {
     if (!list.length) return '<div class="i-empty">Nothing matches. A domain looks like <code>example.com</code>; an algorithm like <code>ML-KEM</code> or <code>secp256r1</code>; a commit is 7 to 40 hex characters.</div>';
     return list.map(function (o, i) {
-      return '<a class="i-opt" role="option" id="opt-' + i + '" data-kind="' + esc(o.kind) + '" aria-selected="' + (i === sel) + '" href="' + esc(o.h) + '"' + (o.ext ? ' rel="noopener" target="_blank"' : "") + '>' +
+      return '<a class="i-opt" role="option" id="opt-' + i + '" data-i="' + i + '" data-kind="' + esc(o.kind) + '" aria-selected="' + (i === sel) + '" href="' + esc(o.h) + '"' + (o.ext ? ' rel="noopener" target="_blank"' : "") + '>' +
         '<span class="k">' + esc(o.kind) + '</span><span class="t">' + esc(o.t) + '</span><span class="h">' + esc(o.hint || "") + "</span></a>";
     }).join("");
   }
   /* Wire an input to a list of options. Enter opens the selected one. */
   function bindRecognizer(input, listEl, onGo) {
-    var sel = 0, view = [];
-    function paint() { view = recognize(input.value); sel = Math.min(sel, Math.max(0, view.length - 1)); listEl.innerHTML = optionsHtml(view, sel); input.setAttribute("aria-activedescendant", view.length ? "opt-" + sel : ""); }
+    var sel = 0, view = [], seq = 0;
+    function draw() { sel = Math.min(sel, Math.max(0, view.length - 1)); listEl.innerHTML = optionsHtml(view, sel); input.setAttribute("aria-activedescendant", view.length ? "opt-" + sel : ""); }
+    function paint() {
+      view = recognize(input.value); draw();
+      var mine = ++seq;
+      searchMine(input.value.trim()).then(function (extra) { if (mine === seq && extra.length) { view = view.concat(extra.filter(function (x) { return !view.some(function (v) { return v.h === x.h; }); })); draw(); } });
+    }
     input.addEventListener("input", function () { sel = 0; paint(); });
+    input.addEventListener("focus", function () { listEl.hidden = false; });
+    input.addEventListener("blur", function () { setTimeout(function () { if (!input.value && document.activeElement !== input) listEl.hidden = true; }, 200); });
+    listEl.hidden = document.activeElement !== input && !input.value;
     input.addEventListener("keydown", function (e) {
-      if (e.key === "ArrowDown") { e.preventDefault(); sel = (sel + 1) % Math.max(1, view.length); paint(); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); sel = (sel - 1 + view.length) % Math.max(1, view.length); paint(); }
+      if (e.key === "ArrowDown") { e.preventDefault(); sel = (sel + 1) % Math.max(1, view.length); draw(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); sel = (sel - 1 + view.length) % Math.max(1, view.length); draw(); }
       else if (e.key === "Enter") { e.preventDefault(); if (view[sel]) { if (onGo) onGo(); go(view[sel]); } }
     });
+    listEl.addEventListener("click", function (e) { var a = e.target.closest(".i-opt"); if (!a) return; var o = view[+a.getAttribute("data-i")]; if (o && (o.run || o.h === "#")) { e.preventDefault(); if (onGo) onGo(); go(o); } });
     paint();
+    Promise.all([workspace(), connection()]).then(function (r) { WS = r[0]; CONN = r[1]; if (!input.value) paint(); });
     return paint;
   }
-  function go(o) { if (o.ext) window.open(o.h, "_blank", "noopener"); else location.href = o.h; }
+  function go(o) { if (o.run) o.run(); else if (o.h === "#") return; else if (o.ext) window.open(o.h, "_blank", "noopener"); else location.href = o.h; }
 
   /* ⌘K / Ctrl+K / "/" opens the command bar over any view. */
   function openPalette() {
@@ -243,18 +313,22 @@
 
   /* ── the frame ─────────────────────────────────────────────────────────── */
   var main = $("#main");
+  var SECTORS = null;
   function say(text) { var el = $("#say"); if (el) el.textContent = text; }
   function setView(channel, title) {
     document.title = title ? title + " · Morrow" : "Morrow";
     document.body.setAttribute("data-ch", channel);
-    $$(".i-channels a").forEach(function (a) { if (a.getAttribute("data-view") === channel) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   }
   function status(el, text, tone) { if (!el) return; el.textContent = text || ""; if (tone) el.setAttribute("data-tone", tone); else el.removeAttribute("data-tone"); }
+  /* A labelled section. The first argument used to be a channel number; sections are named only. */
   function panel(n, title, body, extra) {
-    return '<section class="ch"' + (extra && extra.ch ? ' data-ch="' + extra.ch + '"' : "") + (extra && extra.id ? ' id="' + extra.id + '"' : "") + '><div class="ch-head"><span class="ch-n">' + esc(n) + "</span><span>" + esc(title) + "</span>" +
+    return '<section class="ch"' + (extra && extra.ch ? ' data-ch="' + extra.ch + '"' : "") + (extra && extra.id ? ' id="' + extra.id + '"' : "") + '><div class="ch-head"><span>' + esc(title) + "</span>" +
       (extra && extra.right ? '<span class="ch-r">' + extra.right + "</span>" : "") + '</div><div class="ch-body">' + body + "</div></section>";
   }
   function reading(k, v, cls) { return '<div class="reading"><dt>' + esc(k) + '</dt><dd class="' + (cls || "") + '">' + v + "</dd></div>"; }
+  function gradeChip(g) { return g ? '<span class="g-chip" data-g="' + esc(g) + '">' + esc(g) + "</span>" : '<span class="g-chip">-</span>'; }
+  /* Motion only for a real event: the element that changed is lit once. */
+  function flash(el) { if (!el) return; el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash"); }
   function dial() {
     var box = $("#i-dial"); if (!box) return;
     box.innerHTML = DEPTHS.map(function (d) { return '<button type="button" data-d="' + d + '" aria-pressed="' + (d === depth) + '">' + d + "</button>"; }).join("");
@@ -275,68 +349,272 @@
     }).catch(function () { f.textContent = "Could not read which commit this server runs."; });
   }
 
+  /* The grade of an endpoint your organisation scanned, by the same rubric as the public grade
+     (services/public_grade.py, docs/PUBLIC_GRADE.md), read from the scan's own facts:
+     A post-quantum key exchange and nothing weak; B post-quantum with a weakness left;
+     C TLS 1.3 classical; D TLS 1.2 at best; E legacy protocols or weak ciphers;
+     F an invalid certificate or a negotiated key exchange without forward secrecy (RSA key
+     transport offered only as a fallback is a weakness, as in the public rubric). Null without TLS. */
+  function scanGrade(r) {
+    if (!r || r.error || (r.scan_status && r.scan_status !== "ok") || !r.tls_version) return null;
+    var w = r.decrypt_window || {};
+    var versions = (r.tls_supported_versions || []).concat([r.tls_version]).map(function (v) { return String(v).replace(/^TLSv?/i, ""); });
+    var legacy = versions.indexOf("1.0") >= 0 || versions.indexOf("1.1") >= 0;
+    var tls13 = versions.indexOf("1.3") >= 0;
+    var weak = (r.tls12_weak_accepted_ciphers || []).length > 0;
+    var rsaFallback = (w.notes || []).some(function (n) { return /RSA key transport/.test(n); });
+    var expiring = r.days_until_expiry != null && r.days_until_expiry >= 0 && r.days_until_expiry < 14;
+    var negotiatedFs = /1\.3/.test(r.tls_version) || /DHE/i.test(r.cipher_name || "");
+    if (r.verify_error || (r.days_until_expiry != null && r.days_until_expiry < 0) || !negotiatedFs) return "F";
+    if (w.status === "protected") return legacy || weak || rsaFallback || expiring ? "B" : "A";
+    if ((legacy && !tls13) || weak) return "E";
+    return tls13 ? "C" : "D";
+  }
+  var ORDER = { A: 0, B: 1, C: 2, D: 3, E: 4, F: 5 };
+  function gOrd(g) { return g in ORDER ? ORDER[g] : -1; }
+  function typical(grades) {
+    var g = grades.filter(Boolean).sort(function (a, b) { return ORDER[a] - ORDER[b]; });
+    return g.length ? g[Math.floor((g.length - 1) / 2)] : null;
+  }
+  function rTarget(r) { return r.asset_key || (r.host ? r.host + ":" + (r.port || 443) : r.target || ""); }
+  function hostOf(key) { return String(key || "").replace(/:\d+$/, ""); }
+  function registrable(host) { var p = String(host).split("."); return p.length > 2 ? p.slice(-2).join(".") : host; }
+
+  /* The workspace's history: every finished scan with its results, oldest first, and the estate
+     (latest result per endpoint) as it stood after each scan. Real data only. */
+  var historyP = null;
+  function estateHistory() {
+    if (historyP) return historyP;
+    historyP = workspace().then(function (w) {
+      if (!w) return null;
+      var done = w.scans.filter(function (s) { return /done|completed/i.test(s.status || ""); })
+        .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); }).slice(-40);
+      return Promise.all(done.map(function (s) {
+        return getJSON("/scans/" + enc(s.id) + "/results", { auth: token }).catch(function () { return null; });
+      })).then(function (all) {
+        var points = [], current = {};
+        all.forEach(function (sc, i) {
+          if (!sc) return;
+          (sc.results || []).forEach(function (r) { var k = rTarget(r); if (k) current[k] = { r: r, scan: done[i].id, at: sc.created_at }; });
+          var snapshot = {}; Object.keys(current).forEach(function (k) { snapshot[k] = current[k]; });
+          points.push({ id: done[i].id, at: sc.created_at, estate: snapshot });
+        });
+        return { points: points, running: w.scans.filter(function (s) { return /queued|running|pending/i.test(s.status || ""); }) };
+      });
+    });
+    return historyP;
+  }
+  function estateFacts(estate) {
+    var keys = Object.keys(estate);
+    var grades = keys.map(function (k) { return scanGrade(estate[k].r); });
+    var atRisk = keys.filter(function (k) { return (estate[k].r.decrypt_window || {}).status === "at_risk"; });
+    var counts = {}; grades.forEach(function (g) { if (g) counts[g] = (counts[g] || 0) + 1; });
+    return { keys: keys, grades: grades, atRisk: atRisk, counts: counts, typical: typical(grades) };
+  }
+  function monthName(iso) { var d = new Date(iso); return isNaN(d) ? "" : d.toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }); }
+  function estateSentence(H, at) {
+    var pts = H.points; if (!pts.length) return null;
+    var idx = at == null ? pts.length - 1 : at;
+    var now = estateFacts(pts[idx].estate), first = estateFacts(pts[0].estate);
+    var n = now.keys.length, risky = now.atRisk.length;
+    var trend = idx > 0 && first.typical && now.typical && first.typical !== now.typical
+      ? (ORDER[now.typical] < ORDER[first.typical] ? " Typical grade went from " + first.typical + " to " + now.typical : " Typical grade slipped from " + first.typical + " to " + now.typical) + " since " + monthName(pts[0].at) + "." : "";
+    return byDepth({
+      plain: risky ? risky + " of your " + n + " endpoint" + (n === 1 ? "" : "s") + " send traffic a future quantum computer could read." + trend
+                   : "All " + n + " of your scanned endpoint" + (n === 1 ? " is" : "s are") + " protected against future quantum decryption." + trend,
+      standard: n + " endpoint" + (n === 1 ? "" : "s") + (idx === pts.length - 1 ? "" : " as of " + day(pts[idx].at)) + ": " + risky + " readable from about 2035–2040, typical grade " + (now.typical || "-") + "." + trend,
+      expert: n + " endpoints after scan " + String(pts[idx].id).slice(0, 8) + " (" + stamp(pts[idx].at) + "); classical key exchange on " + risky + "; grades " +
+        ["A", "B", "C", "D", "E", "F"].filter(function (g) { return now.counts[g]; }).map(function (g) { return g + "×" + now.counts[g]; }).join(" ") + "." + trend
+    });
+  }
+
   /* ── views ─────────────────────────────────────────────────────────────── */
   var segs = location.pathname.replace(/\/+$/, "").split("/").filter(Boolean).map(decodeURIComponent);
   function route() {
     var s0 = segs[0] || "";
     if (!s0) return viewHome();
     if (s0 === "league") return viewLeague();
-    if (s0 === "atlas") return viewAtlas();
+    if (s0 === "atlas") return workspace().then(function (w) { location.replace(w ? "/estate" : "/league"); });
     if (s0 === "algorithms") return segs[1] ? viewAlgorithm(segs[1]) : viewAlgorithms();
     if (s0 === "trust") return viewTrust();
+    if (s0 === "estate") return segs[1] === "scan" && segs[2] ? viewScan(segs[2]) : segs[1] === "asset" && segs[2] ? viewAsset(segs.slice(2).join("/")) : viewEstate();
     var d = asDomain(s0);
     if (d && segs.length === 1) return viewDomain(d);
     setView("grade", "Not found");
-    say("There is nothing at this address.");
-    main.innerHTML = panel("404", "Not here", '<p>Type what you were looking for instead: <a href="/">check a domain</a>, <a href="/league">the league</a>, <a href="/algorithms">algorithms</a>.</p>');
+    say("There is nothing at this address. Type what you were looking for.");
+    main.innerHTML = inputBlock("nf-q");
+    bindRecognizer($("#nf-q"), $("#nf-q-l"));
+  }
+  function inputBlock(id) {
+    return '<label class="sr-only" for="' + id + '">A domain, an algorithm, a CVE, a commit, or a command such as scan example.com</label>' +
+      '<div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span><input id="' + id + '" type="text" autocomplete="off" spellcheck="false" inputmode="url" role="combobox" aria-expanded="true" aria-controls="' + id + '-l" placeholder="example.com"></div>' +
+      '<div class="i-opts" id="' + id + '-l" role="listbox"></div>';
   }
 
-  /* Home: the one input, your own connection, and live counts. */
+  /* Home: the one input and a live reading. Signed in, the reading is your estate. */
   function viewHome() {
-    setView("grade", "Is it quantum-safe?");
-    var last = recent()[0];
-    say(byDepth({ plain: "Type a website's address and Morrow tells you whether traffic to it could be read by a future quantum computer, and how to fix it.",
-      standard: "Type a domain, an algorithm, a CVE or a commit. A domain gets its grade, the year recorded traffic could be read, and the fix.",
-      expert: "One input, recognised: hostname → grade (rubric on /api/public), algorithm → reference, CVE → NVD, hex → commit check." }));
-    main.innerHTML =
-      '<div class="ch-grid">' +
-      '<div class="span-7">' + panel("CH1", "Check", '<label class="sr-only" for="home-q">Domain, algorithm, CVE or commit</label>' +
-        '<div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span><input id="home-q" type="text" autocomplete="off" spellcheck="false" inputmode="url" role="combobox" aria-expanded="true" aria-controls="home-l" placeholder="example.com"></div>' +
-        '<div class="i-opts" id="home-l" role="listbox"></div>' +
-        (last ? '<p class="i-fine">Last time you looked at <a href="' + esc(last.kind === "domain" ? "/" + last.id : last.kind === "algorithm" ? "/algorithms/" + last.id : last.id) + '">' + esc(last.label) + "</a>, " + esc(ago(last.at)) + ". Kept on this device only.</p>" : "") +
-        '<p class="i-fine">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p>', { ch: "grade" }) + "</div>" +
-      '<div class="span-5">' + panel("CH2", "Your connection", '<p id="home-conn" class="i-muted">Reading your connection&hellip;</p><dl class="readouts" id="home-conn-r"></dl>', { ch: "conn" }) +
-        (token ? panel("CH3", "Signed in", '<p>You are signed in on this device. Your own estate is in the <a href="/ui/">console</a> and on the <a href="/atlas">atlas</a>.</p>', { ch: "atlas" }) : "") + "</div>" +
-      '<div class="span-12">' + panel("CH4", "Checked on this server", '<dl class="readouts" id="home-stats"></dl><p class="i-fine" id="home-stats-n"></p>', { ch: "league", right: '<a href="/league">league</a>' }) + "</div>" +
-      "</div>";
-    bindRecognizer($("#home-q"), $("#home-l"));
+    setView("grade", null);
+    say(byDepth({ plain: "Type a website's address to see whether traffic to it could be read by a future quantum computer, and how to fix it.",
+      standard: "Type a domain, an algorithm, a CVE or a commit. A domain gets its answer, its grade and the fix.",
+      expert: "Hostname → grade (rubric on /api/public); algorithm → reference; CVE → NVD; hex → commit check; “scan host” → your workspace." }));
+    main.innerHTML = inputBlock("home-q") + '<p class="i-fine">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p><div id="home-reading"></div>';
+    bindRecognizer($("#home-q"), $("#home-q-l"));
     $("#home-q").focus();
-    Promise.all([connection(), basis()]).then(function (r) {
-      var c = r[0];
-      $("#home-conn").textContent = connSentence(c, r[1]);
-      if (c.kex) $("#home-conn-r").innerHTML = reading("Key exchange", esc(c.kex), c.status === "pq" ? "v-ok" : "v-warn") + reading("Protocol", esc(c.tls || "-")) + reading("HTTP", esc(c.http || "-"));
-    });
+    workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
+  }
+  function homePublic() {
+    var box = $("#home-reading");
+    box.innerHTML = '<div class="ch-grid"><div class="span-6">' + panel("", "Your connection to Morrow", '<p id="home-conn" class="i-muted">Reading your connection&hellip;</p>', { ch: "conn" }) + "</div>" +
+      '<div class="span-6">' + panel("", "Checked on this server", '<dl class="readouts" id="home-stats"></dl><p class="i-fine" id="home-stats-n"></p>', { ch: "league" }) + "</div>" +
+      '<div class="span-12">' + panel("", "By sector", '<div id="home-sectors" class="i-muted">Reading&hellip;</div>', { ch: "league", right: '<a href="/league">trend over time</a>' }) + "</div></div>";
+    Promise.all([connection(), basis()]).then(function (r) { $("#home-conn").textContent = connSentence(r[0], r[1]); });
     getJSON("/api/public/stats").then(function (s) {
-      var g = s.grades_7d || {};
-      $("#home-stats").innerHTML = reading("Checks, all time", num(s.public_checks_total)) + reading("Checks, last 7 days", num(s.public_checks_7d)) +
-        reading("Domains checked", num(s.domains_checked)) + reading("Post-quantum, 7 days", pct(s.pq_share_7d), "v-ok") +
-        ["A", "B", "C", "D", "E", "F"].map(function (k) { return reading("Grade " + k + ", 7 days", '<span class="g-chip" data-g="' + k + '">' + num(g[k] || 0) + "</span>"); }).join("");
-      $("#home-stats-n").textContent = "Counted from this server's stored results, read at " + stamp(s.generated_at) + ". Rubric " + s.rubric_version + ".";
-    }).catch(function (e) { $("#home-stats").innerHTML = '<div class="i-empty">The counts are not available: ' + esc(e.message) + "</div>"; });
+      $("#home-stats").innerHTML = reading("Checks, 7 days", num(s.public_checks_7d)) + reading("Domains checked", num(s.domains_checked)) +
+        reading("Post-quantum, 7 days", pct(s.pq_share_7d), "v-ok");
+      $("#home-stats-n").textContent = depth === "expert" ? "From this server's stored results at " + stamp(s.generated_at) + ", rubric " + s.rubric_version + "." : "";
+    }).catch(function (e) { $("#home-stats").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
+    getJSON("/api/public/league").then(function (L) { $("#home-sectors").innerHTML = sectorRows(L.sectors || [], false); paintBars(); })
+      .catch(function (e) { $("#home-sectors").textContent = e.message; });
+  }
+  function homeSignedIn() {
+    var box = $("#home-reading");
+    box.innerHTML = panel("", "Your estate", '<div id="home-estate" class="i-muted">Reading your scans&hellip;</div>', { ch: "grade", right: '<a href="/estate">through time</a>' }) +
+      '<p class="i-fine"><span id="home-conn"></span></p>';
+    Promise.all([connection(), basis()]).then(function (r) { $("#home-conn").textContent = connSentence(r[0], r[1]); });
+    estateHistory().then(function (H) {
+      if (!H || !H.points.length) {
+        say("Nothing in your workspace has been scanned yet. Type “scan” and one of your domains to take the first reading.");
+        $("#home-estate").innerHTML = '<p>Your estate is empty. Try <code>scan ' + esc(recent().filter(function (r) { return r.kind === "domain"; }).map(function (r) { return r.id; })[0] || "your-domain.com") + '</code> in the input above.</p>';
+        return;
+      }
+      say(estateSentence(H));
+      $("#home-estate").innerHTML = scrubberHtml(H, H.points.length - 1) + estateGrid(H.points[H.points.length - 1].estate, 12);
+      $("#home-estate .scrub").addEventListener("click", function (e) { var b = e.target.closest("button[data-i]"); if (b) location.href = "/estate?at=" + enc(H.points[+b.getAttribute("data-i")].id); });
+    });
   }
 
-  /* A domain: grade, decrypt year, fix, re-check, history scrubbed through time, badge. */
+  /* An endpoint list grouped by domain, worst first. */
+  function estateGrid(estate, limit) {
+    var keys = Object.keys(estate).sort(function (a, b) { return gOrd(scanGrade(estate[b].r)) - gOrd(scanGrade(estate[a].r)) || a.localeCompare(b); });
+    var shown = limit ? keys.slice(0, limit) : keys;
+    var rows = shown.map(function (k) {
+      var r = estate[k].r, w = r.decrypt_window || {};
+      return "<tr><td>" + gradeChip(scanGrade(r)) + '</td><td><a href="/estate/asset/' + enc(k) + '">' + esc(k) + "</a></td><td>" +
+        (w.status === "at_risk" ? '<span class="v-warn">readable from ' + esc(w.readable_from) + "</span>" : w.status === "protected" ? '<span class="v-ok">protected</span>' : '<span class="i-dim">not observed</span>') +
+        (depth === "expert" ? '</td><td class="mono">' + esc(r.key_exchange || "-") + " · " + esc(r.tls_version || "-") : "") + '</td><td class="mono i-dim">' + esc(day(estate[k].at)) + "</td></tr>";
+    }).join("");
+    return '<div class="i-table-wrap"><table class="i-table"><tbody>' + rows + "</tbody></table></div>" +
+      (limit && keys.length > limit ? '<p class="i-fine"><a href="/estate">All ' + keys.length + " endpoints</a></p>" : "");
+  }
+  function scrubberHtml(H, idx) {
+    return '<div class="scrub" id="es-scrub" role="listbox" tabindex="0" aria-label="Your scans, oldest to newest. Arrow keys or scrolling move through time.">' +
+      H.points.map(function (p, i) {
+        var f = estateFacts(p.estate);
+        return '<button type="button" role="option" data-i="' + i + '" data-g="' + esc(f.typical || "") + '" aria-current="' + (i === idx) + '" title="' + esc(stamp(p.at) + ": typical grade " + (f.typical || "-") + ", " + f.keys.length + " endpoints") + '"><i></i></button>';
+      }).join("") + "</div>";
+  }
+
+  /* Your estate through time: the main signed-in view. */
+  function viewEstate() {
+    setView("grade", "Your estate");
+    say("Reading your scans…");
+    main.innerHTML = inputBlock("es-q") + '<div id="es-body"></div>';
+    bindRecognizer($("#es-q"), $("#es-q-l"));
+    estateHistory().then(function (H) {
+      if (!H) { say("Sign in to see your estate."); $("#es-body").innerHTML = '<p><a href="/ui/">Sign in</a>. Without an account, any single domain can still be graded: type it above.</p>'; return; }
+      if (!H.points.length) { say("Nothing scanned yet. Type “scan” and one of your domains above to take the first reading."); return; }
+      var at = param("at"), idx = H.points.length - 1;
+      H.points.forEach(function (p, i) { if (p.id === at) idx = i; });
+      function paint() {
+        var p = H.points[idx], f = estateFacts(p.estate);
+        say(estateSentence(H, idx));
+        var big = f.keys.length > 60 && depth !== "plain";
+        $("#es-body").innerHTML = panel("", "Through time", scrubberHtml(H, idx) + '<p class="i-fine">' + esc(H.points.length + " scans from " + day(H.points[0].at) + " to " + day(H.points[H.points.length - 1].at) + ". Showing the estate as it stood after the scan of " + stamp(p.at) + ".") + "</p>", { ch: "league" }) +
+          (depth === "plain" ? "" : panel("", "Grades", '<dl class="readouts">' + ["A", "B", "C", "D", "E", "F"].map(function (g) { return reading(g, num(f.counts[g] || 0)); }).join("") + "</dl>", { ch: "grade" })) +
+          (big ? panel("", "Map", '<div class="atlas-wrap" id="es-map"></div><p class="i-fine">Scroll or pinch to zoom; click a domain to zoom into it. Grey outlines had no TLS to grade.</p>', { ch: "atlas" }) : "") +
+          panel("", "Endpoints", estateGrid(p.estate, depth === "plain" ? 10 : 0), { ch: "grade" }) +
+          (H.running.length ? '<p class="i-status">' + H.running.length + " scan" + (H.running.length === 1 ? " is" : "s are") + ' still running: <a href="/estate/scan/' + enc(H.running[0].id) + '">watch it</a>.</p>' : "");
+        if (big) {
+          var groups = {};
+          f.keys.forEach(function (k) { var dom = registrable(hostOf(k)); (groups[dom] = groups[dom] || []).push({ id: k, label: k, g: scanGrade(p.estate[k].r), href: "/estate/asset/" + enc(k) }); });
+          drawAtlas($("#es-map"), Object.keys(groups).sort().map(function (dname) { return { id: dname, name: dname, cells: groups[dname] }; }));
+        }
+        var box = $("#es-scrub");
+        box.onclick = function (e) { var b = e.target.closest("button[data-i]"); if (b) pick(+b.getAttribute("data-i")); };
+        box.onwheel = function (e) { e.preventDefault(); pick(idx + (e.deltaY > 0 || e.deltaX > 0 ? 1 : -1)); };
+        box.onkeydown = function (e) { if (e.key === "ArrowRight") { e.preventDefault(); pick(idx + 1); } else if (e.key === "ArrowLeft") { e.preventDefault(); pick(idx - 1); } };
+        var sel = box.querySelector('[aria-current="true"]'); if (sel) sel.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+      function pick(i) { i = Math.max(0, Math.min(H.points.length - 1, i)); if (i === idx) return; idx = i; setParam("at", i === H.points.length - 1 ? null : H.points[i].id); paint(); var b = $("#es-scrub"); if (b) b.focus({ preventScroll: true }); }
+      paint();
+    });
+  }
+
+  /* One scan: watched live until it finishes; the answer flashes once when it lands. */
+  function viewScan(id) {
+    setView("grade", "Scan");
+    say("Reading scan " + id.slice(0, 8) + "…");
+    main.innerHTML = '<div id="sc-body"></div>';
+    var last = null;
+    function poll() {
+      getJSON("/scans/" + enc(id) + "/results", { auth: token, cache: "no-store" }).then(function (s) {
+        var finished = /done|completed|failed/i.test(s.status || "");
+        var results = s.results || [];
+        if (!finished) {
+          say("Scanning " + results.map(rTarget).concat([]).join(", ") + "… " + ((s.progress || {}).done || 0) + " of " + ((s.progress || {}).total || "?") + " done.");
+          $("#sc-body").innerHTML = '<p class="i-status">Started ' + esc(ago(s.created_at)) + ". This page updates by itself when the scan finishes.</p>";
+          setTimeout(poll, 2500); return;
+        }
+        var grades = results.map(scanGrade);
+        var r0 = results[0], w0 = (r0 && r0.decrypt_window) || {};
+        say(!results.length ? "The scan finished without a result." + (s.error ? " " + s.error : "") :
+          results.length === 1 ? rTarget(r0) + ": grade " + (grades[0] || "-") + ". " + (w0.status === "at_risk" ? "Traffic recorded today could be read from about " + w0.readable_from + "–" + w0.readable_by + "." : w0.status === "protected" ? "Protected against future quantum decryption." : "Its key exchange was not observed.")
+            : results.length + " endpoints scanned; typical grade " + (typical(grades) || "-") + ".");
+        $("#sc-body").innerHTML = panel("", "Results", '<div class="i-table-wrap"><table class="i-table"><tbody>' + results.map(function (r, i) {
+          var w = r.decrypt_window || {};
+          return "<tr><td>" + gradeChip(grades[i]) + '</td><td><a href="/estate/asset/' + enc(rTarget(r)) + '">' + esc(rTarget(r)) + "</a></td><td>" + (w.status === "at_risk" ? "readable from " + esc(w.readable_from) : w.status === "protected" ? "protected" : "not observed") + "</td><td><a href=\"/" + esc(hostOf(rTarget(r))) + '">the fix</a></td></tr>';
+        }).join("") + "</tbody></table></div>" + '<p class="i-fine">Finished ' + esc(stamp(s.created_at)) + '. <a href="/estate">Your estate through time</a>.</p>', { ch: "grade" });
+        if (last === "running") { flash($("#say")); flash($("#sc-body")); }
+      }).catch(function (e) { say("This scan could not be read: " + e.message); });
+      last = last || "running";
+    }
+    getJSON("/scans/" + enc(id), { auth: token, cache: "no-store" }).then(function (s) { last = /done|completed|failed/i.test(s.status || "") ? "done" : "running"; poll(); })
+      .catch(function (e) { say("This scan could not be read: " + e.message); });
+  }
+
+  /* One endpoint of yours: the answer, the fix, re-scan, and its own history. */
+  function viewAsset(key) {
+    setView("grade", key);
+    say("Reading " + key + "…");
+    main.innerHTML = '<div id="as-body"></div>';
+    estateHistory().then(function (H) {
+      if (!H) { say("Sign in to see your own endpoints."); return; }
+      var hist = H.points.filter(function (p) { return p.estate[key] && p.estate[key].scan === p.id; }).map(function (p) { return p.estate[key]; });
+      if (!hist.length) { say(key + " is not in your scans yet."); $("#as-body").innerHTML = '<button type="button" class="i-btn solid" id="as-scan">Scan ' + esc(hostOf(key)) + "</button>"; $("#as-scan").onclick = function () { startScan(hostOf(key)); }; return; }
+      var r = hist[hist.length - 1].r, w = r.decrypt_window || {}, g = scanGrade(r), host = hostOf(key);
+      say(key + ": " + (w.status === "at_risk" ? "traffic recorded today could be read from about " + w.readable_from + "–" + w.readable_by + "." : w.status === "protected" ? "protected against future quantum decryption." : "its key exchange was not observed.") +
+        (g && ORDER[g] > 0 ? " The exact configuration change is on its grade page." : ""));
+      var what = '<div class="i-answer"><div class="grade" data-g="' + esc(g || "") + '">' + esc(g || "-") + '</div><div><p>' + esc(r.pq_recommendation || r.quantum_safe_claim_explanation || "") + '</p><div class="i-row"><a class="i-btn solid" href="/' + esc(host) + '">The fix for this server</a><button type="button" class="i-btn" id="as-scan">Re-scan</button></div></div></div>';
+      var evidence = '<dl class="readouts">' + reading("Key exchange", esc(r.key_exchange || "not observed"), w.status === "protected" ? "v-ok" : "v-warn") + reading("Protocol", esc(r.tls_version || "-")) +
+        reading("Certificate", esc((r.key_type || "-") + " " + (r.key_detail || "")) + "<br><small>expires " + esc(day(r.not_after)) + "</small>") + reading("Signature", esc(r.sig_algorithm || r.signature_algorithm || "-")) + "</dl>" +
+        (w.basis ? '<p class="i-fine">' + esc(w.basis) + (w.source_url ? ' <a href="' + esc(w.source_url) + '" rel="noopener">source</a>' : "") + "</p>" : "") + (w.notes || []).map(function (n) { return '<p class="i-fine">' + esc(n) + "</p>"; }).join("");
+      var times = '<div class="i-table-wrap"><table class="i-table"><tbody>' + hist.slice().reverse().map(function (h) { return "<tr><td>" + gradeChip(scanGrade(h.r)) + '</td><td class="mono">' + esc(stamp(h.at)) + '</td><td class="mono">' + esc(h.r.key_exchange || "-") + '</td><td><a href="/estate/scan/' + enc(h.scan) + '">scan</a></td></tr>'; }).join("") + "</tbody></table></div>";
+      $("#as-body").innerHTML = panel("", "What to do", what, { ch: "tools" }) + (depth === "plain" ? "" : panel("", "Its history", times, { ch: "league" })) + (depth === "expert" ? panel("", "Evidence", evidence, { ch: "conn" }) : "");
+      $("#as-scan").onclick = function () { startScan(host); };
+    });
+  }
+
+  /* A domain, public: the answer first, then what to do, then the evidence. */
   function viewDomain(d) {
     setView("grade", d);
     remember("domain", d, d);
     say("Checking " + d + "…");
-    main.innerHTML = '<p class="i-eyebrow">Domain</p><div class="i-row"><h1 class="i-h1">' + esc(d) + '</h1></div><p class="i-status" id="d-status" role="status" aria-live="polite">Asking Morrow\'s server to check ' + esc(d) + '. A first check opens a few TLS connections to port 443 and takes up to half a minute.</p><div id="d-body"></div>';
+    main.innerHTML = '<p class="i-status" id="d-status" role="status" aria-live="polite">Asking Morrow\'s server to check ' + esc(d) + '. A first check opens a few TLS connections to port 443 and takes up to half a minute.</p><div id="d-body"></div>';
     var history_ = [], current = null, latest = null;
     var at = param("at");
 
     function load(fresh) {
-      var st = $("#d-status");
-      status(st, fresh ? "Re-checking " + d + " now…" : st.textContent);
+      if (fresh) status($("#d-status"), "Re-checking " + d + " now…");
       var btn = $("#d-recheck"); if (btn) btn.setAttribute("aria-busy", "true");
       return getJSON("/api/public/grade/" + enc(d) + (fresh ? "?fresh=1" : ""), { cache: fresh ? "no-store" : "default" })
         .then(function (r) {
@@ -353,7 +631,7 @@
               if (fresh) {
                 var changed = before && before.grade !== r.grade;
                 status($("#d-status"), changed ? "Grade changed from " + before.grade + " to " + r.grade + " on this re-check." : "Re-checked " + stamp(r.scanned_at) + ": same grade, " + r.grade + ".", changed ? "ok" : null);
-                var g = $("#d-grade"); if (g) { g.classList.remove("flash"); void g.offsetWidth; g.classList.add("flash"); }
+                if (changed) { flash($("#d-grade")); flash($("#say")); }
               }
             });
         })
@@ -365,96 +643,69 @@
         .finally(function () { var b = $("#d-recheck"); if (b) b.removeAttribute("aria-busy"); });
     }
 
+    function answer(r) {
+      var ex = r.exposure || {}, fixes = r.fixes || [], sm = r.summaries || {};
+      var fixText = !fixes.length ? "Nothing to change." : fixes.length === 1 || r.platform !== "unknown"
+        ? "One " + (fixes[0].applies_to && fixes[0].applies_to !== "any" ? fixes[0].applies_to + " " : "") + "change fixes it." : "One server setting fixes it; pick your server below.";
+      if (depth === "expert") return d + ": grade " + r.grade + ". " + (sm.cryptographer || r.summary);
+      if (ex.recorded_traffic_at_risk && ex.decrypt_year_low) return d + ": traffic recorded today could be decrypted around " + ex.decrypt_year_low + "–" + ex.decrypt_year_high + ". " + fixText;
+      if (ex.recorded_traffic_at_risk) return d + ": " + (r.summary || "no encryption was negotiated.");
+      return d + ": protected against future quantum decryption." + (fixes.length ? " " + (depth === "plain" ? "One housekeeping change is left." : (r.reasons || []).slice(1).join(" ")) : "");
+    }
+
     function render() {
-      var r = current, isLatest = r === latest || (latest && r.scanned_at === latest.scanned_at);
-      var kx = r.key_exchange || {}, tls = r.tls || {}, cert = r.certificate || {}, ex = r.exposure || {}, sm = r.summaries || {};
-      say(byDepth({ plain: sm.executive || r.summary, standard: r.summary, expert: sm.cryptographer || sm.engineer || r.summary }));
-      if (isLatest) status($("#d-status"), "Checked " + stamp(r.scanned_at) + (r.cached ? " (stored result, " + ago(r.scanned_at) + ")" : "") + ", rubric " + r.rubric_version + ".");
-      else status($("#d-status"), "Showing the check of " + stamp(r.scanned_at) + ". The newest is " + stamp(latest.scanned_at) + ".");
-      var vers = ["1.3", "1.2", "1.1", "1.0"].filter(function (v) { return (tls.versions || {})[v]; });
-      var readings =
-        reading("Key exchange", esc(kx.group || "not observed"), kx.post_quantum ? "v-ok" : "v-warn") +
-        reading("Post-quantum", kx.post_quantum ? "yes" : "no", kx.post_quantum ? "v-ok" : "v-warn") +
-        reading("Protocol", esc(tls.negotiated || "-"));
-      if (depth !== "plain") readings += reading("Versions accepted", esc(vers.join(", ") || "-"), (tls.versions || {})["1.0"] || (tls.versions || {})["1.1"] ? "v-warn" : "") +
-        reading("Forward secrecy", r.forward_secrecy ? "yes" : "no", r.forward_secrecy ? "" : "v-bad") +
-        reading("Certificate", esc((cert.key_type || "-") + " " + (cert.key_bits || "")) + "<br><small>expires " + esc(day(cert.not_after)) + "</small>", cert.verified === false ? "v-bad" : "") +
-        reading("Served by", esc(r.server_software || r.platform || "not disclosed"));
-      if (depth === "expert") readings += reading("PQ groups accepted", esc((kx.offered_pq_groups_accepted || []).join(", ") || "none")) +
-        reading("Signature", esc(cert.signature_algorithm || "-")) + reading("Issuer", "<small>" + esc(cert.issuer || "-") + "</small>") + reading("Connections opened", num(r.connections));
-
-      var exposure = ex.recorded_traffic_at_risk && ex.decrypt_year_low
-        ? '<p class="i-big v-warn">' + esc(ex.decrypt_year_low) + "–" + esc(ex.decrypt_year_high) + "</p><p>" + esc(byDepth({
-            plain: "Someone recording traffic to " + d + " today could read it from about then.",
-            standard: "Traffic recorded today could be decrypted from about " + ex.decrypt_year_low + ", likely by " + ex.decrypt_year_high + ".",
-            expert: ex.basis })) + "</p>"
-        : ex.recorded_traffic_at_risk
-          ? "<p>" + esc(ex.basis || "No encryption was negotiated.") + "</p>"
-          : '<p class="i-big v-ok">Not by a quantum computer</p><p>' + esc(depth === "plain" ? "The key exchange already includes post-quantum protection." : ex.basis) + "</p>";
-      exposure += '<p class="i-fine">Source: <a href="' + esc(ex.source_url) + '" rel="noopener">' + esc(ex.source_url) + "</a></p>";
-      if (ex.recorded_traffic_at_risk && ex.decrypt_year_low) {
-        exposure += '<div class="i-row"><label for="d-life">What is sent here must stay secret for</label><select id="d-life" class="i-btn">' +
-          [[1, "1 year"], [5, "5 years"], [10, "10 years (most records)"], [25, "25 years (health, state secrets)"]].map(function (o) { return '<option value="' + o[0] + '"' + (String(o[0]) === (param("life") || "10") ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") +
-          '</select></div><p id="d-life-out"></p>';
-      }
-
+      var r = current, isLatest = latest && r.scanned_at === latest.scanned_at;
+      var kx = r.key_exchange || {}, tls = r.tls || {}, cert = r.certificate || {}, ex = r.exposure || {};
+      say(answer(r));
+      status($("#d-status"), isLatest ? "Checked " + stamp(r.scanned_at) + (r.cached ? ", stored result from " + ago(r.scanned_at) : "") + "." : "Showing the check of " + stamp(r.scanned_at) + ". The newest is " + stamp(latest.scanned_at) + ".");
       var fixes = r.fixes || [];
-      var fixHtml = fixes.length ? fixes.map(function (f, i) {
-        return '<div class="ch" data-ch="tools"><div class="ch-head"><span>' + esc(f.title) + '</span><span class="ch-r"><button type="button" class="i-btn" data-copy="' + i + '">Copy</button></span></div><div class="ch-body"><pre>' + esc(f.snippet) + "</pre>" +
-          (depth !== "plain" && f.notes ? '<p class="i-fine">' + esc(f.notes) + "</p>" : "") + '<p class="i-fine">Needs: ' + esc(f.requires) + "</p></div></div>";
-      }).join("") : '<p>Nothing to change. ' + (r.grade === "A" ? "This is the top grade." : "") + "</p>";
-      if (fixes.length > 1 && r.platform === "unknown") fixHtml = '<p class="i-fine">The server software is not disclosed, so here is the change for each common server. Use the one you run.</p>' + fixHtml;
-
-      var reasons = (r.reasons || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("");
-      var origin = location.origin;
-      var badgeMd = "[![quantum-ready](" + origin + "/api/public/badge/" + d + ".svg)](" + origin + "/" + d + ")";
-      var badgeHtml = '<a href="' + origin + "/" + d + '"><img src="' + origin + "/api/public/badge/" + d + '.svg" alt="quantum-ready grade for ' + d + '"></a>';
-
-      $("#d-body").innerHTML =
-        '<div class="ch-grid">' +
-        '<div class="span-8">' + panel("CH1", "Grade", '<div class="i-row"><div class="grade" id="d-grade" data-g="' + esc(r.grade) + '" aria-label="Grade ' + esc(r.grade) + '">' + esc(r.grade) + '</div><div><ul class="i-muted">' + reasons + '</ul></div></div><dl class="readouts">' + readings + "</dl>", { ch: "grade" }) + "</div>" +
-        '<div class="span-4">' + panel("CH2", "Recorded today, readable from", exposure, { ch: "conn" }) + "</div>" +
-        '<div class="span-12">' + panel("CH3", "Through time", '<div class="scrub" id="d-scrub" role="listbox" aria-label="Checks of ' + esc(d) + ', oldest to newest. Scroll or use the arrow keys to move through time." tabindex="0"></div><p class="i-fine" id="d-scrub-n"></p>',
-          { ch: "league", right: '<a href="/api/public/history/' + enc(d) + '.atom">feed of grade changes</a>' }) + "</div>" +
-        '<div class="span-8">' + panel("CH4", "The fix for this setup", fixHtml + '<div class="i-row"><button type="button" class="i-btn solid" id="d-recheck">Re-check now</button><span class="i-fine">After changing the config, re-check: Morrow opens fresh connections instead of using the stored result.</span></div>', { ch: "tools" }) + "</div>" +
-        '<div class="span-4">' + panel("CH5", "Badge", '<p><img src="/api/public/badge/' + enc(d) + '.svg" alt="quantum-ready grade badge for ' + esc(d) + '"></p>' +
-          '<p class="i-fine">For a README (Markdown):</p><pre id="d-md">' + esc(badgeMd) + '</pre><button type="button" class="i-btn" data-copy-el="d-md">Copy</button>' +
-          '<p class="i-fine">For a web page (HTML):</p><pre id="d-html">' + esc(badgeHtml) + '</pre><button type="button" class="i-btn" data-copy-el="d-html">Copy</button>' +
-          '<p class="i-fine">The badge shows the newest stored grade and is cached for up to three hours.</p>', { ch: "grade" }) +
-          panel("CH6", "Elsewhere", '<ul><li><a href="/check/' + enc(d) + '">Full check with certificate-transparency history</a></li><li><a href="/plain/' + enc(d) + '">Plain version</a></li><li><a href="/api/public/grade/' + enc(d) + '.txt">As text, for curl</a></li><li><a href="/api/public/grade/' + enc(d) + '">As JSON</a></li><li><a href="/atlas?focus=' + enc(d) + '">On the atlas</a></li></ul>', { ch: "ref" }) + "</div>" +
-        "</div>";
-
+      var shownFixes = depth === "expert" ? fixes : fixes.slice(0, 1);
+      var fixHtml = !fixes.length ? "<p>Nothing to change.</p>" : (depth === "plain"
+        ? "<p>" + esc(fixes[0].title) + ". Needs: " + esc(fixes[0].requires) + ".</p>"
+        : shownFixes.map(function (f, i) {
+          return '<div class="fix"><p><b>' + esc(f.title) + '</b> <button type="button" class="i-btn" data-copy="' + i + '">Copy</button></p><pre>' + esc(f.snippet) + "</pre>" +
+            (depth === "expert" && f.notes ? '<p class="i-fine">' + esc(f.notes) + "</p>" : "") + '<p class="i-fine">Needs: ' + esc(f.requires) + "</p></div>";
+        }).join("") + (fixes.length > shownFixes.length ? '<p class="i-fine">' + (fixes.length - shownFixes.length) + " more server" + (fixes.length - shownFixes.length === 1 ? "" : "s") + " (nginx, Apache, Caddy, HAProxy, IIS) at expert depth.</p>" : ""));
+      var what = panel("", "What to do", fixHtml + '<div class="i-row"><button type="button" class="i-btn solid" id="d-recheck">Re-check now</button>' +
+        (depth === "plain" ? "" : '<span class="i-fine">After the change, re-check: Morrow opens fresh connections instead of using the stored result.</span>') + "</div>", { ch: "tools" });
+      var gradeBlock = depth === "plain" ? "" : panel("", "Grade", '<div class="i-answer"><div class="grade" id="d-grade" data-g="' + esc(r.grade) + '" aria-label="Grade ' + esc(r.grade) + '">' + esc(r.grade) + '</div><ul class="i-muted">' +
+        (r.reasons || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
+        (ex.recorded_traffic_at_risk && ex.decrypt_year_low ? '<p class="i-fine">Recorded today, readable from about ' + esc(ex.decrypt_year_low) + "–" + esc(ex.decrypt_year_high) + ': <a href="' + esc(ex.source_url) + '" rel="noopener">source</a>.</p>' : ""), { ch: "grade" });
+      var evidence = "";
+      if (depth === "expert") {
+        var vers = ["1.3", "1.2", "1.1", "1.0"].filter(function (v) { return (tls.versions || {})[v]; });
+        evidence = panel("", "Evidence", '<dl class="readouts">' +
+          reading("Key exchange", esc(kx.group || "not observed"), kx.post_quantum ? "v-ok" : "v-warn") + reading("Protocol", esc(tls.negotiated || "-")) +
+          reading("Versions accepted", esc(vers.join(", ") || "-")) + reading("Forward secrecy", r.forward_secrecy ? "yes" : "no", r.forward_secrecy ? "" : "v-bad") +
+          reading("PQ groups accepted", esc((kx.offered_pq_groups_accepted || []).join(", ") || "none")) + reading("Certificate", esc((cert.key_type || "-") + " " + (cert.key_bits || "")) + "<br><small>expires " + esc(day(cert.not_after)) + "</small>") +
+          reading("Signature", esc(cert.signature_algorithm || "-")) + reading("Served by", esc(r.server_software || r.platform || "not disclosed")) + reading("Connections opened", num(r.connections)) + "</dl>" +
+          (ex.basis ? '<p class="i-fine">' + esc(ex.basis) + "</p>" : ""), { ch: "conn" }) +
+          panel("", "Through time", '<div class="scrub" id="d-scrub" role="listbox" tabindex="0" aria-label="Checks of ' + esc(d) + ', oldest to newest"></div><p class="i-fine" id="d-scrub-n"></p>', { ch: "league", right: '<a href="/api/public/history/' + enc(d) + '.atom">feed of grade changes</a>' }) +
+          panel("", "Badge and API", '<p><img src="/api/public/badge/' + enc(d) + '.svg" alt="quantum-ready grade badge for ' + esc(d) + '"></p>' +
+            '<pre id="d-md">' + esc("[![quantum-ready](" + location.origin + "/api/public/badge/" + d + ".svg)](" + location.origin + "/" + d + ")") + '</pre><button type="button" class="i-btn" data-copy-el="d-md">Copy Markdown</button>' +
+            '<pre id="d-curl">' + esc("curl " + location.origin + "/api/public/grade/" + d + ".txt") + '</pre><button type="button" class="i-btn" data-copy-el="d-curl">Copy</button>' +
+            '<p class="i-fine"><a href="/check/' + enc(d) + '">Certificate-transparency check</a> &middot; <a href="/plain/' + enc(d) + '">plain</a> &middot; <a href="/api/public/grade/' + enc(d) + '">JSON</a></p>', { ch: "ref" });
+      }
+      $("#d-body").innerHTML = gradeBlock + what + evidence;
       $$("[data-copy]").forEach(function (b) { b.addEventListener("click", function () { copy(fixes[+b.getAttribute("data-copy")].snippet, b); }); });
       $$("[data-copy-el]").forEach(function (b) { b.addEventListener("click", function () { copy($("#" + b.getAttribute("data-copy-el")).textContent, b); }); });
       $("#d-recheck").addEventListener("click", function () { load(true); });
-      var life = $("#d-life");
-      function lifeOut() {
-        var n = +life.value, until = new Date().getUTCFullYear() + n, low = ex.decrypt_year_low;
-        setParam("life", n === 10 ? null : String(n));
-        $("#d-life-out").textContent = until >= low
-          ? "Secret until " + until + ". Recordings could be readable from about " + low + ": up to " + (until - low) + " year" + (until - low === 1 ? "" : "s") + " of exposure, unless the key exchange changes before the traffic is recorded."
-          : "Secret until " + until + ", before the earliest estimate of " + low + ". Recordings made today are likely to outlive their value.";
-      }
-      if (life) { life.addEventListener("change", lifeOut); lifeOut(); }
       paintScrub();
     }
 
     function paintScrub() {
       var box = $("#d-scrub"); if (!box) return;
       box.innerHTML = history_.map(function (h, i) {
-        return '<button type="button" role="option" data-i="' + i + '" data-g="' + esc(h.grade) + '" aria-current="' + (h.result === current || h.scanned_at === current.scanned_at) + '" title="' + esc(stamp(h.scanned_at) + ": " + h.grade) + '" aria-label="' + esc(stamp(h.scanned_at) + ", grade " + h.grade) + '"><i></i></button>';
+        return '<button type="button" role="option" data-i="' + i + '" data-g="' + esc(h.grade) + '" aria-current="' + (h.scanned_at === current.scanned_at) + '" title="' + esc(stamp(h.scanned_at) + ": " + h.grade) + '"><i></i></button>';
       }).join("");
-      var first = history_[0], n = history_.length;
-      var changes = history_.filter(function (h, i) { return i > 0 && history_[i - 1].grade !== h.grade; }).length;
-      $("#d-scrub-n").textContent = n === 1 ? "One check stored so far. Each re-check adds a step here." :
-        n + " checks since " + day(first.scanned_at) + ", " + changes + " grade change" + (changes === 1 ? "" : "s") + ". Scroll over the bars or use the arrow keys to move through time.";
-      var sel = box.querySelector('[aria-current="true"]'); if (sel) sel.scrollIntoView({ block: "nearest", inline: "nearest" });
+      var n = history_.length, changes = history_.filter(function (h, i) { return i > 0 && history_[i - 1].grade !== h.grade; }).length;
+      $("#d-scrub-n").textContent = n === 1 ? "One check stored so far." : n + " checks since " + day(history_[0].scanned_at) + ", " + changes + " grade change" + (changes === 1 ? "" : "s") + ". Scroll over the bars or use the arrow keys.";
       box.onclick = function (e) { var b = e.target.closest("button[data-i]"); if (b) pick(+b.getAttribute("data-i")); };
       box.onwheel = function (e) { if (n < 2) return; e.preventDefault(); step(e.deltaY > 0 || e.deltaX > 0 ? 1 : -1); };
       box.onkeydown = function (e) { if (e.key === "ArrowRight") { e.preventDefault(); step(1); } else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); } };
     }
     function idx() { for (var i = 0; i < history_.length; i++) if (history_[i].scanned_at === current.scanned_at) return i; return history_.length - 1; }
-    function step(dlt) { pick(Math.max(0, Math.min(history_.length - 1, idx() + dlt))); }
+    function step(dl) { pick(Math.max(0, Math.min(history_.length - 1, idx() + dl))); }
     function pick(i) {
       var h = history_[i]; if (!h || h.scanned_at === current.scanned_at) return;
       current = h.result;
@@ -465,81 +716,52 @@
     load(false);
   }
 
-  /* The league: named organisations by sector, graded weekly by this server. */
+  /* Sector averages: how each sector's graded sites are spread over A-F, and how that moved. */
+  function sectorRows(sectors, withTrend) {
+    var shown = sectors.filter(function (s) { return s.graded; });
+    if (!shown.length) return '<p class="i-empty">No sector has graded sites on this server yet. The list is re-graded weekly, a few sites at a time.</p>';
+    return '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Sector</th><th>Grades A to F</th><th class="num">Post-quantum</th>' + (withTrend ? "<th>Weekly, post-quantum share</th>" : "") + '<th class="num">Sites</th></tr></thead><tbody>' +
+      shown.map(function (s) {
+        var segs = ["A", "B", "C", "D", "E", "F"].map(function (g) { var n = (s.grades || {})[g] || 0; return n ? '<i class="seg" data-g="' + g + '" data-w="' + (n / s.graded) + '" title="' + g + ": " + n + '"></i>' : ""; }).join("");
+        var trend = (s.trend || []).map(function (t) { return '<i class="tick" data-h="' + t.pq_share + '" title="' + esc(t.week + ": " + pct(t.pq_share) + " of " + t.graded) + '"></i>'; }).join("");
+        return "<tr><td>" + esc(s.name) + '</td><td><span class="bar">' + segs + '</span></td><td class="num">' + pct(s.pq_share) + "</td>" + (withTrend ? '<td><span class="spark">' + trend + "</span></td>" : "") + '<td class="num">' + num(s.graded) + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
+  function paintBars() {
+    $$(".bar .seg").forEach(function (el) { el.style.width = (Number(el.getAttribute("data-w")) * 100).toFixed(2) + "%"; });
+    $$(".spark .tick").forEach(function (el) { el.style.height = Math.max(2, Number(el.getAttribute("data-h")) * 100).toFixed(1) + "%"; });
+  }
   function viewLeague() {
-    setView("league", "League");
-    var sector = param("sector") || "", q = param("q") || "", sort = param("sort") || "grade", dir = param("dir") || "asc";
-    say("Reading the league…");
-    main.innerHTML = '<p class="i-eyebrow">League</p><h1 class="i-h1">Top sites by sector</h1><div id="lg-tabs" class="i-row"></div>' +
-      '<div class="i-row"><label class="sr-only" for="lg-q">Filter by domain</label><div class="i-field"><span class="p">/</span><input id="lg-q" type="search" placeholder="filter domains" value="' + esc(q) + '"></div></div>' +
-      '<div id="lg-body"></div>';
-    var input = $("#lg-q"), t = null;
-    input.addEventListener("input", function () { clearTimeout(t); t = setTimeout(function () { q = input.value.trim(); setParam("q", q); load(); }, 250); });
-    function load() {
-      var qs = "?limit=200&sort=" + enc(sort) + "&dir=" + enc(dir) + (sector ? "&sector=" + enc(sector) : "") + (q ? "&q=" + enc(q) : "");
-      getJSON("/api/public/league" + qs, { cache: "no-store" }).then(paint).catch(function (e) { say("The league is not available right now."); $("#lg-body").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
-    }
-    function paint(L) {
+    setView("league", "Sectors");
+    say("Reading sector averages…");
+    main.innerHTML = '<div id="lg-mine"></div><div id="lg-body"></div>';
+    getJSON("/api/public/league", { cache: "no-store" }).then(function (L) {
       SECTORS = L.sectors || [];
-      var cur = SECTORS.filter(function (s) { return s.id === sector; })[0];
-      $("#lg-tabs").innerHTML = '<nav class="i-channels" aria-label="Sectors"><a href="/league' + (q ? "?q=" + enc(q) : "") + '"' + (!sector ? ' aria-current="page"' : "") + ">All</a>" +
-        SECTORS.map(function (s) { return '<a href="/league?sector=' + enc(s.id) + (q ? "&q=" + enc(q) : "") + '"' + (s.id === sector ? ' aria-current="page"' : "") + ">" + esc(s.name) + " <small>" + num(s.graded) + "</small></a>"; }).join("") + "</nav>";
-      var graded = cur ? cur.graded : L.graded, size = cur ? cur.count : L.list_size, share = cur ? cur.pq_share : null;
-      if (!cur) { var pq = 0, g = 0; SECTORS.forEach(function (s) { if (s.pq_share != null) { pq += s.pq_share * s.graded; g += s.graded; } }); share = g ? pq / g : null; }
-      say(!graded ? "No site in this list has been graded on this server yet." : byDepth({
-        plain: "Of " + num(size) + " well-known " + (cur ? cur.name.toLowerCase() + " " : "") + "sites, " + num(graded) + " have been checked; " + pct(share) + " of those already protect their traffic against future quantum computers.",
-        standard: num(graded) + " of " + num(size) + " named " + (cur ? cur.name : "") + " sites graded; " + pct(share) + " negotiate a post-quantum key exchange.",
-        expert: num(graded) + "/" + num(size) + " graded under rubric " + L.rubric_version + "; post-quantum share " + pct(share) + "." }));
+      var graded = L.graded, pq = 0, g = 0;
+      SECTORS.forEach(function (s) { if (s.pq_share != null) { pq += s.pq_share * s.graded; g += s.graded; } });
+      say(!graded ? "No site in the sector lists has been graded on this server yet." : byDepth({
+        plain: pct(g ? pq / g : null) + " of " + num(graded) + " well-known sites already protect their traffic against future quantum computers.",
+        standard: num(graded) + " named sites in " + SECTORS.filter(function (s) { return s.graded; }).length + " sectors graded; " + pct(g ? pq / g : null) + " negotiate a post-quantum key exchange.",
+        expert: num(graded) + "/" + num(L.list_size) + " graded under rubric " + L.rubric_version + "; post-quantum share " + pct(g ? pq / g : null) + "; weekly trend from stored grades." }));
       var lr = L.last_run;
-      var rows = L.rows || [];
-      var head = function (k, label) { var on = sort === k; return '<th scope="col" aria-sort="' + (on ? (dir === "asc" ? "ascending" : "descending") : "none") + '"><a href="?' + new URLSearchParams(Object.assign({}, sector ? { sector: sector } : {}, q ? { q: q } : {}, { sort: k, dir: on && dir === "asc" ? "desc" : "asc" })).toString() + '">' + label + (on ? (dir === "asc" ? " ↑" : " ↓") : "") + "</a></th>"; };
-      $("#lg-body").innerHTML = panel("CH1", cur ? cur.name : "All sectors",
-        (cur && depth !== "plain" ? '<p class="i-fine">How sites get this label: ' + esc(cur.method) + "</p>" : "") +
-        (rows.length ? '<div class="i-table-wrap"><table class="i-table"><thead><tr>' + head("domain", "Domain") + head("grade", "Grade") + '<th scope="col">Change</th><th scope="col">Key exchange</th>' + (sector ? "" : '<th scope="col">Sector</th>') + head("scanned", "Checked") + "</tr></thead><tbody>" +
-          rows.map(function (r) {
-            var ch = r.previous_grade && r.grade ? (r.previous_grade > r.grade ? '<span class="v-ok">up from ' + esc(r.previous_grade) + "</span>" : '<span class="v-bad">down from ' + esc(r.previous_grade) + "</span>") : "";
-            return '<tr><td><a href="/' + esc(r.domain) + '">' + esc(r.domain) + "</a></td><td>" + (r.grade ? '<span class="g-chip" data-g="' + esc(r.grade) + '">' + esc(r.grade) + "</span>" : '<span class="i-dim">' + esc(r.miss ? "not reachable" : "not yet") + "</span>") + "</td><td>" + ch + '</td><td class="mono">' + esc(r.group || "") + "</td>" +
-              (sector ? "" : "<td>" + esc((SECTORS.filter(function (s) { return s.id === r.sector; })[0] || {}).name || r.sector) + "</td>") + '<td class="mono">' + esc(r.scanned_at ? day(r.scanned_at) : "") + "</td></tr>";
-          }).join("") + "</tbody></table></div>" + (L.total > rows.length ? '<p class="i-fine">Showing ' + num(rows.length) + " of " + num(L.total) + ". Narrow it with the filter.</p>" : "")
-          : '<div class="i-empty">Nothing matches.</div>'),
-        { right: lr ? "last batch " + esc(ago(lr.finished_at || lr.started_at)) + ": " + num(lr.graded) + " graded, " + num(lr.failed) + " unreachable" : "no batch has run yet" }) +
-        '<p class="i-fine">This server re-grades every site in the list once a week, a few at a time, with the same check as the domain page: one set of TLS handshakes to port 443, nothing else. A site that asked not to be checked is left out. ' +
-        'Labels come from <code>backend/league/sectors.json</code>: a name is listed only when its organisation and sector are public; nothing is guessed from the domain name.</p>';
-    }
-    load();
+      $("#lg-body").innerHTML = panel("", "By sector", sectorRows(SECTORS, depth !== "plain"), { ch: "league", right: lr ? "last batch " + esc(ago(lr.finished_at || lr.started_at)) : "no batch has run yet" }) +
+        '<p class="i-fine">Averages only: no site is named or ranked here. Each sector\'s list (in <code>backend/league/sectors.json</code>) is re-graded once a week with the same check as a domain page. Any single domain can still be checked by typing it. ' +
+        (depth === "expert" ? SECTORS.filter(function (s) { return s.graded; }).map(function (s) { return "<br>" + esc(s.name) + ": " + esc(s.method); }).join("") : "") + "</p>";
+      paintBars();
+    }).catch(function (e) { say("The sector averages are not available right now."); $("#lg-body").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
+    workspace().then(function (w) {
+      if (!w) return;
+      getJSON("/instrument/rank", { auth: token, cache: "no-store" }).then(function (R) {
+        var rows = (R.domains || []).map(function (x) {
+          var where = x.grade && x.compared_with ? "better than " + pct(x.worse / x.compared_with) + " of " + num(x.compared_with) + " graded " + (x.sector === "unclassified" ? "sites" : x.sector_name + " sites") : x.grade ? "no graded sites to compare with" : 'not graded yet: <a href="/' + esc(x.domain) + '">grade it</a>';
+          return "<tr><td>" + gradeChip(x.grade) + "</td><td>" + esc(x.domain) + "</td><td>" + where + "</td></tr>";
+        }).join("");
+        $("#lg-mine").innerHTML = panel("", "Your verified domains (only you see this)", R.verified_domains ? '<div class="i-table-wrap"><table class="i-table"><tbody>' + rows + "</tbody></table></div>"
+          : '<p>Verify a domain you own in the console (<a href="/ui/#gateway">Website Gateway</a>) to see where it stands in its sector.</p>', { ch: "grade" });
+      }).catch(function () {});
+    });
   }
 
-  /* The atlas: every graded site as a cell, grouped by sector, zoomable; your estate if signed in. */
-  function viewAtlas() {
-    setView("atlas", "Atlas");
-    say("Loading the atlas…");
-    main.innerHTML = '<p class="i-eyebrow">Atlas</p><div class="i-row"><h1 class="i-h1">Every graded site, zoomable</h1></div>' +
-      '<p class="i-fine">Scroll or pinch to zoom, drag to move, click a region to zoom into it, click a site when its name shows to open it. Keys: <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> and the arrows.</p>' +
-      '<div class="ch" data-ch="atlas"><div class="ch-head"><span class="ch-n">MAP</span><span id="at-scope">all sectors</span><span class="ch-r" id="at-legend"></span></div><div class="atlas-wrap" id="at-wrap"></div></div><p class="i-fine" id="at-note"></p>';
-    var estateP = token ? getJSON("/assets?limit=500", { auth: token, cache: "no-store" }).then(function (r) { return (r && (r.items || r)) || []; }).catch(function () { return null; }) : Promise.resolve(null);
-    Promise.all([getJSON("/api/public/league?limit=500&sort=domain", { cache: "no-store" }), estateP]).then(function (res) {
-      var L = res[0], estate = res[1];
-      SECTORS = L.sectors || [];
-      var groups = SECTORS.map(function (s) { return { id: s.id, name: s.name, cells: L.rows.filter(function (r) { return r.sector === s.id; }).map(function (r) { return { id: r.domain, label: r.domain, g: r.grade, href: "/" + r.domain }; }) }; })
-        .filter(function (g) { return g.cells.length; });
-      var nowY = new Date().getUTCFullYear();
-      if (estate && estate.length) {
-        var LIFE = { "1y": 1, "3y": 3, "5y": 5, "7y": 7, "10y": 10, "15y": 15, "20y": 20, "25y": 25, "30y": 30 };
-        groups.unshift({ id: "estate", name: "Your estate", estate: true, cells: estate.map(function (a) {
-          var life = parseInt(String(a.confidentiality_lifetime || "").replace(/[^0-9]/g, ""), 10);
-          if (isNaN(life)) life = LIFE[a.confidentiality_lifetime];
-          var until = isNaN(life) || life == null ? null : nowY + life;
-          return { id: a.asset_key, label: a.asset_key + (until ? " · secret until " + until : ""), g: until == null ? null : until >= 2035 ? "E" : "B", href: "/ui/#assets" };
-        }) });
-      }
-      var graded = L.rows.filter(function (r) { return r.grade; }).length;
-      say(!graded && !(estate && estate.length) ? "Nothing has been graded on this server yet, so the atlas is empty." :
-        byDepth({ plain: "Each square is a website; greener means better protected against future quantum computers.", standard: num(graded) + " graded sites in " + groups.length + " regions" + (estate && estate.length ? ", with your estate first" : "") + ". Colour is the grade.", expert: "Cells: league rows (rubric " + L.rubric_version + "); colour = grade; grey = not graded or unreachable." + (estate && estate.length ? " Estate cells: colour from confidentiality lifetime vs the 2035 earliest decrypt year." : "") }));
-      $("#at-legend").innerHTML = ["A", "B", "C", "D", "E", "F"].map(function (g) { return '<span class="g-chip" data-g="' + g + '">' + g + "</span>"; }).join(" ");
-      $("#at-note").textContent = estate && estate.length ? "Your estate region colours each asset by how long its data must stay secret (set in the console): amber when that runs past 2035, the earliest year recorded traffic could be read." : (token ? "Signed in, but no assets were readable for this account." : "");
-      drawAtlas($("#at-wrap"), groups);
-    }).catch(function (e) { say("The atlas could not load."); $("#at-wrap").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
-  }
   function drawAtlas(wrap, groups) {
     var NS = "http://www.w3.org/2000/svg", GAP = 8, CELL = 10;
     var blocks = groups.map(function (g) { var n = Math.max(1, Math.ceil(Math.sqrt(g.cells.length))); return { g: g, n: n, size: n * CELL }; });
@@ -631,11 +853,10 @@
       standard: ref.algorithms.length + " algorithms: what each one is, whether a quantum computer breaks it, and when the internet started and stopped using it.",
       expert: "Sizes from the cited FIPS/RFCs; risk per Shor (public-key) and Grover (symmetric); dates from primary sources." }));
     var fams = ["Post-quantum", "Hybrid", "Classical", "Symmetric"];
-    main.innerHTML = '<p class="i-eyebrow">Reference</p><h1 class="i-h1">Algorithms</h1>' +
+    main.innerHTML =
       '<nav class="i-channels" aria-label="Family"><a href="/algorithms"' + (!fam ? ' aria-current="page"' : "") + ">All</a>" + fams.map(function (f) { return '<a href="/algorithms?family=' + enc(f) + '"' + (fam === f ? ' aria-current="page"' : "") + ">" + f + "</a>"; }).join("") + "</nav>" +
-      '<div class="ch-grid"><div class="span-7">' + panel("CH1", "The algorithms", '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Name</th><th>What it does</th><th>Against a quantum computer</th></tr></thead><tbody>' +
-        list.map(function (a) { return '<tr><td><a href="/algorithms/' + a.id + '">' + esc(a.name) + "</a></td><td>" + esc(a.kind) + '</td><td class="' + riskTone(a.risk) + '">' + esc(ref.riskLabel[a.risk]) + "</td></tr>"; }).join("") + "</tbody></table></div>", { ch: "ref" }) + "</div>" +
-      '<div class="span-5">' + panel("CH2", "The internet's cryptography, dated", timeline(ref.history.filter(function (h) { return !fam || h.a.some(function (id) { var x = ref.get(id); return x && x.family === fam; }) || !h.a.length; })), { ch: "ref" }) + "</div></div>";
+      panel("", "The algorithms", '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Name</th><th>What it does</th><th>Against a quantum computer</th></tr></thead><tbody>' +
+        list.map(function (a) { return '<tr><td><a href="/algorithms/' + a.id + '">' + esc(a.name) + "</a></td><td>" + esc(a.kind) + '</td><td class="' + riskTone(a.risk) + '">' + esc(ref.riskLabel[a.risk]) + "</td></tr>"; }).join("") + "</tbody></table></div>", { ch: "ref" });
   }
   function timeline(events) {
     var ref = window.MORROW_REF;
@@ -655,13 +876,13 @@
     main.innerHTML = '<p class="i-eyebrow">' + esc(a.family) + " &middot; " + esc(a.kind) + '</p><h1 class="i-h1">' + esc(a.name) + "</h1>" +
       (a.aka.length ? '<p class="i-fine">Also written ' + a.aka.map(esc).join(", ") + "</p>" : "") +
       '<div class="ch-grid"><div class="span-8">' +
-      panel("CH1", "Against a quantum computer", '<p class="' + riskTone(a.risk) + '"><b>' + esc(ref.riskLabel[a.risk]) + "</b></p><p>" + esc(depth === "plain" ? a.summary : a.riskText) + "</p><p class=\"i-fine\">Status: " + esc(a.status) + "</p>", { ch: "ref" }) +
-      (a.params && depth !== "plain" ? panel("CH2", "Sizes (bytes unless stated)", '<div class="i-table-wrap"><table class="i-table"><thead><tr>' + a.params.cols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>" + a.params.rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>", { ch: "ref" }) : "") +
-      (a.seenIn ? panel("CH3", "Where you meet it", "<p>" + esc(a.seenIn) + "</p>", { ch: "ref" }) : "") +
+      panel("", "Against a quantum computer", '<p class="' + riskTone(a.risk) + '"><b>' + esc(ref.riskLabel[a.risk]) + "</b></p><p>" + esc(depth === "plain" ? a.summary : a.riskText) + "</p><p class=\"i-fine\">Status: " + esc(a.status) + "</p>", { ch: "ref" }) +
+      (a.params && depth !== "plain" ? panel("", "Sizes (bytes unless stated)", '<div class="i-table-wrap"><table class="i-table"><thead><tr>' + a.params.cols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>" + a.params.rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table></div>", { ch: "ref" }) : "") +
+      (a.seenIn ? panel("", "Where you meet it", "<p>" + esc(a.seenIn) + "</p>", { ch: "ref" }) : "") +
       "</div><div class=\"span-4\">" +
-      (events.length ? panel("CH4", "Its history", timeline(events), { ch: "ref" }) : "") +
-      panel("CH5", "Related", "<ul>" + a.related.map(function (r) { var x = ref.get(r); return x ? '<li><a href="/algorithms/' + r + '">' + esc(x.name) + "</a></li>" : ""; }).join("") + "</ul>", { ch: "ref" }) +
-      panel("CH6", "Sources", "<ul>" + a.sources.map(function (s) { return '<li><a href="' + esc(s.href) + '" rel="noopener">' + esc(s.label) + "</a></li>"; }).join("") + "</ul>", { ch: "ref" }) +
+      (events.length ? panel("", "Its history", timeline(events), { ch: "ref" }) : "") +
+      panel("", "Related", "<ul>" + a.related.map(function (r) { var x = ref.get(r); return x ? '<li><a href="/algorithms/' + r + '">' + esc(x.name) + "</a></li>" : ""; }).join("") + "</ul>", { ch: "ref" }) +
+      panel("", "Sources", "<ul>" + a.sources.map(function (s) { return '<li><a href="' + esc(s.href) + '" rel="noopener">' + esc(s.label) + "</a></li>"; }).join("") + "</ul>", { ch: "ref" }) +
       "</div></div>";
   }
 
@@ -670,23 +891,22 @@
     setView("trust", "Trust");
     say("Checking what this server runs…");
     var asked = (param("commit") || "").toLowerCase();
-    main.innerHTML = '<p class="i-eyebrow">Trust</p><h1 class="i-h1">What this server runs, and how to check it</h1>' +
-      '<div class="ch-grid"><div class="span-6">' + panel("CH1", "Running commit", '<div id="tr-build" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
-      '<div class="span-6">' + panel("CH2", "This page's files against the signed manifest", '<div id="tr-man" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
-      '<div class="span-12">' + panel("CH3", "Deploy log", '<div id="tr-log" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
-      '<div class="span-6">' + panel("CH4", "No tracking: what this page contacted", '<div id="tr-req" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
-      '<div class="span-6">' + panel("CH5", "Rebuild it yourself", '<p>Release images are built reproducibly: two builds of the same commit give the same image digest, and each release image carries a keyless cosign signature and build attestations. The steps are in <a href="https://github.com/soqlab/Morrow/blob/main/docs/REPRODUCIBLE_BUILDS.md" rel="noopener">docs/REPRODUCIBLE_BUILDS.md</a>.</p>' +
+    main.innerHTML = '' +
+      '<div class="ch-grid"><div class="span-6">' + panel("", "Running commit", '<div id="tr-build" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
+      '<div class="span-6">' + panel("", "The files this page loaded", '<div id="tr-man" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
+      '<div class="span-12">' + panel("", "Deploy log", '<div id="tr-log" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
+      '<div class="span-6">' + panel("", "No tracking: what this page contacted", '<div id="tr-req" class="i-muted">Reading&hellip;</div>', { ch: "trust" }) + "</div>" +
+      '<div class="span-6">' + panel("", "Rebuild it yourself", '<p>Release images are built reproducibly: two builds of the same commit give the same image digest, and each release image carries a keyless cosign signature and build attestations. The steps are in <a href="https://github.com/soqlab/Morrow/blob/main/docs/REPRODUCIBLE_BUILDS.md" rel="noopener">docs/REPRODUCIBLE_BUILDS.md</a>.</p>' +
         '<p>To check this server from a terminal, with a clone of the repository:</p><pre id="tr-cmd">python scripts/verify-deploy.py --url ' + esc(location.origin) + ' --repo .</pre><button type="button" class="i-btn" id="tr-copy">Copy</button>' +
-        '<p class="i-fine">It compares every served file with the commit\'s source, checks the manifest\'s Ed25519 and ML-DSA-65 signatures, and recomputes the deploy log\'s hash chain.</p>', { ch: "tools" }) + "</div></div>";
+        '<p class="i-fine">It compares every served file with the commit\'s source, and recomputes the deploy log\'s hash chain.</p>', { ch: "tools" }) + "</div></div>";
     $("#tr-copy").addEventListener("click", function (e) { copy($("#tr-cmd").textContent, e.target); });
-    var results = { build: null, files: null, sig: null, chain: null };
+    var results = { build: null, files: null, chain: null };
     function summary() {
       var b = results.build;
       if (!b) return;
       var parts = [];
       parts.push(b.commit ? "This server says it runs commit " + b.commit.slice(0, 12) + "." : "This server does not report its commit.");
-      if (results.files != null) parts.push(results.files ? "The files this page loaded match its manifest." : "A file this page loaded does not match the manifest.");
-      if (results.sig != null) parts.push(results.sig === true ? "The manifest's signature checks out in your browser." : results.sig === false ? "The manifest's signature does not verify." : "");
+      if (results.files != null) parts.push(results.files ? "The files this page loaded match the list this server publishes for that commit." : "A file this page loaded does not match the list this server publishes.");
       if (results.chain != null) parts.push(results.chain ? "The deploy log's hash chain recomputes in your browser." : "The deploy log's hash chain does not recompute.");
       say(parts.filter(Boolean).join(" "));
     }
@@ -695,13 +915,12 @@
       var match = asked ? (b.commit && b.commit.indexOf(asked) === 0 ? '<p class="v-ok">Yes: commit ' + esc(asked) + " is the one this server reports.</p>" : '<p class="v-warn">No: this server reports ' + esc(b.commit || "no commit") + ", not " + esc(asked) + ".</p>") : "";
       $("#tr-build").innerHTML = match + (b.commit
         ? '<dl class="readouts">' + reading("Commit", '<a href="' + esc(b.commit_url) + '" rel="noopener">' + esc(b.commit) + "</a>") + reading("Reported by", esc(b.source || "-")) + reading("Process started", esc(stamp(b.started_at))) + reading("Python", esc(b.python || "-")) + "</dl>" +
-          '<p class="i-fine">The commit comes from the hosting platform\'s build environment (' + esc(b.source) + '), not from the code itself, so the link above shows exactly the source that was deployed. The manifest on the right is how you check that claim.</p>'
+          '<p class="i-fine">The commit comes from the hosting platform\'s build environment (' + esc(b.source) + '), not from the code itself, so the link above shows exactly the source that was deployed. To check that claim, compare the files with that commit: on the right, or with the script below.</p>'
         : "<p>The server was started without a commit in its environment, so it cannot say which source it runs. Self-hosters: set <code>MORROW_GIT_COMMIT</code>.</p>");
       summary();
     }).catch(function (e) { $("#tr-build").textContent = e.message; });
 
-    Promise.all([getJSON("/api/public/manifest", { cache: "no-store" }), getJSON("/.well-known/morrow-proof-keys.json", { cache: "no-store" }).catch(function () { return null; })]).then(function (r) {
-      var m = r[0], keys = r[1];
+    getJSON("/api/public/manifest", { cache: "no-store" }).then(function (m) {
       var byPath = {}; (m.files || []).forEach(function (f) { byPath[f.path] = f; });
       var mine = ["/ui/instrument.html", "/ui/instrument.js", "/ui/instrument-data.js", "/ui/instrument.css"];
       return Promise.all(mine.map(function (p) {
@@ -711,22 +930,8 @@
         var html = '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>File</th><th>SHA-256 in your browser</th><th>Matches</th></tr></thead><tbody>' + rows.map(function (x) {
           return '<tr><td class="mono">' + esc(x.path) + '</td><td class="mono"><small>' + esc(x.mine.slice(0, 16)) + "&hellip;</small></td><td class=\"" + (x.listed === x.mine ? "v-ok\">yes" : "v-bad\">no") + "</td></tr>";
         }).join("") + "</tbody></table></div><p class=\"i-fine\">" + num((m.files || []).length) + " files listed for commit " + esc((m.commit || "unknown").slice(0, 12)) + ", generated " + esc(stamp(m.generated_at)) + ".</p>";
-        var ed = (m.signatures || []).filter(function (s) { return s.alg === "Ed25519"; })[0];
-        var ml = (m.signatures || []).filter(function (s) { return s.alg === "ML-DSA-65"; })[0];
-        var key = ed && keys && (keys.keys || []).filter(function (k) { return k.kid === ed.kid; })[0];
-        $("#tr-man").innerHTML = html + '<p id="tr-sig">' + (m.signatures && m.signatures.length ? "Checking the signature&hellip;" : "The manifest is not signed on this server: " + esc(m.unsigned_reason || "no reason given")) + "</p>";
+        $("#tr-man").innerHTML = html;
         summary();
-        if (!ed || !key) { if (m.signatures && m.signatures.length) $("#tr-sig").textContent = "No Ed25519 key published for this signature."; return; }
-        var body = {}; Object.keys(m).forEach(function (k) { if (k !== "signatures" && k !== "unsigned_reason") body[k] = m[k]; });
-        var bytes = new TextEncoder().encode(m.signing_context + canonical(body));
-        return crypto.subtle.importKey("raw", b64bytes(key.public_key), { name: "Ed25519" }, false, ["verify"])
-          .then(function (k) { return crypto.subtle.verify({ name: "Ed25519" }, k, b64bytes(ed.sig_b64), bytes); })
-          .then(function (ok) {
-            results.sig = ok;
-            $("#tr-sig").innerHTML = (ok ? '<span class="v-ok">Ed25519 signature verified in your browser</span>' : '<span class="v-bad">Ed25519 signature did not verify</span>') + " with key <code>" + esc(key.kid) + "</code>." +
-              (ml ? ' The manifest also carries an ML-DSA-65 signature (<code>' + esc(ml.kid) + '</code>). Browsers cannot check ML-DSA yet, so this page does not; <code>verify-deploy.py</code> does.' : "");
-            summary();
-          }, function () { $("#tr-sig").textContent = "This browser cannot check Ed25519 signatures, so the signature was not checked here. verify-deploy.py checks it."; });
       });
     }).catch(function (e) { $("#tr-man").textContent = e.message; });
 

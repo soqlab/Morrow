@@ -245,3 +245,15 @@ select.i-btn { background: var(--bg-2); }
 .i-h1 { margin-bottom: 18px; }
 .ch-body { overflow-wrap: anywhere; }
 .i-fine code, .ch-body code { word-break: break-all; }
+.i-top { position: static; }
+.atlas-cell rect:not([data-g]), .atlas-cell rect[data-g=""] { fill: none; stroke: var(--line-2); stroke-width: .4; vector-effect: non-scaling-stroke; }
+.i-answer { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 0 0 18px; }
+.i-answer .i-h2 { font-family: var(--mono); }
+.bar { display: flex; width: 100%; min-width: 120px; height: 12px; background: var(--bg-2); border: 1px solid var(--line); }
+.bar .seg { display: block; height: 100%; background: var(--gc, var(--line-2)); }
+.seg[data-g="A"] { --gc: var(--g-a); } .seg[data-g="B"] { --gc: var(--g-b); } .seg[data-g="C"] { --gc: var(--g-c); }
+.seg[data-g="D"] { --gc: var(--g-d); } .seg[data-g="E"] { --gc: var(--g-e); } .seg[data-g="F"] { --gc: var(--g-f); }
+.spark { display: flex; align-items: flex-end; gap: 2px; height: 22px; min-width: 60px; }
+.spark .tick { display: block; width: 5px; background: var(--ok); }
+.fix { border-top: 1px solid var(--line); padding-top: 10px; margin-bottom: 10px; }
+.fix p { margin: 0 0 6px; }
