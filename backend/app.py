@@ -1463,6 +1463,10 @@ async def _lifespan(_app: FastAPI):
     from db import disable_connection_pool, enable_connection_pool
     enable_connection_pool()
     _startup()
+    # Deploy transparency log: one row when the running commit differs from the newest row. A no-op
+    # without a known commit (services/build_info.py) and at most once per process; never raises.
+    from services import deploy_log as _deploy_log_startup
+    await run_in_threadpool(_deploy_log_startup.record_at_startup)
     _start_scheduler()  # in-process thread scheduler
 
     # Scan scheduler (Wave 14) + telemetry push helper
@@ -11462,6 +11466,13 @@ app.include_router(create_public_grade_router(_PlatformAdminDeps(
 )))
 app.add_middleware(PublicApiCorsMiddleware)
 _register_platform_schema("public_grade", lambda *_: _public_grade.init_tables())
+# The instrument's public evidence, on the same router: the deploy transparency log (appended at
+# startup, below in _lifespan), the league's miss/run tables. No tenant column in any of them.
+from services import deploy_log as _deploy_log  # noqa: E402
+from services import league as _league  # noqa: E402
+
+_register_platform_schema("public_deploy_log", lambda *_: _deploy_log.init_tables())
+_register_platform_schema("public_league", lambda *_: _league.init_tables())
 
 # Trial requests: the route from a stranger to an account. /auth/register is admin-only on purpose,
 # so without this the public site has no path from "this looks useful" to "I have a login". It is

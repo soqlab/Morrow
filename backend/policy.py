@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from services import decrypt_window as _decrypt_window
+
 # -------------------------
 # Helpers
 # -------------------------
@@ -1060,6 +1062,9 @@ def derive_quantum_readiness(facts: Dict[str, Any], findings: List[Dict[str, Any
 
     return {
         "harvest_now_decrypt_later_risk": hndl,
+        # When a recording of this endpoint's traffic could be read back: one answer, shared with the
+        # public grade (services/decrypt_window.py).
+        "decrypt_window": _decrypt_window.for_scan_result(facts),
         "classical_crypto_dependency": classical_dependency,
         "classical_algorithm": key_type or "unknown",
         "classical_algorithm_detail": key_detail,

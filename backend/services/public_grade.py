@@ -101,6 +101,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from services import decrypt_window as _decrypt_window
+
 logger = logging.getLogger(__name__)
 
 RUBRIC_VERSION = "2026-11.1"
@@ -117,26 +119,16 @@ PQ_PROBE_GROUPS: Tuple[Tuple[int, str], ...] = (
     (0x11ED, "SecP384r1MLKEM1024"),
 )
 
-#: When a cryptographically relevant quantum computer may exist. Not invented here: the Global Risk
-#: Institute's Quantum Threat Timeline Report 2025 (Mosca and Piani, evolutionQ; published
-#: 9 March 2026; 26 experts surveyed in 2025) puts the chance of a quantum computer able to break
-#: RSA-2048 within 24 hours at 28-49% within 10 years ("quite possible") and 51-70% ("likely")
-#: within 15 years. Counted from the 2025 survey that is 2035 to 2040. Update both numbers, the
-#: basis text and RUBRIC_VERSION together when a new edition is published.
-DECRYPT_YEAR_LOW = 2035
-DECRYPT_YEAR_HIGH = 2040
-EXPOSURE_SOURCE_URL = "https://globalriskinstitute.org/publication/quantum-threat-timeline-report-2025b/"
-EXPOSURE_BASIS = (
-    "Global Risk Institute, Quantum Threat Timeline Report 2025 (Mosca and Piani, published March "
-    "2026): experts put the chance of a quantum computer that can break RSA-2048 in 24 hours at "
-    "28-49% within 10 years and 51-70% within 15 years of the 2025 survey, i.e. about 2035 to 2040. "
-    "Traffic recorded today with classical key exchange could be decrypted from then on."
-)
-PQ_BASIS = (
-    "The key exchange includes ML-KEM (NIST FIPS 203), so a recording of today's traffic cannot be "
-    "decrypted later by breaking the key exchange with a quantum computer."
-)
-PQ_SOURCE_URL = "https://csrc.nist.gov/pubs/fips/203/final"
+#: When a cryptographically relevant quantum computer may exist, and why. The years, the cited
+#: source and the basis sentences live in services/decrypt_window.py so the public grade, the
+#: console's scan results and /api/public/basis can never quote different dates; these names are
+#: kept as aliases for existing callers. Bump RUBRIC_VERSION when decrypt_window's years change.
+DECRYPT_YEAR_LOW = _decrypt_window.DECRYPT_YEAR_LOW
+DECRYPT_YEAR_HIGH = _decrypt_window.DECRYPT_YEAR_HIGH
+EXPOSURE_SOURCE_URL = _decrypt_window.EXPOSURE_SOURCE_URL
+EXPOSURE_BASIS = _decrypt_window.EXPOSURE_BASIS
+PQ_BASIS = _decrypt_window.PQ_BASIS
+PQ_SOURCE_URL = _decrypt_window.PQ_SOURCE_URL
 
 #: Cipher strings for the TLS 1.2 key-transport and weak-suite probes (OpenSSL syntax).
 _RSA_KX_CIPHERS = "kRSA:@SECLEVEL=0"
@@ -777,18 +769,7 @@ def grade_from_facts(facts: Dict[str, Any]) -> Dict[str, Any]:
         reasons.append("The key-exchange group could not be observed"
                        + (": " + str(facts.get("kx_reason")) if facts.get("kx_reason") else "") + ".")
 
-    at_risk = not post_quantum
-    if not facts.get("tls"):
-        exposure = {"recorded_traffic_at_risk": True, "decrypt_year_low": None, "decrypt_year_high": None,
-                    "basis": "No TLS was negotiated, so there is no encryption to break.",
-                    "source_url": EXPOSURE_SOURCE_URL}
-    elif at_risk:
-        exposure = {"recorded_traffic_at_risk": True, "decrypt_year_low": DECRYPT_YEAR_LOW,
-                    "decrypt_year_high": DECRYPT_YEAR_HIGH, "basis": EXPOSURE_BASIS,
-                    "source_url": EXPOSURE_SOURCE_URL}
-    else:
-        exposure = {"recorded_traffic_at_risk": False, "decrypt_year_low": None, "decrypt_year_high": None,
-                    "basis": PQ_BASIS, "source_url": PQ_SOURCE_URL}
+    exposure = _decrypt_window.exposure(bool(facts.get("tls")), post_quantum)
 
     server_software = facts.get("server_header") or None
     platform = str(facts.get("platform") or detect_platform(server_software))
@@ -1222,17 +1203,94 @@ def latest(domain: str, max_age_seconds: Optional[int] = None) -> Optional[Dict[
     return result
 
 
-def history(domain: str, limit: int = 30) -> List[Dict[str, Any]]:
+def history(domain: str, limit: int = 30, detail: bool = False) -> List[Dict[str, Any]]:
+    """Stored checks for one domain, newest first (at most 100). ``detail`` adds each full result."""
     from db_feature_store import feature_conn
 
     init_tables()
     limit = max(1, min(100, int(limit)))
+    columns = "scanned_at, grade, key_exchange_group, post_quantum, rubric_version, result_json"
     with feature_conn() as conn:
         rows = conn.execute(
-            "SELECT scanned_at, grade, key_exchange_group, post_quantum FROM public_grade_checks "
+            f"SELECT {columns} FROM public_grade_checks "  # nosec B608  # fixed column list
+            "WHERE domain = ? ORDER BY scanned_at DESC, id DESC LIMIT ?", (domain, limit)).fetchall()
+    out = []
+    for r in rows:
+        entry: Dict[str, Any] = {"scanned_at": r["scanned_at"], "grade": r["grade"], "group": r["key_exchange_group"],
+                                 "post_quantum": bool(r["post_quantum"])}
+        if detail:
+            entry["rubric_version"] = r["rubric_version"]
+            try:
+                entry["result"] = json.loads(r["result_json"])
+            except (TypeError, ValueError):
+                entry["result"] = None
+        out.append(entry)
+    return out
+
+
+def grade_changes(domain: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    """One entry per grade change (the first check counts as one), newest first."""
+    rows = list(reversed(history_all(domain, limit)))
+    changes: List[Dict[str, Any]] = []
+    previous: Optional[str] = None
+    for r in rows:
+        if r["grade"] != previous:
+            changes.append({**r, "previous_grade": previous})
+            previous = r["grade"]
+    return list(reversed(changes))
+
+
+def history_all(domain: str, limit: int = 1000) -> List[Dict[str, Any]]:
+    """Like history() without the 100-row cap (for the feed), newest first."""
+    from db_feature_store import feature_conn
+
+    init_tables()
+    limit = max(1, min(5000, int(limit)))
+    with feature_conn() as conn:
+        rows = conn.execute(
+            "SELECT scanned_at, grade, key_exchange_group, post_quantum, rubric_version FROM public_grade_checks "
             "WHERE domain = ? ORDER BY scanned_at DESC, id DESC LIMIT ?", (domain, limit)).fetchall()
     return [{"scanned_at": r["scanned_at"], "grade": r["grade"], "group": r["key_exchange_group"],
-             "post_quantum": bool(r["post_quantum"])} for r in rows]
+             "post_quantum": bool(r["post_quantum"]), "rubric_version": r["rubric_version"]} for r in rows]
+
+
+def _xml(text: Any) -> str:
+    return (str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace('"', "&quot;"))
+
+
+def render_atom(domain: str, changes: List[Dict[str, Any]], self_url: str, page_url: str = "") -> str:
+    """An Atom (RFC 4287) feed of grade changes, newest first."""
+    feed_id = f"urn:morrow:public-grade:{domain}"
+    updated = changes[0]["scanned_at"] if changes else iso(now_utc())
+    parts = [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<feed xmlns="http://www.w3.org/2005/Atom">',
+        f"  <id>{_xml(feed_id)}</id>",
+        f"  <title>Quantum-readiness grade: {_xml(domain)}</title>",
+        f"  <updated>{_xml(updated)}</updated>",
+        "  <author><name>SOQLAB Morrow</name></author>",
+        f'  <link rel="self" type="application/atom+xml" href="{_xml(self_url)}"/>',
+    ]
+    if page_url:
+        parts.append(f'  <link rel="alternate" type="text/html" href="{_xml(page_url)}"/>')
+    for c in changes:
+        was = c.get("previous_grade")
+        title = (f"{domain}: {was} to {c['grade']}" if was else f"{domain}: first graded {c['grade']}")
+        group = c.get("group") or "not observed"
+        pq = "post-quantum" if c.get("post_quantum") else "classical"
+        summary = (f"Grade {c['grade']}" + (f" (was {was})" if was else "") + f". Key exchange: {group} ({pq}). "
+                   f"Rubric {c.get('rubric_version') or ''}.").replace(" Rubric .", "")
+        parts += [
+            "  <entry>",
+            f"    <id>{_xml(feed_id + ':' + str(c['scanned_at']))}</id>",
+            f"    <title>{_xml(title)}</title>",
+            f"    <updated>{_xml(c['scanned_at'])}</updated>",
+            f"    <summary>{_xml(summary)}</summary>",
+            "  </entry>",
+        ]
+    parts.append("</feed>")
+    return "\n".join(parts) + "\n"
 
 
 def stats() -> Dict[str, Any]:

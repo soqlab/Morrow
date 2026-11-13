@@ -123,6 +123,16 @@ try:
         },
     }
 
+    # The public quantum-readiness league (services/league.py): grades up to MORROW_LEAGUE_TICK_MAX
+    # (default 20) well-known domains whose last attempt is over a week old. On by default; set
+    # MORROW_LEAGUE_SCAN=0 to stop it. Without a worker: python -m services.league --tick.
+    if _env_str("MORROW_LEAGUE_SCAN", "1").lower() not in ("0", "false", "no", "off"):
+        _beat["league-tick-every-15m"] = {
+            "task": "morrow.league_tick",
+            "schedule": 900.0,
+            "args": (),
+        }
+
     # Optional: daily GitHub repo sync
     _gh_cred = _env_str("GITHUB_SYNC_CREDENTIAL_ID")
     if _gh_cred:
@@ -317,6 +327,21 @@ def sync_due_cert_sources_task() -> Dict[str, Any]:
         return cert_inventory.run_due_syncs()
     except Exception as exc:
         capture_exception(exc, {"task": "morrow.sync_due_cert_sources"})
+        raise
+
+
+@celery_app.task(name="morrow.league_tick")
+def league_tick_task(max_domains: int | None = None) -> Dict[str, Any]:
+    """Grade the league's due domains (services/league.py). A no-op when MORROW_LEAGUE_SCAN=0."""
+    from services import league
+
+    if not league.enabled():
+        return {"disabled": True}
+    try:
+        limit = int(max_domains or _env_int("MORROW_LEAGUE_TICK_MAX", league.DEFAULT_TICK))
+        return league.tick(max(1, min(100, limit)))
+    except Exception as exc:
+        capture_exception(exc, {"task": "morrow.league_tick"})
         raise
 
 

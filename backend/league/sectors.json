@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "about": "Sector labels for Morrow's quantum-readiness league (GET /api/public/league, services/league.py). The league list is exactly the explicit 'domains' below, deduplicated; each is graded at most once a week by the public grade (services/public_grade.py) and the table shows only stored results. A domain is labelled by two kinds of rule, in this order: (1) an exact domain in a sector's 'domains' list (a leading 'www.' is ignored); (2) a domain-suffix rule ('suffixes' / 'suffix_patterns') that is reserved for that kind of organisation by its registry. Explicit domains always win over suffix rules; 'exclude' wins over both. Anything not matched is 'unclassified': nothing is guessed. Every explicit domain is the main public domain of a named, publicly known organisation of that sector (company website, annual report or the organisation's Wikipedia article). Nothing is inferred from keywords in the domain name or from page content. Add a domain only when you can name the organisation and its sector from a public source; when unsure, leave it out.",
+  "sectors": [
+    {
+      "id": "government",
+      "name": "Government & public sector",
+      "method": "Registry-reserved government suffixes (.gov, .mil, .gov.<cc>, .gob.<cc>, .gouv.<cc>, .go.<cc>, .gc.ca, .govt.nz, .gv.at, .nic.in), the .int suffix reserved for treaty-based international organisations, plus named government domains that live under ordinary suffixes.",
+      "sources": [
+        "https://get.gov/domains/eligibility/ (.gov eligibility, CISA)",
+        "https://www.iana.org/domains/root/db (country-code registry policies for .gov.<cc>, .gob.<cc>, .gouv.<cc>, .go.<cc>)",
+        "https://www.iana.org/domains/int/policy (.int eligibility)",
+        "https://www.registry.gov.in/ (.gov.in / .nic.in)"
+      ],
+      "suffixes": ["gov", "mil", "int", "gc.ca", "govt.nz", "gv.at", "nic.in", "europa.eu"],
+      "suffix_patterns": ["\\.gov\\.[a-z]{2}$",
+        "\\.gob\\.[a-z]{2}$",
+        "\\.gouv\\.[a-z]{2}$",
+        "\\.go\\.[a-z]{2}$",
+        "\\.mil\\.[a-z]{2}$",
+        "\\.gub\\.uy$"
+      ],
+      "domains": ["europa.eu", "bund.de", "bundesregierung.de", "bayern.de", "canada.ca", "service-public.fr", "gosuslugi.ru", "admin.ch", "overheid.nl", "rijksoverheid.nl", "belgium.be", "gov.uk", "gov.br", "gov.cn", "gob.mx", "gob.pe", "un.org", "worldbank.org", "unesco.org", "oecd.org", "ico.org.uk", "inps.it", "absher.sa", "mos.ru", "fao.org", "unicef.org", "undp.org", "imf.org", "ilo.org", "ohchr.org", "iea.org", "cnil.fr", "gesetze-im-internet.de", "tjsp.jus.br", "patria.org.ve"]
+    },
+    {
+      "id": "education",
+      "name": "Education & research",
+      "method": "Registry-reserved academic suffixes (.edu, .edu.<cc>, .ac.<cc>) plus named universities, school-system platforms and research publishers' non-commercial bodies on ordinary suffixes.",
+      "sources": [
+        "https://net.educause.edu/eligibility.htm (.edu eligibility)",
+        "https://www.jisc.ac.uk/domain-registry (.ac.uk eligibility)",
+        "https://www.iana.org/domains/root/db (country-code registry policies for .edu.<cc> and .ac.<cc>)"
+      ],
+      "suffixes": ["edu"],
+      "suffix_patterns": ["\\.edu\\.[a-z]{2}$",
+        "\\.ac\\.[a-z]{2}$"
+      ],
+      "domains": ["arxiv.org", "collegeboard.org", "khanacademy.org", "coursera.org", "edx.org", "instructure.com", "blackboard.com", "classlink.com", "clever.com", "quizlet.com", "duolingo.com", "ethz.ch", "epfl.ch", "uva.nl", "tum.de", "sorbonne-universite.fr", "utoronto.ca", "ubc.ca", "mcgill.ca", "ixl.com", "blooket.com", "jstor.org", "moodle.org", "moodle.com", "brightspace.com", "udemy.com", "mheducation.com", "starfall.com", "lausd.net", "zearn.org", "testbook.com", "edmentum.com", "librus.pl", "spaggiari.eu", "illuminateed.com", "orcid.org", "cern.ch", "mpg.de", "semanticscholar.org", "sfu.ca", "madrasati.sa"]
+    },
+    {
+      "id": "finance",
+      "name": "Banks & payments",
+      "method": "Named banks, card networks, payment processors, brokerages and crypto exchanges. Bank names checked against the S&P Global 'largest banks' ranking and national central-bank registers; payment firms by their own corporate sites.",
+      "sources": [
+        "https://www.spglobal.com/marketintelligence/en/news-insights/research/the-worlds-largest-banks (S&P Global largest banks)",
+        "https://en.wikipedia.org/wiki/List_of_largest_banks"
+      ],
+      "suffixes": [],
+      "suffix_patterns": [],
+      "domains": ["paypal.com", "paypal.me", "paypalobjects.com", "stripe.com", "stripe.network", "stripecdn.com", "adyen.com", "squareup.com", "cash.app", "venmo.com", "wise.com", "revolut.com", "klarna.com", "klarna.net", "alipay.com", "alipayobjects.com", "visa.com", "visa.cn", "mastercard.com", "americanexpress.com", "westernunion.com", "mercadopago.com", "mercadopago.com.br", "mercadopago.com.ar", "paytm.com", "phonepe.com", "gcash.com", "chase.com", "jpmorgan.com", "jpmorganchase.com", "bankofamerica.com", "wellsfargo.com", "citi.com", "citigroup.com", "capitalone.com", "usbank.com", "pnc.com", "truist.com", "td.com", "royalbank.com", "goldmansachs.com", "morganstanley.com", "schwab.com", "fidelity.com", "vanguard.com", "blackrock.com", "etrade.com", "robinhood.com", "creditkarma.com", "hsbc.com", "hsbc.co.uk", "barclays.co.uk", "lloydsbank.co.uk", "natwest.com", "santander.com", "santander.com.br", "bbva.mx", "bbva.es", "ubs.com", "db.com", "credit-agricole.fr", "creditmutuel.fr", "labanquepostale.fr", "ing.com", "sparkasse.de", "commerzbank.de", "allianz.com", "sberbank.ru", "sber.ru", "tbank.ru", "tinkoff.ru", "vtb.ru", "alfabank.ru", "gazprombank.ru", "sovcombank.ru", "kaspi.kz", "itau.com.br", "bradesco.com.br", "banco.bradesco", "nubank.com.br", "bancoestado.cl", "bancodevenezuela.com", "mercantilbanco.com", "mizuhobank.co.jp", "rakuten-bank.co.jp", "sbisec.co.jp", "smbcnikko.co.jp", "rakuten-card.co.jp", "klikbca.com", "maybank2u.com.my", "icicidirect.com", "onlinesbi.sbi", "sbicard.com", "coinbase.com", "binance.com", "kraken.com", "okx.com", "affirm.com", "nasdaq.com", "rakuten-sec.co.jp"]
+    },
+    {
+      "id": "healthcare",
+      "name": "Healthcare",
+      "method": "Named hospitals and health systems, insurers, pharmacies, pharmaceutical companies, national health services and widely used medical reference sites. NHS suffix (.nhs.uk) is reserved for NHS bodies.",
+      "sources": [
+        "https://digital.nhs.uk/services/nhs-mail/nhs-uk-domain-names (.nhs.uk eligibility)",
+        "Each organisation's own website"
+      ],
+      "suffixes": ["nhs.uk"],
+      "suffix_patterns": [],
+      "domains": ["nhs.uk", "mayoclinic.org", "clevelandclinic.org", "hopkinsmedicine.org", "kaiserpermanente.org", "uhc.com", "aetna.com", "cigna.com", "cvs.com", "walgreens.com", "goodrx.com", "pfizer.com", "lilly.com", "roche.com", "bayer.com", "webmd.com", "healthline.com", "medscape.com", "drugs.com", "medicalnewstoday.com", "verywellhealth.com", "everydayhealth.com", "kidshealth.org", "healthychildren.org", "ameli.fr", "doctolib.fr", "practo.com", "1mg.com", "apollopharmacy.in", "athenahealth.com", "prodoctorov.ru", "medicare.gov", "clinicaltrials.gov", "health.mil", "heart.org"]
+    },
+    {
+      "id": "telecom",
+      "name": "Telecom & ISPs",
+      "method": "Named mobile operators, fixed-line operators and internet service providers (their consumer and corporate domains).",
+      "sources": [
+        "Each operator's own website and annual report"
+      ],
+      "suffixes": [],
+      "suffix_patterns": [],
+      "domains": ["att.com", "att.net", "verizon.com", "verizon.net", "verizonwireless.com", "t-mobile.com", "comcast.com", "comcast.net", "xfinity.com", "spectrum.com", "spectrum.net", "charter.net", "cox.net", "optimum.net", "centurylink.net", "frontiernet.net", "windstream.net", "cricketwireless.com", "rogers.com", "bell.ca", "telus.com", "shaw.ca", "shawcable.net", "videotron.ca", "telekom.de", "telekom.com", "telekom.net", "t-online.de", "vodafone.de", "vodafone.com", "vodafone.pt", "telefonica.de", "telefonica.com", "1und1.de", "freenet.de", "o2.pl", "orange.fr", "orange.com", "orange.es", "free.fr", "sfr.fr", "sfr.net", "bt.com", "sky.com", "virginmedia.com", "virginm.net", "tim.it", "telecomitalia.it", "iliad.it", "swisscom.ch", "proximus.be", "ziggo.nl", "telia.com", "telenor.se", "mts.ru", "megafon.ru", "beeline.ru", "rostelecom.ru", "ertelecom.ru", "claro.com.br", "claro.com.ar", "vivo.com.br", "docomo.ne.jp", "softbank.jp", "au.com", "biglobe.ne.jp", "chinamobile.com", "10086.cn", "airtel.in", "jio.com", "telstra.com", "telstra.com.au", "telstra.net", "telkomsel.com", "stc.com.sa", "rt.ru", "t2.ru", "myvzw.com", "rr.com", "earthlink.net", "wanadoo.fr", "telenet.be", "hinet.net", "starlink.com"]
+    },
+    {
+      "id": "ecommerce",
+      "name": "E-commerce & retail",
+      "method": "Named online marketplaces and retailers.",
+      "sources": [
+        "Each company's own website and annual report"
+      ],
+      "suffixes": [],
+      "suffix_patterns": [],
+      "domains": ["amazon.com", "amazon.co.uk", "amazon.de", "amazon.co.jp", "amazon.fr", "amazon.ca", "amazon.in", "amazon.es", "amazon.it", "amazon.com.br", "amazon.com.au", "amazon.com.mx", "amazon.co.za", "ebay.com", "ebay.de", "ebay.co.uk", "etsy.com", "walmart.com", "walmart.com.mx", "target.com", "bestbuy.com", "homedepot.com", "lowes.com", "costco.com", "kohls.com", "ikea.com", "hm.com", "nike.com", "instacart.com", "petsmart.com", "harborfreight.com", "menards.com", "shopify.com", "myshopify.com", "aliexpress.com", "aliexpress.ru", "aliexpress.us", "alibaba.com", "taobao.com", "jd.com", "temu.com", "shein.com", "rakuten.co.jp", "rakuten.com", "coupang.com", "flipkart.com", "ajio.com", "indiamart.com", "shopee.co.id", "shopee.com.br", "shopee.co.th", "shopee.com.my", "shopee.com", "ozon.ru", "wildberries.ru", "avito.ru", "mercadolivre.com.br", "mercadolibre.com.ar", "mercadolibre.com.mx", "otto.de", "idealo.de", "bonprix.de", "kleinanzeigen.de", "leboncoin.fr", "allegro.pl", "bol.com", "trendyol.com", "skroutz.gr", "elcorteingles.es", "digikala.com", "olx.pl", "myntra.com", "vinted.fr", "vinted.com", "ebay.it", "marktplaats.nl", "olx.com.br", "meesho.com", "cdiscount.com", "argos.co.uk", "subito.it", "leroymerlin.fr", "leroymerlin.es", "mediaexpert.pl", "zozo.jp", "suruga-ya.jp", "action.com", "made-in-china.com", "1688.com", "tmall.com", "pinduoduo.com", "barnesandnoble.com", "wayfair.com", "redbubble.com", "dns-shop.ru", "magnit.ru"]
+    },
+    {
+      "id": "news",
+      "name": "News & media",
+      "method": "Named news publishers and public broadcasters (their main news domains).",
+      "sources": [
+        "Each publisher's own website"
+      ],
+      "suffixes": [],
+      "suffix_patterns": [],
+      "domains": ["nytimes.com", "washingtonpost.com", "wsj.com", "usatoday.com", "latimes.com", "chicagotribune.com", "nypost.com", "nydailynews.com", "bostonglobe.com", "seattletimes.com", "miamiherald.com", "dallasnews.com", "denverpost.com", "startribune.com", "suntimes.com", "post-gazette.com", "sandiegouniontribune.com", "mercurynews.com", "cnn.com", "foxnews.com", "foxbusiness.com", "nbcnews.com", "cbsnews.com", "abcnews.com", "msnbc.com", "cnbc.com", "npr.org", "pbs.org", "apnews.com", "reuters.com", "bloomberg.com", "axios.com", "politico.com", "politico.eu", "theatlantic.com", "newyorker.com", "newsweek.com", "time.com", "forbes.com", "fortune.com", "businessinsider.com", "marketwatch.com", "huffpost.com", "huffingtonpost.com", "buzzfeed.com", "vox.com", "vice.com", "theverge.com", "wired.com", "techcrunch.com", "cnet.com", "voanews.com", "breitbart.com", "theepochtimes.com", "thedailybeast.com", "washingtontimes.com", "usnews.com", "bbc.com", "bbc.co.uk", "theguardian.com", "telegraph.co.uk", "thetimes.co.uk", "thetimes.com", "independent.co.uk", "dailymail.co.uk", "dailymail.com", "mirror.co.uk", "express.co.uk", "thesun.co.uk", "metro.co.uk", "standard.co.uk", "ft.com", "economist.com", "manchestereveningnews.co.uk", "irishtimes.com", "independent.ie", "rte.ie", "spiegel.de", "zeit.de", "faz.net", "sueddeutsche.de", "welt.de", "bild.de", "focus.de", "n-tv.de", "tagesschau.de", "zdf.de", "handelsblatt.com", "tagesspiegel.de", "berliner-zeitung.de", "dw.com", "orf.at", "derstandard.at", "srf.ch", "lemonde.fr", "lefigaro.fr", "liberation.fr", "ouest-france.fr", "bfmtv.com", "france24.com", "rfi.fr", "cnews.fr", "elpais.com", "elmundo.es", "abc.es", "lavanguardia.com", "elconfidencial.com", "eleconomista.es", "heraldo.es", "repubblica.it", "corriere.it", "ansa.it", "rainews.it", "ilpost.it", "nos.nl", "nu.nl", "vg.no", "aftonbladet.se", "expressen.se", "dn.se", "yle.fi", "dr.dk", "euronews.com", "polsatnews.pl", "onet.pl", "wp.pl", "hotnews.ro", "digi24.ro", "protothema.gr", "rbc.ru", "ria.ru", "tass.ru", "lenta.ru", "kommersant.ru", "interfax.ru", "rt.com", "themoscowtimes.com", "globo.com", "uol.com.br", "estadao.com.br", "cnnbrasil.com.br", "metropoles.com", "clarin.com", "lanacion.com.ar", "infobae.com", "eluniversal.com.mx", "cbc.ca", "globalnews.ca", "ctvnews.ca", "nationalpost.com", "theglobeandmail.com", "abc.net.au", "smh.com.au", "theage.com.au", "news.com.au", "nzherald.co.nz", "stuff.co.nz", "nikkei.com", "asahi.com", "yomiuri.co.jp", "mainichi.jp", "nhk.or.jp", "japantimes.co.jp", "scmp.com", "straitstimes.com", "channelnewsasia.com", "chinadaily.com.cn", "globaltimes.cn", "xinhuanet.com", "news.cn", "indiatimes.com", "economictimes.com", "hindustantimes.com", "livehindustan.com", "thehindu.com", "ndtv.com", "indianexpress.com", "news18.com", "business-standard.com", "livemint.com", "financialexpress.com", "deccanherald.com", "telegraphindia.com", "firstpost.com", "aljazeera.com", "aljazeera.net", "timesofisrael.com", "jpost.com", "gulfnews.com", "khaleejtimes.com", "arabnews.com", "thenationalnews.com", "news24.com", "vnexpress.net", "tribunnews.com", "ad.nl", "lequipe.fr", "gazzetta.it", "hln.be", "actu.fr", "ilfattoquotidiano.it", "mundodeportivo.com", "novinky.cz", "dagbladet.no", "jagran.com", "nikkansports.com", "okdiario.com", "index.hr", "iltalehti.fi", "jutarnji.hr", "sozcu.com.tr", "24h.com.vn", "eenadu.net", "ekstrabladet.dk", "aajtak.in", "blic.rs", "cronista.com", "arstechnica.com", "zdnet.com", "scientificamerican.com", "people.com.cn", "gizmodo.com", "mashable.com", "engadget.com", "variety.com", "fastcompany.com", "cctv.com", "ifeng.com", "thehill.com", "sfgate.com", "slate.com", "rollingstone.com", "techradar.com", "pcmag.com", "heise.de", "chip.de", "tmz.com", "rtve.es", "itv.com", "qz.com", "technologyreview.com", "venturebeat.com", "newscientist.com", "hollywoodreporter.com", "bizjournals.com", "haberler.com", "sondakika.com", "sciencedaily.com", "phys.org", "livescience.com", "smithsonianmag.com", "entrepreneur.com", "inc.com"]
+    },
+    {
+      "id": "tech",
+      "name": "Tech & cloud",
+      "method": "Named technology companies, cloud and CDN providers, and their primary service domains.",
+      "sources": [
+        "Each company's own website"
+      ],
+      "suffixes": [],
+      "suffix_patterns": [],
+      "domains": ["google.com", "googleapis.com", "gstatic.com", "googleusercontent.com", "gmail.com", "android.com", "youtube.com", "microsoft.com", "azure.com", "office.com", "live.com", "outlook.com", "bing.com", "windows.net", "microsoftonline.com", "sharepoint.com", "office365.com", "github.com", "github.io", "githubusercontent.com", "linkedin.com", "apple.com", "icloud.com", "amazonaws.com", "cloudfront.net", "aws.dev", "cloudflare.com", "cloudflare.net", "workers.dev", "pages.dev", "akamai.net", "akamaiedge.net", "akamaized.net", "fastly.net", "digitalocean.com", "oracle.com", "oraclecloud.com", "ibm.com", "redhat.com", "salesforce.com", "force.com", "servicenow.com", "service-now.com", "sap.com", "adobe.com", "atlassian.com", "atlassian.net", "slack.com", "zoom.us", "zoom.com", "webex.com", "cisco.com", "dropbox.com", "box.com", "okta.com", "auth0.com", "twilio.com", "datadoghq.com", "newrelic.com", "dynatrace.com", "gitlab.com", "vercel.app", "netlify.app", "herokuapp.com", "heroku.com", "docker.com", "mongodb.com", "snowflakecomputing.com", "elastic.co", "hubspot.com", "zendesk.com", "intercom.com", "godaddy.com", "namecheap.com", "digicert.com", "letsencrypt.org", "globalsign.com", "verisign.com", "ovhcloud.com", "hetzner.com", "linode.com", "rackspace.com", "aliyun.com", "alibabacloud.com", "tencent.com", "huaweicloud.com", "yandex.cloud", "openai.com", "chatgpt.com", "anthropic.com", "claude.ai", "huggingface.co", "perplexity.ai", "deepseek.com", "nvidia.com", "intel.com", "amd.com", "samsung.com", "lenovo.com", "dell.com", "hp.com", "asus.com", "xiaomi.com", "huawei.com", "lg.com", "sony.com", "mediatek.com", "qualcomm.com", "paloaltonetworks.com", "checkpoint.com", "fortinet.com", "kaspersky.com", "mcafee.com", "trendmicro.com", "sophos.com", "eset.com", "avast.com", "crowdstrike.com", "zscaler.com", "f5.com", "akamai.com", "fastly.com", "notion.so", "notion.com", "trello.com", "bitbucket.org", "asana.com", "monday.com", "clickup.com", "airtable.com", "zapier.com", "docusign.com", "miro.com", "loom.com", "webflow.com", "vercel.com", "npmjs.com", "databricks.com", "snowflake.com", "grafana.com", "sectigo.com", "ultradns.com", "nsone.net", "vmware.com", "broadcom.com", "citrix.com", "rapid7.com", "tenable.com", "proofpoint.com", "symantec.com", "norton.com", "bitdefender.com", "malwarebytes.com", "1password.com", "lastpass.com", "nordvpn.com", "surfshark.com", "acronis.com", "hpe.com", "ti.com", "nokia.com", "logitech.com", "panasonic.com", "blackberry.com", "xerox.com", "oculus.com", "hostinger.com", "ovh.com", "strato.de", "ionos.de", "wpengine.com", "cloudflarestorage.com", "cloudflareclient.com", "backblaze.com", "wasabisys.com", "mapbox.com", "segment.com", "posthog.com", "ringcentral.com", "splunkcloud.com", "redis.io", "mongodb.net", "elastic-cloud.com", "cursor.com", "claude.com"]
+    }
+  ],
+  "exclude": [],
+  "exclude_note": "Domains listed here are never labelled, even if a suffix rule matches (use for a non-government site that sits under a government-style suffix)."
+}
