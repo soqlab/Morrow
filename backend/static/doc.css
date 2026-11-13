@@ -1,0 +1,59 @@
+/*
+ * Morrow documents: the policy, security and deployment pages, in the instrument's look.
+ *
+ * Loads after instrument.css (which supplies the tokens, the top strip and the footer) on every
+ * page with <body class="ins doc">. It styles the markup those pages already had -- doc-hero,
+ * doc-section, matrix rows, notices -- so the wording of each document is untouched: only the
+ * frame around it changed. Prose width, 1px rules, mono labels, no shadows, no gradients.
+ */
+.doc .doc-shell { max-width: 900px; margin: 0 auto; padding: 28px var(--gutter) 0; }
+.doc .doc-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 8px 0 26px; border-bottom: 1px solid var(--line); }
+@media (min-width: 860px) { .doc .doc-hero { grid-template-columns: minmax(0, 1fr) auto; align-items: start; } }
+.doc .eyebrow { display: block; font: 500 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--ch); }
+.doc h1 { font: 600 clamp(28px, 4.4vw, 44px)/1.08 var(--sans); letter-spacing: -.02em; margin: 10px 0 14px; text-wrap: balance; }
+.doc h2 { font: 600 20px/1.25 var(--sans); letter-spacing: -.01em; margin: 0 0 12px; text-wrap: balance; }
+.doc h3 { font: 600 16px/1.3 var(--sans); margin: 18px 0 8px; }
+.doc .lead { color: var(--muted); font-size: 17px; max-width: 68ch; margin: 0; }
+.doc .doc-meta { border: 1px solid var(--line); background: var(--bg-2); padding: 14px 16px; font-size: 14px; color: var(--muted); max-width: 300px; }
+.doc .doc-meta b { display: block; font: 500 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--text); margin-bottom: 6px; }
+.doc .doc-meta p { margin: 0; }
+.doc .doc-section { padding: 26px 0; border-bottom: 1px solid var(--line); }
+.doc .doc-section:last-of-type { border-bottom: 0; }
+.doc p, .doc li { max-width: 72ch; }
+.doc .doc-section p { margin: 0 0 12px; }
+.doc ul, .doc ol { margin: 0 0 12px; padding-left: 20px; }
+.doc li { margin: 4px 0; }
+.doc ul.plain { list-style: none; padding-left: 0; }
+.doc ul.plain li { padding: 10px 0; border-top: 1px solid var(--line); margin: 0; }
+.doc main a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.doc main a:hover { text-decoration-color: var(--text); }
+.doc main a.btn { text-decoration: none; }
+.doc code { font-size: .9em; background: var(--bg-2); border: 1px solid var(--line); padding: 0 4px; overflow-wrap: anywhere; }
+.doc strong { font-weight: 600; }
+.doc .notice { border-left: 2px solid var(--ch); background: var(--bg-2); padding: 10px 14px; color: var(--muted); }
+.doc .fine { font-size: 13px; color: var(--dim); }
+.doc .matrix { display: grid; border-top: 1px solid var(--line); margin: 8px 0 12px; }
+.doc .matrix-row { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 4px 20px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.doc .matrix-row strong { font: 500 12px/1.7 var(--mono); letter-spacing: .03em; }
+.doc .matrix-row p { margin: 0; color: var(--muted); }
+.doc .flowline { font: 13px/1.7 var(--mono); color: var(--muted); border: 1px solid var(--line); padding: 10px 14px; margin: 8px 0 12px; overflow-wrap: anywhere; }
+.doc .boundary-steps { list-style: none; counter-reset: step; padding: 0; border-top: 1px solid var(--line); }
+.doc .boundary-steps li { counter-increment: step; display: grid; grid-template-columns: 40px minmax(0, 1fr); padding: 10px 0; margin: 0; border-bottom: 1px solid var(--line); max-width: none; }
+.doc .boundary-steps li::before { content: counter(step, decimal-leading-zero); font: 12px/1.9 var(--mono); color: var(--ch); }
+.doc .ops-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
+.doc .ops-card, .doc .cta { border: 1px solid var(--line); padding: 16px; }
+.doc .ops-card small { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ch); }
+.doc .ops-card h3 { margin-top: 10px; }
+.doc .ops-card p { color: var(--muted); margin: 0; }
+.doc .cta { margin-top: 26px; }
+.doc .btn { display: inline-flex; align-items: center; min-height: 38px; padding: 0 14px; margin: 6px 6px 0 0; border: 1px solid var(--line-2); font-size: 14px; text-decoration: none; color: var(--text); white-space: nowrap; }
+.doc .btn:hover { border-color: var(--text); }
+.doc .btn.primary { background: var(--text); color: var(--on-solid); border-color: var(--text); }
+.doc table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 12px; }
+.doc th { text-align: left; font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); font-weight: 400; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line-2); }
+.doc td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+@media (max-width: 640px) {
+  .doc .matrix-row { grid-template-columns: minmax(0, 1fr); }
+  .doc .doc-meta { max-width: none; }
+  .doc .btn { white-space: normal; }
+}

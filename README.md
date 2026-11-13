@@ -280,18 +280,20 @@ account can scan arbitrary hosts, and none of the free checker's guardrails — 
 443, an opt-out honoured before DNS — apply to the full scanner. Open signup would make any
 deployment of this a free reconnaissance service pointed at other people's infrastructure.
 
-So `/trial` records a request and an operator approves it from the admin portal, which creates the
-organization and issues a single-use invitation. `/auth/register` stays admin-only. If you
-run a shared instance and want open signup, set `MORROW_SELF_SIGNUP=1` with
-`MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1`. Each organization can then scan only domains it has proved
-it controls with a DNS TXT record. IP addresses are refused, and self-signup stays off unless that
-check, mail and `MORROW_PUBLIC_BASE_URL` are all configured. A company installing Morrow for its
-own network leaves both off.
+Sign-in is passkeys only, and nobody signs up by email. An administrator creates the account and
+hands over a single-use setup link (`POST /auth/accounts`), or invites the person into an
+organization; either way the person creates a passkey and never chooses a password.
+`/auth/register` stays admin-only. The old emailed trial request is retired: `/trial` redirects to
+the sign-in screen at `/ui/` and `POST /api/trial-request` answers 410, while requests made before
+that stay readable in the admin portal under **Customers → Trial requests**. With
+`MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1` each organization can scan only domains it has proved it
+controls with a DNS TXT record, and IP addresses are refused.
 
 ### Free public readiness check
 
 A **free check anyone can run** — enter a domain, get its post-quantum posture, no account — ships
-in this repository at `/check`, with a terminal equivalent in `scripts/pq-check.py`. It reads
+in this repository: type a domain at `/` (the old `/check` address redirects there) and the record
+lands at `/r/<domain>`, with a terminal equivalent in `scripts/pq-check.py`. It reads
 public Certificate Transparency records, then makes at most two TLS connections to that hostname on
 port 443: exactly what a browser does when it visits the site. No port scanning, no subdomain
 discovery, no vulnerability probing. The repository, cloud and credentialed scanners stay behind

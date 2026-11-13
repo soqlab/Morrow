@@ -4,14 +4,30 @@ from fastapi.testclient import TestClient
 
 from app import app
 
-#: The free checker's five public documents. The service must not be switched on for the public
-#: without them, so they are enumerated once and every test below works from this one set.
+#: The free checker's public documents. The service must not be switched on for the public
+#: without them, so they are enumerated once and every test below works from this one set. The old
+#: scanner-identity page (/scanner) redirects to /about-scanner, which is the instrument's own view.
 CHECKER_DOCUMENTS = (
     "/public-check/terms",
     "/public-check/acceptable-use",
     "/public-check/privacy",
     "/abuse",
-    "/scanner",
+)
+
+#: The traditional website's pages that the instrument replaced, and where each address lands now.
+RETIRED_PAGES = {
+    "/trial": "/ui/",
+    "/trial-request": "/ui/",
+    "/scanner": "/about-scanner",
+    "/check": "/",
+}
+
+#: Every public document that now wears the instrument's chrome instead of the marketing navigation.
+DOCUMENT_FILES = (
+    "terms.html", "privacy.html", "dpa.html", "security.html", "support.html", "data-boundary.html",
+    "check-terms.html", "check-acceptable-use.html", "check-privacy.html", "check-abuse.html",
+    "pricing.html", "pilot.html", "airlock-deployment.html", "enterprise-admin.html",
+    "trust-passport-demo.html", "ai-trust.html",
 )
 
 
@@ -35,23 +51,15 @@ def test_public_launch_pages_are_served():
         "/data-boundary": "Platform traffic metadata",
         "/airlock-deployment": "Validate one collection",
         "/dpa": "Contract review required",
-        # The free public readiness checker: the shop window, and the only public page that
-        # contacts anything, so its acceptable-use statement is on the page itself.
-        "/check": "Is your TLS quantum",
-        # The only route a stranger has to an account. A broken /trial is a silent failure: the
-        # site works, nobody can ask for access, and the symptom is no requests arriving.
-        "/trial": "Ask for a trial",
-        # The checker's five public documents. The free checker must not be switched on publicly
+        # The checker's public documents. The free checker must not be switched on publicly
         # without them, so a missing one is a launch blocker and not a cosmetic gap. Each phrase is
         # load-bearing: the terms bind on use, the acceptable-use policy names the prohibition that
         # separates this from a reconnaissance tool, the privacy notice has two subjects, the abuse
-        # page promises an opt-out before DNS, and the scanner page exists for an operator reading
-        # their own logs.
+        # page promises an opt-out before DNS.
         "/public-check/terms": "they bind on use",
         "/public-check/acceptable-use": "Mapping someone else's attack surface",
         "/public-check/privacy": "If You Are The Party Being Checked",
         "/abuse": "Never check my domain again",
-        "/scanner": "You found us in your logs",
     }
 
     # The old product overview was retired with its decorative scenes; its addresses land on the
@@ -71,12 +79,10 @@ def test_public_launch_pages_are_served():
     assert css.status_code == 200
     assert "proof-panel" in css.text
 
-    # The checker's own assets, which the page needs and which must be served from this origin.
-    for asset, marker in (("/ui/check.css", "prefers-color-scheme: light"),
-                          ("/ui/check.js", "/api/public-check"),
-                          # The record pages at /r/{domain} are server-rendered and load this one
-                          # sheet of their own; without it they are unstyled for every visitor and
-                          # every crawler.
+    # The documents' sheet, and the record pages' own: both served from this origin. The record
+    # pages at /r/{domain} are server-rendered; without registry.css they are unstyled for every
+    # visitor and every crawler.
+    for asset, marker in (("/ui/doc.css", ".doc .doc-section"),
                           ("/ui/registry.css", "registry-page")):
         response = client.get(asset)
         assert response.status_code == 200, asset
@@ -122,29 +128,70 @@ def test_the_checker_documents_are_reachable_without_authentication():
         assert module._csp_for(path) == module._CSP_STRICT_VALUE, path
 
 
-def test_the_checker_links_its_documents_where_they_are_actually_needed():
-    """Terms that bind on use have to be at the point of use, not only in a footer."""
+def test_the_retired_pages_redirect_and_never_404():
+    """Old addresses keep working: a bookmark or a README link lands on what replaced the page."""
     client = TestClient(app)
-    page = client.get("/check").text
-    for href in CHECKER_DOCUMENTS:
-        assert f'href="{href}"' in page, href
+    for path, target in RETIRED_PAGES.items():
+        for method in ("GET", "HEAD"):
+            moved = client.request(method, path, follow_redirects=False)
+            assert moved.status_code == 308, (method, path, moved.status_code)
+            assert moved.headers["location"] == target, (path, moved.headers["location"])
+    # The old checker's pre-filled form becomes that domain's page; nonsense lands on the input.
+    assert client.get("/check?domain=Example.COM", follow_redirects=False).headers["location"] == "/example.com"
+    assert client.get("/check?domain=not%20a%20host", follow_redirects=False).headers["location"] == "/"
+    moved = client.get("/scanner?host=corp.example", follow_redirects=False)
+    assert moved.headers["location"] == "/about-scanner?host=corp.example"
+    # And none of them is a login wall.
+    import app as module
 
-    form = page[page.index('id="check-form"'):page.index("</form>")]
-    for href in ("/public-check/terms", "/public-check/acceptable-use", "/abuse"):
-        assert href in form, (
-            f"{href} must be linked beside the input box: there is no account and no "
-            "click-through, so acceptance happens where the visitor presses the button")
+    for path in RETIRED_PAGES:
+        assert module._auth_public_path(path), path
 
-    # What a domain owner sees when somebody sends them a permalink.
-    result = page[page.index('id="check-result"'):page.index('id="acceptable-use"')]
-    for href in ("/public-check/privacy", "/abuse", "/scanner"):
-        assert href in result, f"the result page does not link {href}"
 
-    # The public footer, on a page a stranger reaches from anywhere on the site.
+def test_the_sitemap_no_longer_lists_the_retired_pages(monkeypatch):
+    import re
+
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://airlock.test")
+    body = TestClient(app).get("/sitemap.xml").text
+    paths = {loc.replace("https://airlock.test", "") for loc in re.findall(r"<loc>([^<]+)</loc>", body)}
+    for path in RETIRED_PAGES:
+        assert path not in paths, path
+    assert "/about-scanner" in paths and "/abuse" in paths
+
+
+def test_no_public_page_keeps_the_old_marketing_navigation_or_a_trial_link():
+    static = pathlib.Path(__file__).parent / "static"
+    for path in sorted(static.glob("*.html")):
+        body = path.read_text(encoding="utf-8")
+        assert 'aria-label="Public navigation"' not in body, path.name
+        assert 'href="/trial' not in body, path.name
+        assert 'href="/scanner"' not in body, path.name
+    for name in ("instrument.js", "instrument-watch.js", "oops.js"):
+        body = (static / name).read_text(encoding="utf-8")
+        for stale in ('href="/trial', 'href="/check"', 'h: "/check"', 'href: "/check"', '["/check"', 'href="/scanner"'):
+            assert stale not in body, (name, stale)
+    # The console copy and its frontend twin say how an account is made now, and stay identical.
+    console = (static / "index.html").read_bytes()
+    assert console == (pathlib.Path(__file__).parent.parent / "frontend" / "index.html").read_bytes()
+    assert b'href="/trial"' not in console
+
+
+def test_the_documents_wear_the_instrument_chrome_and_link_the_opt_out():
+    """Terms, policies and the checker's documents: the instrument's header and footer around
+    the unchanged text, and the opt-out one click away from every one of them."""
+    static = pathlib.Path(__file__).parent / "static"
+    for name in DOCUMENT_FILES:
+        body = (static / name).read_text(encoding="utf-8")
+        assert '<body class="ins doc"' in body, name
+        assert '<a class="i-mark" href="/">MORROW</a>' in body, name
+        assert "/ui/instrument.css" in body and "/ui/doc.css" in body, name
+        assert "/ui/public.css" not in body, name
+        footer = body[body.index('<footer class="i-foot">'):]
+        assert 'href="/abuse"' in footer and 'href="/about-scanner"' in footer, name
     for name in ("pricing.html", "instrument.html"):
-        body = (pathlib.Path(__file__).parent / "static" / name).read_text(encoding="utf-8")
+        body = (static / name).read_text(encoding="utf-8")
         footer = body[body.index("<footer"):]
-        assert 'href="/scanner"' in footer and 'href="/abuse"' in footer, name
+        assert 'href="/about-scanner"' in footer and 'href="/abuse"' in footer, name
 
 
 def test_every_checker_document_links_the_others_and_says_it_is_a_draft():
@@ -154,7 +201,7 @@ def test_every_checker_document_links_the_others_and_says_it_is_a_draft():
         for other in CHECKER_DOCUMENTS:
             if other != path:
                 assert f'href="{other}"' in body, f"{path} does not link {other}"
-        assert 'href="/check"' in body, f"{path} does not link the checker itself"
+        assert 'href="/"' in body, f"{path} does not link the instrument itself"
         assert "qualified lawyer" in body, (
             f"{path} must say plainly that it is a draft for a lawyer to review")
 
@@ -168,7 +215,7 @@ def test_nothing_invents_an_abuse_address_when_none_is_configured(monkeypatch):
 
     static = pathlib.Path(__file__).parent / "static"
     for name in ("check-abuse.html", "check-terms.html", "check-acceptable-use.html",
-                 "check-privacy.html", "check-scanner.html"):
+                 "check-privacy.html"):
         body = (static / name).read_text(encoding="utf-8")
         assert "mailto:" not in body, f"{name} ships an address in its markup"
         assert "data-abuse-contact" in body, f"{name} has no slot for the published address"
@@ -180,23 +227,23 @@ def test_nothing_invents_an_abuse_address_when_none_is_configured(monkeypatch):
     assert "/api/public-check/config" in script.text
 
 
-def test_the_scanner_identity_page_publishes_what_the_code_actually_sends():
+def test_about_scanner_publishes_what_the_certificate_check_actually_sends():
+    """/scanner used to describe the certificate-transparency check; /about-scanner does now."""
     from services import public_check
 
-    body = TestClient(app).get("/scanner").text
-    source = (pathlib.Path(__file__).parent / "services" / "public_check.py").read_text(encoding="utf-8")
+    client = TestClient(app)
+    moved = client.get("/scanner", follow_redirects=False)
+    assert moved.status_code == 308 and moved.headers["location"] == "/about-scanner"
 
-    agent = "airlock-public-check/1.0"
-    assert agent in body, "the identity page does not state the User-Agent"
-    assert f'"User-Agent": "{agent}"' in source, (
-        "the identity page publishes a User-Agent the code no longer sends")
-    # It is sent to the Certificate Transparency service, not to the checked host, because no HTTP
-    # request is ever made to the target. Saying otherwise would send an operator looking for a
-    # string that cannot appear in their logs.
-    assert "not to you" in body
-    assert str(public_check.PORT) in body
-    # The egress addresses are the operator's to supply, and are marked as missing until they do.
-    assert "PLACEHOLDER" in body
+    facts = client.get("/api/public/scanner").json()
+    record = [w for w in facts["what"] if "certificate-transparency" in w["part"].lower()]
+    assert len(record) == 1, facts["what"]
+    sends = record[0]["sends"]
+    assert f"port {public_check.PORT}" in sends
+    assert "at most two TLS connections" in sends
+    # No HTTP request is made to the target, so the page must not suggest one.
+    assert "No HTTP request to your host" in sends
+    assert "not from your server" in sends
 
 
 def test_the_public_checker_declares_its_boundaries_on_its_own_page():
@@ -216,7 +263,7 @@ def test_the_public_checker_declares_its_boundaries_on_its_own_page():
     # A caller that never sees the page -- the API, the command line -- still has to be able to
     # find the documents, and every one of them has to be served.
     documents = use["documents"]
-    assert set(documents.values()) == set(CHECKER_DOCUMENTS)
+    assert set(CHECKER_DOCUMENTS) <= set(documents.values())
     for path in documents.values():
         assert client.get(path).status_code == 200, path
 

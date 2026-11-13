@@ -6,19 +6,19 @@
   <title>Abuse reports and opt-out | Morrow</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="description" content="How a domain owner asks never to be checked by the free post-quantum readiness checker, what the opt-out does, and how to report misuse of the service. Draft for legal review.">
-  <link rel="stylesheet" href="/ui/public.css?v=7">
-  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
-  <link rel="stylesheet" href="/ui/experience.css?v=20261113-instrument">
-  <link rel="stylesheet" href="/ui/check.css?v=20261005">
   <script src="/ui/check-pages.js?v=20261005" defer></script>
+<link rel="stylesheet" href="/ui/instrument.css?v=20261113">
+<link rel="stylesheet" href="/ui/doc.css?v=20261113">
 </head>
-<body class="public-document">
-<a class="skip-link" href="#content">Skip to content</a>
+<body class="ins doc" data-ch="ref">
+<a class="skip" href="#content">Skip to the content</a>
+<header class="i-top">
+  <div class="i-top-in">
+    <a class="i-mark" href="/">MORROW</a>
+    <div class="i-top-right"><a class="i-btn" href="/ui/">Sign in</a></div>
+  </div>
+</header>
 <main class="doc-shell" id="content">
-  <header class="topbar">
-    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
-    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a href="/trial">Sign up</a><a class="nav-cta" href="/ui/">Sign in &#8599;</a></nav>
-  </header>
 
   <section class="doc-hero">
     <div>
@@ -35,7 +35,7 @@
   <section class="doc-section">
     <h2>Before Anything Else</h2>
     <p class="notice">This page is a draft for a qualified lawyer to review before the free checker is switched on for the public, alongside the <a href="/public-check/terms">terms of use</a>, the <a href="/public-check/acceptable-use">acceptable-use policy</a> and the <a href="/public-check/privacy">privacy notice</a>. The technical behaviour described below is what the code does; the policy wording around it has not been reviewed.</p>
-    <p>If you arrived here from a TLS connection in your logs and want to know what it was, the <a href="/scanner">scanner identity page</a> answers that: the port, the number of connections, the handshake, and the fact that no HTTP request is ever sent to your host.</p>
+    <p>If you arrived here from a TLS connection in your logs and want to know what it was, the <a href="/about-scanner">scanner identity page</a> answers that: the port, the number of connections, the handshake, and the fact that no HTTP request is ever sent to your host.</p>
   </section>
 
   <section class="doc-section">
@@ -89,19 +89,30 @@
 
   <section class="doc-section">
     <h2>If You Would Rather Block Us</h2>
-    <p>You can, and nothing here objects to it. Two things worth knowing: the <a href="/scanner">scanner identity page</a> is where the egress addresses will be published for exactly this purpose, and a blocked connection produces a result that is reported as <em>failed</em>, with no verdict and no score. A failed check never reads as a clean one.</p>
+    <p>You can, and nothing here objects to it. Two things worth knowing: the <a href="/about-scanner">scanner identity page</a> is where the egress addresses will be published for exactly this purpose, and a blocked connection produces a result that is reported as <em>failed</em>, with no verdict and no score. A failed check never reads as a clean one.</p>
     <p>An opt-out is the better route if what you want is for the contact not to happen at all, because it stops before DNS rather than at your firewall.</p>
   </section>
 
   <section class="doc-section">
     <h2>Related</h2>
-    <p><a href="/public-check/terms">Terms of use</a>, <a href="/public-check/acceptable-use">acceptable-use policy</a>, <a href="/public-check/privacy">privacy notice for the checker</a>, <a href="/scanner">scanner identity</a>, and the live guardrails on <a href="/check#guardrails">/check</a>. For anything to do with the paid platform rather than the free check, use <a href="/support">support</a>.</p>
+    <p><a href="/public-check/terms">Terms of use</a>, <a href="/public-check/acceptable-use">acceptable-use policy</a>, <a href="/public-check/privacy">privacy notice for the checker</a>, <a href="/about-scanner">scanner identity</a>, and the live guardrails on <a href="/check#guardrails">/check</a>. For anything to do with the paid platform rather than the free check, use <a href="/support">support</a>.</p>
   </section>
 
-  <footer>
-    <span>Morrow / Free checker</span>
-    <nav><a href="/check">Free check</a> / <a href="/public-check/terms">Terms of use</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/public-check/privacy">Checker privacy</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
-  </footer>
 </main>
+<footer class="i-foot">
+  <div class="i-foot-in">
+    <a href="/">Check a domain</a>
+    <a href="/terms">Terms</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/dpa">Data processing</a>
+    <a href="/security">Security</a>
+    <a href="/public-check/terms">Checker terms</a>
+    <a href="/public-check/acceptable-use">Acceptable use</a>
+    <a href="/public-check/privacy">Checker privacy</a>
+    <a href="/abuse">Opt a domain out</a>
+    <a href="/about-scanner">What connects to your server</a>
+    <a href="/support">Support</a>
+  </div>
+</footer>
 </body>
 </html>

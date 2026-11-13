@@ -1744,13 +1744,10 @@ _CSP_VALUE = str(
 #
 # In production the loopback connect-src entries are dropped too: they exist for local development
 # and have no business in a deployed policy.
-# /check joins the strict list: static/check.html has no inline <script>, no inline event handler
-# and no inline style, every asset it loads is served from this origin, and it makes no third-party
-# request at all. It is also the one page a stranger reaches from a search result, so it is the last
-# place to want a policy that stops nothing.
-# The checker's companion documents (/public-check/*, /abuse, /scanner) join it for the same
-# reasons: no inline <script>, no inline event handler, no inline style, every asset from this
-# origin, and they are read by strangers who arrived from a log line or a search result.
+# /check is on the strict list from when it was a page; it is a redirect now and keeps the policy.
+# The checker's companion documents (/public-check/*, /abuse) are on it because they have no inline
+# <script>, no inline event handler, no inline style, every asset from this origin, and they are
+# read by strangers who arrived from a log line or a search result.
 # "/r/" carries the trailing slash deliberately: this tuple is matched with str.startswith, and a
 # bare "/r" would also claim /repositories, /remediations and /robots.txt.
 _CSP_STRICT_PREFIXES = ("/vendor-admin", "/invite", "/check", "/public-check", "/abuse", "/scanner",
@@ -1934,9 +1931,6 @@ def public_support_page():
 _PUBLIC_INFO_PAGES = {
     "/pricing": "pricing.html",
     "/pilot": "pilot.html",
-    # The free trial request. /auth/register is admin-only, so this page and routers/trial_requests
-    # are the only route a stranger has to an account.
-    "/trial": "trial.html",
     "/data-boundary": "data-boundary.html",
     "/airlock-deployment": "airlock-deployment.html",
     "/dpa": "dpa.html",
@@ -1945,20 +1939,18 @@ _PUBLIC_INFO_PAGES = {
     # never create an account and by domain owners who never visited at all.
     #
     # None of them sits under /check/, because /check/{domain} is the permalink route and would
-    # swallow /check/terms as a domain name. Two of them are deliberately short, top-level and
-    # guessable -- /abuse and /scanner are what somebody types when they have found a connection in
-    # their logs and no link to follow, which is the entire point of publishing them.
+    # swallow /check/terms as a domain name. /abuse is deliberately short, top-level and guessable:
+    # it is what somebody types when they have found a connection in their logs and no link to
+    # follow, which is the entire point of publishing it.
     "/public-check/terms": "check-terms.html",
     "/public-check/acceptable-use": "check-acceptable-use.html",
     "/public-check/privacy": "check-privacy.html",
     "/abuse": "check-abuse.html",
-    "/scanner": "check-scanner.html",
 }
 
 
 @app.get("/pricing", include_in_schema=False)
 @app.get("/pilot", include_in_schema=False)
-@app.get("/trial", include_in_schema=False)
 @app.get("/data-boundary", include_in_schema=False)
 @app.get("/airlock-deployment", include_in_schema=False)
 @app.get("/dpa", include_in_schema=False)
@@ -1966,30 +1958,34 @@ _PUBLIC_INFO_PAGES = {
 @app.get("/public-check/acceptable-use", include_in_schema=False)
 @app.get("/public-check/privacy", include_in_schema=False)
 @app.get("/abuse", include_in_schema=False)
-@app.get("/scanner", include_in_schema=False)
 def public_information_page(request: Request):
-    if request.url.path == "/trial":
-        from routers.trial_requests import self_signup_enabled
-        if self_signup_enabled():
-            return _trial_page_self_signup()
     return _public_static_html(_PUBLIC_INFO_PAGES[request.url.path])
 
 
-_TRIAL_SELF_SIGNUP_SECTION = """<h2>What happens next</h2>
-    <p>We email you a single&#8209;use link. Open it, create a passkey on your device, and your workspace is ready: there is no password to choose. No card, no call, no waiting for a reply.</p>
-    <p>An account here can scan hosts, so it scans only domains you've shown you control: add your domain under <b>Domains</b>, publish the DNS record it gives you, and everything under that domain is yours to scan. That check is what keeps this from being a reconnaissance service pointed at other people's systems.</p>"""
+#: Old pages of the marketing site, retired for the instrument. Each address keeps answering, with a
+#: permanent redirect to what replaced it, so a bookmark or a link in somebody's README still lands.
+#:   /trial, /trial-request   the emailed-link account request. Accounts sign in with a passkey at
+#:                            /ui/; the request API answers 410 (routers/trial_requests.py).
+#:   /scanner                 the old scanner-identity page; /about-scanner says what connects now.
+#: /check is retired in routers/public_check.py, because /check/{domain} lives there too.
+_RETIRED_PAGES = {
+    "/trial": "/ui/",
+    "/trial-request": "/ui/",
+    "/scanner": "/about-scanner",
+}
 
 
-def _trial_page_self_signup():
-    """/trial when sign-up is automatic: the same page, with the manual-review section replaced."""
-    from fastapi.responses import HTMLResponse
+@app.api_route("/trial", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/trial-request", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/scanner", methods=["GET", "HEAD"], include_in_schema=False)
+def retired_public_page(request: Request):
+    target = _RETIRED_PAGES[request.url.path]
+    host = str(request.query_params.get("host") or "").strip()
+    if target == "/about-scanner" and host:
+        from urllib.parse import quote
 
-    with open(os.path.join(BASE_DIR, "static", "trial.html"), encoding="utf-8") as handle:
-        page = handle.read()
-    page = re.sub(r"<!--signup:review-->.*?<!--/signup:review-->", _TRIAL_SELF_SIGNUP_SECTION, page, flags=re.S)
-    page = page.replace("A person reviews every request, because an account here can scan hosts.",
-                        "Sign up with your work email; you scan the domains you verify.")
-    return HTMLResponse(page, headers={"Cache-Control": "public, max-age=0, must-revalidate"})
+        target += "?host=" + quote(host[:253], safe="")
+    return RedirectResponse(url=target, status_code=308)
 
 
 @app.get("/robots.txt", include_in_schema=False)
@@ -2024,12 +2020,10 @@ def robots_txt(request: Request):
 #: docs/PUBLIC_REGISTRY_DESIGN.md step 4.
 _SITEMAP_PAGES = (
     ("/", "1.0", "weekly"),
-    ("/check", "0.9", "weekly"),
     ("/league", "0.8", "weekly"),
     ("/algorithms", "0.7", "monthly"),
     ("/trust", "0.6", "weekly"),
     ("/plain", "0.5", "weekly"),
-    ("/trial", "0.8", "monthly"),
     ("/pricing", "0.7", "monthly"),
     ("/security", "0.7", "monthly"),
     ("/airlock-deployment", "0.6", "monthly"),
@@ -2039,7 +2033,6 @@ _SITEMAP_PAGES = (
     ("/public-check/acceptable-use", "0.4", "yearly"),
     ("/public-check/privacy", "0.4", "yearly"),
     ("/abuse", "0.5", "yearly"),
-    ("/scanner", "0.5", "yearly"),
     ("/about-scanner", "0.5", "monthly"),
     ("/terms", "0.3", "yearly"),
     ("/privacy", "0.3", "yearly"),
@@ -2263,7 +2256,7 @@ def _jwt_payload_from_auth_header(auth_header: str) -> Dict[str, Any]:
 
 def _auth_public_path(path: str) -> bool:
     p = str(path or "").strip() or "/"
-    if p in _PUBLIC_INFO_PAGES:
+    if p in _PUBLIC_INFO_PAGES or p in _RETIRED_PAGES:
         return True
     # /status is documented as "suitable for a public/internal status page" and deliberately reports
     # nothing beyond api ok/degraded and database ok/degraded -- no versions, no DSNs, no component
@@ -2347,8 +2340,8 @@ def _auth_public_path(path: str) -> bool:
     # has_prefix compares whole segments, so "/r" here does not also claim /repositories or
     # /robots.txt the way a startswith would.
     #
-    # /trial-request is how a stranger asks for an account. It must answer without a login for the
-    # obvious reason, and it grants nothing: it writes one pending row that a person has to act on.
+    # /trial-request was how a stranger asked for an account by email. It is retired and answers 410
+    # (routers/trial_requests.py); it stays public so that answer reaches a caller without a login.
     #
     # /api/public is the quantum-readiness grade (routers/public_grade.py): read-only handshake facts
     # about public hosts, with the same kind of guardrails, enforced in services/public_grade.py.
@@ -2567,11 +2560,11 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/support", "purpose": "support and incident process"},
             {"path": "/invite", "purpose": "invitation landing page; accepting still requires sign-in as the invited email"},
             {"path": "/trust-passport-demo", "purpose": "non-sensitive demo of proof sharing"},
-            {"path": "/check", "purpose": "free public post-quantum readiness check; no account, no tenant data"},
+            {"path": "/check", "purpose": "the old checker page; redirects to the instrument at / (or /{domain} with ?domain=)"},
             {"path": "/check/{domain}", "purpose": "the old permalink; redirects to the permanent record at /r/{domain}"},
             {"path": "/r/{domain}", "purpose": "permanent public record of a domain's post-quantum posture; server-rendered, no account"},
             {"path": "/r/{domain}/badge.svg", "purpose": "embeddable posture badge; renders from stored data and never starts a check"},
-            {"path": "/trial-request", "purpose": "request an account; records one pending row, grants nothing until an operator approves it"},
+            {"path": "/trial-request", "purpose": "retired emailed-link account request; the page redirects to passkey sign-in at /ui/ and the API answers 410"},
             {"path": "/api/public-check", "purpose": "the public checker's API; rate limited per IP, per domain and globally"},
             {"path": "/api/public/grade/{domain}", "purpose": "public quantum-readiness grade (A-F) of a public HTTPS endpoint; JSON, .txt for terminals; rate limited and cached"},
             {"path": "/api/public/badge/{domain}.svg", "purpose": "embeddable quantum-readiness grade badge"},
@@ -2580,12 +2573,12 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/api/public/exposure/{domain}", "purpose": "the outside services a public domain loads or points at, each given the same guarded key-exchange check; rate limited and cached"},
             # The free checker's public documents. A domain owner who found one of our handshakes in
             # their logs has no account and never will, so every one of these has to answer without
-            # a login -- /scanner and /abuse most of all.
+            # a login -- /about-scanner and /abuse most of all.
             {"path": "/public-check/terms", "purpose": "terms of use for the free checker; bind on use, no signup"},
             {"path": "/public-check/acceptable-use", "purpose": "acceptable-use policy for the free checker"},
             {"path": "/public-check/privacy", "purpose": "privacy notice for the free checker: the requester and the checked party"},
             {"path": "/abuse", "purpose": "abuse reports and the never-check-my-domain opt-out"},
-            {"path": "/scanner", "purpose": "scanner identity: what our connections are, for an operator reading their logs"},
+            {"path": "/scanner", "purpose": "the old scanner identity page; redirects to /about-scanner"},
             {"path": "/about-scanner", "purpose": "the MorrowPQCheck user agent: what the grade, outside-service and watch checks send, how often, and the opt-out"},
             {"path": "/api/public/claim/{domain}", "purpose": "whether a domain's owner claimed it by DNS, since when, and their public reply; never who"},
             {"path": "/api/public/watch-feed/{token}.atom", "purpose": "a person's private feed of changes on the domains they watch; the random token is the credential"},

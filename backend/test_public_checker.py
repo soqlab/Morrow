@@ -1067,10 +1067,12 @@ def test_the_cbom_export_is_a_cyclonedx_document_for_the_one_endpoint(monkeypatc
 
 
 def test_the_public_pages_and_api_are_served_without_a_login(client):
-    response = client.get("/check")
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-    assert "Is your TLS quantum" in response.text
+    # The checker's own page is retired for the instrument: /check lands on the one input at /,
+    # and ?domain= on that domain's page.
+    response = client.get("/check", follow_redirects=False)
+    assert response.status_code == 308
+    assert response.headers["location"] == "/"
+    assert client.get("/check?domain=example.com", follow_redirects=False).headers["location"] == "/example.com"
 
     # The old permalink is a permanent redirect to the record at /r/{domain}, which is where a
     # shared link now resolves; the record itself is covered by test_public_registry.py.
@@ -1084,28 +1086,6 @@ def test_the_public_pages_and_api_are_served_without_a_login(client):
     assert body["guardrails"]["port"] == 443
     assert body["acceptable_use"]["does_not"]
     assert body["deadlines"]
-
-
-def test_the_page_makes_no_third_party_request():
-    here = os.path.dirname(os.path.abspath(__file__))
-    html = open(os.path.join(here, "static", "check.html"), encoding="utf-8").read()
-    for attribute in ("src=", "href="):
-        for fragment in html.split(attribute)[1:]:
-            value = fragment.split(fragment[0])[1] if fragment[0] in "\"'" else fragment.split()[0]
-            assert not value.startswith(("http://", "https://", "//")), (
-                f"check.html reaches off-origin: {value}")
-    js = open(os.path.join(here, "static", "check.js"), encoding="utf-8").read()
-    assert "https://" not in js.replace("https://", "", 0) or "fetch(\"https://" not in js
-    assert "<script" not in html.split("</head>")[1], "no inline script in the body"
-
-
-def test_the_page_carries_the_acceptable_use_statement_and_an_abuse_route(client):
-    html = client.get("/check").text
-    assert "Acceptable use" in html
-    assert "Abuse reports and opt" in html
-    assert "no cached result" not in html.lower()
-    for phrase in ("No port scanning", "No subdomain discovery", "No vulnerability probing"):
-        assert phrase in html
 
 
 def test_a_get_never_starts_a_check(client, monkeypatch):
@@ -1241,7 +1221,7 @@ def test_the_public_pages_still_answer_with_production_auth_required(monkeypatch
     monkeypatch.setattr(application, "AUTH_REQUIRED", True)
     monkeypatch.setattr(application, "AUTH_MODE", "jwt")
     with TestClient(application.app) as authed:
-        assert authed.get("/check").status_code == 200
+        assert authed.get("/check", follow_redirects=False).status_code == 308
         assert authed.get("/check/example.com", follow_redirects=False).status_code == 301
         assert authed.get("/api/public-check/config").status_code == 200
 
@@ -1294,7 +1274,7 @@ def test_an_operator_can_add_and_remove_an_opt_out(client, monkeypatch):
 def test_the_disabled_switch_turns_the_checker_off_without_breaking_the_page(
         client, monkeypatch):
     monkeypatch.setenv("MORROW_PUBLIC_CHECK_ENABLED", "0")
-    assert client.get("/check").status_code == 200
+    assert client.get("/check", follow_redirects=False).status_code == 308
     config = client.get("/api/public-check/config").json()
     assert config["guardrails"]["enabled"] is False
     response = client.post("/api/public-check", json={"domain": "example.com"})
