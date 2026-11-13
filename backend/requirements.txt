@@ -22,7 +22,7 @@ celery==5.6.2
 redis==7.1.0
 python-multipart==0.0.32
 requests==2.34.2
-dnspython==2.9.0
+dnspython==2.9.2
 psycopg2-binary==2.9.11
 google-cloud-asset==4.4.0
 google-cloud-resource-manager==1.16.0
