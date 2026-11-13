@@ -25,3 +25,5 @@
 .v-hist { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
 .v-form { max-width: 560px; }
 html[data-depth="plain"] .v-standard, html[data-depth="plain"] .v-expert, html[data-depth="standard"] .v-expert { display: none !important; }
+/* Narrow screens: the secondary columns (registered, size, key) give way to the file and its state. */
+@media (max-width: 640px) { .i-table th.v-standard, .i-table td.v-standard { display: none; } .i-table td { overflow-wrap: anywhere; } }

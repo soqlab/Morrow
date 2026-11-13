@@ -10725,7 +10725,7 @@ const GUIDE = [
    Answer first: the sentence comes from the server (pq_signing.summary_sentence). */
 const SIGN = { data: null };
 function signPill(status) {
-  const tone = status === "active" ? "ok" : status === "retired" ? "warn" : "bad";
+  const tone = status === "active" || status === "recorded" ? "ok" : status === "retired" ? "warn" : "bad";
   return `<span class="pill ${tone}"><i class="pd"></i>${H(status)}</span>`;
 }
 function signKeyStatus(k) { return k.state.domain_verified ? k.state.status : "domain unverified"; }
@@ -10758,7 +10758,7 @@ VIEWS.signing = async (host) => {
         <pre class="out">ML-DSA-65 ${H(k.ml_dsa_65)}\nEd25519   ${H(k.ed25519)}</pre>` },
     { h: "State", f: k => signPill(signKeyStatus(k)) + (k.state.status === "revoked" ? `<div class="sub">untrusted from ${H(DT(k.state.compromised_since))}</div>`
         : k.state.status === "retired" ? `<div class="sub">retired ${H(DT(k.state.retired_at))}</div>` : "") },
-    { h: "Registered", f: k => `${H(DT(k.registered_at))}<div class="sub">${H(k.registered_by || "")}</div>` },
+    { h: "Registered", f: k => `${H(DT(k.registered_at))}${k.registered_by && k.registered_by !== "unknown" ? `<div class="sub">${H(k.registered_by)}</div>` : ""}` },
     { h: "", f: k => admin && k.state.status !== "revoked" ? `<div class="row" style="gap:6px;justify-content:flex-end">
         ${k.state.status === "active" ? actBtn("Rotate", "signRegister", { cls: "btn xs", data: { rotates: k.key_id, domain: k.domain } }) : ""}
         ${k.state.status === "active" ? actBtn("Retire", "signRetire", { cls: "btn xs", data: { key: k.key_id, domain: k.domain } }) : ""}
