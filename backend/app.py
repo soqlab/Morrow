@@ -2284,6 +2284,10 @@ def _auth_public_path(path: str) -> bool:
         "/auth/passkey/login/finish",
         "/auth/passkey/register/begin",
         "/auth/passkey/register/finish",
+        # Recovery without email: the one-time recovery code in the body is the credential, it works
+        # once, and all it buys is a short-lived ticket that can only register a passkey
+        # (services/recovery_codes.py). Rate limited by _RATE_AUTH and journaled either way.
+        "/auth/recovery-codes/redeem",
         # Domain team sign-in: the page, the link request (same answer either way) and the link
         # preview (services/team_join.py).
         "/join",
@@ -2439,6 +2443,9 @@ def _public_auth_config() -> Dict[str, Any]:
         # MORROW_PASSKEYS_ONLY=1 the only way to create or recover an account.
         "passkeys_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available(),
         "passkeys_only": bool(AUTH_ISSUER_ENABLED) and _passkeys_only(),
+        # One-time recovery codes (services/recovery_codes.py) buy a new passkey, so they exist
+        # exactly when passkeys do.
+        "recovery_codes_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available(),
         "team_join_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available() and _password_reset_available(),
         # Hosted for customers: the sign-in screen offers no developer token options.
         "simple_sign_in": str(os.getenv("MORROW_SIGNIN_SIMPLE", "0") or "0").strip().lower() in {"1", "true", "yes", "on"},
@@ -25007,6 +25014,14 @@ async def auth_password_reset_request(body: PasswordResetRequestBody, request: R
 
     def work():
         with _db() as db:
+            from services.auth_issuer import get_user_by_email
+
+            owner = get_user_by_email(db, body.email)
+            if owner and not _issuer_email_recovery_enabled(db, owner["id"]):
+                # The owner switched emailed recovery off (they recover with recovery codes). Nothing
+                # is sent, and the answer is the same as for any other address.
+                _auth_journal(request, "password_reset.requested", subject=body.email, status_code=200, required=False)
+                return
             recovery = _recovery_ticket(db, body.email)
             created = None if recovery else _password_reset.create(db, body.email)
         if recovery:
@@ -25097,7 +25112,10 @@ from services import passkeys as _passkeys  # noqa: E402
 from services import team_join as _team_join  # noqa: E402
 from services.auth_issuer import (  # noqa: E402
     create_passkey_user as _issuer_create_passkey_user,
+    display_label as _issuer_display_label,
     drop_password as _issuer_drop_password,
+    email_recovery_enabled as _issuer_email_recovery_enabled,
+    set_email_recovery as _issuer_set_email_recovery,
     has_password as _issuer_has_password,
     revoke_refresh_sessions as _issuer_revoke_sessions,
     start_session as _issuer_start_session,
@@ -25231,11 +25249,13 @@ def _registration_target(db, request: Request, body: PasskeyRegisterBeginBody) -
             raise HTTPException(401, "For your security, sign in again with a passkey, then add the new one.")
         return {"user_id": user["id"], "email": user["email"], "name": user.get("full_name") or "",
                 "context": {"kind": "account"}}
-    if kind in {"enroll", "recover"}:
+    if kind in {"enroll", "recover", "setup"}:
         ticket = _passkeys.peek_ticket(db, body.token, kind)
         user = _issuer_get_user(db, ticket["user_id"])
         if not user or not user.get("is_active"):
             raise HTTPException(404, "This link isn't valid. Request a new one.")
+        if kind == "setup" and not _account_unconfigured(db, user["id"]):
+            raise HTTPException(409, "This account is already set up. Sign in with its passkey.")
         return {"user_id": user["id"], "email": user["email"], "name": user.get("full_name") or "",
                 "context": {"kind": kind, "ticket": ticket["token_sha256"]}}
     if kind == "invite":
@@ -25324,7 +25344,9 @@ async def auth_passkey_register_finish(body: PasskeyRegisterFinishBody, request:
                     removed = _issuer_drop_password(db, user_id)
                     _auth_journal(request, "passkey.registered", user=user, method="passkey", subject=user["email"], required=False)
                     return {"passkey": passkey, "password_removed": removed}
-                if kind in {"enroll", "recover"}:
+                if kind in {"enroll", "recover", "setup"}:
+                    if kind == "setup" and not _account_unconfigured(db, user_id):
+                        raise HTTPException(409, "This account is already set up. Sign in with its passkey.")
                     _passkeys.claim_ticket(db, body.token, kind)
                     user = _issuer_get_user(db, user_id)
                     if not user or not user.get("is_active"):
@@ -25440,6 +25462,231 @@ async def auth_remove_passkey(credential_id: str, request: Request):
             _auth_journal(request, "passkey.removed", user=user, method="passkey", subject=(user or {}).get("email") or "",
                           required=False)
             return {"passkeys": _passkeys.list_passkeys(db, uid)}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+# ── Recovery without email (services/recovery_codes.py) ───────────────────────────────────────
+
+from services import recovery_codes as _recovery_codes  # noqa: E402
+
+
+class RecoveryCodeRedeemBody(BaseModel):
+    code: str = Field(..., min_length=1, max_length=64)
+
+
+class EmailRecoveryBody(BaseModel):
+    enabled: bool
+
+
+def _recovery_code_error(exc: "_recovery_codes.RecoveryCodeError") -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _recent_sign_in(payload: Dict[str, Any]) -> bool:
+    return int(time.time()) - int(payload.get("iat") or 0) <= _passkeys.reauth_seconds()
+
+
+def _signed_in_user(db, payload: Dict[str, Any]) -> Dict[str, Any]:
+    user = _issuer_get_user(db, str(payload.get("sub") or ""))
+    if not user or not user.get("is_active"):
+        raise HTTPException(401, "Sign in again.")
+    return user
+
+
+def _account_unconfigured(db, user_id: str) -> bool:
+    """No passkey and no password yet: an account waiting for its setup link."""
+    return _passkeys.count_passkeys(db, user_id) == 0 and not _issuer_has_password(db, user_id)
+
+
+def _recovery_summary(db, user: Dict[str, Any]) -> Dict[str, Any]:
+    codes = _recovery_codes.status(db, user["id"])
+    return {"recovery_codes": codes, "has_email": bool(user.get("email")),
+            "email_recovery": _issuer_email_recovery_enabled(db, user["id"]),
+            "email_recovery_available": _password_reset_available()}
+
+
+@app.get("/auth/recovery-codes")
+async def auth_recovery_codes_status(request: Request):
+    """How the signed-in account can get back in: unused recovery codes left, and emailed recovery."""
+    _require_auth_issuer_enabled()
+    payload = _issuer_bearer(request)
+
+    def work():
+        with _db() as db:
+            return _recovery_summary(db, _signed_in_user(db, payload))
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.post("/auth/recovery-codes")
+@limiter.limit(_RATE_AUTH)
+async def auth_recovery_codes_generate(request: Request):
+    """A new set of recovery codes, returned this once. The previous set stops working in the same commit.
+
+    Needs a recent sign-in, like adding a passkey: a stolen access token must not be enough to mint
+    a way back into the account.
+    """
+    _require_auth_issuer_enabled()
+    payload = _issuer_bearer(request)
+    if not _passkeys.available():
+        raise HTTPException(404, "Recovery codes need passkeys, which aren't set up on this server.")
+    if not _recent_sign_in(payload):
+        raise HTTPException(401, "For your security, sign in again, then make new recovery codes.")
+
+    def work():
+        with _db() as db:
+            user = _signed_in_user(db, payload)
+            try:
+                codes = _recovery_codes.generate(db, user["id"])
+            except _recovery_codes.RecoveryCodeError as exc:
+                raise _recovery_code_error(exc) from None
+            _auth_journal(request, "recovery_codes.generated", user=user, method="passkey",
+                          subject=user.get("email") or "", required=False)
+            return {"codes": codes, **_recovery_summary(db, user)}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.post("/auth/recovery-codes/redeem")
+@limiter.limit(_RATE_AUTH)
+async def auth_recovery_code_redeem(body: RecoveryCodeRedeemBody, request: Request):
+    """Use one recovery code. Answers with a short-lived ticket that can only register a new passkey
+    (POST /auth/passkey/register/begin|finish, kind "recover"); it is not a session."""
+    _require_auth_issuer_enabled()
+    if not _passkeys.available():
+        raise HTTPException(404, "Recovery codes need passkeys, which aren't set up on this server.")
+
+    def work():
+        with _db() as db:
+            try:
+                user_id = _recovery_codes.redeem(db, body.code)
+            except _recovery_codes.RecoveryCodeError as exc:
+                _auth_journal(request, "recovery_code.refused", method="recovery_code", status_code=exc.status_code,
+                              required=False)
+                raise _recovery_code_error(exc) from None
+            user = _issuer_get_user(db, user_id)
+            if not user or not user.get("is_active"):
+                _auth_journal(request, "recovery_code.refused", method="recovery_code", status_code=401, required=False)
+                raise HTTPException(401, "This account is not active.")
+            ttl = _recovery_codes.ticket_ttl()
+            ticket = _passkeys.issue_ticket(db, "recover", user_id=user["id"], email=user.get("email") or "", ttl=ttl)
+            # The session this ticket can lead to is journaled (required) by register/finish; this
+            # event is best effort so a journal outage can't burn a code without giving anything back.
+            _auth_journal(request, "recovery_code.used", user=user, method="recovery_code",
+                          subject=user.get("email") or "", required=False)
+            return {"recovery_token": ticket, "expires_in": ttl, "account": _issuer_display_label(user),
+                    "recovery_codes_remaining": _recovery_codes.remaining(db, user["id"])}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.put("/auth/email-recovery")
+@limiter.limit(_RATE_AUTH)
+async def auth_set_email_recovery(body: EmailRecoveryBody, request: Request):
+    """Switch emailed recovery (lost-passkey and password-reset links) on or off for the signed-in account.
+
+    Off only while the account holds unused recovery codes, so switching it off never leaves the
+    account without a way back in. On only for an account that has an email.
+    """
+    _require_auth_issuer_enabled()
+    payload = _issuer_bearer(request)
+    if not _recent_sign_in(payload):
+        raise HTTPException(401, "For your security, sign in again, then change how you recover your account.")
+
+    def work():
+        with _db() as db:
+            user = _signed_in_user(db, payload)
+            if body.enabled and not user.get("email"):
+                raise HTTPException(409, "This account has no email address, so there is nowhere to send a recovery link.")
+            if not body.enabled and _recovery_codes.remaining(db, user["id"]) == 0:
+                raise HTTPException(409, "Make recovery codes first. Without them or email, losing your passkeys "
+                                         "would lock you out.")
+            _issuer_set_email_recovery(db, user["id"], body.enabled)
+            _auth_journal(request, "email_recovery.changed", user=user, method="passkey",
+                          subject=user.get("email") or "", required=False)
+            return _recovery_summary(db, user)
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+# ── Accounts an administrator sets up (email optional) ──────────────────────────────────────────
+
+class AccountSetupBody(BaseModel):
+    full_name: str = Field(..., min_length=1, max_length=200)
+    role: str = Field("viewer", max_length=40)
+    # Optional: for notifications and emailed recovery. Sign-in never needs it.
+    email: str = Field("", max_length=320)
+
+
+def _setup_link(token: str) -> str:
+    """The link leaves the process (handed to the person), so its origin comes from configuration,
+    never from the Host header: MORROW_PUBLIC_BASE_URL, else the first configured WebAuthn origin."""
+    base = _invite_links.public_base_url_only() or ((_passkeys.relying_party() or {}).get("origins") or [""])[0]
+    return f"{base.rstrip('/')}/reset-password#setup={token}"
+
+
+def _setup_answer(db, user: Dict[str, Any]) -> Dict[str, Any]:
+    token = _passkeys.issue_ticket(db, "setup", user_id=user["id"], email=user.get("email") or "")
+    return {"user": {k: user.get(k) for k in ("id", "email", "full_name", "role", "org_id")},
+            "setup_link": _setup_link(token), "expires_in": _passkeys.ticket_ttl("setup")}
+
+
+@app.post("/auth/accounts")
+@limiter.limit(_RATE_AUTH)
+async def auth_create_setup_account(body: AccountSetupBody, request: Request):
+    """Create an account in the caller's organization (admin) and answer with a single-use setup link.
+
+    The account has no password and no passkey until the person opens the link and creates a
+    passkey. It needs no email: a display name is enough to sign in with a passkey and to recover
+    with recovery codes. Hand the link over yourself; nothing is emailed.
+    """
+    _require_auth_issuer_enabled()
+    _, org_id = _require_issuer_admin(request)
+    if not _passkeys.available():
+        raise HTTPException(404, "Setup links need passkeys, which aren't set up on this server.")
+    role = body.role.strip().lower() or "viewer"
+    if role not in VALID_USER_ROLES:
+        raise HTTPException(400, f"role must be one of: {', '.join(sorted(VALID_USER_ROLES))}")
+    email = body.email.strip().lower()
+    if email and not re.fullmatch(r"[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s]{2,63}", email):
+        raise HTTPException(400, "That email address doesn't look right. Leave it empty if the person has none.")
+
+    def work():
+        with _db() as db:
+            try:
+                user = _issuer_create_passkey_user(db, str(uuid.uuid4()), email, " ".join(body.full_name.split()), role, org_id)
+            except ValueError:
+                raise HTTPException(409, "An account already exists for this address.") from None
+            answer = _setup_answer(db, user)
+        _auth_journal(request, "account_setup.issued", user=user, method="passkey", subject=email, required=False)
+        _audit_event(request, action="auth.account_setup.created", resource_type="user", resource_id=user["id"],
+                     details={"role": role, "has_email": bool(email)})
+        return answer
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.post("/auth/accounts/{user_id}/setup-link")
+@limiter.limit(_RATE_AUTH)
+async def auth_reissue_setup_link(user_id: str, request: Request):
+    """A new setup link for an account in the caller's organization that has never been set up (admin).
+
+    Refused once the account has a passkey or a password: a setup link must never become a way for
+    an administrator to take over an account someone already uses. The previous link stops working.
+    """
+    _require_auth_issuer_enabled()
+    _, org_id = _require_issuer_admin(request)
+    if not _passkeys.available():
+        raise HTTPException(404, "Setup links need passkeys, which aren't set up on this server.")
+
+    def work():
+        with _db() as db:
+            user = _issuer_get_user(db, user_id)
+            if not user or user.get("org_id") != org_id or not user.get("is_active"):
+                raise HTTPException(404, "User not found")
+            if not _account_unconfigured(db, user["id"]):
+                raise HTTPException(409, "This account is already set up. Its owner signs in with their passkey, "
+                                         "or recovers it with a recovery code.")
+            answer = _setup_answer(db, user)
+        _auth_journal(request, "account_setup.issued", user=user, method="passkey", subject=user.get("email") or "",
+                      required=False)
+        _audit_event(request, action="auth.account_setup.reissued", resource_type="user", resource_id=user["id"])
+        return answer
     return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
 
 
@@ -25773,6 +26020,8 @@ async def auth_me(request: Request):
         if user:
             user["has_password"] = _issuer_has_password(db, user_id)
             user["passkey_count"] = _passkeys.count_passkeys(db, user_id)
+            user["recovery_codes_remaining"] = _recovery_codes.remaining(db, user_id)
+            user["email_recovery"] = _issuer_email_recovery_enabled(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return user

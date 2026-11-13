@@ -27,6 +27,10 @@ AUTH_EVENTS = {
     "passkey.registered", "passkey.removed", "passkey.refused", "passkey.clone_suspected",
     "passkey_enrollment.required", "account_recovery.requested", "account_recovery.completed",
     "team_join.requested", "team_join.refused", "team_join.joined",
+    # Recovery without email (services/recovery_codes.py), the emailed-recovery switch, and accounts an
+    # administrator creates with a setup link (possibly without an email).
+    "recovery_codes.generated", "recovery_code.used", "recovery_code.refused", "email_recovery.changed",
+    "account_setup.issued",
 }
 
 
@@ -196,7 +200,7 @@ def _insert(kind, values):
 
 
 def record_auth(event_type, *, user=None, method="password", source_ip="", user_agent="", subject="", status_code=200):
-    if event_type not in AUTH_EVENTS or method not in {"password", "passkey", "saml", "jwt", "refresh_token", "api_key"}:
+    if event_type not in AUTH_EVENTS or method not in {"password", "passkey", "recovery_code", "saml", "jwt", "refresh_token", "api_key"}:
         raise ValueError("Unsupported authentication event")
     # Identity is supplied only after authentication, never from a requested role/org or failed email.
     user = user or {}
