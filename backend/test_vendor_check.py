@@ -346,6 +346,12 @@ def test_a_stopped_runner_is_resumed_on_read(monkeypatch):
             break
         time.sleep(0.05)
     assert vendor_check.read(made["token"])["vendors"][0]["grade"] == "C"
+    # The runner thread must not outlive this test: it reads MORROW_SCANNER_DB on every write.
+    for _ in range(100):
+        if not vendor_check._active:
+            break
+        time.sleep(0.05)
+    assert not vendor_check._active
 
 
 # ── the routes ───────────────────────────────────────────────────────────────
