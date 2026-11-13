@@ -260,7 +260,7 @@ select.i-btn { background: var(--bg-2); }
 /* Buttons: ruled, mono, never a bare box. Solid is the one action of a view (Re-check). */
 .ins .i-btn { padding: 0 14px; background: var(--bg-2); border: 1px solid var(--line-2); font: 500 13px var(--mono); letter-spacing: .02em; color: var(--text); cursor: pointer; }
 .ins .i-btn:hover { background: var(--bg-3); }
-.ins .i-btn.solid { background: var(--ch-grade) !important; border-color: var(--ch-grade) !important; color: #050607 !important; }
+.ins .i-btn.solid { background: var(--ch-grade) !important; border-color: var(--ch-grade) !important; color: var(--on-solid) !important; }
 .ins .i-btn.solid:hover { filter: brightness(1.08); }
 .ins .fix .i-btn { min-height: 28px; padding: 0 10px; font-size: 12px; margin-left: 8px; vertical-align: middle; }
 .i-conn[hidden] { display: none; }

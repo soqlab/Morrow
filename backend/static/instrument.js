@@ -446,6 +446,16 @@
     var n = now.keys.length, risky = now.atRisk.length;
     var trend = idx > 0 && first.typical && now.typical && first.typical !== now.typical
       ? (ORDER[now.typical] < ORDER[first.typical] ? " Typical grade went from " + first.typical + " to " + now.typical : " Typical grade slipped from " + first.typical + " to " + now.typical) + " since " + sinceWhen(pts[0].at) + "." : "";
+    if (!trend && idx > 0) {
+      // The typical grade can hold still while endpoints move: count the moves themselves.
+      var up = 0, down = 0;
+      Object.keys(pts[idx].estate).forEach(function (k) {
+        if (!pts[0].estate[k]) return;
+        var a = scanGrade(pts[0].estate[k].r), b = scanGrade(pts[idx].estate[k].r);
+        if (a && b && a !== b) { if (ORDER[b] < ORDER[a]) up++; else down++; }
+      });
+      if (up || down) trend = " Since " + sinceWhen(pts[0].at) + ": " + (up ? up + " endpoint" + (up === 1 ? "" : "s") + " improved" : "") + (up && down ? ", " : "") + (down ? down + " got worse" : "") + ".";
+    }
     return byDepth({
       plain: risky ? risky + " of your " + n + " endpoint" + (n === 1 ? "" : "s") + " send traffic a future quantum computer could read." + trend
                    : "All " + n + " of your scanned endpoint" + (n === 1 ? " is" : "s are") + " protected against future quantum decryption." + trend,
