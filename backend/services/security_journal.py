@@ -31,6 +31,10 @@ AUTH_EVENTS = {
     # administrator creates with a setup link (possibly without an email).
     "recovery_codes.generated", "recovery_code.used", "recovery_code.refused", "email_recovery.changed",
     "account_setup.issued",
+    # Public sign-up with a passkey (services/signup.py), invite links an admin hands over, and the
+    # recovery link an admin issues for a member who lost every passkey and recovery code.
+    "signup.completed", "signup.refused", "signup.rate_limited", "invite_link.issued", "invite_link.revoked",
+    "account_recovery.issued",
 }
 
 

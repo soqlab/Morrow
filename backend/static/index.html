@@ -2757,6 +2757,7 @@ function authGateHtml() {
       ${pk ? `<div class="col">
         <button class="btn pri block" data-act="gatePasskey" type="button" style="height:42px" ${pkOk ? "" : "disabled"}>${I.lock}Sign in with a passkey</button>
         ${pkOk ? "" : `<span class="gsub" style="margin:0">This browser can't use passkeys. Open this page in a current browser, or on your phone.</span>`}
+        ${c.signup_enabled ? `<a class="btn block" href="/signup" style="height:42px">${I.plus}Create an account</a>` : ""}
         <span style="display:flex;justify-content:space-between;gap:10px;font-size:12px;flex-wrap:wrap">
           ${codes ? `<a href="#" data-act="gateShowRecovery" style="color:var(--ink2)">Lost your passkey?</a>`
             : c.password_reset_enabled ? `<a href="/reset-password" style="color:var(--ink2)">Lost your passkey?</a>` : "<span></span>"}
@@ -2767,7 +2768,7 @@ function authGateHtml() {
           <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink2)">
             <input id="gCodeRevoke" type="checkbox"> Also remove my other passkeys (a lost or stolen device)</label>
           <button class="btn block" data-act="gateRecoveryCode" type="button" style="white-space:normal;height:auto;min-height:38px" ${pkOk ? "" : "disabled"}>Use recovery code</button>
-          <span class="gsub" style="margin:0">Each code works once. You'll create a new passkey on this device, and you'll be signed out everywhere else.${c.password_reset_enabled ? ` No code? <a href="/reset-password" style="color:var(--ink2)">Get a recovery link by email</a> (if your account allows it).` : ""}</span>
+          <span class="gsub" style="margin:0">Each code works once. You'll create a new passkey on this device, and you'll be signed out everywhere else.${c.password_reset_enabled ? ` No code? <a href="/reset-password" style="color:var(--ink2)">Get a recovery link by email</a> (if your account allows it).` : " No code left? Ask an admin of your organization for a recovery link."}</span>
         </div>` : ""}
         <div class="col" id="gPwBox" hidden>
           <div class="field"><label for="gEmail">Email</label>
@@ -2790,7 +2791,7 @@ function authGateHtml() {
       ${saml ? `<button class="btn block" data-act="loginSaml" type="button">${I.shield}Continue with single sign-on</button>` : ""}
       ${ext ? `<a class="btn block" href="${H(c.login_url)}">${I.link}Sign in with ${H(provider)}</a>` : ""}
 
-      ${simple ? `<div class="gateFoot"><span>No account yet? <a href="/trial">Request access</a>${c.team_join_enabled ? ` · <a href="/join">Join your team</a>` : ""}</span></div>` : `<div class="orDiv"><i></i><span>or use a token</span><i></i></div>
+      ${simple ? `<div class="gateFoot"><span>${c.signup_enabled ? `No account yet? <a href="/signup">Create one</a>, free.` : "No account yet? Ask an admin of your organization for an invite link."}${c.team_join_enabled ? ` · <a href="/join">Join your team</a>` : ""}</span></div>` : `<div class="orDiv"><i></i><span>or use a token</span><i></i></div>
       <div class="col">
         <div class="field"><label for="gTok">Bearer token</label>
           <input class="inp mono" id="gTok" placeholder="paste an access token" spellcheck="false"></div>
@@ -9615,9 +9616,10 @@ VIEWS.admin = async (host) => {
           { h: "Created", f: u => `<span style="font-size:11px;color:var(--ink3)">${H(AGO(u.created_at))}</span>` },
           { h: "", w: "1%", f: u => `<div class="row tight">
             ${actBtn("Role", "userRole", { cls: "btn xs", data: { id: u.id } })}
+            ${authCfg().passkeys_enabled ? actBtn("Recovery link", "userRecover", { cls: "btn xs", data: { id: u.id, name: u.full_name || u.email || "" } }) : ""}
             ${actBtn("Disable", "userOff", { cls: "btn xs danger", data: { id: u.id } })}</div>` },
         ], U, { max: "420px", empty: "No users — the server is running in header-auth mode." }), {
-          icon: I.users, flush: true, act: `${authCfg().passkeys_enabled ? actBtn("Set up account", "userSetup", { cls: "btn sm", icon: I.link }) : ""}${actBtn("Register user", "userNew", { cls: "btn sm pri", icon: I.plus })}` }), "/auth/users")}
+          icon: I.users, flush: true, act: `${authCfg().invite_links_enabled ? actBtn("Invite link", "inviteLink", { cls: "btn sm pri", icon: I.link }) : ""}${authCfg().passkeys_enabled ? actBtn("Set up account", "userSetup", { cls: "btn sm", icon: I.link }) : ""}${authCfg().passkeys_only ? "" : actBtn("Register user", "userNew", { cls: "btn sm pri", icon: I.plus })}` }), "/auth/users")}
         <div class="col">
           ${card("Your context", kvList([
             ["Authenticated", C.authenticated ? `<span class="pill ok">Yes</span>` : `<span class="pill warn">No</span>`],
@@ -9977,6 +9979,43 @@ ACTIONS.userSetupGo = async () => {
     <input class="inp mono" readonly value="${H(r.data.setup_link)}" onfocus="this.select()">
   </div>`, `<button class="btn" data-copy="${H(r.data.setup_link)}" type="button">Copy link</button><span style="flex:1"></span><button class="btn pri" data-close type="button">Done</button>`);
   retry();
+};
+/** A single-use invite link into this organization (POST /auth/invite-links). Nothing is emailed: the
+    admin hands it over. Whoever opens it creates a passkey and joins as a viewer. Open links are
+    listed below it and can be revoked. */
+const inviteLinkRows = (links) => links.length ? `<div class="col" style="gap:6px">${links.map(l => `<div class="row tight" style="justify-content:space-between;font-size:12px">
+    <span class="mono">${H(l.id)}</span><span style="color:var(--ink3)">expires ${H(new Date(l.expires_at * 1000).toLocaleDateString())}</span>
+    ${actBtn("Revoke", "inviteLinkRevoke", { cls: "btn xs danger", data: { id: l.id } })}</div>`).join("")}</div>`
+  : `<span style="font-size:12px;color:var(--ink3)">No other open invite links.</span>`;
+ACTIONS.inviteLink = async () => {
+  const r = await safe("/auth/invite-links", { method: "POST", body: {} });
+  if (!r.ok) return err(r.err);
+  const open = await safe("/auth/invite-links");
+  const others = (open.ok ? open.data.invite_links || [] : []).filter(l => l.id !== r.data.id);
+  const days = Math.round((r.data.expires_in || 0) / 86400);
+  modal("Invite link", `<div class="col">
+    <p style="margin:0;line-height:1.6">Give this link to the person who should join. It works once${days ? ` and expires in ${days} day${days === 1 ? "" : "s"}` : ""}. They create a passkey when they open it and join as a <b>viewer</b>; change their role here afterwards. Morrow sends nothing, so send it privately.</p>
+    <input class="inp mono" readonly value="${H(r.data.invite_link)}" onfocus="this.select()">
+    <b style="font-size:12px;margin-top:6px">Other open invite links</b>
+    <div id="inviteLinkList">${inviteLinkRows(others)}</div>
+  </div>`, `<button class="btn" data-copy="${H(r.data.invite_link)}" type="button">Copy link</button><span style="flex:1"></span><button class="btn pri" data-close type="button">Done</button>`);
+};
+ACTIONS.inviteLinkRevoke = async (b) => {
+  const r = await safe(`/auth/invite-links/${encodeURIComponent(b.dataset.id)}`, { method: "DELETE" });
+  if (!r.ok) return err(r.err);
+  const list = $("#inviteLinkList");
+  if (list) list.innerHTML = inviteLinkRows(r.data.invite_links || []);
+  ok("Invite link revoked");
+};
+/** A member lost every passkey and recovery code: a single-use recovery link to hand over. */
+ACTIONS.userRecover = async (b) => {
+  const r = await safe(`/auth/accounts/${encodeURIComponent(b.dataset.id)}/recovery-link`, { method: "POST", body: {} });
+  if (!r.ok) return err(r.err);
+  const mins = Math.round((r.data.expires_in || 0) / 60);
+  modal("Recovery link", `<div class="col">
+    <p style="margin:0;line-height:1.6">Give this link to <b>${H(b.dataset.name || r.data.user?.full_name || "the person")}</b>, and only after you've checked it's really them. It works once${mins ? ` and expires in ${mins} minutes` : ""}: they create a new passkey, and every other session of the account is signed out. Morrow sends nothing.</p>
+    <input class="inp mono" readonly value="${H(r.data.recovery_link)}" onfocus="this.select()">
+  </div>`, `<button class="btn" data-copy="${H(r.data.recovery_link)}" type="button">Copy link</button><span style="flex:1"></span><button class="btn pri" data-close type="button">Done</button>`);
 };
 ACTIONS.userNew = () => modal("Register a user", `<div class="col">
   <div class="field"><label for="unEmail">Email</label><input class="inp" id="unEmail" type="email" placeholder="alice@acme.com"></div>

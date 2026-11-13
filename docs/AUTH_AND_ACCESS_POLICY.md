@@ -41,10 +41,14 @@ identity provider; none of this changes that check.
 - `MORROW_PASSKEYS_ONLY=1` (set on hosted Morrow): a password sign-in returns no session, only a
   single-use enrollment ticket (`MORROW_PASSKEY_ENROLL_TTL_SECONDS`, default 600) that can do nothing
   but register a passkey; `/auth/register`, `/auth/invite/register`, `/auth/change-password` and
-  `/auth/password-reset/confirm` answer 403. "Forgot password" emails an account-recovery link
+  `/auth/password-reset/confirm` answer 403. Nothing that signs anyone in or gets anyone back in is
+  emailed: `/auth/password-reset/request` and `/auth/team-join/request` answer 410 and send nothing,
+  and `/auth/config` reports `password_reset_enabled` and `team_join_enabled` false. Recovery is a
+  recovery code or a recovery link an admin hands over; joining is an invite link an admin hands over
+  (next section). With the flag off, "forgot password" emails an account-recovery link
   (`/reset-password#recover=…`, `MORROW_ACCOUNT_RECOVERY_TTL_SECONDS`, default 1800, single use, a
   newer link replaces older ones) that registers a new passkey, optionally removes the others, and
-  signs the account out everywhere. Passkey accounts get the recovery link whether or not the flag is set.
+  signs the account out everywhere, and domain team sign-in emails its join links, as before.
 - Schema: `morrow_passkeys`, `morrow_webauthn_challenges`, `morrow_auth_tickets` are created by
   `auth_issuer.init_tables`, which also makes `morrow_users.password_hash` nullable (SQLite: one
   table rebuild in a write transaction, indexes recreated; Postgres: `DROP NOT NULL`). Existing rows
@@ -98,6 +102,37 @@ identity provider; none of this changes that check.
   `ADD COLUMN IF NOT EXISTS email_recovery`), keeping every row, password and address, and creates
   `morrow_recovery_codes`. Like the other passkey tables it is keyed by account, has no tenant
   column and lives in the main database, so it is not in the Postgres RLS plan.
+
+## Public sign-up, invite links and recovery links (no email)
+
+- **Sign-up** (`backend/services/signup.py`, page `/signup`). `register/begin` with kind `signup`
+  takes only an optional `full_name` and `organization`; `register/finish` creates a new organization
+  (`org_<12 hex>`), its account with role `admin` and no email or password, and the passkey, and
+  answers with a session, the organization and 10 recovery codes (made by `recovery_codes.generate`,
+  shown this once). Open when `MORROW_PASSKEY_SIGNUP=1` (unset: follows `MORROW_PASSKEYS_ONLY`), and
+  only while passkeys work and `MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1`, so a new organization scans
+  only domains it verifies by DNS; public checks are unchanged. Budgets on completed sign-ups, counted
+  in `morrow_signups` by a keyed hash of the address: `MORROW_SIGNUP_PER_IP_PER_HOUR` (3),
+  `MORROW_SIGNUP_PER_IP_PER_DAY` (10), `MORROW_SIGNUP_GLOBAL_PER_HOUR` (60),
+  `MORROW_SIGNUP_GLOBAL_PER_DAY` (500), 0 = off; checked at begin and again at finish (429). A field
+  hidden from people refuses scripts (400). New organizations get the rate-limit override
+  `MORROW_SIGNUP_API_CALLS_PER_MIN` / `MORROW_SIGNUP_SCANS_PER_HOUR`. `/signup?watch=<domain>` watches
+  the domain right after and returns to `/<domain>`; `/signup?claim=<domain>` starts its DNS claim.
+  Journaled: `signup.completed`, `signup.refused`, `signup.rate_limited`; audited `auth.signup.completed`.
+- **Invite links** (`POST/GET /auth/invite-links`, `DELETE /auth/invite-links/{id}`, admin; console:
+  Users & access › Invite link). A single-use link (`/join#invite=…`,
+  `MORROW_INVITE_LINK_TTL_SECONDS`, default 604800 = 7 days, several may be open at once, revocable)
+  that the admin hands over; nothing is sent. `POST /auth/invite-links/preview` (public) shows the
+  organization and role; register kind `team` creates a `viewer` account without email in that
+  organization. Works with or without `MORROW_PASSKEYS_ONLY`; the domain join-policy rows are kept.
+- **Recovery links** (`POST /auth/accounts/{id}/recovery-link`, admin of the same organization;
+  console: Users & access › Recovery link). For a member who lost every passkey and recovery code: a
+  single-use `recover` link (`/reset-password#recover=…`, `MORROW_ACCOUNT_RECOVERY_TTL_SECONDS`)
+  that registers a new passkey, signs the account out everywhere else and can remove its other
+  passkeys. Journaled `account_recovery.issued`, audited `auth.account_recovery.issued`. An account
+  that was never set up gets a setup link instead.
+- `morrow_signups`, like the other auth tables, has no tenant column and lives in the main database,
+  so it is not in the Postgres RLS plan. No other table was added.
 
 ## Domain team sign-in
 

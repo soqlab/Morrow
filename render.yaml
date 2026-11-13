@@ -133,12 +133,25 @@ services:
       - key: MORROW_SIGNIN_SIMPLE
         value: "1"
       # Passkeys only (services/passkeys.py; the relying party is MORROW_PUBLIC_BASE_URL's host). No
-      # password sign-in for an account with a passkey, no new passwords anywhere, and "forgot
-      # password" emails an account-recovery link that registers a new passkey. An account that
-      # still has a password signs in with it once and must add a passkey before it gets a session;
-      # the passkey deletes the password.
+      # password sign-in for an account with a passkey, no new passwords anywhere, and nothing that
+      # signs anyone in or gets anyone back in is emailed: no reset or recovery emails, no emailed
+      # team sign-in links. Lost passkey: a recovery code, or a recovery link an admin of the
+      # organization makes and hands over. Joining: an invite link an admin makes and hands over.
+      # An account that still has a password signs in with it once and must add a passkey before it
+      # gets a session; the passkey deletes the password.
       - key: MORROW_PASSKEYS_ONLY
         value: "1"
+      # Public sign-up at /signup (services/signup.py): one passkey makes a new organization and its
+      # admin; no email. Unset it follows MORROW_PASSKEYS_ONLY. Stays closed unless passkeys work and
+      # MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1. Budgets: MORROW_SIGNUP_PER_IP_PER_HOUR (3),
+      # MORROW_SIGNUP_PER_IP_PER_DAY (10), MORROW_SIGNUP_GLOBAL_PER_HOUR (60),
+      # MORROW_SIGNUP_GLOBAL_PER_DAY (500); 0 switches one off. New organizations get the caps below.
+      - key: MORROW_PASSKEY_SIGNUP
+        value: "1"
+      - key: MORROW_SIGNUP_API_CALLS_PER_MIN
+        value: "60"
+      - key: MORROW_SIGNUP_SCANS_PER_HOUR
+        value: "10"
       # Admin dashboard figures are precomputed snapshots; at this size a minute is cheap.
       - key: MORROW_ANALYTICS_SNAPSHOT_INTERVAL_SECONDS
         value: "60"

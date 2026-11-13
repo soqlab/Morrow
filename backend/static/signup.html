@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <title>Create an account | Morrow</title>
+  <meta name="description" content="Create a free Morrow account with a passkey. No email, no password.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/public.css?v=7">
+  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
+<link rel="stylesheet" href="/ui/experience.css?v=20261113-instrument">
+<script src="/ui/passkey.js?v=20261112-passkeys" defer></script>
+<script src="/ui/signup.js?v=20261113-signup" defer></script>
+<style>
+  .invite-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+  .public-document .invite-state { max-width: 70ch; padding-left: 52px; }
+  .invite-state p { color: var(--fog, #b9b9b9); line-height: 1.7; }
+  .invite-state[data-tone="bad"] { border-left-color: var(--rose, #ff6f6f); }
+  .invite-state[data-tone="ok"] { border-left-color: var(--jade, #6fd3a0); }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+  .invite-form { display: grid; gap: 14px; max-width: 420px; margin-top: 18px; }
+  .invite-form label { display: grid; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); }
+  .invite-form input { font: inherit; font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--chalk, #eee); background: transparent; border: 1px solid var(--line, #27303a); padding: 10px 12px; }
+  .invite-form input:focus-visible { outline: 2px solid var(--jade, #6fd3a0); outline-offset: 1px; }
+  .invite-form .invite-error { color: var(--rose, #ff6f6f); margin: 0; }
+  .signup-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+  .signup-codes { display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: 8px 28px; margin: 16px 0 0; padding: 14px 18px; border: 1px solid var(--line, #27303a); font-family: var(--mono); font-size: 15px; color: var(--chalk, #eee); list-style: none; }
+  .signup-check { display: flex; gap: 10px; align-items: center; margin-top: 16px; color: var(--fog, #b9b9b9); }
+  .signup-check input { width: auto; }
+  @media (max-width: 640px) { .signup-codes { grid-template-columns: 1fr; } .public-document .invite-state { padding-left: 20px; } }
+</style>
+</head>
+<body class="public-document">
+  <main class="doc-shell">
+    <header class="topbar">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
+      <nav class="nav" aria-label="Morrow"><a class="nav-cta" href="/ui/">Sign in &#8599;</a></nav>
+    </header>
+
+    <section class="doc-hero">
+      <div>
+        <span class="eyebrow">Free account</span>
+        <h1 id="signupTitle" tabindex="-1">Create your account.</h1>
+        <p class="lead" id="signupLead">One passkey on this device, and you're in. No email, no password.</p>
+      </div>
+    </section>
+
+    <section class="doc-section" aria-live="polite">
+      <div class="notice invite-state" id="signupState">
+        <p>Loading.</p>
+      </div>
+      <noscript><p class="notice">This page needs JavaScript.</p></noscript>
+    </section>
+
+    <section class="doc-section">
+      <h2>What you get</h2>
+      <p>Your own organization in Morrow, with you as its admin. Watch any domain and hear when its answer changes. Claim the domains you own with a DNS record, then scan them and everything under them. Morrow scans only domains your organization has proved it controls; the public check on any domain's page works as before.</p>
+      <p>You sign in with a passkey: your fingerprint, face, device PIN or a security key. After the passkey is made you get ten recovery codes, shown once: save them, because they're how you get back in if you lose the passkey. Morrow never emails you. Already have an account? <a href="/ui/">Sign in</a>.</p>
+    </section>
+  </main>
+</body>
+</html>

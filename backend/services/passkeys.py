@@ -15,6 +15,9 @@ Registration `kind` says what the new passkey is for, and what proves the right 
            services/recovery_codes.py)
   enroll   a password account, signed in with its password, must add one (MORROW_PASSKEYS_ONLY=1)
   setup    an account an administrator created, possibly without an email (the setup link they hand over)
+  team     an invite link an administrator of an organization made and handed over: a new member
+           account in that organization (no email; nothing is sent)
+  signup   public sign-up: a new organization and its first admin (services/signup.py; no token)
 
 Sign-in needs no username: login/begin without an email asks for a discoverable credential (empty
 allowCredentials), and every passkey is registered as one (resident key required). No transports
@@ -103,8 +106,8 @@ TICKET_TABLE = """
     )
 """
 
-TICKET_PURPOSES = {"enroll", "recover", "join", "setup"}
-REGISTRATION_KINDS = {"account", "invite", "join", "recover", "enroll", "setup"}
+TICKET_PURPOSES = {"enroll", "recover", "join", "setup", "team"}
+REGISTRATION_KINDS = {"account", "invite", "join", "recover", "enroll", "setup", "team", "signup"}
 MAX_PASSKEYS_PER_USER = 20
 _TOKEN_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
 
@@ -142,6 +145,8 @@ def ticket_ttl(purpose: str) -> int:
         return _int_env("MORROW_TEAM_JOIN_TTL_SECONDS", 1800, 300, 86400)
     if purpose == "setup":
         return _int_env("MORROW_ACCOUNT_SETUP_TTL_SECONDS", 259200, 600, 1209600)
+    if purpose == "team":
+        return _int_env("MORROW_INVITE_LINK_TTL_SECONDS", 604800, 3600, 2592000)
     return _int_env("MORROW_ACCOUNT_RECOVERY_TTL_SECONDS", 1800, 300, 86400)
 
 
@@ -344,7 +349,8 @@ def issue_ticket(db, purpose: str, *, user_id: str = "", email: str = "", org_id
     return token
 
 
-_TICKET_WORDS = {"recover": "recovery link", "join": "join link", "enroll": "passkey setup", "setup": "setup link"}
+_TICKET_WORDS = {"recover": "recovery link", "join": "join link", "enroll": "passkey setup", "setup": "setup link",
+                 "team": "invite link"}
 
 
 def peek_ticket(db, token: str, purpose: str) -> Dict[str, Any]:
