@@ -3,6 +3,9 @@
   GET /                      the one input, your own connection, live counts
   GET /<domain>              that domain's grade (the address is the interface: /example.com)
   GET /league                sector averages and their weekly trend; no site is named
+  GET /vendors[/r/<token>]   vendor check: grade a list of vendor domains; a shared, read-only report
+  GET /changes               what changed: sites that became post-quantum ready or dropped below B
+  GET /report[/<sector>]     sector reports: share ready, trend, sample and method, citable
   GET /atlas                 retired: forwards to /estate when signed in, /league otherwise
   GET /estate[/scan/<id>|/asset/<key>]  your estate through time, one scan, one endpoint (signed in)
   GET /algorithms[/<id>]     the algorithm reference and the dated history of internet cryptography
@@ -35,7 +38,7 @@ CSP = ("default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action
 #: The plain pages run no script at all.
 CSP_PLAIN = CSP.replace("script-src 'self'", "script-src 'none'")
 
-VIEW_PREFIXES = ("/league", "/atlas", "/algorithms", "/trust", "/estate")
+VIEW_PREFIXES = ("/league", "/atlas", "/algorithms", "/trust", "/estate", "/vendors", "/changes", "/report")
 _DOMAIN_RE = re.compile(r"^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 #: Last labels that are file extensions, not top-level domains: /wp-login.php is a probe, not a site.
 #: (.zip and .mov are real TLDs and stay allowed.)
@@ -107,6 +110,7 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
            f"<title>{_e(title)} - Morrow, plain</title></head><body>"
            "<p><a href=\"/plain\">Morrow, plain version</a> | <a href=\"/plain/league\">Sector averages</a> | "
+           "<a href=\"/plain/report\">Sector reports</a> | <a href=\"/plain/changes\">What changed</a> | "
            "<a href=\"/\">Full version</a></p><hr>"
            f"{body}<hr><p>No script, no stylesheet, no tracking. The same answers as the full version, "
            "from the same server.</p></body></html>")
@@ -189,6 +193,9 @@ def create_instrument_router(deps: Any) -> APIRouter:
             return str(request.client.host if request.client else "")
 
     @router.api_route("/league", methods=["GET", "HEAD"])
+    @router.api_route("/vendors", methods=["GET", "HEAD"])
+    @router.api_route("/changes", methods=["GET", "HEAD"])
+    @router.api_route("/report", methods=["GET", "HEAD"])
     @router.api_route("/atlas", methods=["GET", "HEAD"])
     @router.api_route("/algorithms", methods=["GET", "HEAD"])
     @router.api_route("/trust", methods=["GET", "HEAD"])
@@ -200,6 +207,23 @@ def create_instrument_router(deps: Any) -> APIRouter:
     @router.api_route("/estate", methods=["GET", "HEAD"])
     @router.api_route("/estate/{rest:path}", methods=["GET", "HEAD"])
     def instrument_estate(rest: str = ""):
+        return _view()
+
+    # A shared vendor report: the token in the path is the only key, so the page is never indexed.
+    @router.api_route("/vendors/r/{token}", methods=["GET", "HEAD"])
+    def instrument_vendor_report(token: str):
+        if not re.match(r"^[A-Za-z0-9_-]{8,64}$", token):
+            raise HTTPException(status_code=404, detail="no such report")
+        response = _view()
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
+    @router.api_route("/report/{sector}", methods=["GET", "HEAD"])
+    def instrument_report(sector: str):
+        if not _ID_RE.match(sector.lower()):
+            raise HTTPException(status_code=404, detail="no such sector")
         return _view()
 
     @router.api_route("/algorithms/{algorithm_id}", methods=["GET", "HEAD"])
@@ -257,6 +281,65 @@ def create_instrument_router(deps: Any) -> APIRouter:
                                      f"grade {_e(e['grade'])}, checked {_e(e['checked_at'][:10])}</li>" for e in ready["entries"])
                     + "</ul>" if ready["entries"] else "<p>No organisation has listed itself yet.</p>"))
         return _page("Sector averages", body)
+
+    @router.get("/plain/changes")
+    def plain_changes(sector: str = ""):
+        from services import changes
+
+        data = changes.feed(sector[:40], limit=200)
+        items = "".join(
+            f"<li><strong>{_e(str(e['at'])[:10])}</strong> "
+            + (f"<a href=\"/plain/{_e(e['domain'])}\">{_e(e['domain'])}</a>" + _e(e["title"][len(e["domain"]):])
+               if e.get("named") else _e(e["title"]))
+            + (f"<br>Reply from the owner ({_e(str(e['reply'].get('at'))[:10])}): {_e(e['reply'].get('text'))}" if e.get("reply") else "")
+            + "</li>" for e in data["events"])
+        rules = "".join(f"<li>{_e(v)}</li>" for v in data["rules"].values())
+        body = ("<h1>What changed</h1><p>Post-quantum readiness changes measured by Morrow's public grade, newest first.</p>"
+                + (f"<ul>{items}</ul>" if items else "<p>No change has been measured yet.</p>")
+                + f"<h2>Rules</h2><ul>{rules}</ul><p><a href=\"/api/public/changes.atom\">Atom feed</a> | "
+                "<a href=\"/api/public/changes.rss\">RSS</a> | <a href=\"/api/public/changes\">JSON</a> | "
+                "<a href=\"/changes\">Full version</a></p>")
+        return _page("What changed", body)
+
+    @router.get("/plain/report")
+    def plain_report_index():
+        from services import sector_report
+
+        data = sector_report.index()
+        rows = "".join(
+            f"<tr><td><a href=\"/plain/report/{_e(r['id'])}\">{_e(r['name'])}</a></td><td>{_e(r['graded'])}</td>"
+            f"<td>{_e(sector_report.pct(r['ready_share']))}</td><td>{_e(str(r['as_of'] or '-')[:10])}</td></tr>"
+            for r in data["sectors"])
+        body = (f"<h1>Sector reports</h1><p>{_e(data['summary'])}</p><table><thead><tr><th>Sector</th><th>Graded</th>"
+                f"<th>Post-quantum ready</th><th>As of</th></tr></thead><tbody>{rows}</tbody></table>")
+        return _page("Sector reports", body)
+
+    @router.get("/plain/report/{sector}")
+    def plain_report(sector: str):
+        from services import sector_report
+
+        try:
+            r = sector_report.report(sector[:40])
+        except sector_report.ReportError as exc:
+            return _page("Sector report", f"<p>{_e(exc.detail)}</p>", status=404)
+        m = r["methodology"]
+        sample = r["sample"]
+        dist = "".join(f"<tr><td>{g}</td><td>{_e(r['grades'].get(g, 0))}</td></tr>" for g in "ABCDEF")
+        weeks = "".join(f"<tr><td>{_e(p['week'])}</td><td>{_e(p['graded'])}</td><td>{_e(p['ready'])}</td>"
+                        f"<td>{_e(sector_report.pct(p['share']))}</td></tr>" for p in reversed(r["trend"]))
+        body = (f"<h1>{_e(r['name'])}: post-quantum readiness</h1><p><strong>{_e(r['headline']['standard'])}</strong></p>"
+                f"<p>As of {_e(r['as_of'] or '-')} (rubric {_e(r['rubric_version'])}). "
+                f"Sample: {_e(sample['listed'])} sites listed, {_e(sample['graded'])} graded, {_e(sample['unreachable'])} not "
+                f"reachable at their latest attempt, {_e(sample['not_graded_yet'])} not graded yet, "
+                f"{_e(sample['opted_out_left_out'])} left out because they opted out.</p>"
+                f"<h2>Grades</h2><table><tbody>{dist}</tbody></table>"
+                f"<h2>Week by week</h2><table><thead><tr><th>Week of</th><th>Graded</th><th>Ready</th><th>Share</th></tr></thead>"
+                f"<tbody>{weeks}</tbody></table><h2>Method</h2><p>{_e(m['list'])} {_e(m['who'])}</p><p>{_e(m['measured'])}</p>"
+                f"<p>{_e(m['ready'])} {_e(m['cadence'])}</p><h3>Not measured</h3><ul>"
+                + "".join(f"<li>{_e(x)}</li>" for x in m["not_measured"]) + "</ul><h3>Sources</h3><ul>"
+                + "".join(f"<li>{_e(x)}</li>" for x in m["sources"]) + "</ul>"
+                f"<p><a href=\"{_e(r['csv'])}\">CSV</a> | <a href=\"/report/{_e(r['id'])}\">Full version</a></p>")
+        return _page(r["name"] + " report", body)
 
     @router.get("/plain/{domain}")
     async def plain_domain(request: Request, domain: str, fresh: str = ""):

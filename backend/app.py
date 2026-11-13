@@ -26598,6 +26598,25 @@ def instrument_reply_delete(domain: str, request: Request):
     return JSONResponse({"removed": removed}, headers={"Cache-Control": "no-store"})
 
 
+# Vendor check, the change feed and sector reports (routers/public_reports.py): the public API under
+# /api/public, and the organisation's own saved vendor lists under /instrument/vendor-checks.
+from routers.public_reports import create_public_reports_router, create_vendor_console_router  # noqa: E402
+from services import vendor_check as _vendor_check_schema  # noqa: E402
+
+register_deferred_schema("vendor_check", _vendor_check_schema.init_tables)
+app.include_router(create_public_reports_router(_PlatformAdminDeps(
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+)))
+app.include_router(create_vendor_console_router(_PlatformAdminDeps(
+    require_role=lambda request, roles, action, resource_type, resource_id="": _require_role(
+        request, roles, action=action, resource_type=resource_type, resource_id=resource_id),
+    org_id=lambda: current_organization_id(),
+    actor_id=lambda request: str(_actor_from_request(request).get("actor_id") or ""),
+    audit=lambda request, action, resource_type, resource_id, details: _audit_event(
+        request, action=action, resource_type=resource_type, resource_id=resource_id, details=details),
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+)))
+
 # The instrument views and /plain (routers/instrument.py). Included last: its /{domain} route
 # answers only a single dotted segment that no earlier route claimed.
 app.include_router(_instrument.create_instrument_router(_PlatformAdminDeps(

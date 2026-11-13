@@ -112,6 +112,9 @@
      answer. There is no menu. The console's views are places too (opened at /ui/#<view>). */
   var PLACES = [
     { t: "Sector averages", h: "/league", k: "league sectors averages banks government health", g: "Public" },
+    { t: "Check your vendors", h: "/vendors", k: "vendors suppliers third party list csv buyer supply chain check", g: "Public" },
+    { t: "What changed", h: "/changes", k: "changes feed news became ready dropped regressed rss atom", g: "Public" },
+    { t: "Sector reports", h: "/report", k: "report reports sector share trend percent citable csv banks", g: "Public" },
     { t: "Algorithms, with their history", h: "/algorithms", k: "algorithms reference history timeline pqc", g: "Public" },
     { t: "What this server runs, and how to check it", h: "/trust", k: "trust commit verify deploy log csp tracking reproducible", g: "Public" },
     { t: "Plain version, no scripts", h: "/plain", k: "plain text accessible screen reader no javascript", g: "Public" },
@@ -482,6 +485,9 @@
     if (s0 === "atlas") return workspace().then(function (w) { location.replace(w ? "/estate" : "/league"); });
     if (s0 === "algorithms") return segs[1] ? viewAlgorithm(segs[1]) : viewAlgorithms();
     if (s0 === "trust") return viewTrust();
+    if (s0 === "vendors") return segs[1] === "r" && segs[2] ? viewVendorReport(segs[2]) : viewVendors();
+    if (s0 === "changes") return viewChanges();
+    if (s0 === "report") return segs[1] ? viewReport(segs[1].toLowerCase()) : viewReports();
     if (s0 === "estate") return segs[1] === "scan" && segs[2] ? viewScan(segs[2]) : segs[1] === "asset" && segs[2] ? viewAsset(segs.slice(2).join("/")) : viewEstate();
     var d = asDomain(s0);
     if (d && segs.length === 1) return viewDomain(d);
@@ -962,6 +968,7 @@
         expert: num(graded) + "/" + num(L.list_size) + " graded under rubric " + L.rubric_version + "; post-quantum share " + pct(g ? pq / g : null) + "; weekly trend from stored grades." }));
       var lr = L.last_run;
       $("#lg-body").innerHTML = panel("", "By sector", sectorRows(SECTORS, depth !== "plain"), { ch: "league", right: lr ? "last batch " + esc(ago(lr.finished_at || lr.started_at)) : "no batch has run yet" }) +
+        '<p class="i-fine"><a href="/report">Sector reports</a>, citable, with their trend and method. <a href="/changes">What changed</a>. <a href="/vendors">Check your vendors</a>.</p>' +
         '<p class="i-fine">Averages only: no site is named or ranked here. Each sector\'s list (in <code>backend/league/sectors.json</code>) is re-graded once a week with the same check as a domain page. Any single domain can still be checked by typing it. ' +
         (depth === "expert" ? SECTORS.filter(function (s) { return s.graded; }).map(function (s) { return "<br>" + esc(s.name) + ": " + esc(s.method); }).join("") : "") + "</p>";
       paintBars();
@@ -1298,6 +1305,285 @@
       });
     }
     setTimeout(requests, 1500);
+  }
+
+  /* ── Vendor check: your vendors' domains, graded, worst first, with a note for each ──────
+     The list is parsed here only to count it as you type; the server parses it again and is the
+     one that decides. Morrow sends nothing to anyone: the notes are for the buyer to send. */
+  function sendJSON(method, path, body, extra) {
+    var headers = { "Content-Type": "application/json", Accept: "application/json" };
+    if (token && path.indexOf("/instrument/") === 0) headers.Authorization = "Bearer " + token;
+    Object.keys(extra || {}).forEach(function (k) { headers[k] = extra[k]; });
+    return fetch(path, { method: method, credentials: "same-origin", headers: headers, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var b = null; try { b = t ? JSON.parse(t) : null; } catch (e) { b = null; }
+          if (!r.ok) { var err = new Error((b && (b.detail || b.error)) || ("HTTP " + r.status)); err.status = r.status; throw err; }
+          return b;
+        });
+      });
+  }
+  function vendorParse(text) {
+    var seen = {}, out = [], dup = 0, skipped = 0;
+    String(text || "").split(/[\s,;|]+/).forEach(function (w) {
+      if (!w) return;
+      if (w.indexOf("@") >= 0 && w.indexOf("://") < 0) { if (w.indexOf(".") >= 0) skipped++; return; }
+      var d = asDomain(w.replace(/^["'<>()[\]]+|["'<>()[\]]+$/g, ""));
+      if (!d) { if (w.indexOf(".") >= 0) skipped++; return; }
+      if (seen[d]) { dup++; return; }
+      seen[d] = 1; out.push(d);
+    });
+    return { domains: out, duplicates: dup, skipped: skipped };
+  }
+  function vendorKeys() { try { return JSON.parse(LS.get("morrow_vendor_reports", "[]")) || []; } catch (e) { return []; } }
+  function keepVendorKey(r) { var l = vendorKeys().filter(function (x) { return x.token !== r.token; }); l.unshift(r); LS.set("morrow_vendor_reports", JSON.stringify(l.slice(0, 20))); }
+  function dropVendorKey(t) { LS.set("morrow_vendor_reports", JSON.stringify(vendorKeys().filter(function (x) { return x.token !== t; }))); }
+
+  function viewVendors() {
+    setView("grade", "Vendor check");
+    say("Paste the domains your vendors run. Morrow checks each one and tells you which would let today's traffic be read later.");
+    main.innerHTML = panel("", "Your vendors",
+      '<label class="sr-only" for="vc-text">Vendor domains: one per line, or a CSV</label>' +
+      '<textarea id="vc-text" class="i-btn vc-text" rows="8" spellcheck="false" autocomplete="off" placeholder="payroll.example.com&#10;https://crm.example.net/login&#10;…"></textarea>' +
+      '<div class="i-row vc-row"><label class="i-btn vc-file" for="vc-file">Upload a CSV or text file</label><input type="file" id="vc-file" class="sr-only" accept=".csv,.txt,text/csv,text/plain">' +
+      '<span class="vc-ws" id="vc-ws"></span><button type="button" class="i-btn solid" id="vc-go" disabled>Check vendors</button><span class="i-status" id="vc-s"></span></div>' +
+      '<p class="i-fine" id="vc-count">One domain per line, or any CSV: every cell that is a domain or a web address is taken, e-mail addresses are skipped. Each vendor gets the same check as its page at /&lt;domain&gt;. Morrow sends nothing to your vendors.</p>',
+      { ch: "grade" }) + '<div id="vc-mine"></div><div id="vc-local"></div>';
+    var text = $("#vc-text"), go = $("#vc-go"), cap = 50, signedIn = false;
+    function count() {
+      var p = vendorParse(text.value), n = p.domains.length;
+      var extra = [p.duplicates ? p.duplicates + " duplicate" + (p.duplicates === 1 ? "" : "s") + " removed" : "", p.skipped ? p.skipped + " skipped (not a domain)" : ""].filter(Boolean).join(", ");
+      go.disabled = !n || n > cap;
+      go.textContent = n ? "Check " + num(n) + " vendor" + (n === 1 ? "" : "s") : "Check vendors";
+      $("#vc-count").textContent = !n ? "One domain per line, or any CSV: every cell that is a domain or a web address is taken, e-mail addresses are skipped. Morrow sends nothing to your vendors."
+        : n > cap ? num(n) + " domains: up to " + num(cap) + " at once" + (signedIn ? "." : " without an account; signed in, up to 500.") + (extra ? " " + extra + "." : "")
+        : num(n) + " domain" + (n === 1 ? "" : "s") + (extra ? "; " + extra : "") + ". Morrow sends nothing to your vendors.";
+    }
+    text.addEventListener("input", count);
+    $("#vc-file").addEventListener("change", function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      if (f.size > 2000000) { status($("#vc-s"), "That file is over 2 MB.", "bad"); return; }
+      var rd = new FileReader();
+      rd.onload = function () { text.value = String(rd.result || ""); count(); status($("#vc-s"), "Read " + f.name + "."); };
+      rd.readAsText(f);
+    });
+    go.addEventListener("click", function () {
+      var st = $("#vc-s");
+      go.setAttribute("aria-busy", "true"); status(st, "Starting the check…");
+      var req = signedIn
+        ? sendJSON("POST", "/instrument/vendor-checks", { domains: text.value, name: ($("#vc-name") || {}).value || "", save: !!($("#vc-save") || {}).checked, interval_days: +(($("#vc-every") || {}).value || 7) })
+        : sendJSON("POST", "/api/public/vendors/check", { domains: text.value });
+      req.then(function (r) {
+        if (!signedIn) keepVendorKey({ token: r.token, manage: r.manage_key, at: new Date().toISOString(), total: r.total });
+        location.href = r.report_url;
+      }).catch(function (e) { status(st, e.message, "bad"); go.removeAttribute("aria-busy"); });
+    });
+    workspace().then(function (w) {
+      if (!w) { paintLocalVendors(); return; }
+      signedIn = true;
+      $("#vc-ws").innerHTML = '<label class="sr-only" for="vc-name">Name this list</label><input class="i-btn" id="vc-name" maxlength="80" placeholder="Name, e.g. Payroll and HR">' +
+        '<label class="vc-chk"><input type="checkbox" id="vc-save" checked> keep it current: re-check every</label> <select class="i-btn" id="vc-every" aria-label="Re-check interval">' +
+        [[1, "day"], [7, "week"], [14, "2 weeks"], [30, "month"]].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === 7 ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select>";
+      getJSON("/instrument/vendor-checks", { auth: token, cache: "no-store" }).then(function (L) { cap = L.max_domains || 500; count(); paintMyVendors(L.reports || []); })
+        .catch(function () { signedIn = false; $("#vc-ws").innerHTML = ""; paintLocalVendors(); });
+    });
+  }
+  function paintMyVendors(list) {
+    var box = $("#vc-mine"); if (!box) return;
+    if (!list.length) { box.innerHTML = ""; return; }
+    var rows = list.map(function (r) {
+      var when = r.saved ? "every " + (r.interval_days === 1 ? "day" : r.interval_days + " days") + (r.next_check_at ? ", next " + day(r.next_check_at) : "") : "once, " + day(r.created_at);
+      return '<tr data-id="' + esc(r.id) + '"><td>' + (r.report_url ? '<a href="' + esc(r.report_url) + '">' + esc(r.name || "Vendor list") + "</a>" : esc(r.name || "Vendor list") + ' <span class="i-dim">(link revoked)</span>') +
+        '<br><span class="i-fine">' + esc(r.summary) + '</span></td><td class="mono">' + esc(r.status === "done" ? "checked " + day(r.finished_at) : r.status) + '</td><td class="mono">' + esc(when) + "</td><td>" +
+        '<button type="button" class="i-btn" data-act="recheck">Re-check now</button> ' + (r.revoked ? '<button type="button" class="i-btn" data-act="new_link">New link</button> ' : '<button type="button" class="i-btn" data-act="revoke">Revoke link</button> ') +
+        '<button type="button" class="i-btn" data-act="delete">Delete</button></td></tr>';
+    }).join("");
+    box.innerHTML = panel("", "Your organisation's vendor lists (only your organisation sees these)", '<div class="i-table-wrap"><table class="i-table"><tbody>' + rows + '</tbody></table></div><p class="i-status" id="vc-mine-s"></p>', { ch: "grade" });
+    box.onclick = function (e) {
+      var b = e.target.closest("button[data-act]"); if (!b) return;
+      var id = b.closest("tr").getAttribute("data-id"), act = b.getAttribute("data-act");
+      if (act === "delete" && !window.confirm("Delete this list and end its link?")) return;
+      b.setAttribute("aria-busy", "true");
+      var body = act === "recheck" ? { recheck: true } : act === "revoke" ? { revoke: true } : { new_link: true };
+      (act === "delete" ? sendJSON("DELETE", "/instrument/vendor-checks/" + enc(id)) : sendJSON("PATCH", "/instrument/vendor-checks/" + enc(id), body))
+        .then(function () { return getJSON("/instrument/vendor-checks", { auth: token, cache: "no-store" }); })
+        .then(function (L) { paintMyVendors(L.reports || []); })
+        .catch(function (err) { status($("#vc-mine-s"), err.message, "bad"); b.removeAttribute("aria-busy"); });
+    };
+  }
+  function paintLocalVendors() {
+    var box = $("#vc-local"); if (!box) return;
+    var list = vendorKeys();
+    if (!list.length) { box.innerHTML = ""; return; }
+    box.innerHTML = panel("", "Reports made in this browser", '<div class="i-table-wrap"><table class="i-table"><tbody>' + list.map(function (r) {
+      return '<tr data-t="' + esc(r.token) + '"><td><a href="/vendors/r/' + esc(r.token) + '">' + num(r.total) + " vendors, " + esc(day(r.at)) + '</a></td><td>' + (r.manage ? '<button type="button" class="i-btn" data-revoke>Revoke link</button>' : "") + "</td></tr>";
+    }).join("") + '</tbody></table></div><p class="i-fine">Kept in this browser only, with the key that can revoke each link. Sign in to save a list and have it re-checked.</p><p class="i-status" id="vc-local-s"></p>', { ch: "grade" });
+    box.onclick = function (e) {
+      var b = e.target.closest("button[data-revoke]"); if (!b) return;
+      var t = b.closest("tr").getAttribute("data-t"), k = vendorKeys().filter(function (x) { return x.token === t; })[0];
+      sendJSON("DELETE", "/api/public/vendors/report/" + enc(t), null, { "X-Manage-Key": (k && k.manage) || "" })
+        .then(function () { dropVendorKey(t); paintLocalVendors(); })
+        .catch(function (err) { status($("#vc-local-s"), err.message, "bad"); });
+    };
+  }
+
+  var vrSeq = 0;
+  function viewVendorReport(tok) {
+    var seq = ++vrSeq, last = {}, open = {};
+    setView("grade", "Vendor report");
+    say("Reading the report…");
+    main.innerHTML = '<div id="vr-top"></div><div id="vr-body"></div><div id="vr-foot"></div>';
+    var mine = vendorKeys().filter(function (x) { return x.token === tok; })[0];
+    var api = "/api/public/vendors/report/" + enc(tok);
+    function load() {
+      if (seq !== vrSeq) return;
+      getJSON(api, { cache: "no-store" }).then(function (R) {
+        if (seq !== vrSeq) return;
+        paint(R);
+        if (R.status === "queued" || R.status === "running") setTimeout(load, 2500);
+      }).catch(function (e) {
+        if (seq !== vrSeq) return;
+        if (e.status === 404 || e.status === 410) { say(e.message); $("#vr-body").innerHTML = '<p><a class="i-btn" href="/vendors">Check a list of vendors</a></p>'; return; }
+        status($("#vr-s"), e.message + " Trying again.", "bad"); setTimeout(load, 8000);
+      });
+    }
+    function paint(R) {
+      var running = R.status === "queued" || R.status === "running";
+      say(byDepth(R.summaries || {}));
+      var segs = ["A", "B", "C", "D", "E", "F"].map(function (g) { var n = (R.grades || {})[g] || 0; return n && R.graded ? '<i class="seg" data-g="' + g + '" data-w="' + (n / R.graded) + '" title="' + g + ": " + n + '"></i>' : ""; }).join("");
+      $("#vr-top").innerHTML = panel("", R.name || "Vendor report", '<dl class="readouts">' + reading("Vendors", num(R.total)) + reading("Checked", num(R.done) + " / " + num(R.total)) +
+        reading("Would be read later", num(R.exposed), R.exposed ? "v-warn" : "v-ok") + reading("Post-quantum ready", num(R.graded - R.exposed)) +
+        reading(running ? "Status" : "Checked", running ? (R.status === "queued" ? "waiting for a free slot" : "checking now") : stamp(R.finished_at)) + "</dl>" +
+        (R.graded ? '<p><span class="bar">' + segs + "</span></p>" : "") + '<p class="i-status" id="vr-s"></p>', { ch: "grade", right: running ? "live" : "" });
+      var cols = depth === "plain" ? 3 : depth === "expert" ? 6 : 5;
+      var rows = (R.vendors || []).map(function (v, i) {
+        var graded = !!v.grade, what = graded ? esc(v.why) : '<span class="i-dim">' + esc(v.status === "pending" ? "waiting" : v.status === "not_checked" ? "not checked yet" : v.status === "refused" ? "not checked" : "not reachable") + (v.detail && depth !== "plain" ? ": " + esc(v.detail) : "") + "</span>";
+        var ask = v.note ? '<button type="button" class="i-btn" data-note="' + i + '" aria-expanded="' + (open[v.domain] ? "true" : "false") + '">Ask them</button>' : "";
+        var row = '<tr data-d="' + esc(v.domain) + '"><td>' + gradeChip(v.grade) + '</td><td><a href="' + esc(v.page) + '">' + esc(v.domain) + "</a></td><td>" + what + "</td>" +
+          (depth !== "plain" ? '<td class="mono">' + esc(v.key_exchange || "-") + '</td><td class="mono">' + esc(v.checked_at ? day(v.checked_at) : "-") + "</td>" : "") +
+          (depth === "expert" ? '<td class="mono">' + esc(v.readable_from ? "from ~" + v.readable_from : "-") + "</td>" : "") + "<td>" + ask + "</td></tr>";
+        if (v.note) {
+          var subject = v.note.split("\n")[0].replace(/^Subject: /, ""), bodyText = v.note.split("\n").slice(2).join("\n");
+          row += '<tr class="vr-note"' + (open[v.domain] ? "" : " hidden") + '><td colspan="' + (cols + 1) + '"><pre id="vn-' + i + '">' + esc(v.note) + "</pre>" +
+            '<p class="i-row"><button type="button" class="i-btn" data-copy-el="vn-' + i + '">Copy</button><a class="i-btn" href="mailto:?subject=' + enc(subject) + "&amp;body=" + enc(bodyText) + '">Open in your mail app</a>' +
+            '<span class="i-fine">You send it, if you choose. Morrow sends nothing.</span></p></td></tr>';
+        }
+        return row;
+      }).join("");
+      var head = "<tr><th>Grade</th><th>Vendor</th><th>What decides it</th>" + (depth !== "plain" ? "<th>Key exchange</th><th>Checked</th>" : "") + (depth === "expert" ? "<th>Readable</th>" : "") + "<th></th></tr>";
+      $("#vr-body").innerHTML = panel("", "Worst first", '<div class="i-table-wrap"><table class="i-table" id="vr-list"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>", { ch: "grade", right: num(R.total) + " vendors" });
+      (R.vendors || []).forEach(function (v) {
+        if (last[v.domain] !== undefined && last[v.domain] !== (v.grade || v.status)) flash($('#vr-list tr[data-d="' + v.domain + '"]'));
+        last[v.domain] = v.grade || v.status;
+      });
+      $$("#vr-list [data-note]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var tr = b.closest("tr").nextElementSibling, d = b.closest("tr").getAttribute("data-d");
+          open[d] = tr.hidden; tr.hidden = !tr.hidden; b.setAttribute("aria-expanded", String(!tr.hidden));
+        });
+      });
+      $$("#vr-list [data-copy-el]").forEach(function (b) { b.addEventListener("click", function () { copy($("#" + b.getAttribute("data-copy-el")).textContent, b); }); });
+      var link = location.origin + "/vendors/r/" + tok;
+      var hist = (R.history || []).slice(-8).reverse().map(function (h) { return "<li>" + esc(day(h.at)) + ": " + num(h.exposed) + " of " + num(h.graded) + " checked would be read later</li>"; }).join("");
+      $("#vr-foot").innerHTML = panel("", "Share and keep", '<p class="i-row"><button type="button" class="i-btn" id="vr-copy">Copy the read-only link</button><a class="i-btn" href="' + api + '.csv">Download CSV</a>' +
+        (mine && mine.manage ? '<button type="button" class="i-btn" id="vr-revoke">Revoke the link</button>' : "") + '<span class="i-status" id="vr-foot-s"></span></p>' +
+        '<p class="i-fine">Anyone with the link can read this report until ' + esc(day(R.expires_at)) + (R.saved ? ". It is re-checked every " + (R.interval_days === 1 ? "day" : R.interval_days + " days") + (R.next_check_at ? ", next on " + esc(day(R.next_check_at)) : "") + ", so the link stays current." : ".") + " " + esc(R.sends_nothing || "") + "</p>" +
+        (hist ? '<p class="i-fine">Earlier checks of this list:</p><ul class="i-fine">' + hist + "</ul>" : "") + '<p class="i-fine">' + esc(R.basis || "") + "</p>", { ch: "grade" });
+      paintBars();
+      $("#vr-copy").addEventListener("click", function () { copy(link, this); });
+      var rv = $("#vr-revoke");
+      if (rv) rv.addEventListener("click", function () {
+        if (!window.confirm("Revoke this link? Nobody, you included, can open it afterwards.")) return;
+        sendJSON("DELETE", api, null, { "X-Manage-Key": mine.manage }).then(function () { dropVendorKey(tok); location.href = "/vendors"; })
+          .catch(function (e) { status($("#vr-foot-s"), e.message, "bad"); });
+      });
+    }
+    load();
+  }
+
+  /* ── What changed: grades crossing B, named only where the public lists would name them ── */
+  function viewChanges() {
+    setView("league", "What changed");
+    say("Reading what changed…");
+    var sector = param("sector") || "";
+    main.innerHTML = '<div id="cg-body"></div>';
+    getJSON("/api/public/changes?limit=200" + (sector ? "&sector=" + enc(sector) : ""), { cache: "no-store" }).then(function (C) {
+      var ev = C.events || [], up = 0, down = 0, listed = 0;
+      ev.forEach(function (e) { if (e.kind === "ready") up++; else if (e.kind === "not_ready") down++; else if (e.kind === "listed") listed++; else { up += e.became_ready || 0; down += e.dropped || 0; } });
+      var since = ev.length ? day(ev[ev.length - 1].at) : null;
+      say(!ev.length ? "No change has been measured yet" + (sector ? " in this sector" : "") + ". A change is a grade crossing B, up or down." : byDepth({
+        plain: "Since " + since + ", " + num(up) + " site" + (up === 1 ? "" : "s") + " became post-quantum ready and " + num(down) + " dropped below B.",
+        standard: "Since " + since + ", " + num(up) + " site" + (up === 1 ? "" : "s") + " became post-quantum ready and " + num(down) + " dropped below B" + (listed ? "; " + num(listed) + " listed themselves" : "") + ". Newest: " + ev[0].title,
+        expert: num(up) + " up, " + num(down) + " down across B since " + since + " (named " + num(C.counts.ready) + "/" + num(C.counts.not_ready) + ", sector counts the rest), " + num(listed) + " self-listed; rubric " + C.rubric_version + "; stored grades only." }));
+      var options = '<option value="">All sectors</option>' + (C.sectors || []).map(function (s) { return '<option value="' + esc(s[0]) + '"' + (s[0] === sector ? " selected" : "") + ">" + esc(s[1]) + "</option>"; }).join("");
+      var KIND = { ready: "ready", not_ready: "below B", listed: "listed", sector: "sector" };
+      var items = ev.map(function (e) {
+        var title = e.named ? '<a href="' + esc(e.page) + '">' + esc(e.domain) + "</a>" + esc(e.title.slice(e.domain.length)) : esc(e.title) + ' <a href="' + esc(e.page) + '">' + esc(e.sector_name) + " report</a>";
+        return '<li><span class="mono i-dim">' + esc(day(e.at)) + '</span><span class="k" data-k="' + esc(e.kind) + '">' + esc(KIND[e.kind] || e.kind) + "</span><span>" + title +
+          (e.reply ? '<br><span class="i-fine">Reply from the owner, ' + esc(day(e.reply.at)) + ": “" + esc(e.reply.text) + "”</span>" : "") + "</span></li>";
+      }).join("");
+      var q = sector ? "?sector=" + enc(sector) : "", r = C.rules || {};
+      $("#cg-body").innerHTML = panel("", "Changes, newest first",
+        '<p class="i-row"><label for="cg-sector">Sector</label><select id="cg-sector" class="i-btn">' + options + '</select><a class="i-fine" href="/api/public/changes.atom' + q + '">Atom</a><a class="i-fine" href="/api/public/changes.rss' + q + '">RSS</a><a class="i-fine" href="/api/public/changes' + q + '">JSON</a></p>' +
+        (items ? '<ol class="cg-list">' + items + "</ol>" : '<p class="i-empty">Nothing has crossed B yet' + (sector ? " in this sector" : "") + ".</p>") +
+        '<details class="i-fine"><summary>Who is named, and what counts as a change</summary><p>' + esc(r.named || "") + "</p><p>" + esc(r.changes || "") + "</p><p>" + esc(r.sectors || "") + "</p><p>" + esc(r.measured || "") +
+        ' Owners can reply, ask for a correction or opt out from the <a href="/league">league page</a> and <a href="/abuse">opt-out form</a>.</p></details>',
+        { ch: "league", right: num(C.count) + " changes" });
+      $("#cg-sector").addEventListener("change", function () { setParam("sector", this.value || null); viewChanges(); });
+    }).catch(function (e) { say("The change feed is not available right now."); $("#cg-body").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
+  }
+
+  /* ── Sector reports: share ready, the weekly line, the sample and the method ─────────── */
+  function trendLine(points, cls, label) {
+    if (!points || !points.length) return '<span class="i-dim">no weekly history yet</span>';
+    var w = 300, h = 100, pad = 3, n = points.length;
+    var xy = points.map(function (p, i) { var x = n === 1 ? w / 2 : pad + i * (w - 2 * pad) / (n - 1); return [x, h - pad - p.share * (h - 2 * pad)]; });
+    if (n === 1) xy = [[xy[0][0] - 6, xy[0][1]], [xy[0][0] + 6, xy[0][1]]];
+    return '<svg class="tl ' + (cls || "") + '" viewBox="0 0 ' + w + " " + h + '" preserveAspectRatio="none" role="img" aria-label="' + esc(label) + '">' +
+      '<line class="tl-top" x1="0" y1="' + pad + '" x2="' + w + '" y2="' + pad + '"/><line class="tl-base" x1="0" y1="' + (h - pad) + '" x2="' + w + '" y2="' + (h - pad) + '"/>' +
+      '<polyline class="tl-line" points="' + xy.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/></svg>';
+  }
+  function cmpWords(c) { return !c ? "" : Math.abs(c.change) < 0.0005 ? "same as " + c.month : (c.change > 0 ? "up from " : "down from ") + pct(c.share) + " in " + c.month; }
+  function viewReports() {
+    setView("league", "Sector reports");
+    say("Reading the sector reports…");
+    main.innerHTML = '<div id="rp-body"></div>';
+    getJSON("/api/public/report", { cache: "no-store" }).then(function (I) {
+      say(I.summary);
+      var rows = (I.sectors || []).map(function (s) {
+        return '<tr><td><a href="' + esc(s.url) + '">' + esc(s.name) + '</a></td><td class="num">' + pct(s.ready_share) + '</td><td class="i-fine">' + esc(cmpWords(s.comparison)) + "</td><td>" +
+          trendLine(s.trend, "mini", s.name + ": weekly share post-quantum ready") + '</td><td class="num">' + num(s.graded) + '</td><td class="mono">' + esc(day(s.as_of)) + "</td></tr>";
+      }).join("");
+      $("#rp-body").innerHTML = panel("", "By sector", '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Sector</th><th class="num">Ready</th><th>Change</th><th>Weekly, 0 to 100%</th><th class="num">Graded</th><th>As of</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+        '<p class="i-fine">Ready means graded A or B: a post-quantum key exchange was negotiated. Built from the stored weekly grades of the named sector lists; no site is named. Each report states its sample, method and what is not measured, and has a CSV. <a href="/plain/report">Plain version</a>.</p>', { ch: "league", right: "as of " + esc(day(I.as_of)) });
+    }).catch(function (e) { say("The sector reports are not available right now."); $("#rp-body").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
+  }
+  function viewReport(sector) {
+    setView("league", "Sector report");
+    say("Reading the report…");
+    main.innerHTML = '<div id="rp-body"></div>';
+    getJSON("/api/public/report/" + enc(sector), { cache: "no-store" }).then(function (R) {
+      setView("league", R.name + " report");
+      say(byDepth(R.headline || {}));
+      var S = R.sample || {}, M = R.methodology || {}, c = R.comparison, pts = R.trend || [];
+      var segs = ["A", "B", "C", "D", "E", "F"].map(function (g) { var n = (R.grades || {})[g] || 0; return n && S.graded ? '<i class="seg" data-g="' + g + '" data-w="' + (n / S.graded) + '" title="' + g + ": " + n + '"></i>' : ""; }).join("");
+      var cite = "SOQLAB Morrow, “" + R.name + ": post-quantum readiness”, as of " + day(R.as_of) + ", rubric " + R.rubric_version + ". " + location.origin + "/report/" + R.id;
+      var weeks = depth === "expert" && pts.length ? '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Week of</th><th class="num">Graded</th><th class="num">Ready</th><th class="num">Share</th></tr></thead><tbody>' +
+        pts.slice().reverse().map(function (p) { return '<tr><td class="mono">' + esc(p.week) + '</td><td class="num">' + num(p.graded) + '</td><td class="num">' + num(p.ready) + '</td><td class="num">' + pct(p.share) + "</td></tr>"; }).join("") + "</tbody></table></div>" : "";
+      $("#rp-body").innerHTML =
+        panel("", R.name, '<dl class="readouts">' + reading("Post-quantum ready", pct(R.ready_share)) + reading("Ready / graded", num(R.ready) + " / " + num(S.graded)) +
+          reading("Compared with", c ? esc(pct(c.share) + ", " + c.month) : "no earlier week") + reading("As of", esc(stamp(R.as_of))) + reading("Rubric", esc(R.rubric_version)) + "</dl>" +
+          (S.graded ? '<p><span class="bar">' + segs + '</span></p><p class="i-fine mono">' + ["A", "B", "C", "D", "E", "F"].map(function (g) { return g + " " + num((R.grades || {})[g] || 0); }).join(" · ") + "</p>" : ""), { ch: "league" }) +
+        panel("", "Week by week", trendLine(pts, "", R.name + ": weekly share post-quantum ready, 0 to 100%") +
+          (pts.length ? '<div class="tl-axis"><span>' + esc(pts[0].week) + '</span><span>0 to 100%, n ' + num(Math.min.apply(null, pts.map(function (p) { return p.graded; }))) + "–" + num(Math.max.apply(null, pts.map(function (p) { return p.graded; }))) + " a week</span><span>" + esc(pts[pts.length - 1].week) + "</span></div>" : "") + weeks, { ch: "league" }) +
+        panel("", "Sample", '<dl class="readouts">' + reading("In the list", num(S.listed)) + reading("Graded", num(S.graded)) + reading("Not reachable", num(S.unreachable)) + reading("Not graded yet", num(S.not_graded_yet)) + reading("Opted out, left out", num(S.opted_out_left_out)) + "</dl>", { ch: "league" }) +
+        panel("", "Method", "<p>" + esc(M.list) + " " + esc(M.who) + "</p><p>" + esc(M.measured) + "</p><p>" + esc(M.ready) + " " + esc(M.cadence) + "</p><p>" + esc(M.names) + "</p>" +
+          '<p class="i-fine">Not measured:</p><ul class="i-fine">' + (M.not_measured || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+          ((M.sources || []).length ? '<details class="i-fine"><summary>Sources for the list</summary><ul>' + M.sources.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></details>" : ""), { ch: "league" }) +
+        panel("", "Cite", '<pre id="rp-cite">' + esc(cite) + '</pre><p class="i-row"><button type="button" class="i-btn" data-copy-el="rp-cite">Copy</button><a class="i-btn" href="' + esc(R.csv) + '">Download CSV</a><a class="i-fine" href="/api/public/report/' + enc(R.id) + '">JSON</a><a class="i-fine" href="/plain/report/' + enc(R.id) + '">Plain</a><a class="i-fine" href="/changes?sector=' + enc(R.id) + '">What changed in this sector</a></p>', { ch: "league" });
+      paintBars();
+      $$("[data-copy-el]").forEach(function (b) { b.addEventListener("click", function () { copy($("#" + b.getAttribute("data-copy-el")).textContent, b); }); });
+    }).catch(function (e) { say(e.message); $("#rp-body").innerHTML = '<p><a class="i-btn" href="/report">All sector reports</a></p>'; });
   }
 
   /* ── start ─────────────────────────────────────────────────────────────── */

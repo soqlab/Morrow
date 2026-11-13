@@ -407,3 +407,53 @@ New tables (feature store; deferred schemas `public_deploy_log`, `public_league`
 are in the RLS plan; the rest have no organisation column): `public_deploy_log (seq, commit_sha, first_seen,
 prev_hash, entry_hash)`, `public_league_misses (id, domain, scanned_at, error, detail)` and
 `public_league_runs (id, started_at, finished_at, graded, failed, skipped)`.
+
+## Vendor check, what changed, sector reports
+
+Three public uses of the same stored grades. None of them sends anything to anyone.
+
+### Vendor check (`/vendors`, services/vendor_check.py)
+
+A buyer pastes or uploads (CSV or text) the domains their vendors run. Every cell or word that is a
+hostname or a URL is taken; e-mail addresses, IP addresses and anything else are listed as skipped;
+duplicates are removed. At most 50 domains without an account, 500 signed in
+(`MORROW_VENDOR_MAX_ANON`, `MORROW_VENDOR_MAX_SIGNED_IN`); a longer list is refused with its count.
+
+Each vendor gets the public grade: a stored grade under a day old is reused
+(`MORROW_VENDOR_REUSE_SECONDS`), otherwise `public_grade.check` runs behind its SSRF guard, opt-outs,
+per-domain and global budgets, concurrency cap and deadline. The list runs as a background job
+(`MORROW_VENDOR_JOBS` reports at once, `MORROW_VENDOR_WORKERS` domains at a time,
+`MORROW_VENDOR_JOB_DEADLINE` seconds), writing progress after every domain; a job whose runner stops
+heartbeating is resumed on the next read. Budgets: `MORROW_VENDOR_IP_PER_HOUR` lists and
+`MORROW_VENDOR_IP_DOMAINS_PER_DAY` domains per client address, `MORROW_VENDOR_ORG_PER_HOUR` lists per
+organisation, `MORROW_VENDOR_GLOBAL_PROBES_PER_HOUR` uncached probes for everyone.
+
+The report answers first ("12 of your 40 vendors would let today's traffic be read later. Worst:
+payroll.example (RSA key exchange).") and lists vendors worst first, each linking to `/<domain>`, with
+a polite note per vendor below B for the buyer to send. Its read-only link `/vendors/r/<token>` has 24
+random characters (stored only hashed for anonymous reports), expires (30 days, a year for a saved
+list) and can be revoked. Signed in, a list can be saved and is re-checked every `interval_days` under
+the same link by the hourly Celery beat entry `morrow.vendor_recheck` (`MORROW_VENDOR_RECHECK=0` stops
+it; `python -m services.vendor_check --recheck` without a worker).
+
+    POST   /api/public/vendors/check              {"domains": "..."}  (JSON only)
+    GET    /api/public/vendors/report/{token}[.csv]
+    DELETE /api/public/vendors/report/{token}     X-Manage-Key: <key returned at creation>
+    GET|POST /instrument/vendor-checks, GET|PATCH|DELETE /instrument/vendor-checks/{id}  (signed in)
+
+### What changed (`/changes`, services/changes.py)
+
+Grades crossing the line at B, from stored grades only, with the "Not yet post-quantum" naming rules:
+a domain is named only when it is a Tranco popular site (or its verified owner listed it as
+post-quantum ready, shown only as "listed"), never when it opted out. The named sector lists of the
+league appear only as weekly counts per sector. A first grade is not a change. Owners' replies are
+shown with their entries. `GET /api/public/changes[.atom|.rss]?sector=`.
+
+### Sector reports (`/report`, `/report/<sector>`, services/sector_report.py)
+
+Per league sector: the share graded A or B, the weekly trend (each site's newest grade as of each
+week's end), the comparison with the week closest to 91 days earlier, the grade distribution, the
+sample (listed, graded, not reachable, not graded yet, opted out and left out), the method, what is
+not measured, and an "as of" time. No site is named. `GET /api/public/report[/<sector>[.csv]]`; plain
+versions at `/plain/report` and `/plain/changes`. The read routes allow
+`MORROW_PUBLIC_REPORTS_IP_PER_MINUTE` (60) requests a minute per address.

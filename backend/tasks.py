@@ -133,6 +133,16 @@ try:
             "args": (),
         }
 
+    # Saved vendor lists (services/vendor_check.py): each re-checked every interval_days (default 7)
+    # under the same link, a few lists per hourly tick. MORROW_VENDOR_RECHECK=0 stops it. Without a
+    # worker: python -m services.vendor_check --recheck.
+    if _env_str("MORROW_VENDOR_RECHECK", "1").lower() not in ("0", "false", "no", "off"):
+        _beat["vendor-recheck-hourly"] = {
+            "task": "morrow.vendor_recheck",
+            "schedule": 3600.0,
+            "args": (),
+        }
+
     # Optional: daily GitHub repo sync
     _gh_cred = _env_str("GITHUB_SYNC_CREDENTIAL_ID")
     if _gh_cred:
@@ -342,6 +352,18 @@ def league_tick_task(max_domains: int | None = None) -> Dict[str, Any]:
         return league.tick(max(1, min(100, limit)))
     except Exception as exc:
         capture_exception(exc, {"task": "morrow.league_tick"})
+        raise
+
+
+@celery_app.task(name="morrow.vendor_recheck")
+def vendor_recheck_task(max_lists: int | None = None) -> Dict[str, Any]:
+    """Re-check the saved vendor lists that are due (services/vendor_check.py) and wait for them."""
+    from services import vendor_check
+
+    try:
+        return vendor_check.recheck_due_and_wait(int(max_lists or _env_int("MORROW_VENDOR_RECHECK_MAX", 5)))
+    except Exception as exc:
+        capture_exception(exc, {"task": "morrow.vendor_recheck"})
         raise
 
 

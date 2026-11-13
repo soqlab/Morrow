@@ -44,6 +44,48 @@ async function routeDomain(page) {
   await page.route(`**/api/public/exposure/${SMOKE_DOMAIN}*`, (r) => r.fulfill({ json: SMOKE_EXPOSURE }));
 }
 
+const SMOKE_TOKEN = "smokeTokenAbcdefghijklmnop";
+const SMOKE_REPORT = {
+  id: "r1", name: "", status: "done", total: 3, done: 3, pending: 0, graded: 2, exposed: 1,
+  grades: { A: 1, B: 0, C: 0, D: 0, E: 0, F: 1 },
+  summaries: { plain: "1 of your 2 checked vendors would let today's traffic be read later. Worst: payroll.example (RSA key exchange). 1 could not be checked.",
+    standard: "1 of your 2 checked vendors would let today's traffic be read later. Worst: payroll.example (RSA key exchange). 1 could not be checked.",
+    expert: "1/2 graded below B; A×1 F×1. Worst: payroll.example, grade F (RSA key exchange). 1 could not be checked." },
+  vendors: [
+    { domain: "payroll.example", status: "graded", grade: "F", key_exchange: "", post_quantum: false, checked_at: new Date().toISOString(), why: "RSA key exchange", readable_from: 2035, detail: "", exposed: true, page: "/payroll.example",
+      note: "Subject: Post-quantum key exchange on payroll.example\n\nHello,\n\nA public check found that payroll.example accepts RSA key exchange.\nhttps://morrow.example/payroll.example\n\nThank you." },
+    { domain: "mail.example", status: "graded", grade: "A", key_exchange: "X25519MLKEM768", post_quantum: true, checked_at: new Date().toISOString(), why: "post-quantum key exchange (X25519MLKEM768)", readable_from: null, detail: "", exposed: false, page: "/mail.example" },
+    { domain: "gone.example", status: "unreachable", grade: null, key_exchange: null, post_quantum: null, checked_at: new Date().toISOString(), why: "", readable_from: null, detail: "did not answer", exposed: null, page: "/gone.example" },
+  ],
+  created_at: new Date().toISOString(), updated_at: new Date().toISOString(), finished_at: new Date().toISOString(),
+  expires_at: "2099-01-01T00:00:00Z", saved: false, interval_days: null, next_check_at: null, history: [],
+  basis: "basis", sends_nothing: "Morrow sends nothing to your vendors.",
+};
+const SMOKE_CHANGES = {
+  title: "What changed", count: 2, counts: { ready: 1, not_ready: 0, listed: 0, sector: 1 }, sector: null, sectors: [["finance", "Banks & payments"]],
+  rubric_version: "test", generated_at: new Date().toISOString(), rules: { named: "n", changes: "c", sectors: "s", measured: "m" },
+  events: [
+    { kind: "ready", at: new Date().toISOString(), domain: "acme.example", named: true, page: "/acme.example", sector: "unclassified", sector_name: "Other popular sites", title: "acme.example became post-quantum ready: grade C to A (checked today)." },
+    { kind: "sector", at: new Date().toISOString(), named: false, page: "/report/finance", sector: "finance", sector_name: "Banks & payments", became_ready: 2, dropped: 0, title: "2 sites in Banks & payments became post-quantum ready in the week of 2026-11-09. Sites in the sector lists are not named." },
+  ],
+};
+const SMOKE_SECTOR = {
+  id: "finance", name: "Banks & payments", url: "/report/finance", csv: "/api/public/report/finance.csv", as_of: new Date().toISOString(), rubric_version: "test",
+  sample: { listed: 100, graded: 90, unreachable: 4, not_graded_yet: 6, opted_out_left_out: 0 }, ready: 31, ready_share: 0.3444, pq_key_exchange: 31,
+  grades: { A: 25, B: 6, C: 40, D: 12, E: 4, F: 3 },
+  trend: [{ week: "2026-08-03", graded: 80, ready: 17, share: 0.2125, grades: {} }, { week: "2026-11-02", graded: 90, ready: 31, share: 0.3444, grades: {} }],
+  comparison: { week: "2026-08-03", month: "August 2026", share: 0.2125, graded: 80, ready: 17, change: 0.1319 },
+  headline: { plain: "34.4% of the Banks & payments sites Morrow watches are post-quantum ready, up from 21.3% in August 2026.",
+    standard: "34.4% (31 of 90) of the Banks & payments sites Morrow watches are post-quantum ready (grade A or B), up from 21.3% in August 2026.",
+    expert: "Banks & payments: 31/90 graded A or B." },
+  methodology: { who: "w", sources: ["s"], list: "l", measured: "m", ready: "r", cadence: "c", not_measured: ["n"], names: "No site is named." },
+};
+async function routeReports(page) {
+  await page.route(`**/api/public/vendors/report/${SMOKE_TOKEN}`, (r) => r.fulfill({ json: SMOKE_REPORT }));
+  await page.route("**/api/public/changes?*", (r) => r.fulfill({ json: SMOKE_CHANGES }));
+  await page.route("**/api/public/report/finance", (r) => r.fulfill({ json: SMOKE_SECTOR }));
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true });
   const errors = [];
@@ -114,6 +156,30 @@ async function main() {
     await page.locator("#hv-say").waitFor();
     assert.ok(!(await page.locator("#hv-sw").count()), "the plain dial shows the expert migration control");
 
+    // Vendor check: the button answers as the list is typed; a report answers first, worst first,
+    // with a note the buyer sends themselves.
+    await page.goto(`${base}/vendors`, { waitUntil: "networkidle" });
+    await page.fill("#vc-text", "Vendor,Site\nPayroll,https://payroll.example/login\nCRM,crm.example\nDup,crm.example\nops@x.example");
+    assert.equal(await page.locator("#vc-go").innerText(), "Check 2 vendors");
+    assert.match(await page.locator("#vc-count").innerText(), /1 duplicate removed, 1 skipped/);
+    await routeReports(page);
+    await page.goto(`${base}/vendors/r/${SMOKE_TOKEN}`, { waitUntil: "networkidle" });
+    await page.locator("#vr-list").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#say").innerText(), /^1 of your 2 checked vendors would let today's traffic be read later\. Worst: payroll\.example/);
+    assert.match(await page.locator("#vr-list tbody tr").first().innerText(), /payroll\.example/);
+    await page.locator("#vr-list [data-note]").first().click();
+    assert.match(await page.locator("#vn-0").innerText(), /https:\/\/morrow\.example\/payroll\.example/);
+
+    // What changed and a sector report, their APIs answered here.
+    await page.goto(`${base}/changes`, { waitUntil: "networkidle" });
+    await page.locator(".cg-list li").first().waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#say").innerText(), /3 sites became post-quantum ready and 0 dropped below B/);
+    assert.equal(await page.locator(".cg-list li a").first().getAttribute("href"), "/acme.example");
+    await page.goto(`${base}/report/finance`, { waitUntil: "networkidle" });
+    await page.locator("svg.tl polyline").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#say").innerText(), /up from 21\.3% in August 2026/);
+    assert.match(await page.locator("#rp-cite").innerText(), /\/report\/finance$/);
+
     await page.goto(`${base}/wp-login.php`);
     assert.equal(await page.locator("#home-q").count(), 0, "a file path was treated as a domain");
 
@@ -121,7 +187,9 @@ async function main() {
     const small = await phone.newPage();
     small.on("pageerror", (e) => errors.push(String(e)));
     await routeDomain(small);
-    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", `/${SMOKE_DOMAIN}?depth=expert`]) {
+    await routeReports(small);
+    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", `/${SMOKE_DOMAIN}?depth=expert`, "/vendors",
+      `/vendors/r/${SMOKE_TOKEN}?depth=expert`, "/changes", "/report/finance?depth=expert"]) {
       await small.goto(`${base}${path}`, { waitUntil: "networkidle" });
       const wide = await small.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(wide <= 1, `${path} overflows a 360px screen by ${wide}px`);
@@ -132,11 +200,14 @@ async function main() {
     const response = await plainPage.goto(`${base}/plain`);
     assert.equal(response.status(), 200);
     assert.ok((await plainPage.content()).includes("Domain to check"), "/plain does not work without JavaScript");
+    const plainReport = await plainPage.goto(`${base}/plain/report`);
+    assert.equal(plainReport.status(), 200);
+    assert.ok((await plainPage.content()).includes("Sector reports"), "/plain/report does not work without JavaScript");
     assert.match(response.headers()["content-security-policy"] || "", /script-src 'none'/);
 
     assert.deepEqual(foreign, [], "the instrument contacted another origin");
     assert.deepEqual(errors, [], "JavaScript errors");
-    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, outside services worst first, trust readout, plain without JS, 360px layout.");
+    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, outside services worst first, vendor check and its report, what changed, a sector report, trust readout, plain without JS, 360px layout.");
   } finally {
     await browser.close();
   }
