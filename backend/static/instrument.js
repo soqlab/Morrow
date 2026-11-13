@@ -919,6 +919,12 @@
     }).catch(function (e) { box.innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
   }
 
+  /* A cell's label: the host without its group's domain and port, cut to fit the cell. */
+  function shortLabel(id, group) {
+    var t = String(id).replace(/:\d+$/, "");
+    if (group && t.length > group.length && t.slice(-group.length - 1) === "." + group) t = t.slice(0, -group.length - 1);
+    return t.length > 11 ? t.slice(0, 10) + "…" : t;
+  }
   function drawAtlas(wrap, groups) {
     var NS = "http://www.w3.org/2000/svg", GAP = 8, CELL = 10;
     var blocks = groups.map(function (g) { var n = Math.max(1, Math.ceil(Math.sqrt(g.cells.length))); return { g: g, n: n, size: n * CELL }; });
@@ -936,7 +942,7 @@
       b.g.cells.forEach(function (c, i) {
         var cx = b.x + (i % b.n) * CELL, cy = b.y + Math.floor(i / b.n) * CELL;
         html += '<a href="' + esc(c.href) + '" class="atlas-cell" data-id="' + esc(c.id) + '"><title>' + esc(c.label + (c.g ? " — grade " + c.g : " — not graded")) + '</title><rect x="' + (cx + .8) + '" y="' + (cy + .8) + '" width="' + (CELL - 1.6) + '" height="' + (CELL - 1.6) + '" data-g="' + esc(c.g || "") + '"></rect>' +
-          '<text class="atlas-cell-label" x="' + (cx + 1.2) + '" y="' + (cy + CELL / 2 + .9) + '">' + esc(c.id) + "</text></a>";
+          '<text class="atlas-cell-label" x="' + (cx + 1.2) + '" y="' + (cy + CELL / 2 + .9) + '">' + esc(shortLabel(c.id, b.g.id)) + "</text></a>";
       });
       html += "</g>";
     });
@@ -955,7 +961,7 @@
     function apply() {
       svg.setAttribute("viewBox", v.x + " " + v.y + " " + v.w + " " + v.h);
       var k = full.w / v.w;
-      svg.setAttribute("data-zoom", k > 7 ? "near" : k > 2.5 ? "mid" : "far");
+      svg.setAttribute("data-zoom", k > 3 ? "near" : k > 1.6 ? "mid" : "far");
       clearTimeout(saveT); saveT = setTimeout(function () { setParam("v", k > 1.01 ? [Math.round(v.x), Math.round(v.y), Math.round(v.w)].join(",") : null); }, 300);
     }
     function zoomAt(f, px, py) {
@@ -979,11 +985,11 @@
     svg.addEventListener("click", function (e) {
       if (moved) { e.preventDefault(); return; }
       var k = full.w / v.w, a = e.target.closest("a.atlas-cell");
-      if (a && k > 7) return; // close enough to read names: follow the link
+      if (a && k > 3) return; // names are showing: follow the link
       e.preventDefault();
       var reg = e.target.closest(".atlas-region"); if (!reg) return;
       var fr = reg.querySelector(".atlas-frame"), bx = +fr.getAttribute("x"), by = +fr.getAttribute("y"), bw = +fr.getAttribute("width");
-      if (a && k > 2.5) { var r2 = a.querySelector("rect"); var cx = +r2.getAttribute("x"), cy = +r2.getAttribute("y"); v = { x: cx - 40, y: cy - 40 * full.h / full.w, w: 80, h: 80 * full.h / full.w }; }
+      if (a && k > 1.6) { var r2 = a.querySelector("rect"); var cx = +r2.getAttribute("x"), cy = +r2.getAttribute("y"); v = { x: cx - 40, y: cy - 40 * full.h / full.w, w: 80, h: 80 * full.h / full.w }; }
       else { var w = Math.max(bw + 30, 60); v = { x: bx - 15, y: by - 25, w: w, h: w * full.h / full.w }; }
       $("#at-scope").textContent = reg.querySelector(".atlas-region-label").textContent;
       apply();
