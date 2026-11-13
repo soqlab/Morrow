@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verify a signature - Morrow</title>
+<meta name="description" content="Check a file against its publisher's post-quantum signature (ML-DSA-65 and Ed25519). The file is checked in your browser and never uploaded.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/instrument.css?v=20261113">
+<link rel="stylesheet" href="/ui/verify.css?v=20261113">
+<script src="/ui/vendor/morrow-pq-verify.js?v=0.7.1" defer></script>
+<script src="/ui/verify.js?v=20261113" defer></script>
+</head>
+<body class="ins" data-ch="trust">
+<a class="skip" href="#main">Skip to the content</a>
+<header class="i-top">
+  <div class="i-top-in">
+    <a class="i-mark" href="/">MORROW</a>
+    <div class="i-top-right">
+      <div class="i-dial" id="i-dial" role="group" aria-label="How technical"></div>
+    </div>
+  </div>
+</header>
+<main class="i-main" id="main-wrap">
+  <p class="i-say" id="say" aria-live="polite">Loading.</p>
+  <div id="main"><noscript><p>Checking a file needs JavaScript: the file is hashed and the signature checked in your browser. Without it, run <code>morrow-sign verify</code> on your own machine.</p></noscript></div>
+</main>
+<footer class="i-foot">
+  <div class="i-foot-in">
+    <a href="/">Morrow</a>
+    <a href="https://github.com/soqlab/Morrow/blob/main/docs/PQ_SIGNING.md" rel="noopener">How signing works</a>
+    <a href="/trust">No tracking: checked live</a>
+    <a href="/public-check/privacy">Privacy</a>
+  </div>
+</footer>
+</body>
+</html>
