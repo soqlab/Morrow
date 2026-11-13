@@ -177,7 +177,10 @@ def retained(api):  # noqa: F811  (api is the imported pytest fixture)
         add_request(db_path, "org-gamma", 200, 15.0, day - timedelta(microseconds=250), actor="gamma-late", path="/midnight")
         add_auth(db_path, "org-alpha", f"alpha-login-{k % 2}", "login.success", day + timedelta(microseconds=100))
         add_auth(db_path, "org-beta", "beta-login", "login.failure", day + timedelta(hours=5))
-    assert usage_rollups.run()["error"] is None
+    # Yesterday is only rolled once ROLLUP_GRACE has passed after midnight; run as if it has, so the
+    # fixture behaves the same in the first minutes of a UTC day.
+    rolled_at = max(now(), midnight + usage_rollups.ROLLUP_GRACE + timedelta(seconds=1))
+    assert usage_rollups.run(now=rolled_at)["error"] is None
     pa.clear_cache()
     return client, app, db_path
 
