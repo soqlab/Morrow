@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "morrow-sign"
+version = "0.1.0"
+description = "Post-quantum signatures (ML-DSA-65 + Ed25519) for your releases and your site, verified by anyone at Morrow."
+readme = "README.md"
+license = { text = "AGPL-3.0-only" }
+requires-python = ">=3.9"
+authors = [{ name = "SOQLAB", email = "contact@soqlab.com" }]
+# ML-DSA (FIPS 204) comes from pyca/cryptography; the version below is the one tested.
+dependencies = ["cryptography>=50.0"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Topic :: Security :: Cryptography",
+  "Environment :: Console",
+]
+
+[project.urls]
+Homepage = "https://morrow.soqlab.com/verify"
+Source = "https://github.com/soqlab/Morrow/tree/main/tools/morrow_sign"
+
+[project.scripts]
+morrow-sign = "morrow_sign.cli:main"
+
+[tool.setuptools]
+packages = ["morrow_sign"]
