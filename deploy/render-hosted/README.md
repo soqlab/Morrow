@@ -64,15 +64,16 @@ Mail goes through Resend's SMTP relay (`smtp.resend.com`, user `resend`), sendin
 | Variable | What to enter |
 |---|---|
 | `MORROW_SMTP_PASSWORD` | A Resend API key with sending access (resend.com → API Keys). |
-| `MORROW_TRIAL_NOTIFY_EMAIL` | Where to announce new trial requests: your own address. |
+| `MORROW_TRIAL_NOTIFY_EMAIL` | No longer used: the emailed trial request is retired. |
 
-With mail configured: approving a trial request emails the invitation, the sign-in screen offers
-"Forgot password?" (`/reset-password`, a single-use link valid for 30 minutes that signs the
-account out everywhere when used), and each new trial request is emailed to you. Without it,
-those fall back to copying links by hand, and password reset is not offered.
+With mail configured: approving a trial request emails the invitation, and the sign-in screen
+offers "Forgot password?" (`/reset-password`, a single-use link valid for 30 minutes that signs the
+account out everywhere when used). Without it, those fall back to copying links by hand, and
+password reset is not offered.
 
 `MORROW_SIGNIN_SIMPLE=1` keeps the customer sign-in screen to the sign-in itself, "Lost your
-passkey?" and "Request access"; the token fields and server switcher are for self-hosted operators.
+passkey?" and a line saying an administrator sets accounts up; the token fields and server switcher
+are for self-hosted operators.
 
 Customers sign in with passkeys (services/passkeys.py; relying party `morrow.soqlab.com`, from
 `MORROW_PUBLIC_BASE_URL`). `MORROW_PASSKEYS_ONLY=1` is set here: there are no new passwords, an
@@ -81,15 +82,16 @@ session (the passkey deletes the password), and "forgot password" emails an acco
 that registers a new passkey. Organizations can also let colleagues join by work email
 (`/join`, team sign-in on `/ui/domains.html`). docs/AUTH_AND_ACCESS_POLICY.md has the details.
 
-## Customer sign-up: self-serve, limited to verified domains
+## Customer accounts: passkeys, limited to verified domains
 
-With `MORROW_SELF_SIGNUP=1`, the form at `/trial` creates the organization at once and emails the
-invitation; opening it, the person creates a passkey (`POST /auth/passkey/register/*`, kind `invite`). The email
-is the address check. Self sign-up turns itself off, and requests wait for approval in
-**Customers → Trial requests** as before, unless all of these hold: mail is configured,
-`MORROW_PUBLIC_BASE_URL` is set, and `MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1`.
+There is no sign-up by email. The trial form at `/trial` is retired: the page redirects to `/ui/`,
+`POST /trial-request` and `POST /api/trial-request` answer 410 and record nothing, and
+`MORROW_SELF_SIGNUP` no longer does anything. An administrator creates an account with a setup link
+(`POST /auth/accounts`) or an invitation, and the person creates a passkey
+(`POST /auth/passkey/register/*`). Requests made before the form was retired stay in
+**Customers → Trial requests**, where they can still be approved or declined.
 
-That last one is what makes open sign-up safe. An organization scans only hosts under domains it
+`MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1` keeps every account safe to hand out. An organization scans only hosts under domains it
 has verified (services/domain_verification.py): on `/ui/domains.html` it adds a domain, publishes
 `_morrow-verify.<domain> TXT "morrow-verify=<token>"`, and presses Check now. Verifying
 `example.com` covers every name under it. IP addresses are refused, since a DNS record cannot show

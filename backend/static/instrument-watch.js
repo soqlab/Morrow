@@ -224,7 +224,7 @@
     signedIn().then(function (yes) {
       if (!yes) {
         X.say("Sign in to see the domains you watch and what changed on them.");
-        main.innerHTML = X.panel("", "Watching", '<p>Watching needs an account: open any domain\'s page, for example <a href="/example.com">/example.com</a>, and press Watch. Morrow re-checks it and tells you by browser notification, webhook or a private feed. No email.</p><div class="i-row"><a class="i-btn solid" href="/ui/">Sign in</a><a class="i-btn" href="/trial">Make an account</a></div>', { ch: "trust" });
+        main.innerHTML = X.panel("", "Watching", '<p>Watching needs an account: open any domain\'s page, for example <a href="/example.com">/example.com</a>, and press Watch. Morrow re-checks it and tells you by browser notification, webhook or a private feed. No email.</p><div class="i-row"><a class="i-btn solid" href="/ui/">Sign in</a></div>', { ch: "trust" });
         return;
       }
       reload();

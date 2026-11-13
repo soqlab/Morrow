@@ -6,9 +6,16 @@ permalink and an export. It is the project's shop window, and it is the only
 part of the platform that contacts a machine the requester may not own. That
 makes the boundaries the most important thing in this document.
 
+> **2026-11: the page is retired.** `/check` and its form (`check.html`, `check.css`,
+> `check.js`) are gone: `/check` now redirects to the instrument at `/`, and
+> `/check?domain=x` to `/x`. `/scanner` redirects to `/about-scanner`, whose facts
+> (`GET /api/public/scanner`) now include this check's connections. The engine, the
+> API (`POST /api/public-check`), the registry at `/r/{domain}` and the policy
+> documents below are unchanged. Where this document describes the page, it is history.
+
 - **Code:** `backend/services/public_check.py` (the engine),
   `backend/routers/public_check.py` (the routes),
-  `backend/static/check.html` / `check.css` / `check.js` (the page),
+  `backend/static/check-*.html` (the policy documents; the page itself is retired),
   `scripts/pq-check.py` (the command line).
 - **Tests:** `backend/test_public_checker.py`. No network: Certificate
   Transparency, the TLS handshake and DNS are each mocked at their boundary.
@@ -97,7 +104,7 @@ connection; the default keeps the internal scanner's behaviour unchanged.
 
 | Route | Purpose |
 | --- | --- |
-| `GET /check` | the form; `?domain=` pre-fills it |
+| `GET /check` | 308 to `/`, or to `/{domain}` with `?domain=` (the form is retired) |
 | `GET /check/{domain}` | 301 to `/r/{domain}`, the permanent record |
 | `GET /r/{domain}` | the record: server-rendered, indexable, with the history of what changed |
 | `GET /r/{domain}/at/{id}` | one past observation, immutable and citable |
@@ -108,7 +115,7 @@ connection; the default keeps the internal scanner's behaviour unchanged.
 | `GET /public-check/acceptable-use` | the acceptable-use policy |
 | `GET /public-check/privacy` | the privacy notice, for the requester and the checked party |
 | `GET /abuse` | abuse reports and the opt-out |
-| `GET /scanner` | scanner identity, for an operator reading their own logs |
+| `GET /scanner` | 308 to `/about-scanner`, which says what connects and how to opt out |
 
 The five documents are static pages in `_PUBLIC_INFO_PAGES` (so they are
 auth-public, strict-CSP and cache-revalidated like the rest of the public set).
@@ -551,7 +558,7 @@ them is represented as legally sufficient.
 | Acceptable-use policy | `/public-check/acceptable-use` | `static/check-acceptable-use.html` | drafted; consistent with the statement `GET /api/public-check/config` serves |
 | Abuse and opt-out | `/abuse` | `static/check-abuse.html` | drafted; **response time is a marked placeholder**, and the abuse mailbox is yours to supply |
 | Privacy notice, both parties | `/public-check/privacy` | `static/check-privacy.html` | drafted; `static/privacy.html` links it rather than absorbing it |
-| Scanner identity | `/scanner` | `static/check-scanner.html` | drafted; **egress addresses and reverse DNS are marked placeholders** for you to fill in |
+| Scanner identity | `/about-scanner` (old `/scanner` redirects) | `GET /api/public/scanner` (services/watch.py `about_scanner`) | the old page's egress-address and reverse-DNS placeholders went with it; publish those there when you have them |
 
 - **Terms that bind without a signup.** Acceptance works on use, and the
   statement with the links is beside the input box on `/check`, not only in the

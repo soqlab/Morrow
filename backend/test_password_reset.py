@@ -26,7 +26,6 @@ def mail(api, monkeypatch):
     client, app = api
     from types import SimpleNamespace
 
-    from routers import trial_requests as trial_router
     from services import platform_mail
 
     sent = []
@@ -36,7 +35,6 @@ def mail(api, monkeypatch):
     # Only the two mail senders run inline; the test client itself needs real threads.
     inline = SimpleNamespace(Thread=InlineThread)
     monkeypatch.setattr(app, "threading", inline)
-    monkeypatch.setattr(trial_router, "threading", inline)
     return sent
 
 
@@ -114,12 +112,10 @@ def test_without_email_reset_is_unavailable_and_not_advertised(api):
     assert client.get("/reset-password").status_code == 200
 
 
-def test_new_trial_request_emails_the_operator_once(api, mail, monkeypatch):
+def test_the_retired_trial_request_emails_nobody(api, mail, monkeypatch):
     client, app = api
     monkeypatch.setenv("MORROW_TRIAL_NOTIFY_EMAIL", "owner@soqlab.example")
     body = {"email": "lead@initech.example", "name": "Lead", "company": "Initech", "domain": "initech.example",
             "use_case": "Checking our TLS estate before the 2030 deadline."}
-    assert client.post("/api/trial-request", json=body).status_code == 200
-    assert client.post("/api/trial-request", json=body).status_code == 200  # duplicate
-    notes = [m for m in mail if m[0] == ["owner@soqlab.example"]]
-    assert len(notes) == 1 and "Initech" in notes[0][1] and "lead@initech.example" in notes[0][2]
+    assert client.post("/api/trial-request", json=body).status_code == 410
+    assert mail == []

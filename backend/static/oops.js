@@ -63,7 +63,7 @@
   const standalone = document.getElementById("oopsRoot");
   if (standalone) {
     const PUBLIC = [
-      ["/", "Home", "Morrow"], ["/check", "Check a domain", "Free post-quantum check"], ["/security", "Security", "Buyer security FAQ"],
+      ["/", "Home", "Morrow"], ["/", "Check a domain", "Free post-quantum check"], ["/security", "Security", "Buyer security FAQ"],
       ["/pricing", "Pricing", "Plans and pilots"], ["/pilot", "Pilot", "Scope an engagement"], ["/support", "Support", "Contact"],
       ["/data-boundary", "Data boundary", "What leaves"], ["/airlock-deployment", "Deployment", "Deployment guide"], ["/dpa", "DPA", "Data processing"],
       ["/privacy", "Privacy", "Privacy policy"], ["/terms", "Terms", "Terms of service"], ["/trust-passport-demo", "Trust Passport", "What a passport contains"],
@@ -74,7 +74,7 @@
       path: location.pathname + location.search,
       suggestions: closest(location.pathname, candidates, 3),
       routes: PUBLIC.length,
-      actions: [{ label: "Check a domain", href: "/check", primary: true }, { label: "Open console", href: "/ui/" }],
+      actions: [{ label: "Check a domain", href: "/", primary: true }, { label: "Open console", href: "/ui/" }],
     });
   }
 })();

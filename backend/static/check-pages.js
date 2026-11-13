@@ -1,9 +1,9 @@
 /* ============================================================================
    The free checker's companion pages: /public-check/terms,
-   /public-check/acceptable-use, /abuse, /public-check/privacy and /scanner.
+   /public-check/acceptable-use, /abuse and /public-check/privacy.
 
    One job: put this deployment's real values on the page instead of a copy of
-   the documented defaults, read from the same source /check reads —
+   the documented defaults, read from the checker's own config —
    GET /api/public-check/config.
 
      [data-abuse-contact]   the published abuse / opt-out address

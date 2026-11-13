@@ -115,7 +115,6 @@
     { t: "Algorithms, with their history", h: "/algorithms", k: "algorithms reference history timeline pqc", g: "Public" },
     { t: "What this server runs, and how to check it", h: "/trust", k: "trust commit verify deploy log csp tracking reproducible", g: "Public" },
     { t: "Plain version, no scripts", h: "/plain", k: "plain text accessible screen reader no javascript", g: "Public" },
-    { t: "Certificate-transparency check", h: "/check", k: "check ct certificate transparency deadlines", g: "Public" },
     { t: "Your estate through time", h: "/estate", k: "estate history scans time progress map atlas my", g: "Yours", ws: true },
     { t: "Domains you watch, and what changed", h: "/watching", k: "watch watching alerts notifications push changes feed webhook", g: "Yours", ws: true },
     { t: "About the scanner: what connects to your server", h: "/about-scanner", k: "scanner user agent logs bot crawler opt out morrowpqcheck", g: "Public" }
@@ -895,7 +894,7 @@
           panel("", "Badge and API", '<p><img src="/api/public/badge/' + enc(d) + '.svg" alt="quantum-ready grade badge for ' + esc(d) + '"></p>' +
             '<pre id="d-md">' + esc("[![quantum-ready](" + location.origin + "/api/public/badge/" + d + ".svg)](" + location.origin + "/" + d + ")") + '</pre><button type="button" class="i-btn" data-copy-el="d-md">Copy Markdown</button>' +
             '<pre id="d-curl">' + esc("curl " + location.origin + "/api/public/grade/" + d + ".txt") + '</pre><button type="button" class="i-btn" data-copy-el="d-curl">Copy</button>' +
-            '<p class="i-fine"><a href="/check/' + enc(d) + '">Certificate-transparency check</a> &middot; <a href="/plain/' + enc(d) + '">plain</a> &middot; <a href="/api/public/grade/' + enc(d) + '">JSON</a></p>', { ch: "ref" });
+            '<p class="i-fine"><a href="/r/' + enc(d) + '">Certificate-transparency record</a> &middot; <a href="/plain/' + enc(d) + '">plain</a> &middot; <a href="/api/public/grade/' + enc(d) + '">JSON</a></p>', { ch: "ref" });
       }
       var outside = panel("", "Who else is exposing you", '<div id="tp-body"></div>', { ch: "atlas", id: "tp" });
       $("#d-body").innerHTML = gradeBlock + '<div id="hv-wrap"></div>' + what + '<div id="w-wrap"></div>' + outside + evidence;

@@ -1164,7 +1164,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 <link rel="stylesheet" href="/ui/console.css?v=20261113-drawer">
 <link rel="stylesheet" href="/ui/oops.css?v=20261113-instrument">
 <link rel="stylesheet" href="/ui/console-instrument.css?v=20261113-still">
-<script src="/ui/oops.js?v=20261113-instrument" defer></script>
+<script src="/ui/oops.js?v=20261113-retire" defer></script>
 <script src="/ui/passkey.js?v=20261112-passkeys" defer></script>
 </head>
 <body>
@@ -2790,7 +2790,7 @@ function authGateHtml() {
       ${saml ? `<button class="btn block" data-act="loginSaml" type="button">${I.shield}Continue with single sign-on</button>` : ""}
       ${ext ? `<a class="btn block" href="${H(c.login_url)}">${I.link}Sign in with ${H(provider)}</a>` : ""}
 
-      ${simple ? `<div class="gateFoot"><span>No account yet? <a href="/trial">Request access</a>${c.team_join_enabled ? ` · <a href="/join">Join your team</a>` : ""}</span></div>` : `<div class="orDiv"><i></i><span>or use a token</span><i></i></div>
+      ${simple ? `<div class="gateFoot"><span>No account yet? An administrator sets one up and gives you a single-use setup link${c.team_join_enabled ? ` · <a href="/join">Join your team</a>` : ""}</span></div>` : `<div class="orDiv"><i></i><span>or use a token</span><i></i></div>
       <div class="col">
         <div class="field"><label for="gTok">Bearer token</label>
           <input class="inp mono" id="gTok" placeholder="paste an access token" spellcheck="false"></div>

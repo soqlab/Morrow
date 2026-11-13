@@ -6,19 +6,19 @@
   <title>Privacy notice for the free checker | Morrow</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="description" content="What the free post-quantum readiness checker records about the person asking and about the party being checked, for how long, and how to opt out. Draft for legal review.">
-  <link rel="stylesheet" href="/ui/public.css?v=7">
-  <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
-  <link rel="stylesheet" href="/ui/experience.css?v=20261113-instrument">
-  <link rel="stylesheet" href="/ui/check.css?v=20261005">
   <script src="/ui/check-pages.js?v=20261005" defer></script>
+<link rel="stylesheet" href="/ui/instrument.css?v=20261113">
+<link rel="stylesheet" href="/ui/doc.css?v=20261113">
 </head>
-<body class="public-document">
-<a class="skip-link" href="#content">Skip to content</a>
+<body class="ins doc" data-ch="ref">
+<a class="skip" href="#content">Skip to the content</a>
+<header class="i-top">
+  <div class="i-top-in">
+    <a class="i-mark" href="/">MORROW</a>
+    <div class="i-top-right"><a class="i-btn" href="/ui/">Sign in</a></div>
+  </div>
+</header>
 <main class="doc-shell" id="content">
-  <header class="topbar">
-    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span><span>Morrow</span></a>
-    <nav class="nav" aria-label="Public navigation"><a href="/">Platform</a><a href="/security">Security</a><a href="/pricing">Pricing</a><a href="/airlock-deployment">Deployment</a><a href="/support">Contact</a><a href="/trial">Sign up</a><a class="nav-cta" href="/ui/">Sign in &#8599;</a></nav>
-  </header>
 
   <section class="doc-hero">
     <div>
@@ -64,7 +64,7 @@
     <h2>Part Two: If You Are The Party Being Checked</h2>
     <p>Somebody who is not you can cause this service to make a connection to your host, without asking you first. That is the honest shape of this tool, and it is why this section exists and why the <a href="/abuse">opt-out</a> is unconditional.</p>
     <h3>What the connection is</h3>
-    <p>At most two TCP connections to the hostname that was typed, on port 443 only. One ordinary verified TLS handshake &mdash; the same one a browser makes &mdash; and one single ClientHello that offers post-quantum key-exchange groups, whose ServerHello is read before the socket closes. No HTTP request is ever sent to your host, so there is nothing for your web access log to record and no User-Agent for it to hold. The <a href="/scanner">scanner identity page</a> sets this out in full, including what to look for in your logs.</p>
+    <p>At most two TCP connections to the hostname that was typed, on port 443 only. One ordinary verified TLS handshake &mdash; the same one a browser makes &mdash; and one single ClientHello that offers post-quantum key-exchange groups, whose ServerHello is read before the socket closes. No HTTP request is ever sent to your host, so there is nothing for your web access log to record and no User-Agent for it to hold. The <a href="/about-scanner">scanner identity page</a> sets this out in full, including what to look for in your logs.</p>
     <h3>What is recorded about you, and published</h3>
     <ul>
       <li>The hostname that was checked, and <strong>the IP address it resolved to and was connected to</strong>. The address appears in the published result.</li>
@@ -96,13 +96,24 @@
 
   <section class="doc-section">
     <h2>Related</h2>
-    <p><a href="/public-check/terms">Terms of use</a>, <a href="/public-check/acceptable-use">acceptable-use policy</a>, <a href="/abuse">abuse and opt-out</a>, <a href="/scanner">scanner identity</a>, and the live guardrails on <a href="/check#guardrails">/check</a>. For the platform and accounts, see the <a href="/privacy">platform privacy policy</a> and the <a href="/data-boundary">data boundary</a>.</p>
+    <p><a href="/public-check/terms">Terms of use</a>, <a href="/public-check/acceptable-use">acceptable-use policy</a>, <a href="/abuse">abuse and opt-out</a>, <a href="/about-scanner">scanner identity</a>, and the live guardrails on <a href="/check#guardrails">/check</a>. For the platform and accounts, see the <a href="/privacy">platform privacy policy</a> and the <a href="/data-boundary">data boundary</a>.</p>
   </section>
 
-  <footer>
-    <span>Morrow / Free checker</span>
-    <nav><a href="/check">Free check</a> / <a href="/public-check/terms">Terms of use</a> / <a href="/public-check/acceptable-use">Acceptable use</a> / <a href="/abuse">Abuse &amp; opt-out</a> / <a href="/scanner">Scanner identity</a> / <a href="/terms">Platform terms</a> / <a href="/privacy">Platform privacy</a> / <a href="/support">Support</a></nav>
-  </footer>
 </main>
+<footer class="i-foot">
+  <div class="i-foot-in">
+    <a href="/">Check a domain</a>
+    <a href="/terms">Terms</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/dpa">Data processing</a>
+    <a href="/security">Security</a>
+    <a href="/public-check/terms">Checker terms</a>
+    <a href="/public-check/acceptable-use">Acceptable use</a>
+    <a href="/public-check/privacy">Checker privacy</a>
+    <a href="/abuse">Opt a domain out</a>
+    <a href="/about-scanner">What connects to your server</a>
+    <a href="/support">Support</a>
+  </div>
+</footer>
 </body>
 </html>

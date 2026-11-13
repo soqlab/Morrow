@@ -42,12 +42,10 @@ _STYLES = (
     "/ui/registry.css?v=20261004",
 )
 
+#: The record's own links in the top strip. The old marketing navigation is gone; this goes to the
+#: instrument's one input, which is where a visitor checks another domain.
 _NAV = (
-    ("/", "Platform"),
-    ("/security", "Security"),
-    ("/pricing", "Pricing"),
-    ("/check", "Free check"),
-    ("/support", "Contact"),
+    ("/", "Check a domain"),
 )
 
 _FOOTER_LINKS = (
@@ -55,7 +53,7 @@ _FOOTER_LINKS = (
     ("/public-check/acceptable-use", "Acceptable use"),
     ("/abuse", "Abuse &amp; opt-out"),
     ("/public-check/privacy", "Checker privacy"),
-    ("/scanner", "Scanner identity"),
+    ("/about-scanner", "What connects to your server"),
     ("/support", "Support"),
 )
 
@@ -210,10 +208,10 @@ def _chrome_open() -> str:
         '<a class="skip-link" href="#record">Skip to the record</a>\n'
         '<main class="doc-shell">\n'
         '  <header class="topbar">\n'
-        '    <a class="brand" href="/launch"><span class="brand-mark" aria-hidden="true"></span>'
+        '    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>'
         "<span>Morrow</span></a>\n"
-        f'    <nav class="nav" aria-label="Public navigation">{nav}'
-        '<a class="nav-cta" href="/ui/">Open console &#8599;</a></nav>\n'
+        f'    <nav class="nav" aria-label="Morrow">{nav}'
+        '<a class="nav-cta" href="/ui/">Sign in &#8599;</a></nav>\n'
         "  </header>\n"
     )
 
@@ -398,8 +396,8 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
 
     # The one control on the page, and it is a link: the record stays complete with no JavaScript.
     parts.append(
-        f'    <p class="actions"><a class="btn" href="/check?domain={esc(domain)}">Run this check '
-        f'again</a> <a href="/r/{esc(domain)}/export.json">Download JSON</a> '
+        f'    <p class="actions"><a class="btn" href="/{esc(domain)}">See its live grade</a> '
+        f'<a href="/r/{esc(domain)}/export.json">Download JSON</a> '
         f'<a href="/r/{esc(domain)}/cbom.json">Download CBOM</a></p>')
     parts.append("  </section>")
 
@@ -497,7 +495,7 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
         "from public data. It is not an audit, and it says nothing about anything else the "
         "operator runs. If this is your domain and you want it gone, "
         '<a href="/abuse">opt out</a>: the record is hidden and the domain is refused before DNS. '
-        'If you saw the handshake in your logs, <a href="/scanner">this is what connected to '
+        'If you saw the handshake in your logs, <a href="/about-scanner">this is what connected to '
         "you</a>.</p></section>")
     parts.append(_chrome_close())
     return "\n".join(p for p in parts if p)
@@ -517,8 +515,8 @@ def render_missing(domain: str, origin: str) -> str:
         f"    <h1>{esc(domain)}</h1>",
         '    <p class="lede">There is no record for this domain: nobody has run the free check '
         "on it yet.</p>",
-        f'    <p class="actions"><a class="btn" href="/check?domain={esc(domain)}">'
-        "Run the check</a></p>",
+        f'    <p class="actions"><a class="btn" href="/{esc(domain)}">'
+        "See its live grade</a></p>",
         '    <p class="fine">Running it contacts this endpoint once on port 443, the way a '
         'browser does. The <a href="/public-check/acceptable-use">acceptable-use policy</a> '
         "applies: check hosts you own, a supplier you are assessing, or a domain you are "
@@ -551,8 +549,8 @@ def render_refused(domain: str, covered: str, origin: str) -> str:
         "no connection was made.</p>",
         '    <p class="fine">If you operate this domain and want that reversed, or you reached '
         'this page by accident, <a href="/abuse">the opt-out page</a> explains both directions. '
-        'What the service does and does not send is described on <a href="/scanner">scanner '
-        "identity</a>.</p>",
+        'What the service does and does not send is described on <a href="/about-scanner">what '
+        "connects to your server</a>.</p>",
         "  </section>",
         _chrome_close(),
     ])

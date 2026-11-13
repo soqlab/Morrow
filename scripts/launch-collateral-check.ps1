@@ -89,15 +89,14 @@ if (-not $SkipHttp -and $BaseUrl) {
     @{ path = "/airlock-deployment"; phrase = "Validate one collection" },
     @{ path = "/dpa"; phrase = "Contract review required" },
     @{ path = "/robots.txt"; phrase = "Disallow: /vendor-admin/" },
-    # The public funnel. These three are the whole route from a stranger arriving to an account
-    # existing, and each fails silently: the site keeps working and nobody can get in.
-    @{ path = "/check"; phrase = "Is your TLS quantum" },
-    @{ path = "/trial"; phrase = "Ask for a trial" },
+    # The old checker page and the scanner-identity page redirect into the instrument; following
+    # the redirect has to land on a real page, never a 404.
+    @{ path = "/check"; phrase = "/ui/instrument.js" },
+    @{ path = "/scanner"; phrase = "/ui/instrument.js" },
     @{ path = "/sitemap.xml"; phrase = "<loc>" },
     # The checker's public documents. A domain owner who found one of our handshakes in their logs
     # has no account and never will, so these must answer without one.
     @{ path = "/abuse"; phrase = "Never check my domain again" },
-    @{ path = "/scanner"; phrase = "You found us in your logs" },
     @{ path = "/public-check/terms"; phrase = "they bind on use" },
     @{ path = "/public-check/acceptable-use"; phrase = "Mapping someone else's attack surface" },
     @{ path = "/public-check/privacy"; phrase = "If You Are The Party Being Checked" }
