@@ -80,6 +80,9 @@ ORG_SCOPED_TABLES: List[str] = [
     "crypto_switch_incidents",
     "crypto_switch_items",
     "pq_rollouts",
+    # Domain team sign-in (services/team_join.py): which verified domains admit people, and who joined.
+    "org_domain_join_policies",
+    "org_domain_joins",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -101,6 +104,8 @@ TENANT_COLUMNS: Dict[str, str] = {
     "crypto_switch_incidents": "org_id",
     "crypto_switch_items": "org_id",
     "pq_rollouts": "org_id",
+    "org_domain_join_policies": "org_id",
+    "org_domain_joins": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".

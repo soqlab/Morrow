@@ -183,6 +183,7 @@ def _first_verifier(conn: Any, domain: str) -> str:
 
 def set_policy(org_id: str, domain: Any, enabled: bool, actor: str = "") -> Dict[str, Any]:
     from services import domain_verification as _domains
+    from services import tenant_scope as _tenant_scope
 
     try:
         name = _domains.normalize_domain(domain)
@@ -194,7 +195,10 @@ def set_policy(org_id: str, domain: Any, enabled: bool, actor: str = "") -> Dict
         if is_free_mail(name):
             raise JoinError(400, f"{name} is a free email provider, so an address there doesn't show which organization "
                                  "someone belongs to. Team sign-in works only with your own domain.", "free_mail")
-        with feature_conn() as conn:
+        # Whether another organization verified or enabled this domain first is a cross-tenant
+        # question by nature, so it is asked from a named, journaled scope (services/tenant_scope.py).
+        with _tenant_scope.platform_scope("domain team sign-in: is this domain claimed by another organization",
+                                          actor=str(actor or "")), feature_conn() as conn:
             if not _verified_row(conn, org_id, name):
                 raise JoinError(409, f"Verify {name} first: team sign-in needs a domain your organization has proved it controls.",
                                 "domain_not_verified")
@@ -268,13 +272,16 @@ def resolve(domain: str) -> Optional[str]:
     organization is the first verifier, and it is the only enabled policy for the domain.
     """
     from services import domain_verification as _domains
+    from services import tenant_scope as _tenant_scope
 
     name = str(domain or "").strip().lower()
     if not name or is_free_mail(name):
         return None
     _init()
     _domains._init()
-    with feature_conn() as conn:
+    # The person asking is not a member of any organization yet: finding which one owns the domain
+    # is the lookup that precedes tenant identity, so it runs in a named, journaled scope.
+    with _tenant_scope.platform_scope("domain team sign-in: which organization owns this domain"), feature_conn() as conn:
         rows = conn.execute("SELECT org_id FROM org_domain_join_policies WHERE domain = ? AND enabled = 1",
                             (name,)).fetchall()
         if len(rows) != 1:
