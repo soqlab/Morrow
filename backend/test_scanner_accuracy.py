@@ -103,6 +103,10 @@ class _TlsServer:
             context.minimum_version = self._tls_version
             context.maximum_version = self._tls_version
         context.load_cert_chain(cert_file.name, key_file.name)
+        # These tests grade the certificate, so the key exchange is pinned to a classical group.
+        # OpenSSL 3.5+ (Ubuntu 26 runners) offers and accepts X25519MLKEM768 by default, and a
+        # post-quantum handshake correctly lowers the quantum risk, which is not what is under test.
+        context.set_ecdh_curve("X25519")
 
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

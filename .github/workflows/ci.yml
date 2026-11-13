@@ -137,7 +137,10 @@ jobs:
 
   browser-smoke:
     name: Browser smoke
-    runs-on: ubuntu-latest
+    # Pinned: `playwright install --with-deps` installs system packages by name, and the Ubuntu 26
+    # image that ubuntu-latest moved to renamed some of them, so the step failed before the app started.
+    # Move back to ubuntu-latest once Playwright lists Ubuntu 26 as supported.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: .
