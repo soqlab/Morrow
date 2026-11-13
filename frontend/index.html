@@ -1201,6 +1201,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
         <span>CipherLens</span>
       </button>
       <div class="healthDot" id="healthPill" title="API health"><i class="dot" id="hDot"></i><span id="hTxt">checking...</span></div>
+      <a class="healthDot" id="connPill" href="/" hidden title="The key exchange your browser negotiated with this server"><i class="dot" id="cDot"></i><span id="cTxt"></span></a>
       <button class="iconBtn" id="refreshBtn" type="button" title="Refresh view (R)" aria-label="Refresh view">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg>
       </button>
@@ -3365,11 +3366,33 @@ const CMDS = () => [
   { label: "Export CBOM (CycloneDX)", hint: "Action", icon: I.dl, run: () => { location.href = S.base + "/cbom"; } },
   { label: "Download audit log CSV", hint: "Action", icon: I.dl, run: () => { location.href = S.base + "/audit/logs/export.csv"; } },
 ];
+/* What a typed query means, before it is matched against view names: a domain opens its public
+   grade, an algorithm its reference page, a CVE the NVD record, a hex string the commit check. */
+const CMD_ALGOS = { "ml-kem": "ml-kem", kyber: "ml-kem", "ml-dsa": "ml-dsa", dilithium: "ml-dsa", "slh-dsa": "slh-dsa",
+  sphincs: "slh-dsa", falcon: "fn-dsa", "fn-dsa": "fn-dsa", hqc: "hqc", x25519mlkem768: "x25519mlkem768", x25519: "x25519",
+  rsa: "rsa-2048", "rsa-2048": "rsa-2048", "rsa-3072": "rsa-3072", "rsa-4096": "rsa-4096", ecdsa: "ecdsa-p256", "p-256": "ecdsa-p256",
+  secp256r1: "ecdsa-p256", "p-384": "ecdsa-p384", ed25519: "ed25519", ecdh: "ecdh-p256", ecdhe: "ecdh-p256", aes: "aes-128",
+  "aes-128": "aes-128", "aes-256": "aes-256", "sha-256": "sha-256", sha256: "sha-256", lms: "lms", xmss: "xmss" };
+function recognizeCmd(raw) {
+  const q = String(raw || "").trim().toLowerCase();
+  if (!q) return [];
+  const out = [];
+  const algo = CMD_ALGOS[q.replace(/\s+/g, "-")];
+  if (algo) out.push({ label: `${raw.trim()}: algorithm reference`, hint: "Reference", icon: I.book || I.search, run: () => { location.href = "/algorithms/" + algo; } });
+  if (/^cve-\d{4}-\d{4,}$/.test(q)) out.push({ label: `${q.toUpperCase()} in the NVD`, hint: "Opens nvd.nist.gov", icon: I.link || I.search, run: () => window.open("https://nvd.nist.gov/vuln/detail/" + q.toUpperCase(), "_blank", "noopener") });
+  const host = q.replace(/^[a-z][a-z0-9+.-]*:\/\//, "").split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/\.$/, "");
+  if (!algo && /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/.test(host)) {
+    out.push({ label: `Grade ${host}`, hint: "Public grade, decrypt year and fix", icon: I.shield, run: () => { location.href = "/" + host; } });
+    out.push({ label: `Scan ${host} in this workspace`, hint: "TLS Scanner", icon: I.play, run: () => { LS.set("pq_targets", host); go("scans"); } });
+  }
+  if (/^[0-9a-f]{7,40}$/.test(q) && /\d/.test(q)) out.push({ label: `Is commit ${q.slice(0, 12)} running here?`, hint: "Trust", icon: I.lock, run: () => { location.href = "/trust?commit=" + q; } });
+  return out;
+}
 function openCmd() {
   const items = CMDS();
   let sel = 0, view = items;
   const close = overlay(`<div class="scrim"><div class="cmd" role="dialog" aria-modal="true" aria-label="Command palette">
-    <div class="cmdIn">${I.search}<input id="cmdQ" placeholder="Search views, actions, exports…" autocomplete="off" spellcheck="false" aria-label="Command search"></div>
+    <div class="cmdIn">${I.search}<input id="cmdQ" placeholder="A view, an action, a domain, an algorithm, a CVE…" autocomplete="off" spellcheck="false" aria-label="Command search"></div>
     <div class="cmdList" id="cmdL" role="listbox"></div>
     <div class="cmdFoot"><span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span><span><kbd>&crarr;</kbd> open</span><span><kbd>esc</kbd> close</span></div>
   </div></div>`);
@@ -3387,7 +3410,7 @@ function openCmd() {
   const q = $("#cmdQ");
   q.oninput = () => {
     const s = q.value.trim().toLowerCase();
-    view = s ? items.filter(c => (c.label + " " + c.hint).toLowerCase().includes(s)) : items;
+    view = s ? recognizeCmd(q.value).concat(items.filter(c => (c.label + " " + c.hint).toLowerCase().includes(s))) : items;
     sel = 0; paint();
   };
   q.onkeydown = (e) => {
@@ -3556,7 +3579,23 @@ function setConsoleNav(open, restoreFocus = true) {
   if (open && mobile) $("#navClose").focus();
   else if (wasOpen && restoreFocus) $("#navToggle").focus();
 }
+/* Cloudflare in front of the hosted service answers /cdn-cgi/trace on this origin with kex=, the key
+   exchange this browser negotiated. Elsewhere the path does not exist and the pill stays hidden. */
+function connectionPill() {
+  fetch("/cdn-cgi/trace", { cache: "no-store", credentials: "omit" })
+    .then(r => (r.ok && (r.headers.get("content-type") || "").startsWith("text/plain")) ? r.text() : Promise.reject())
+    .then(t => {
+      const kex = (t.match(/^kex=(.+)$/m) || [])[1];
+      if (!kex) return;
+      const pq = /mlkem|kyber/i.test(kex);
+      $("#cDot").className = "dot " + (pq ? "ok" : "warn");
+      $("#cTxt").textContent = (pq ? "PQ link " : "Classical link ") + kex.trim();
+      $("#connPill").title = pq ? "Your connection to Morrow uses a post-quantum key exchange." : "Your connection to Morrow uses a classical key exchange: a recording of it could be read by a future quantum computer.";
+      $("#connPill").hidden = false;
+    }).catch(() => {});
+}
 function boot() {
+  connectionPill();
   applyTheme();
   paintNav();
   verifyOperator();
@@ -5267,6 +5306,7 @@ function scanResultBlocks(d, diff, id) {
         { h: "Quantum", f: r => `${pill(r.quantum_risk_level || r.pq_relevance || "unknown")}${
             r.quantum_risk_score != null ? `<span class="sub mono">score ${NUM(r.quantum_risk_score)}</span>` : ""}` },
         { h: "HNDL", f: r => r.harvest_now_decrypt_later_risk ? pill(r.harvest_now_decrypt_later_risk) : "—" },
+        { h: "Readable from", f: r => decryptCell(r.decrypt_window) },
         { h: "Safe?", f: r => /not_quantum_proof|not_safe/i.test(String(r.quantum_safe_claim || ""))
             ? `<span class="pill bad">Not PQ-safe</span>`
             : r.quantum_safe_claim ? `<span class="pill ok">${H(TITLE(r.quantum_safe_claim))}</span>` : "—" },
@@ -5401,6 +5441,21 @@ ACTIONS.plan = async (b) => {
   ], items) : `<pre class="out">${H(typeof r.data === "string" ? r.data : JSON.stringify(r.data, null, 2))}</pre>`;
   wire(box);
 };
+/* services/decrypt_window.for_scan_result: the year traffic recorded today could be read back. */
+function decryptCell(w) {
+  if (!w || w.status === "unknown") return "—";
+  if (w.status === "protected") return `<span class="pill ok">not by a quantum computer</span>`;
+  return `<span class="pill warn mono">${H(w.readable_from)}–${H(w.readable_by)}</span>`;
+}
+function decryptDetail(w) {
+  if (!w) return "";
+  const src = w.source_url ? ` <a href="${H(w.source_url)}" target="_blank" rel="noopener">source</a>` : "";
+  const now = new Date().getUTCFullYear();
+  const life = w.status === "at_risk" && w.readable_from
+    ? `<div style="font-size:11.5px;color:var(--ink2);margin-top:4px">Anything sent to this endpoint that must stay secret past ${H(w.readable_from)} (${H(w.readable_from - now)} years from now) is already exposed to recording.</div>` : "";
+  const notes = (w.notes || []).map(n => `<div style="font-size:11.5px;color:var(--ink3);margin-top:4px">${H(n)}</div>`).join("");
+  return `${decryptCell(w)}<div style="font-size:11.5px;margin-top:4px">${H(w.basis || "")}${src}</div>${life}${notes}`;
+}
 ACTIONS.scanDetail = (b) => {
   const key = b.dataset.k;
   const r = (S.scan.results || []).find(x => rTarget(x) === key);
@@ -5459,6 +5514,7 @@ ACTIONS.scanDetail = (b) => {
       ["Post-quantum relevance", rawPill(r.pq_relevance)],
       ["Quantum risk", `${rawPill(r.quantum_risk_level)} ${r.quantum_risk_score != null ? `<span class="pill mono">${NUM(r.quantum_risk_score)}/100</span>` : ""}`],
       ["HNDL risk", rawPill(r.harvest_now_decrypt_later_risk)],
+      ["Recorded traffic readable from", decryptDetail(r.decrypt_window)],
       ["Readiness level", rawPill(r.quantum_readiness_level)],
       ["Migration status", rawPill(r.pq_migration_status)],
       ["Crypto agility", r.crypto_agility_score != null ? `<span class="mono">${NUM(r.crypto_agility_score)}/100</span>` : ""],
