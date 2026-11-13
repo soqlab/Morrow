@@ -708,9 +708,9 @@
         return fetch(p, { cache: "no-store" }).then(function (res) { return res.arrayBuffer(); }).then(sha256Hex).then(function (h) { return { path: p, mine: h, listed: byPath[p] ? byPath[p].sha256 : null }; });
       })).then(function (rows) {
         results.files = rows.every(function (x) { return x.listed && x.listed === x.mine; });
-        var html = '<table class="i-table"><thead><tr><th>File</th><th>SHA-256 in your browser</th><th>Matches</th></tr></thead><tbody>' + rows.map(function (x) {
+        var html = '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>File</th><th>SHA-256 in your browser</th><th>Matches</th></tr></thead><tbody>' + rows.map(function (x) {
           return '<tr><td class="mono">' + esc(x.path) + '</td><td class="mono"><small>' + esc(x.mine.slice(0, 16)) + "&hellip;</small></td><td class=\"" + (x.listed === x.mine ? "v-ok\">yes" : "v-bad\">no") + "</td></tr>";
-        }).join("") + "</tbody></table><p class=\"i-fine\">" + num((m.files || []).length) + " files listed for commit " + esc((m.commit || "unknown").slice(0, 12)) + ", generated " + esc(stamp(m.generated_at)) + ".</p>";
+        }).join("") + "</tbody></table></div><p class=\"i-fine\">" + num((m.files || []).length) + " files listed for commit " + esc((m.commit || "unknown").slice(0, 12)) + ", generated " + esc(stamp(m.generated_at)) + ".</p>";
         var ed = (m.signatures || []).filter(function (s) { return s.alg === "Ed25519"; })[0];
         var ml = (m.signatures || []).filter(function (s) { return s.alg === "ML-DSA-65"; })[0];
         var key = ed && keys && (keys.keys || []).filter(function (k) { return k.kid === ed.kid; })[0];

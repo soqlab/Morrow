@@ -30,10 +30,11 @@ async function main() {
       const response = await context.request.get(base + link);
       assert.equal(response.status(), 200, `Public destination ${link}`);
     }
-    await page.locator("#menuToggle").click();
-    assert.equal(await page.locator("#siteMenu").isVisible(), true);
+    // / is the live instrument: its navigation is the command bar, opened by button or Ctrl+K.
+    await page.locator("#i-cmd-btn").click();
+    assert.equal(await page.locator(".i-pal").isVisible(), true);
     await page.keyboard.press("Escape");
-    assert.equal(await page.locator("#siteMenu").isVisible(), false);
+    assert.equal(await page.locator(".i-pal").count(), 0);
     console.log("Public navigation and destination checks passed.");
 
     assert.equal((await context.request.get(base + "/platform/customers")).status(), 403);

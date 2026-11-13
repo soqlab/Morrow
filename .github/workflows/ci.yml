@@ -205,11 +205,11 @@ jobs:
         timeout-minutes: 15
         run: bash scripts/ci-annotate.sh e2e-smoke.js node scripts/e2e-smoke.js
 
-      - name: Verify landing motion and public status
+      - name: Verify the live instrument (no ambient motion, this origin only)
         env:
           MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         timeout-minutes: 10
-        run: bash scripts/ci-annotate.sh landing-motion-smoke.js node scripts/landing-motion-smoke.js
+        run: bash scripts/ci-annotate.sh instrument-smoke.js node scripts/instrument-smoke.js
 
       - name: Verify console workspace and public experience
         env:
@@ -237,11 +237,11 @@ jobs:
           bash scripts/ci-annotate.sh gateway-workspace-smoke.js node scripts/gateway-workspace-smoke.js
           bash scripts/ci-annotate.sh gateway-journeys-smoke.js node scripts/gateway-journeys-smoke.js
 
-      - name: Verify the generative fabric on every surface
+      - name: Verify nothing moves on its own on any surface
         env:
           MORROW_E2E_BASE_URL: http://127.0.0.1:8001
         timeout-minutes: 10
-        run: bash scripts/ci-annotate.sh fabric-smoke.js node scripts/fabric-smoke.js
+        run: bash scripts/ci-annotate.sh motion-smoke.js node scripts/motion-smoke.js
 
       - name: Verify local launch guardrails
         shell: pwsh

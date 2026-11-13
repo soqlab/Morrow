@@ -191,10 +191,8 @@ async function testMainUi(page) {
 
 async function testPublicPages(page) {
   log("public launch and legal pages");
-  await assertContains(page, "/launch", [
-    "Prove quantum readiness without deep customer access.",
-    "Quantum Airlock",
-  ]);
+  // /launch was the decorative product overview; it now lands on the live instrument at /.
+  await assertContains(page, "/launch", ["Go to anything", "No tracking: checked live"]);
   await assertContains(page, "/security", ["minimum customer access", "Production Controls"]);
   await assertContains(page, "/privacy", ["Privacy Policy", "Data We Do Not Collect By Default"]);
   await assertContains(page, "/terms", ["Terms of Service", "Authorization To Scan"]);

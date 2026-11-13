@@ -243,3 +243,5 @@ select.i-btn { background: var(--bg-2); }
 .ins pre { font-size: 13px; line-height: 1.5; }
 .i-big { font: 500 clamp(26px, 3vw, 38px)/1.1 var(--sans); letter-spacing: -.02em; margin: 0 0 10px; }
 .i-h1 { margin-bottom: 18px; }
+.ch-body { overflow-wrap: anywhere; }
+.i-fine code, .ch-body code { word-break: break-all; }
