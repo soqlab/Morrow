@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morrow</title>
+<meta name="description" content="Is a website's traffic safe from future quantum computers? Morrow checks it live: the grade, the year recorded traffic could be read, and the exact fix.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/instrument.css?v=20261113">
+<script src="/ui/instrument-data.js?v=20261113" defer></script>
+<script src="/ui/instrument.js?v=20261113" defer></script>
+</head>
+<body class="ins" data-ch="grade">
+<a class="skip" href="#main">Skip to the content</a>
+<header class="i-top">
+  <div class="i-top-in">
+    <a class="i-mark" href="/">MORROW</a>
+    <nav class="i-channels" aria-label="Parts of Morrow">
+      <a href="/" data-view="grade" data-ch="grade">Check</a>
+      <a href="/league" data-view="league" data-ch="league">League</a>
+      <a href="/atlas" data-view="atlas" data-ch="atlas">Atlas</a>
+      <a href="/algorithms" data-view="ref" data-ch="ref">Algorithms</a>
+      <a href="/trust" data-view="trust" data-ch="trust">Trust</a>
+      <a href="/ui/" data-ch="tools">Console</a>
+    </nav>
+    <div class="i-top-right">
+      <div class="i-dial" id="i-dial" role="group" aria-label="How technical"></div>
+      <button type="button" class="i-cmd-btn" id="i-cmd-btn" aria-label="Go to anything"><span aria-hidden="true">&rsaquo;</span><span class="t">Go to anything</span><kbd>Ctrl K</kbd></button>
+    </div>
+  </div>
+</header>
+<div class="i-conn" id="i-conn" aria-live="polite"></div>
+<main class="i-main" id="main-wrap">
+  <p class="i-say" id="say" aria-live="polite">Loading.</p>
+  <div id="main"><noscript><p>This view needs JavaScript. The <a href="/plain">plain version</a> works without it.</p></noscript></div>
+</main>
+<footer class="i-foot">
+  <div class="i-foot-in">
+    <span id="i-build">Reading which commit this server runs.</span>
+    <a href="/plain">Plain version</a>
+    <a href="/trust">No tracking: checked live</a>
+    <a href="/public-check/privacy">Privacy</a>
+    <a href="/abuse">Opt a domain out</a>
+    <a href="/scanner">What connects to your server</a>
+    <a href="/check">Certificate-transparency check</a>
+    <a href="/trial">Ask for an account</a>
+  </div>
+</footer>
+</body>
+</html>
