@@ -177,7 +177,7 @@ def passkeys_only() -> bool:
 def _rp() -> Dict[str, Any]:
     rp = relying_party()
     if rp is None or not library_available():
-        raise PasskeyError(503, "Passkeys aren't set up on this server: MORROW_PUBLIC_BASE_URL is not configured.",
+        raise PasskeyError(404, "Passkeys aren't set up on this server: MORROW_PUBLIC_BASE_URL is not configured.",
                            "passkeys_unavailable")
     return rp
 

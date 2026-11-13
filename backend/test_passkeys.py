@@ -162,9 +162,9 @@ def test_passkeys_are_offered_only_with_a_configured_origin(api, monkeypatch):
     cfg = client.get("/auth/config").json()
     # Without a relying party the flag would lock everyone out, so it does nothing.
     assert cfg["passkeys_enabled"] is False and cfg["passkeys_only"] is False
-    assert client.post("/auth/passkey/login/begin", json={}).status_code == 503
+    assert client.post("/auth/passkey/login/begin", json={}).status_code == 404
     # The RP ID never comes from the Host header.
-    assert client.post("/auth/passkey/login/begin", json={}, headers={"host": "evil.example"}).status_code in {400, 503}
+    assert client.post("/auth/passkey/login/begin", json={}, headers={"host": "evil.example"}).status_code in {400, 404}
 
     monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", ORIGIN)
     cfg = client.get("/auth/config").json()
