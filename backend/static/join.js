@@ -1,15 +1,22 @@
 (() => {
   "use strict";
-  /* Domain team sign-in (/join, and /join#token=... from the email).
+  /* Joining an organization (/join, /join#invite=... and /join#token=...).
 
-     Without a token: ask for the work email (POST /auth/team-join/request; the answer is the same
-     whether or not the domain admits new members). With a token: show the organization
-     (POST /auth/team-join/preview), then create a passkey (POST /auth/passkey/register/begin and
-     /finish with kind "join"), which creates the account, joins it to the organization and signs in.
-     The token arrives in the URL fragment, which never reaches a server log or a Referer header; it
-     is kept in sessionStorage for this tab and removed from the address bar. No third-party requests. */
+     /join#invite=... is an invite link an admin of the organization made in the console and handed
+     over (nothing is emailed): show the organization (POST /auth/invite-links/preview), then create a
+     passkey (POST /auth/passkey/register/begin and /finish with kind "team"), which creates the
+     account, makes it a member and signs in.
+
+     /join#token=... is the emailed link of domain team sign-in, and /join without a token asks for
+     the work email (POST /auth/team-join/request). Both only where the server emails links: on a
+     passkeys-only server (MORROW_PASSKEYS_ONLY=1, the hosted default) /join without a token says to
+     ask an admin for an invite link instead.
+
+     Tokens arrive in the URL fragment, which never reaches a server log or a Referer header; they are
+     kept in sessionStorage for this tab and removed from the address bar. No third-party requests. */
 
   const TOKEN_KEY = "pq_join_token";
+  const INVITE_KEY = "pq_invite_link";
   const FLASH_KEY = "pq_flash";
   const $ = id => document.getElementById(id);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[ch]));
@@ -19,17 +26,26 @@
     del: (area, key) => { try { window[area].removeItem(key); } catch { /* ignore */ } }
   };
 
-  function readToken() {
-    const match = /(?:^|[#&])token=([A-Za-z0-9_\-]{16,256})(?:&|$)/.exec(location.hash || "");
+  function readToken(name, key) {
+    const match = new RegExp(`(?:^|[#&])${name}=([A-Za-z0-9_\\-]{16,256})(?:&|$)`).exec(location.hash || "");
     if (match) {
-      store.set("sessionStorage", TOKEN_KEY, match[1]);
+      store.set("sessionStorage", key, match[1]);
       try { history.replaceState(null, "", location.pathname + location.search); } catch { /* ignore */ }
       return match[1];
     }
-    return store.get("sessionStorage", TOKEN_KEY);
+    return store.get("sessionStorage", key);
   }
-  const token = readToken();
+  const invite = readToken("invite", INVITE_KEY);
+  const token = invite ? "" : readToken("token", TOKEN_KEY);
   let preview = null;
+  let emailJoin = true;
+  async function loadConfig() {
+    try {
+      const res = await fetch("/auth/config", { cache: "no-store", credentials: "same-origin" });
+      const cfg = res.ok ? await res.json() : {};
+      emailJoin = !!(cfg && cfg.team_join_enabled);
+    } catch { emailJoin = false; }
+  }
 
   async function request(path, body) {
     const controller = new AbortController();
@@ -73,8 +89,18 @@
   }
   const para = text => `<p>${esc(text)}</p>`;
 
+  // ---------- without a token on a server that emails nothing: an invite link is the way in ----------
+  function askInvite() {
+    $("joinMeta").hidden = true;
+    state({ title: "Join your team.", lead: "Ask an admin of your organization for an invite link, then open it on this device.",
+      body: para("An admin makes the link in Morrow under Users & access (Invite link), and gives it to you however they like. It works once. You create a passkey when you open it: no email, no password.") +
+        para("Starting your own organization instead? Create an account: it's free."),
+      actions: [{ label: "Create an account", primary: true, href: "/signup" }, { label: "Sign in", href: "/ui/" }] });
+  }
+
   // ---------- without a token: ask for the work address ----------
   function askEmail() {
+    if (!emailJoin) return askInvite();
     $("joinMeta").hidden = true;
     state({ title: "Join your team.", lead: "Enter your work email address. If your organization lets people with that address join, we'll email you a link.",
       body: `<form class="invite-form" novalidate>
@@ -157,5 +183,61 @@
     error.textContent = detail(r) || (r.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${r.status}.`);
   }
 
-  token ? load() : askEmail();
+  // ---------- with an invite link: create the passkey and join ----------
+  function badInvite(r) {
+    store.del("sessionStorage", INVITE_KEY);
+    $("joinMeta").hidden = true;
+    return state({ title: "This invite link can't be used.", lead: detail(r) || "It may have expired, been revoked or already been used.", tone: "bad",
+      body: para("Ask the admin who gave it to you for a new one."), actions: [{ label: "Sign in", href: "/ui/" }] });
+  }
+  async function loadInvite() {
+    const r = await request("/auth/invite-links/preview", { token: invite });
+    if (r.status === 0) {
+      return state({ title: "We couldn't reach the server.", lead: "Check your connection and try again.", tone: "bad", actions: [{ label: "Try again", primary: true, run: loadInvite }] });
+    }
+    if (!r.ok || !r.data) return badInvite(r);
+    preview = r.data;
+    $("joinMeta").hidden = false;
+    for (const [id, value] of [["joinOrg", preview.organization_name], ["joinEmail", "None needed"], ["joinRole", "Viewer"]]) {
+      const el = $(id); el.textContent = value || ""; el.classList.remove("invite-skeleton");
+    }
+    if (!window.MorrowPasskey || !MorrowPasskey.supported()) {
+      return state({ title: "This browser can't create a passkey.", lead: "Open the link on a device with a current browser.", tone: "bad",
+        body: para("Passkeys need a recent Chrome, Edge, Safari or Firefox, and this site's own address over HTTPS.") });
+    }
+    state({ title: `Join ${preview.organization_name}.`, lead: "Create a passkey on this device. You'll use it to sign in; there is no password and no email.",
+      body: `<form class="invite-form" novalidate>
+          <label>Your name (optional)<input id="joinName" type="text" autocomplete="name" maxlength="120"></label>
+          <p class="invite-error" id="joinError" role="alert"></p>
+        </form>`,
+      actions: [{ label: "Create passkey and join", primary: true, run: joinInvite }] });
+  }
+  async function joinInvite() {
+    const error = $("joinError");
+    error.textContent = "";
+    const begin = await request("/auth/passkey/register/begin", { kind: "team", token: invite, full_name: $("joinName").value.trim() });
+    if (!begin.ok) {
+      if (begin.status === 404 || begin.status === 410) return badInvite(begin);
+      error.textContent = detail(begin) || (begin.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${begin.status}.`);
+      return;
+    }
+    let credential;
+    try { credential = await MorrowPasskey.create(begin.data.options); }
+    catch (e) { error.textContent = MorrowPasskey.message(e) || "No passkey was created. Press the button to try again."; return; }
+    const r = await request("/auth/passkey/register/finish", { challenge_id: begin.data.challenge_id, credential, token: invite });
+    if (r.ok && r.data && r.data.access_token) {
+      store.set("localStorage", "morrow_token", r.data.access_token);
+      if (r.data.refresh_token) store.set("localStorage", "morrow_refresh", r.data.refresh_token);
+      store.del("sessionStorage", INVITE_KEY);
+      store.set("sessionStorage", FLASH_KEY, JSON.stringify({ title: "Welcome to Morrow", message: `You joined ${preview.organization_name}. Next, make recovery codes under Sign-in & recovery, so you can get back in if you lose your passkey.`, kind: "ok" }));
+      state({ title: "You're in.", lead: "Opening the console.", tone: "ok" });
+      location.assign("/ui/");
+      return;
+    }
+    if (r.status === 404 || r.status === 409 || r.status === 410) return badInvite(r);
+    if (r.status === 429) { error.textContent = "Too many attempts. Wait a minute, then try again."; return; }
+    error.textContent = detail(r) || (r.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${r.status}.`);
+  }
+
+  loadConfig().then(() => { invite ? loadInvite() : token ? load() : askEmail(); });
 })();

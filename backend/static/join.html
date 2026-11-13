@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
 <link rel="stylesheet" href="/ui/experience.css?v=20261113-instrument">
 <script src="/ui/passkey.js?v=20261112-passkeys" defer></script>
-<script src="/ui/join.js?v=20261112-passkeys" defer></script>
+<script src="/ui/join.js?v=20261113-signup" defer></script>
 <style>
   .invite-summary { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; margin: 16px 0 0; }
   .invite-summary dt { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--fog-dim, #7f7f7f); padding-top: 3px; }
@@ -43,9 +43,9 @@
 
     <section class="doc-hero">
       <div>
-        <span class="eyebrow">Team sign-in</span>
+        <span class="eyebrow">Join an organization</span>
         <h1 id="joinTitle" tabindex="-1">Join your team.</h1>
-        <p class="lead" id="joinLead">Enter your work email address. If your organization lets people with that address join, we'll email you a link.</p>
+        <p class="lead" id="joinLead">Open the invite link an admin of your organization gave you.</p>
       </div>
       <aside class="doc-meta" aria-labelledby="joinSummaryTitle" id="joinMeta" hidden>
         <b id="joinSummaryTitle">Joining</b>
@@ -65,8 +65,8 @@
     </section>
 
     <section class="doc-section">
-      <h2>How team sign-in works</h2>
-      <p>An organization that has proved it owns its domain with a DNS record can let anyone with a working mailbox at that domain join it. The emailed link proves the mailbox is yours; it works once and expires after 30 minutes. You then create a passkey on this device: there is no password. New members start as viewers, and an administrator of the organization can change that. Free email addresses, such as Gmail or Outlook, can't be used. Already have an account? <a href="/ui/">Sign in</a> instead.</p>
+      <h2>How joining works</h2>
+      <p>An admin of the organization makes a single-use invite link in Morrow and gives it to you however they like: Morrow sends nothing. You open it and create a passkey on this device: there is no password and no email. New members start as viewers, and an admin of the organization can change that. Already have an account? <a href="/ui/">Sign in</a> instead. Starting your own organization? <a href="/signup">Create an account</a>.</p>
     </section>
   </main>
 </body>

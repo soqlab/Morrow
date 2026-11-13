@@ -94,10 +94,10 @@
     if (D.signed === null) { box.innerHTML = X.panel("", "Watch", '<p class="i-status">Reading whether you watch ' + esc(d) + "&hellip;</p>", { ch: "trust", id: "w-panel" }); return; }
     if (!D.signed) {
       body = '<p id="w-say">' + esc(X.byDepth({
-        plain: "Want to know when " + d + " changes? Sign in and watch it.",
-        standard: "Get told when " + d + " changes: sign in and watch it. Morrow re-checks it every day and tells you by browser notification, webhook or a private feed. No email.",
+        plain: "Want to know when " + d + " changes? Watch it. The account is free and needs only a passkey.",
+        standard: "Get told when " + d + " changes: watch it. Morrow re-checks it every day and tells you by browser notification, webhook or a private feed. The account is free: one passkey, no email.",
         expert: "Watch " + d + ": scheduled re-checks (same guarded probes), change detection on key exchange, grade, certificate and outside services; delivery by Web Push (VAPID), webhook or a private Atom feed."
-      })) + '</p><div class="i-row"><a class="i-btn solid" id="w-signin" href="/ui/">Sign in to watch</a><a class="i-btn" href="/about-scanner">What Morrow checks</a></div>' + claimLine;
+      })) + '</p><div class="i-row"><a class="i-btn solid" id="w-signup" href="/signup?watch=' + I().enc(d) + '">Watch this domain</a><a class="i-btn" id="w-signin" href="/ui/">Sign in</a><a class="i-btn" href="/about-scanner">What Morrow checks</a></div>' + claimLine;
       box.innerHTML = X.panel("", "Watch", body, { ch: "trust", id: "w-panel" });
       bindClaimLine(false);
       return;
@@ -151,7 +151,7 @@
     var a = document.getElementById("w-claim-go"); if (!a) return;
     a.addEventListener("click", function (e) {
       e.preventDefault();
-      if (!signed) { location.href = "/ui/"; return; }
+      if (!signed) { location.href = "/signup?claim=" + I().enc(D.d); return; }
       act(send("POST", "/instrument/claims/" + I().enc(D.d)), "Publish the record below, then press Check DNS now.")
         .then(function (res) { D.mine = res; D.record = res.record; paint(); }, function () {});
     });
@@ -224,7 +224,7 @@
     signedIn().then(function (yes) {
       if (!yes) {
         X.say("Sign in to see the domains you watch and what changed on them.");
-        main.innerHTML = X.panel("", "Watching", '<p>Watching needs an account: open any domain\'s page, for example <a href="/example.com">/example.com</a>, and press Watch. Morrow re-checks it and tells you by browser notification, webhook or a private feed. No email.</p><div class="i-row"><a class="i-btn solid" href="/ui/">Sign in</a></div>', { ch: "trust" });
+        main.innerHTML = X.panel("", "Watching", '<p>Watching needs an account: open any domain\'s page, for example <a href="/example.com">/example.com</a>, and press Watch. Morrow re-checks it and tells you by browser notification, webhook or a private feed. No email.</p><div class="i-row"><a class="i-btn solid" href="/signup">Create an account</a><a class="i-btn" href="/ui/">Sign in</a></div>', { ch: "trust" });
         return;
       }
       reload();

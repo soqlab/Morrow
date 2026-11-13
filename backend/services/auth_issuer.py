@@ -68,8 +68,10 @@ def init_tables(db) -> None:
     _migrate_users_table(db)
     from services import passkeys as _passkeys
     from services import recovery_codes as _recovery_codes
+    from services import signup as _signup
     _passkeys.init_tables(db)
     _recovery_codes.init_tables(db)
+    _signup.init_tables(db)
     _ensure_default_admin(db)
 
 

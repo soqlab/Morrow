@@ -1751,7 +1751,7 @@ _CSP_VALUE = str(
 # "/r/" carries the trailing slash deliberately: this tuple is matched with str.startswith, and a
 # bare "/r" would also claim /repositories, /remediations and /robots.txt.
 _CSP_STRICT_PREFIXES = ("/vendor-admin", "/invite", "/check", "/public-check", "/abuse", "/scanner",
-                        "/r/", "/trial", "/join")   # "/trial" also covers "/trial-request"
+                        "/r/", "/trial", "/join", "/signup")   # "/trial" also covers "/trial-request"
 _CSP_STRICT_VALUE = str(
     os.getenv(
         "MORROW_CSP_VALUE_STRICT",
@@ -2307,6 +2307,13 @@ def _auth_public_path(path: str) -> bool:
         # once, and all it buys is a short-lived ticket that can only register a passkey
         # (services/recovery_codes.py). Rate limited by _RATE_AUTH and journaled either way.
         "/auth/recovery-codes/redeem",
+        # Public sign-up with a passkey (services/signup.py): the page. The ceremony itself is
+        # /auth/passkey/register/begin|finish above, kind "signup", with its own per-address and
+        # global budgets.
+        "/signup",
+        # What an invite link an administrator handed over is for (organization name and role only;
+        # uses nothing up). The link itself is spent by /auth/passkey/register/finish, kind "team".
+        "/auth/invite-links/preview",
         # Domain team sign-in: the page, the link request (same answer either way) and the link
         # preview (services/team_join.py).
         "/join",
@@ -2475,6 +2482,11 @@ def _public_auth_config() -> Dict[str, Any]:
         # exactly when passkeys do.
         "recovery_codes_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available(),
         "team_join_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available() and _password_reset_available(),
+        # Invite links an organization admin makes and hands over (POST /auth/invite-links): nothing
+        # is sent by the server, so they work on a passkeys-only server without mail.
+        "invite_links_enabled": bool(AUTH_ISSUER_ENABLED) and _passkeys_available(),
+        # Public sign-up with a passkey (services/signup.py): a new organization, no email.
+        "signup_enabled": bool(AUTH_ISSUER_ENABLED) and _signup_enabled(),
         # Hosted for customers: the sign-in screen offers no developer token options.
         "simple_sign_in": str(os.getenv("MORROW_SIGNIN_SIMPLE", "0") or "0").strip().lower() in {"1", "true", "yes", "on"},
     }
@@ -2496,8 +2508,24 @@ def _passkeys_only() -> bool:
         return False
 
 
+def _signup_enabled() -> bool:
+    try:
+        from services import signup
+        return signup.enabled()
+    except Exception:
+        return False
+
+
 def _password_reset_available() -> bool:
-    """Reset links are emailed, so both mail and the configured public origin are needed."""
+    """Reset links are emailed, so both mail and the configured public origin are needed.
+
+    Never on a passkeys-only server (MORROW_PASSKEYS_ONLY=1): there, nothing that signs anyone in or
+    gets anyone back in is emailed. Recovery is a recovery code, or a recovery link an admin of the
+    organization hands over; joining is an invite link an admin hands over. Turn the flag off to keep
+    emailed recovery and emailed team sign-in links.
+    """
+    if _passkeys_only():
+        return False
     try:
         from services import invite_links, platform_mail
         return platform_mail.configured() and bool(invite_links.public_base_url_only())
@@ -25038,6 +25066,8 @@ class PasswordResetConfirmBody(BaseModel):
     password: str = Field(..., min_length=1, max_length=200)
 
 
+_NO_EMAIL_RECOVERY = ("Morrow doesn't email sign-in or recovery links. Lost your passkey? Use one of your recovery "
+                      "codes, or ask an admin of your organization for a recovery link.")
 _PASSWORD_RESET_SENT = ("If an account exists for that address, we've emailed it a link to choose a new "
                         "password. Check your inbox and spam folder.")
 
@@ -25062,6 +25092,10 @@ async def auth_password_reset_request(body: PasswordResetRequestBody, request: R
     answer as one without (an SMTP round trip would otherwise give it away).
     """
     _require_auth_issuer_enabled()
+    if _passkeys_only():
+        # Nothing is emailed on a passkeys-only server, whether or not the address has an account.
+        _auth_journal(request, "password_reset.refused", subject="", status_code=410, required=False)
+        raise HTTPException(410, _NO_EMAIL_RECOVERY)
     # The link leaves the process by email, so its origin comes from configuration, never from the
     # Host header (see invite_links.external_invite_link for the attack that rules out).
     base = _invite_links.public_base_url_only()
@@ -25165,6 +25199,7 @@ async def auth_password_reset_confirm(body: PasswordResetConfirmBody, request: R
 # ── Passkeys (services/passkeys.py) and domain team sign-in (services/team_join.py) ────────────
 
 from services import passkeys as _passkeys  # noqa: E402
+from services import signup as _signup  # noqa: E402
 from services import team_join as _team_join  # noqa: E402
 from services.auth_issuer import (  # noqa: E402
     create_passkey_user as _issuer_create_passkey_user,
@@ -25234,6 +25269,9 @@ class PasskeyRegisterBeginBody(BaseModel):
     kind: str = Field(..., min_length=3, max_length=20)
     token: str = Field("", max_length=256)
     full_name: str = Field("", max_length=200)
+    # Sign-up only (kind "signup"): the new organization's name, and a field people never see.
+    organization: str = Field("", max_length=200)
+    website: str = Field("", max_length=200)
 
 
 class PasskeyRegisterFinishBody(BaseModel):
@@ -25323,6 +25361,28 @@ def _registration_target(db, request: Request, body: PasskeyRegisterBeginBody) -
         return {"user_id": str(uuid.uuid4()), "email": invitation["email"].lower(), "name": body.full_name.strip(),
                 "context": {"kind": "invite", "ticket": _passkeys.ticket_hash(body.token),
                             "full_name": body.full_name.strip()}}
+    if kind == "signup":
+        if not _signup_enabled():
+            raise HTTPException(404, "Sign-up isn't open on this server. Ask an admin of your organization for an invite link.")
+        if body.website.strip():
+            # The field is hidden from people; something that fills it in is a script. Same answer as
+            # any malformed request, so it doesn't learn which signal caught it.
+            _auth_journal(request, "signup.refused", method="passkey", status_code=400, required=False)
+            raise HTTPException(400, "This sign-up request isn't valid. Reload the page and try again.")
+        try:
+            _signup.check_budget(db, _client_ip_for_monitoring(request))
+        except _signup.SignupError as exc:
+            _auth_journal(request, "signup.rate_limited", method="passkey", status_code=exc.status_code, required=False)
+            raise HTTPException(exc.status_code, exc.detail) from None
+        full_name = _signup.clean(body.full_name, _signup.MAX_NAME)
+        organization = _signup.clean(body.organization, _signup.MAX_ORGANIZATION)
+        return {"user_id": str(uuid.uuid4()), "email": "", "name": full_name or organization or "Morrow account",
+                "context": {"kind": "signup", "full_name": full_name, "organization": organization}}
+    if kind == "team":
+        ticket = _passkeys.peek_ticket(db, body.token, "team")
+        full_name = _signup.clean(body.full_name, _signup.MAX_NAME)
+        return {"user_id": str(uuid.uuid4()), "email": "", "name": full_name or "Morrow account",
+                "context": {"kind": "team", "ticket": ticket["token_sha256"], "full_name": full_name}}
     # join
     ticket = _passkeys.peek_ticket(db, body.token, "join")
     if db.execute("SELECT 1 FROM morrow_users WHERE email=?", (ticket["email"],)).fetchone():
@@ -25368,6 +25428,81 @@ def _record_team_join(request: Request, user: Dict[str, Any], org_id: str, domai
                      actor={"actor_id": user["id"], "actor_role": _team_join.DEFAULT_ROLE})
     finally:
         reset_current_organization_id(ctx)
+
+
+def _finish_signup(db, request: Request, user_id: str, context: Dict[str, Any], verified: Dict[str, Any],
+                   passkey_name: str) -> Dict[str, Any]:
+    """Public sign-up: a new organization, its admin account, the passkey, and recovery codes (once)."""
+    if not _signup_enabled():
+        raise HTTPException(404, "Sign-up isn't open on this server.")
+    ip = _client_ip_for_monitoring(request)
+    try:
+        _signup.check_budget(db, ip)
+    except _signup.SignupError as exc:
+        _auth_journal(request, "signup.rate_limited", method="passkey", status_code=exc.status_code, required=False)
+        raise HTTPException(exc.status_code, exc.detail) from None
+    full_name = _signup.clean(context.get("full_name"), _signup.MAX_NAME)
+    org_name = _signup.organization_name(full_name, _signup.clean(context.get("organization"), _signup.MAX_ORGANIZATION))
+    try:
+        org_id = _signup.create_organization(org_name)
+    except Exception:
+        logger.exception("sign-up: the organization could not be created")
+        raise HTTPException(503, "Your account couldn't be created just now. Try again in a minute.") from None
+    try:
+        user = _issuer_create_passkey_user(db, user_id, "", full_name, "admin", org_id)
+    except ValueError:
+        raise HTTPException(409, "This sign-up was already used. Sign in with your passkey.") from None
+    try:
+        passkey = _passkeys.store_credential(db, user_id, verified, passkey_name)
+        codes = _recovery_codes.generate(db, user_id)
+        _signup.record(db, user_id, ip)
+        _signup.add_owner(org_id, user_id, full_name)
+    except BaseException:
+        _delete_new_account(db, user_id)
+        raise
+    user = _issuer_get_user(db, user_id)
+    _auth_journal(request, "signup.completed", user=user, method="passkey", subject="", required=False)
+    ctx = set_current_organization_id(org_id)
+    try:
+        _audit_event(request, action="auth.signup.completed", resource_type="organization", resource_id=org_id,
+                     details={"organization_name": org_name}, actor={"actor_id": user_id, "actor_role": "admin"})
+    finally:
+        reset_current_organization_id(ctx)
+    session = _session_or_revoke(db, request, user)
+    # The codes are in this answer and never again: only their keyed hashes are stored.
+    return {**session, "passkey": passkey, "recovery_codes": codes,
+            "organization": {"id": org_id, "name": org_name}}
+
+
+def _finish_invite_link(db, request: Request, user_id: str, context: Dict[str, Any], verified: Dict[str, Any],
+                        body: "PasskeyRegisterFinishBody") -> Dict[str, Any]:
+    """An invite link an organization admin handed over: a new viewer account in that organization."""
+    ticket = _passkeys.claim_ticket(db, body.token, "team")
+    org_id = ticket["org_id"]
+    full_name = _signup.clean(context.get("full_name"), _signup.MAX_NAME)
+    try:
+        user = _issuer_create_passkey_user(db, user_id, "", full_name, _team_join.DEFAULT_ROLE, org_id)
+    except ValueError:
+        raise HTTPException(409, "This invite link was already used. Sign in with your passkey.") from None
+    try:
+        passkey = _passkeys.store_credential(db, user_id, verified, body.name)
+        _team_join.add_member(org_id, "", user_id=user_id, email="")
+    except BaseException:
+        _delete_new_account(db, user_id)
+        raise
+    user = _issuer_get_user(db, user_id)
+    _auth_journal(request, "team_join.joined", user=user, method="passkey", subject="", required=False)
+    ctx = set_current_organization_id(org_id)
+    try:
+        _audit_event(request, action="auth.invite_link.joined", resource_type="user", resource_id=user_id,
+                     details={"role": _team_join.DEFAULT_ROLE, "invited_by": ticket.get("user_id") or ""},
+                     actor={"actor_id": user_id, "actor_role": _team_join.DEFAULT_ROLE})
+    finally:
+        reset_current_organization_id(ctx)
+    session = _session_or_revoke(db, request, user)
+    return {**session, "passkey": passkey,
+            "joined": {"org_id": org_id, "organization_name": _invite_links.organization_name(org_id),
+                       "role": _team_join.DEFAULT_ROLE}}
 
 
 @app.post("/auth/passkey/register/finish")
@@ -25440,6 +25575,10 @@ async def auth_passkey_register_finish(body: PasskeyRegisterFinishBody, request:
                     user = _issuer_get_user(db, user_id)
                     session = _session_or_revoke(db, request, user)
                     return {**session, "passkey": passkey}
+                if kind == "signup":
+                    return _finish_signup(db, request, user_id, context, verified, body.name)
+                if kind == "team":
+                    return _finish_invite_link(db, request, user_id, context, verified, body)
                 # join: every rule is checked again, DNS included, before the link is used up.
                 ticket = _passkeys.peek_ticket(db, body.token, "join")
                 try:
@@ -25746,6 +25885,163 @@ async def auth_reissue_setup_link(user_id: str, request: Request):
     return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
 
 
+@app.post("/auth/accounts/{user_id}/recovery-link")
+@limiter.limit(_RATE_AUTH)
+async def auth_issue_recovery_link(user_id: str, request: Request):
+    """A single-use recovery link for a member of the caller's organization who lost every passkey (admin).
+
+    What "ask an admin of your organization" means on a server that emails nothing. The link opens
+    /reset-password#recover=..., registers a new passkey, signs the account out everywhere else and
+    can remove its other passkeys, exactly like a recovery code. It lives as long as an emailed
+    recovery link (MORROW_ACCOUNT_RECOVERY_TTL_SECONDS, default 30 minutes), a newer one replaces it,
+    and issuing it is journaled and written to the organization's audit log. An account that was never
+    set up gets a setup link instead (POST /auth/accounts/{user_id}/setup-link).
+    """
+    _require_auth_issuer_enabled()
+    admin, org_id = _require_issuer_admin(request)
+    if not _passkeys.available():
+        raise HTTPException(404, "Recovery links need passkeys, which aren't set up on this server.")
+
+    def work():
+        with _db() as db:
+            user = _issuer_get_user(db, user_id)
+            if not user or user.get("org_id") != org_id or not user.get("is_active"):
+                raise HTTPException(404, "User not found")
+            if _account_unconfigured(db, user["id"]):
+                raise HTTPException(409, "This account was never set up. Make it a setup link instead.")
+            token = _passkeys.issue_ticket(db, "recover", user_id=user["id"], email=user.get("email") or "")
+        _auth_journal(request, "account_recovery.issued", user=user, method="passkey", subject=user.get("email") or "",
+                      required=False)
+        _audit_event(request, action="auth.account_recovery.issued", resource_type="user", resource_id=user["id"],
+                     details={"issued_by": str(admin.get("sub") or "")})
+        return {"user": {k: user.get(k) for k in ("id", "email", "full_name", "role", "org_id")},
+                "recovery_link": _account_link("recover", token), "expires_in": _passkeys.ticket_ttl("recover")}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+# ── Invite links an organization admin hands over (no email) ────────────────────────────────────
+
+class InviteLinkPreviewBody(BaseModel):
+    token: str = Field(..., min_length=16, max_length=256)
+
+
+def _account_link(kind: str, token: str) -> str:
+    """/reset-password#<kind>=token or /join#invite=token. Origin from configuration, like _setup_link."""
+    base = (_invite_links.public_base_url_only() or ((_passkeys.relying_party() or {}).get("origins") or [""])[0]).rstrip("/")
+    if kind == "team":
+        return f"{base}/join#invite={token}"
+    return f"{base}/reset-password#{kind}={token}"
+
+
+def _invite_link_rows(db, org_id: str) -> List[Dict[str, Any]]:
+    now = int(time.time())
+    rows = db.execute(
+        "SELECT token_sha256, user_id, created_at, expires_at FROM morrow_auth_tickets "
+        "WHERE purpose='team' AND org_id=? AND used_at IS NULL AND expires_at>=? ORDER BY created_at DESC LIMIT 200",
+        (org_id, now),
+    ).fetchall()
+    return [{"id": str(r[0])[:16], "created_by": r[1] or "", "created_at": int(r[2] or 0), "expires_at": int(r[3] or 0)}
+            for r in rows]
+
+
+@app.post("/auth/invite-links")
+@limiter.limit(_RATE_AUTH)
+async def auth_create_invite_link(request: Request):
+    """A single-use invite link into the caller's organization (admin). Nothing is sent: hand it over.
+
+    Whoever opens it creates a passkey and becomes a viewer of the organization (an admin raises the
+    role afterwards). No email or domain is involved. It expires after MORROW_INVITE_LINK_TTL_SECONDS
+    (default 7 days) and can be revoked before it is used.
+    """
+    _require_auth_issuer_enabled()
+    admin, org_id = _require_issuer_admin(request)
+    if not _passkeys.available():
+        raise HTTPException(404, "Invite links need passkeys, which aren't set up on this server.")
+
+    def work():
+        with _db() as db:
+            # Several links may be outstanding at once (one per person), so none replaces another.
+            token = _passkeys.issue_ticket(db, "team", user_id=str(admin.get("sub") or ""), org_id=org_id,
+                                           replace_previous=False)
+        _auth_journal(request, "invite_link.issued", user={"id": admin.get("sub"), "org_id": org_id, "role": "admin"},
+                      method="passkey", subject="", required=False)
+        _audit_event(request, action="auth.invite_link.created", resource_type="organization", resource_id=org_id,
+                     details={"role": _team_join.DEFAULT_ROLE, "id": _passkeys.ticket_hash(token)[:16]})
+        return {"invite_link": _account_link("team", token), "id": _passkeys.ticket_hash(token)[:16],
+                "role": _team_join.DEFAULT_ROLE, "expires_in": _passkeys.ticket_ttl("team")}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.get("/auth/invite-links")
+async def auth_list_invite_links(request: Request):
+    """The organization's invite links that are still open (admin). The links themselves are never shown again."""
+    _require_auth_issuer_enabled()
+    _, org_id = _require_issuer_admin(request)
+
+    def work():
+        with _db() as db:
+            return {"invite_links": _invite_link_rows(db, org_id), "role": _team_join.DEFAULT_ROLE}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.delete("/auth/invite-links/{link_id}")
+@limiter.limit(_RATE_AUTH)
+async def auth_revoke_invite_link(link_id: str, request: Request):
+    """Revoke an open invite link of the caller's organization (admin)."""
+    _require_auth_issuer_enabled()
+    admin, org_id = _require_issuer_admin(request)
+    if not re.fullmatch(r"[0-9a-f]{16}", str(link_id or "")):
+        raise HTTPException(404, "No such invite link.")
+
+    def work():
+        with _db() as db:
+            match = [r for r in db.execute(
+                "SELECT token_sha256 FROM morrow_auth_tickets WHERE purpose='team' AND org_id=? AND used_at IS NULL",
+                (org_id,)).fetchall() if str(r[0]).startswith(link_id)]
+            if len(match) != 1:
+                raise HTTPException(404, "No such invite link.")
+            db.execute("DELETE FROM morrow_auth_tickets WHERE token_sha256=? AND purpose='team' AND org_id=?",
+                       (match[0][0], org_id))
+            db.commit()
+            rows = _invite_link_rows(db, org_id)
+        _auth_journal(request, "invite_link.revoked", user={"id": admin.get("sub"), "org_id": org_id, "role": "admin"},
+                      method="passkey", subject="", required=False)
+        _audit_event(request, action="auth.invite_link.revoked", resource_type="organization", resource_id=org_id,
+                     details={"id": link_id})
+        return {"invite_links": rows}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.post("/auth/invite-links/preview")
+@limiter.limit(_RATE_AUTH)
+async def auth_invite_link_preview(body: InviteLinkPreviewBody, request: Request):
+    """What an invite link is for: the organization's name and the role. Uses nothing up."""
+    _require_auth_issuer_enabled()
+
+    def work():
+        with _db() as db:
+            try:
+                ticket = _passkeys.peek_ticket(db, body.token, "team")
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+        return {"organization_name": _invite_links.organization_name(ticket["org_id"]),
+                "role": _team_join.DEFAULT_ROLE, "expires_at": ticket["expires_at"]}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+# ── Public sign-up with a passkey (services/signup.py) ──────────────────────────────────────────
+
+@app.get("/signup", include_in_schema=False)
+def public_signup_page():
+    from fastapi.responses import FileResponse
+
+    path = os.path.join(BASE_DIR, "static", "signup.html")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="signup.html not found")
+    return FileResponse(path, media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-store, must-revalidate"})
+
+
 # ── Domain team sign-in ──────────────────────────────────────────────────────────────────────────
 
 class TeamJoinRequestBody(BaseModel):
@@ -25760,6 +26056,8 @@ class DomainJoinPolicyBody(BaseModel):
     enabled: bool
 
 
+_NO_EMAIL_JOIN = ("Morrow doesn't email sign-in links. Ask an admin of your organization for an invite link: "
+                  "open it, create a passkey, and you're in.")
 _TEAM_JOIN_SENT = ("If your organization lets people with this address join, we've emailed you a link. "
                    "Check your inbox and spam folder.")
 
@@ -25784,6 +26082,11 @@ def public_team_join_page():
 async def auth_team_join_request(body: TeamJoinRequestBody, request: Request):
     """Email a single-use join link when the address's domain admits new members. Same answer otherwise."""
     _require_auth_issuer_enabled()
+    if _passkeys_only():
+        # Nothing is emailed on a passkeys-only server. An organization admin makes an invite link
+        # (POST /auth/invite-links) and hands it over; the join-policy rows stay as they were.
+        _auth_journal(request, "team_join.refused", subject="", status_code=410, required=False)
+        raise HTTPException(410, _NO_EMAIL_JOIN)
     try:
         domain = _team_join.email_domain(body.email)
     except _team_join.JoinError as exc:
@@ -25853,7 +26156,8 @@ def api_domain_join(request: Request):
     """Team sign-in for each verified domain of this organization, and who joined that way."""
     _require_role(request, allowed_roles=["admin"], action="domains.team_join.list", resource_type="domain")
     org = _org(request)
-    return {"api_version": "v1", "available": _passkeys.available() and _platform_mail.configured(),
+    return {"api_version": "v1", "available": _passkeys.available() and _platform_mail.configured() and not _passkeys_only(),
+            "invite_links_available": _passkeys.available(),
             "default_role": _team_join.DEFAULT_ROLE, "policies": _team_join.list_policies(org),
             "joined": _team_join.list_joins(org)}
 

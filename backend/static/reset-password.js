@@ -14,7 +14,11 @@
      Without email: "I have a recovery code" trades one recovery code (POST /auth/recovery-codes/redeem)
      for the same kind of short-lived recovery ticket, then runs the same passkey ceremony. And
      /reset-password#setup=... is the single-use link an administrator hands to someone whose account
-     they created (possibly without an email): it creates the account's first passkey (kind "setup"). */
+     they created (possibly without an email): it creates the account's first passkey (kind "setup").
+
+     On a passkeys-only server (MORROW_PASSKEYS_ONLY=1, the hosted default) nothing is emailed: the page
+     is "Lost your passkey?", a recovery code, or a recovery link an admin of the organization makes
+     (POST /auth/accounts/{id}/recovery-link) and hands over, which opens /reset-password#recover=... */
 
   const TOKEN_KEY = "pq_reset_token";
   const RECOVER_KEY = "pq_recover_token";
@@ -99,9 +103,10 @@
   // ---------- without a token: ask for the address ----------
   function askEmail() {
     if (passkeysOnly) {
-      $("resetTitle").textContent = "Recover your account.";
+      $("resetTitle").textContent = "Lost your passkey?";
     }
     if (!mailEnabled && codesEnabled) return askCode();
+    if (!mailEnabled) return askAdmin();
     state({ title: passkeysOnly ? "Recover your account." : "Reset your password or recover your account.",
       lead: passkeysOnly ? "Lost your passkey? Enter your account's email address and we'll email you a link to create a new one, if your account allows recovery by email."
         : "Enter your account's email address. We'll email you a link to choose a new password, or to create a new passkey if you sign in with one, if your account allows recovery by email.",
@@ -114,11 +119,20 @@
     $("resetEmail").focus();
   }
 
+  // ---------- no email and no codes: only an admin can help ----------
+  const ADMIN_HELP = "No code left? Ask an admin of your organization for a recovery link (Users & access, Recovery link). It works once and lets you create a new passkey.";
+  function askAdmin() {
+    state({ title: "Lost your passkey?", lead: "Ask an admin of your organization for a recovery link.",
+      body: para("Open the link they give you on this device and create a new passkey. It works once and signs you out everywhere else. Morrow never emails sign-in or recovery links."),
+      actions: [{ label: "Back to sign in", href: "/ui/" }] });
+  }
+
   // ---------- a recovery code instead of email ----------
   function askCode() {
     const supported = window.MorrowPasskey && MorrowPasskey.supported();
-    state({ title: "Use a recovery code.", lead: "Enter one of the recovery codes you saved. You'll create a new passkey, and you'll be signed out everywhere else. Each code works once.",
-      body: `<form class="invite-form" novalidate>
+    state({ title: mailEnabled ? "Use a recovery code." : "Lost your passkey?",
+      lead: "Enter one of the recovery codes you saved. You'll create a new passkey, and you'll be signed out everywhere else. Each code works once.",
+      body: `${mailEnabled ? "" : para(ADMIN_HELP)}<form class="invite-form" novalidate>
           <label>Recovery code<input id="resetCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX"></label>
           <label class="invite-check" style="display:flex;gap:10px;align-items:center;text-transform:none;letter-spacing:0;font-size:14px">
             <input id="recoverRevoke" type="checkbox" style="width:auto"> Also remove my other passkeys (a lost or stolen device)</label>
@@ -209,7 +223,8 @@
     store.del(RECOVER_KEY);
     recoverToken = "";
     return state({ title: "This link can't be used.", lead: detail(r) || "It may have expired or already been used.", tone: "bad",
-      actions: [{ label: "Request a new link", primary: true, run: askEmail }] });
+      body: mailEnabled ? "" : para("Ask the admin who gave it to you for a new one, or use a recovery code."),
+      actions: [{ label: mailEnabled ? "Request a new link" : codesEnabled ? "Use a recovery code" : "Back", primary: true, run: askEmail }] });
   }
   async function recover() {
     const error = $("resetError");

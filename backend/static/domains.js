@@ -149,16 +149,17 @@
         <p class="dom-note">${esc(why)}</p>
         <div class="invite-actions" style="margin-top:4px">
           ${p.enabled ? `<button class="btn small" type="button" data-join-off="${esc(p.domain)}">Turn off</button>`
-            : canEnable ? `<button class="btn primary small" type="button" data-join-on="${esc(p.domain)}">Let @${esc(p.domain)} join</button>` : ""}
+            : canEnable && r.data.available ? `<button class="btn primary small" type="button" data-join-on="${esc(p.domain)}">Let @${esc(p.domain)} join</button>` : ""}
         </div></article>`;
     }).join("");
     box.innerHTML = `<h2>Team sign-in</h2>
       <p class="dom-note">${r.data.available ? "Let colleagues join without an invitation: they enter their work email at <b>/join</b>, open the emailed link and create a passkey. They start as viewers. The DNS record is checked again on every join, so removing it pauses joining."
+        : r.data.invite_links_available ? "Morrow doesn't email join links on this server. Invite people with an invite link instead: in the console, Administration, Users &amp; access, Invite link. They open it, create a passkey and join as viewers."
         : "Team sign-in needs passkeys and email, which aren't set up on this server."}</p>
       ${rows || `<p class="dom-note">Verify a domain above first.</p>`}
       <p class="invite-error" id="joinError" role="alert"></p>
       <h3 style="margin-top:22px">Joined through team sign-in</h3>
-      ${joined.length ? `<dl class="dom-rec">${joined.map(j => `<dt>${esc(when(j.joined_at))}</dt><dd>${esc(j.email)}</dd><span>${esc(j.role)}</span>`).join("")}</dl>`
+      ${joined.length ? `<dl class="dom-rec">${joined.map(j => `<dt>${esc(when(j.joined_at))}</dt><dd>${esc(j.email || (j.domain ? "" : "invite link"))}</dd><span>${esc(j.role)}</span>`).join("")}</dl>`
         : `<p class="dom-note">Nobody yet.</p>`}`;
   }
   async function setJoin(domain, enabled, button) {

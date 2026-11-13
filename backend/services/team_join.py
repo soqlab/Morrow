@@ -30,6 +30,11 @@ _morrow-verify.<domain> TXT morrow-verify=<token>). On top of it:
     never a password, and the least-privileged role, viewer. An admin raises it if needed.
   * Every join is recorded three times: the tenant audit log (domains.team_join.joined), the
     organization's admin audit log (domain_join) and org_domain_joins, which the admin page lists.
+
+With MORROW_PASSKEYS_ONLY=1 (hosted) nothing is emailed: /auth/team-join/request answers 410 and the
+policies above are kept but admit nobody by email. People join with an invite link an admin makes
+(POST /auth/invite-links in app.py) and hands over; add_member records those joins too, with an
+empty domain and the admin audit action invite_link_join.
 """
 
 from __future__ import annotations
@@ -305,7 +310,10 @@ def check_join_allowed(org_id: str, domain: str) -> None:
 
 
 def add_member(org_id: str, domain: str, *, user_id: str, email: str) -> Dict[str, Any]:
-    """Make the new account a viewer of the organization and record the join (audit + join list)."""
+    """Make the new account a viewer of the organization and record the join (audit + join list).
+
+    `domain` is empty for an account that joined with an invite link an administrator handed over
+    (no email, no domain); such an account has no address, so it gets no admin_users row."""
     from services import tenant_scope as _tenant_scope
     from services.platform_access import _init as _admin_tables
     from services.platform_access import bind_account_to_organization
@@ -318,19 +326,21 @@ def add_member(org_id: str, domain: str, *, user_id: str, email: str) -> Dict[st
     # member, so these tenant rows are written from a named, journaled cross-tenant scope.
     with _tenant_scope.platform_scope("domain team sign-in: the tenant is the one that owns the domain",
                                       actor=str(user_id)), feature_conn() as conn:
-        try:
-            with atomic(conn):
-                conn.execute(
-                    "INSERT INTO admin_users (id, org_id, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (secrets.token_hex(8), org_id, address, DEFAULT_ROLE, "active", now))
-        except INTEGRITY_ERRORS:
-            pass  # already listed (an earlier invitation); the membership below is what authorizes.
+        if address:
+            try:
+                with atomic(conn):
+                    conn.execute(
+                        "INSERT INTO admin_users (id, org_id, email, role, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                        (secrets.token_hex(8), org_id, address, DEFAULT_ROLE, "active", now))
+            except INTEGRITY_ERRORS:
+                pass  # already listed (an earlier invitation); the membership below is what authorizes.
         try:
             with atomic(conn):
                 conn.execute(
                     "INSERT INTO admin_audit_log (org_id, actor_email, action, target_type, target_id, detail, ip_address, created_at) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (org_id, address, "domain_join", "user", str(user_id), f"joined through verified domain {domain}", "", now))
+                    (org_id, address, "domain_join" if domain else "invite_link_join", "user", str(user_id),
+                     f"joined through verified domain {domain}" if domain else "joined with an invite link", "", now))
         except INTEGRITY_ERRORS:
             pass
         conn.execute(
