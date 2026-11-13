@@ -1772,8 +1772,23 @@ _CSP_STRICT_VALUE = str(
 ).strip()
 
 
+from routers import instrument as _instrument  # noqa: E402
+
+
+def _instrument_csp_for(path: str) -> str:
+    try:
+        return _instrument.csp_for(path, app) or ""
+    except Exception:
+        return ""
+
+
 def _csp_for(path: str) -> str:
     """The policy for this response. Strict where nothing inline is served."""
+    # The instrument views and their plain twins (routers/instrument.py) get a policy stricter
+    # still: this origin only for every kind of resource, nothing inline, no data from elsewhere.
+    instrument_csp = _instrument_csp_for(path)
+    if instrument_csp:
+        return instrument_csp
     if _CSP_STRICT_VALUE and str(path or "").startswith(_CSP_STRICT_PREFIXES):
         return _CSP_STRICT_VALUE
     if PRODUCTION_ENVIRONMENT and _CSP_VALUE:
@@ -1813,7 +1828,6 @@ app.mount("/ui", StaticFiles(directory=os.path.join(BASE_DIR, "static"), html=Tr
 app.mount("/vendor-admin", StaticFiles(directory=os.path.join(BASE_DIR, "static_admin"), html=True), name="vendor_admin")
 
 _INDEX_HTML_PATH = os.path.join(BASE_DIR, "static", "index.html")
-_LANDING_HTML_PATH = os.path.join(BASE_DIR, "static", "landing.html")
 _NOT_FOUND_HTML_PATH = os.path.join(BASE_DIR, "static", "404.html")
 _API_PATH_PREFIXES = ("/v1/", "/api/", "/platform/", "/auth/", "/webhooks/")
 
@@ -1853,16 +1867,16 @@ async def _pool_exhausted_handler(request: Request, exc: _pg_pool.PoolError):
 
 @app.get("/")
 def root():
-    from fastapi.responses import HTMLResponse
-    try:
-        with open(_LANDING_HTML_PATH, "r", encoding="utf-8") as f:
-            content = f.read()
-        return HTMLResponse(
-            content=content,
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"},
-        )
-    except Exception:
+    """The live instrument: the one input, the visitor's own connection and live counts.
+
+    The product overview that used to answer here is still at /launch.
+    """
+    from fastapi.responses import FileResponse
+    path = _instrument.page_path(os.path.join(BASE_DIR, "static"))
+    if not os.path.exists(path):
         return RedirectResponse(url="/ui/")
+    return FileResponse(path, media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
 
 
 def _public_static_html(filename: str):
@@ -1880,7 +1894,9 @@ def _public_static_html(filename: str):
 @app.get("/launch", include_in_schema=False)
 @app.get("/landing", include_in_schema=False)
 def public_landing_page():
-    return _public_static_html("landing.html")
+    """The old product overview page was retired with its decorative scenes; its address keeps
+    working and lands on the live instrument instead."""
+    return RedirectResponse(url="/", status_code=308)
 
 
 @app.get("/security", include_in_schema=False)
@@ -2008,6 +2024,10 @@ def robots_txt(request: Request):
 _SITEMAP_PAGES = (
     ("/", "1.0", "weekly"),
     ("/check", "0.9", "weekly"),
+    ("/league", "0.8", "weekly"),
+    ("/algorithms", "0.7", "monthly"),
+    ("/trust", "0.6", "weekly"),
+    ("/plain", "0.5", "weekly"),
     ("/trial", "0.8", "monthly"),
     ("/pricing", "0.7", "monthly"),
     ("/security", "0.7", "monthly"),
@@ -2328,6 +2348,11 @@ def _auth_public_path(path: str) -> bool:
         return True
     if p.startswith("/vendor-admin"):
         return True
+    # The instrument views (/, /<domain>, /league, /atlas, /algorithms, /trust) and /plain: one static
+    # page that reads /api/public, and plain pages rendered from the same guarded services. A dotted
+    # single segment that is one of the app's own routes (/cbom.csv) is never treated as a domain.
+    if _instrument.is_public_path(p, app):
+        return True
     # Credential-exchange endpoints must be reachable without a bearer token, otherwise there is no
     # way to obtain one: with MORROW_AUTH_REQUIRED=1 the middleware would answer /auth/login itself
     # with 401 "missing bearer token". Each of these authenticates from its own request payload
@@ -2488,13 +2513,20 @@ def _public_access_policy() -> Dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "principle": "No-login is allowed only for marketing, legal, support, and signed read-only proofs. Customer data, scans, assets, traffic IPs, and admin controls require authentication.",
         "public_no_login": [
-            {"path": "/", "purpose": "public landing page"},
+            {"path": "/", "purpose": "the live instrument: check a domain, your own connection, live counts"},
+            {"path": "/{domain}", "purpose": "a domain's public grade, decrypt year, fix and history; reads /api/public"},
+            {"path": "/league", "purpose": "top sites by sector, graded weekly by this server"},
+            {"path": "/atlas", "purpose": "zoomable map of graded sites; your own estate only with your own sign-in"},
+            {"path": "/algorithms", "purpose": "algorithm reference and dated history"},
+            {"path": "/trust", "purpose": "running commit, signed page manifest and deploy log"},
+            {"path": "/plain", "purpose": "the same answers as plain HTML without scripts"},
+            {"path": "/api/public", "purpose": "public grade, badge, history, league, build, deploys and manifest; read-only, rate limited"},
             {"path": "/pricing", "purpose": "commercial editions and scoping"},
             {"path": "/pilot", "purpose": "controlled enterprise pilot"},
             {"path": "/data-boundary", "purpose": "evidence collection and privacy boundary"},
             {"path": "/airlock-deployment", "purpose": "collector deployment guide"},
             {"path": "/dpa", "purpose": "data processing review overview"},
-            {"path": "/launch", "purpose": "public landing page"},
+            {"path": "/launch", "purpose": "old landing address; redirects to /"},
             {"path": "/security", "purpose": "buyer security FAQ and trust posture"},
             {"path": "/privacy", "purpose": "privacy policy"},
             {"path": "/terms", "purpose": "terms of service"},
@@ -26445,6 +26477,13 @@ try:
     register_deferred_schema("llm_org_provider", _llm_org_config.init_tables)
 except Exception:  # pragma: no cover - the provider layer must not break startup
     pass
+
+# The instrument views and /plain (routers/instrument.py). Included last: its /{domain} route
+# answers only a single dotted segment that no earlier route claimed.
+app.include_router(_instrument.create_instrument_router(_PlatformAdminDeps(
+    static_dir=os.path.join(BASE_DIR, "static"),
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+)))
 
 # Public demo mode (MORROW_DEMO_MODE=1): throwaway workspaces and the write allowlist. Last, so it runs first.
 _demo_mode.attach(app)

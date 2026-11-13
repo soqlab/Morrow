@@ -305,7 +305,7 @@ def test_the_public_funnel_points_at_the_free_paths():
     import pathlib
 
     static = pathlib.Path(__file__).parent / "static"
-    landing = (static / "landing.html").read_text(encoding="utf-8")
+    landing = (static / "instrument.html").read_text(encoding="utf-8")  # what / serves now
     pricing = (static / "pricing.html").read_text(encoding="utf-8")
 
     assert 'href="/check"' in landing and 'href="/trial"' in landing

@@ -18,8 +18,6 @@ CHECKER_DOCUMENTS = (
 def test_public_launch_pages_are_served():
     client = TestClient(app)
     routes = {
-        "/launch": "Prove quantum readiness without deep customer access.",
-        "/landing": "Prove quantum readiness without deep customer access.",
         "/enterprise-admin": "Enterprise Control Center",
         "/admin-page": "Enterprise Control Center",
         # The passport page explains a real passport; it no longer presents itself as a demo.
@@ -55,6 +53,13 @@ def test_public_launch_pages_are_served():
         "/abuse": "Never check my domain again",
         "/scanner": "You found us in your logs",
     }
+
+    # The old product overview was retired with its decorative scenes; its addresses land on the
+    # live instrument at /.
+    for old in ("/launch", "/landing"):
+        moved = client.get(old, follow_redirects=False)
+        assert moved.status_code == 308 and moved.headers["location"] == "/", old
+    assert "/ui/instrument.js" in client.get("/").text
 
     for path, phrase in routes.items():
         response = client.get(path)
@@ -136,7 +141,7 @@ def test_the_checker_links_its_documents_where_they_are_actually_needed():
         assert href in result, f"the result page does not link {href}"
 
     # The public footer, on a page a stranger reaches from anywhere on the site.
-    for name in ("pricing.html", "landing.html"):
+    for name in ("pricing.html", "instrument.html"):
         body = (pathlib.Path(__file__).parent / "static" / name).read_text(encoding="utf-8")
         footer = body[body.index("<footer"):]
         assert 'href="/scanner"' in footer and 'href="/abuse"' in footer, name
