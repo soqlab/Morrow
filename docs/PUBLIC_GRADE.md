@@ -255,8 +255,8 @@ Also under `/api/public`, also unauthenticated, GET only, same CORS policy. Test
 | `GET /basis` | The decrypt years and their source, from `services/decrypt_window.py`: `{decrypt_year_low, decrypt_year_high, source_label, source_url, basis, pq_basis, pq_source_url}`. The public grade's `exposure` and the console's per-endpoint `decrypt_window` are built from the same module, so they never quote different dates. |
 | `GET /build` | `{commit, commit_short, source, repository, commit_url, started_at, rubric_version, python}`. `commit` comes from the first set variable of `MORROW_GIT_COMMIT`, `RENDER_GIT_COMMIT`, `SOURCE_COMMIT`, `GIT_COMMIT` and must match `^[0-9a-f]{7,40}$`; otherwise it is `null` (and `source` names nothing). It is never guessed. |
 | `GET /deploys?limit=50` | The deploy transparency log, newest first: `{entries: [{seq, commit, first_seen, prev_hash, entry_hash}], head_hash, chain_ok, count, genesis_hash, hash_rule}`. `chain_ok` is computed over every row on each request. |
-| `GET /manifest` | The signed page manifest (below). |
-| `GET /league?sector=&q=&sort=grade\|domain\|scanned&dir=asc\|desc&limit=(<=500)&offset=` | The league table (below). |
+| `GET /manifest` | The page file list (below). |
+| `GET /league` | Sector averages and their weekly trend; no site is named (below). |
 | `GET /history/{domain}?detail=1` | As `/history/{domain}`, each entry also carrying `rubric_version` and the full stored `result`. At most 100 entries. |
 | `GET /history/{domain}.atom` | Atom feed (RFC 4287): one entry per grade change, newest first (the first check counts as a change). Entry ids are `urn:morrow:public-grade:<domain>:<scanned_at>`. An opted-out domain is refused with 403, as in the JSON form. |
 
@@ -283,49 +283,33 @@ The commit only appears if the platform provides it. Render sets `RENDER_GIT_COM
 Git-backed services; for images built elsewhere set `MORROW_GIT_COMMIT` (for example from
 `git rev-parse HEAD` at build time).
 
-### Signed page manifest
+### Page file list
 
 ```
-{"format": "morrow.page-manifest/v1", "commit": <sha or null>, "generated_at": <ISO>,
- "files": [{"path": "/ui/<name>", "sha256": <hex>, "bytes": <int>}, ...],      # sorted by path
- "signatures": [{"kid", "alg", "sig_b64"}, ...],
- "keys_url": "/.well-known/morrow-proof-keys.json",
- "signing_context": "morrow.page-manifest.v1\n",
- "unsigned_reason": null | <why there is no signature>}
+{"format": "morrow.page-files/v1", "commit": <sha or null>, "generated_at": <ISO>,
+ "files": [{"path": "/ui/<name>", "sha256": <hex>, "bytes": <int>}, ...]}      # sorted by path
 ```
 
 `files` is every regular file under `backend/static/` (fonts included; dotfiles and symlinks
-skipped), hashed once per process. Each active proof key (`services/proof_signing.py`: Ed25519, and
-ML-DSA-65 when the cryptography build has it) signs
-
-```
-b"morrow.page-manifest.v1\n" + canonical_json(manifest without "signatures" and "unsigned_reason")
-```
-
-The context differs from the migration-proof context (`morrow.migration-proof.v1\n`), so a manifest
-signature is never a valid proof signature and the reverse. Without `MORROW_VAULT_MASTER_KEY` there
-is no signing key: the manifest is served unsigned with `unsigned_reason` set, and its hashes can
-still be compared with git. Cached for 60 s.
-
-What it proves: the pages this server sends are the bytes of a public commit, and the deployment's
-long-lived key says so. It does not prove that the Python code running is that commit: the manifest
-is produced by the running code.
+skipped), hashed once per process. It is not signed (an ML-DSA-signed version was built and then
+dropped by decision; the commit banner, this list, the deploy log and the no-tracking readout stay).
+What it lets anyone check: the pages this server sends are the bytes of a public commit. It does not
+prove that the Python code running is that commit: the list is produced by the running code.
+Reproducible release images (docs/REPRODUCIBLE_BUILDS.md) are how that is checked. The /trust view
+hashes the files it loaded itself, in the browser, and compares them with this list.
 
 ### verify-deploy.py
 
 ```
 git fetch
 python scripts/verify-deploy.py --url https://morrow.soqlab.com --repo .
-python scripts/verify-deploy.py --url https://morrow.soqlab.com --keys trusted-keys.json
 ```
 
-It reads `/api/public/build`, `/api/public/manifest`, the keys and `/api/public/deploys`, then:
-every listed file must equal `git show <commit>:backend/static/<file>` (sha256 and size), files in
-the commit that are not listed are reported, at least one Ed25519 signature must verify and every
-signature present must verify (ML-DSA-65 is checked when the local cryptography build supports it),
-and the deploy chain is recomputed (from genesis when the whole log is returned) with the newest
-entry naming the running commit. Exit 0 verified, 1 a mismatch, 2 something could not be read.
-Standard library plus `cryptography`.
+It reads `/api/public/build`, `/api/public/manifest` and `/api/public/deploys`, then: every listed
+file must equal `git show <commit>:backend/static/<file>` (sha256 and size), files in the commit
+that are not listed are reported, and the deploy chain is recomputed (from genesis when the whole
+log is returned) with the newest entry naming the running commit. Exit 0 verified, 1 a mismatch,
+2 something could not be read. Standard library and git only.
 
 ### League
 
@@ -349,23 +333,26 @@ cd backend && python -m services.league --tick --max 20
 python -m services.league --list      # the league list
 ```
 
-`GET /league` answers from stored rows only (cached 60 s per process):
+`GET /league` publishes **sector averages only** (cached 60 s per process). No site is named or
+ranked in public: naming and ranking organisations invites disputes that a readiness check does not
+need, and any single domain can still be checked by anyone, on demand, at `/<domain>`. The old
+parameters (`sector`, `q`, `sort`, `dir`, `limit`, `offset`) are accepted and ignored.
 
 ```
-{"generated_at", "rubric_version", "list_size", "graded",
+{"generated_at", "rubric_version", "list_size", "graded", "names_published": false,
  "sectors": [{"id", "name", "method", "sources", "count", "graded",
-              "grades": {"A": n, ... "F": n}, "pq_share": <0..1, or null when nothing graded>}],
- "rows": [{"domain", "sector", "grade" (null if never graded under this rubric),
-           "previous_grade" (the grade before the latest change, or null),
-           "changed_at" (when the latest change was seen, null if never changed),
-           "group", "post_quantum", "scanned_at",
-           "miss" (error code of a failure newer than the grade, or null)}],
- "total" (rows after the filters, before paging),
+              "grades": {"A": n, ... "F": n}, "pq_share": <0..1, or null when nothing graded>,
+              "trend": [{"week": "YYYY-MM-DD" (Monday), "graded", "grades", "pq_share"}]}],
  "last_run": {"started_at", "finished_at", "graded", "failed", "skipped"} | null}
 ```
 
-`sort=grade` puts A first (`dir=desc`: F first); ungraded rows always sort last for `grade` and
-`scanned`. Opted-out domains are left out of the rows and the counts.
+`trend` gives, for each week with data (at most 26), the distribution of every listed site's latest
+grade as of that week's end. Opted-out domains are left out of every count.
+
+**Your own rank, privately.** `GET /instrument/rank` (signed in, any role; not public) returns, for
+each domain the organisation has verified by DNS TXT (`services/domain_verification.py`), its newest
+public grade, its sector by the same rules, and how many graded sites in that sector (all sectors
+when it is unclassified) have a better, equal or worse grade. No other site is named.
 
 New tables (feature store, deferred schemas `public_deploy_log` and `public_league`, no
 organisation column, SQLite and Postgres): `public_deploy_log (seq, commit_sha, first_seen,

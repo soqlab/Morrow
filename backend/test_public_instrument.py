@@ -1,4 +1,4 @@
-"""The instrument's public evidence: decrypt basis, build, deploy log, signed page manifest, league
+"""The instrument's public evidence: decrypt basis, build, deploy log, page file list, league
 and per-domain feeds. No network: grade_one and the probe are replaced."""
 
 import importlib.util
@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import policy
-from services import build_info, decrypt_window, deploy_log, league, page_manifest, proof_signing
+from services import build_info, decrypt_window, deploy_log, league, page_manifest
 from services import org_rate_limits as _limits
 from services import public_check as _check
 from services import public_grade as _grade
@@ -38,7 +38,6 @@ def _reset():
     league._TABLES_READY.clear()
     league._table_cache.clear()
     page_manifest.reset_cache_for_tests()
-    proof_signing.reset_cache_for_tests()
     _limits.reset()
 
 
@@ -272,7 +271,7 @@ def test_the_verifier_checks_the_chain_the_same_way():
     assert verify_deploy.check_chain(listing["entries"][:2], 2, listing["head_hash"])  # genesis missing
 
 
-# ── signed page manifest ─────────────────────────────────────────────────────
+# ── page file list ─────────────────────────────────────────────────────
 
 
 @pytest.fixture
@@ -287,9 +286,6 @@ def static_dir(tmp_path):
     return root
 
 
-def _keys_doc():
-    return proof_signing.published_keys()
-
 
 def test_the_manifest_lists_every_file_including_fonts_and_skips_dotfiles(static_dir):
     import hashlib
@@ -300,60 +296,20 @@ def test_the_manifest_lists_every_file_including_fonts_and_skips_dotfiles(static
     assert files[1]["bytes"] == len(b"<!doctype html>\n<p>hello</p>\n")
 
 
-def test_the_manifest_is_signed_and_verifies_with_the_published_keys(static_dir, monkeypatch):
+def test_the_manifest_names_the_running_commit_and_carries_no_signature(static_dir, monkeypatch):
     monkeypatch.setenv("MORROW_GIT_COMMIT", SHA_A)
     m = page_manifest.manifest(str(static_dir))
-    assert m["format"] == "morrow.page-manifest/v1" and m["commit"] == SHA_A
-    assert m["signing_context"] == "morrow.page-manifest.v1\n" and m["unsigned_reason"] is None
-    assert m["keys_url"] == "/.well-known/morrow-proof-keys.json"
-    keys = {k["kid"]: k for k in _keys_doc()["keys"]}
-    algs = {s["alg"] for s in m["signatures"]}
-    assert "Ed25519" in algs and (("ML-DSA-65" in algs) == proof_signing.MLDSA_AVAILABLE)
-    message = page_manifest.signed_bytes(m)
-    for sig in m["signatures"]:
-        key = keys[sig["kid"]]
-        assert proof_signing.verify_in_context(proof_signing.MANIFEST_SIGNING_CONTEXT, sig["alg"],
-                                               key["public_key"], sig["sig_b64"], message[len(b"morrow.page-manifest.v1\n"):])
-        # Never valid as a migration-proof signature.
-        assert not proof_signing.verify_signature(sig["alg"], key["public_key"], sig["sig_b64"],
-                                                  message[len(b"morrow.page-manifest.v1\n"):])
-    problems, notes = verify_deploy.check_signatures(m, _keys_doc())
-    assert problems == [], problems
-    tampered = json.loads(json.dumps(m))
-    tampered["files"][0]["sha256"] = "0" * 64
-    assert verify_deploy.check_signatures(tampered, _keys_doc())[0]
-    tampered = json.loads(json.dumps(m))
-    tampered["commit"] = SHA_B
-    assert verify_deploy.check_signatures(tampered, _keys_doc())[0]
-
-
-def test_a_proof_signature_is_never_a_manifest_signature():
-    rows = proof_signing.active_key_set()
-    sig = proof_signing.sign(b"{}", rows)[0]
-    key = next(k for k in _keys_doc()["keys"] if k["kid"] == sig["kid"])
-    assert not proof_signing.verify_in_context(proof_signing.MANIFEST_SIGNING_CONTEXT, sig["alg"], key["public_key"],
-                                               sig["signature"], b"{}")
-    with pytest.raises(ValueError):
-        proof_signing.sign_in_context(b"other\n", b"{}", rows)
-
-
-def test_without_the_vault_key_the_manifest_is_served_unsigned_with_the_reason(static_dir, monkeypatch):
-    monkeypatch.delenv("MORROW_VAULT_MASTER_KEY", raising=False)
-    m = page_manifest.manifest(str(static_dir))
-    assert m["signatures"] == [] and "MORROW_VAULT_MASTER_KEY" in m["unsigned_reason"]
-    assert verify_deploy.check_signatures(m, {"format": "morrow.proof-keys/v1", "keys": []})[0]
+    assert m["format"] == "morrow.page-files/v1" and m["commit"] == SHA_A
+    assert set(m) == {"format", "commit", "generated_at", "files"}
 
 
 def test_manifest_route_covers_the_real_static_directory(client):
     response = client.get("/api/public/manifest")
     assert response.status_code == 200 and "max-age=60" in response.headers["cache-control"]
     body = response.json()
-    assert set(body) == {"format", "commit", "generated_at", "files", "signatures", "keys_url",
-                         "signing_context", "unsigned_reason"}
+    assert set(body) == {"format", "commit", "generated_at", "files"}
     on_disk = page_manifest.compute_files(page_manifest.STATIC_DIR)
     assert body["files"] == on_disk and any(f["path"].startswith("/ui/fonts/") for f in on_disk)
-    keys = client.get("/.well-known/morrow-proof-keys.json").json()
-    assert verify_deploy.check_signatures(body, keys)[0] == []
 
 
 def test_the_verifier_compares_files_with_the_commit(static_dir):
@@ -481,10 +437,15 @@ def test_league_route_and_cli(client, small_league, capsys):
     assert league.main(["--tick", "--max", "5"]) == 0
     assert json.loads(capsys.readouterr().out)["graded"] == 2
     league._table_cache.clear()
+    # Public: sector averages and their trend only. No site is named, whatever the parameters say.
     body = client.get("/api/public/league?sector=finance&sort=domain&limit=600").json()
-    assert set(body) == {"generated_at", "rubric_version", "list_size", "graded", "sectors", "rows", "total",
-                         "last_run"}
-    assert [r["domain"] for r in body["rows"]] == ["bank.example", "pay.example"]
+    assert set(body) == {"generated_at", "rubric_version", "list_size", "graded", "sectors", "last_run",
+                         "names_published"}
+    assert body["names_published"] is False and "rows" not in body
+    text = json.dumps(body)
+    assert "bank.example" not in text and "pay.example" not in text and "cloud.example" not in text
+    finance = next(s for s in body["sectors"] if s["id"] == "finance")
+    assert finance["graded"] == 2 and finance["trend"] and finance["trend"][-1]["graded"] == 2
     assert body["last_run"]["graded"] == 2
 
 
@@ -578,7 +539,6 @@ def test_verify_deploy_end_to_end_against_this_server(static_dir, monkeypatch):
     answers = {
         "/api/public/build": build_info.info(),
         "/api/public/manifest": page_manifest.manifest(str(static_dir)),
-        "/.well-known/morrow-proof-keys.json": proof_signing.published_keys(),
         "/api/public/deploys?limit=500": deploy_log.listing(500),
     }
     monkeypatch.setattr(verify_deploy, "fetch_json", lambda url, timeout=20.0: json.loads(json.dumps(
@@ -590,3 +550,30 @@ def test_verify_deploy_end_to_end_against_this_server(static_dir, monkeypatch):
     blobs["index.html"] = b"<p>changed</p>"
     out = io.StringIO()
     assert verify_deploy.run("https://morrow.example", ".", out=out) == 1 and "sha256" in out.getvalue()
+
+
+def test_an_organisation_sees_its_own_rank_privately(client, small_league, monkeypatch):
+    league.tick(10)
+    league._table_cache.clear()
+    # A verified domain of the organisation that has a public grade is ranked within its sector.
+    rank = league.private_rank(["pay.example", "never-graded.example"])
+    pay = rank["domains"][0]
+    assert pay["sector"] == "finance" and pay["grade"] == "C"
+    assert pay["compared_with"] == 1 and (pay["better"], pay["same"], pay["worse"]) == (1, 0, 0)
+    assert rank["domains"][1]["grade"] is None and "better" not in rank["domains"][1]
+    from services import domain_verification
+
+    monkeypatch.setattr(domain_verification, "verified_domains", lambda org_id: ["pay.example"])
+    body = client.get("/instrument/rank").json()
+    assert body["verified_domains"] == 1 and body["domains"][0]["domain"] == "pay.example"
+    # Only the organisation's own domains appear; no other site is named.
+    assert "bank.example" not in json.dumps(body)
+
+
+def test_the_private_rank_is_not_public(isolated_store, monkeypatch):
+    import app as application
+
+    monkeypatch.setattr(application, "AUTH_REQUIRED", True)
+    monkeypatch.setattr(application, "AUTH_MODE", "jwt")
+    with TestClient(application.app) as anonymous:
+        assert anonymous.get("/instrument/rank").status_code == 401

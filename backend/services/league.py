@@ -436,6 +436,110 @@ def table(sector: str = "", q: str = "", sort: str = "grade", direction: str = "
     }
 
 
+def _week_start(iso_text: str) -> str:
+    from datetime import datetime, timedelta
+
+    day = datetime.strptime(str(iso_text)[:10], "%Y-%m-%d")
+    return (day - timedelta(days=day.weekday())).strftime("%Y-%m-%d")
+
+
+def _trend(spec: Dict[str, Any], classifier: "Classifier", domains: List[str],
+           grades: Dict[str, List[Dict[str, Any]]], weeks: int = 26) -> Dict[str, List[Dict[str, Any]]]:
+    """Per sector and week: the grade distribution of every site's latest grade as of that week's end.
+
+    Aggregates only. A week appears once at least one site in the sector had a grade by then.
+    """
+    from datetime import datetime, timedelta
+    from services import public_grade
+
+    starts = sorted({_week_start(h["scanned_at"]) for d in domains for h in grades.get(d) or []})[-weeks:]
+    out: Dict[str, List[Dict[str, Any]]] = {s["id"]: [] for s in spec["sectors"]}
+    by_sector: Dict[str, List[str]] = {}
+    for d in domains:
+        by_sector.setdefault(classifier.classify(d), []).append(d)
+    for start in starts:
+        end = (datetime.strptime(start, "%Y-%m-%d") + timedelta(days=7)).strftime("%Y-%m-%d")
+        for sid in out:
+            counts = {g: 0 for g in public_grade.GRADES}
+            pq = graded = 0
+            for d in by_sector.get(sid, []):
+                seen = [h for h in grades.get(d) or [] if h["scanned_at"][:10] < end]
+                if not seen:
+                    continue
+                last = seen[-1]
+                counts[last["grade"]] = counts.get(last["grade"], 0) + 1
+                graded += 1
+                pq += 1 if last["post_quantum"] else 0
+            if graded:
+                out[sid].append({"week": start, "graded": graded, "grades": counts,
+                                 "pq_share": round(pq / graded, 4)})
+    return out
+
+
+def sector_averages() -> Dict[str, Any]:
+    """The public league: per-sector grade distributions and their weekly trend. No site is named.
+
+    Naming and ranking organisations in public invites disputes that a readiness check does not
+    need to start; a single domain can still be checked by anyone, on demand, at /<domain>.
+    """
+    from services import public_grade
+
+    key = "averages|" + _db_identity()
+    hit = _table_cache.get(key)
+    if hit and time.monotonic() - hit[0] < _TABLE_TTL:
+        return hit[1]
+    built = _cached_build()
+    spec = load_spec()
+    classifier = Classifier(spec)
+    entries = _optout_entries()
+    domains = [d for d in league_list(spec) if not _covered(d, entries)]
+    trend = _trend(spec, classifier, domains, _grade_rows(domains))
+    sectors = [dict(s, trend=trend.get(s["id"], [])) for s in built["sectors"]]
+    body = {
+        "generated_at": built["generated_at"],
+        "rubric_version": public_grade.RUBRIC_VERSION,
+        "list_size": built["list_size"],
+        "graded": built["graded"],
+        "sectors": sectors,
+        "last_run": last_run(),
+        "names_published": False,
+    }
+    _table_cache[key] = (time.monotonic(), body)
+    return body
+
+
+def private_rank(domains: List[str]) -> Dict[str, Any]:
+    """Where an organisation's own verified domains stand, for that organisation only.
+
+    For each domain: its newest public grade, its sector by the same rules as the league, and how
+    many graded sites in that sector (all sectors when it is unclassified) have a better, equal or
+    worse grade. No other site is named.
+    """
+    from services import public_grade
+
+    built = _cached_build()
+    order = {g: i for i, g in enumerate(public_grade.GRADES)}
+    classifier = Classifier(load_spec())
+    names = {s["id"]: s["name"] for s in built["sectors"]}
+    out = []
+    for domain in domains:
+        latest = public_grade.latest(domain)
+        sector = classifier.classify(domain)
+        pool = [r for r in built["rows"] if r["grade"] and r["domain"] != domain
+                and (sector == UNCLASSIFIED or r["sector"] == sector)]
+        entry: Dict[str, Any] = {"domain": domain, "sector": sector,
+                                 "sector_name": names.get(sector, "All sectors"),
+                                 "grade": (latest or {}).get("grade"), "scanned_at": (latest or {}).get("scanned_at"),
+                                 "compared_with": len(pool)}
+        if latest and latest.get("grade") in order:
+            mine = order[latest["grade"]]
+            entry["better"] = sum(1 for r in pool if order[r["grade"]] < mine)
+            entry["same"] = sum(1 for r in pool if order[r["grade"]] == mine)
+            entry["worse"] = sum(1 for r in pool if order[r["grade"]] > mine)
+        out.append(entry)
+    return {"domains": out, "rubric_version": public_grade.RUBRIC_VERSION, "generated_at": built["generated_at"]}
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m services.league",
                                      description="Grade the league's due domains (each at most once a week).")

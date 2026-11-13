@@ -26478,6 +26478,23 @@ try:
 except Exception:  # pragma: no cover - the provider layer must not break startup
     pass
 
+@app.get("/instrument/rank", include_in_schema=False)
+def instrument_private_rank(request: Request):
+    """Your own verified domains against the league, for your organisation only.
+
+    The public league shows sector averages and names nobody; this is where an organisation sees
+    where its own domains stand. Only domains the organisation has verified (DNS TXT) are ranked.
+    """
+    _require_role(request, ["viewer", "analyst", "admin", "owner"],
+                  action="read", resource_type="organization", resource_id="*")
+    from services import domain_verification, league
+
+    domains = domain_verification.verified_domains(current_organization_id())
+    body = league.private_rank(domains)
+    body["verified_domains"] = len(domains)
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
 # The instrument views and /plain (routers/instrument.py). Included last: its /{domain} route
 # answers only a single dotted segment that no earlier route claimed.
 app.include_router(_instrument.create_instrument_router(_PlatformAdminDeps(

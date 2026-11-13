@@ -182,7 +182,9 @@ def create_public_grade_router(deps: Any) -> APIRouter:
                             limit: int = 100, offset: int = 0):
         from services import league
 
-        body = await run_in_threadpool(league.table, sector, q[:100], sort, dir, limit, offset)
+        # Sector averages and their weekly trend only: no named site, no ranking. The old
+        # parameters (sector, q, sort, dir, limit, offset) are accepted and ignored so old links work.
+        body = await run_in_threadpool(league.sector_averages)
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
 
     return router
