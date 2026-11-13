@@ -116,7 +116,9 @@
     { t: "What this server runs, and how to check it", h: "/trust", k: "trust commit verify deploy log csp tracking reproducible", g: "Public" },
     { t: "Plain version, no scripts", h: "/plain", k: "plain text accessible screen reader no javascript", g: "Public" },
     { t: "Certificate-transparency check", h: "/check", k: "check ct certificate transparency deadlines", g: "Public" },
-    { t: "Your estate through time", h: "/estate", k: "estate history scans time progress map atlas my", g: "Yours", ws: true }
+    { t: "Your estate through time", h: "/estate", k: "estate history scans time progress map atlas my", g: "Yours", ws: true },
+    { t: "Domains you watch, and what changed", h: "/watching", k: "watch watching alerts notifications push changes feed webhook", g: "Yours", ws: true },
+    { t: "About the scanner: what connects to your server", h: "/about-scanner", k: "scanner user agent logs bot crawler opt out morrowpqcheck", g: "Public" }
   ];
   var CONSOLE_PLACES = [["overview", "Overview", "posture summary"], ["scans", "TLS Scanner", "run scans, diff against a baseline"],
     ["assets", "Asset Inventory", "owners, tags, collections"], ["cbom", "CBOM / SBOM", "CycloneDX bill of materials"],
@@ -482,6 +484,8 @@
     if (s0 === "atlas") return workspace().then(function (w) { location.replace(w ? "/estate" : "/league"); });
     if (s0 === "algorithms") return segs[1] ? viewAlgorithm(segs[1]) : viewAlgorithms();
     if (s0 === "trust") return viewTrust();
+    if (s0 === "watching" && window.MorrowWatch) return window.MorrowWatch.watching();
+    if (s0 === "about-scanner" && window.MorrowWatch) return window.MorrowWatch.aboutScanner();
     if (s0 === "estate") return segs[1] === "scan" && segs[2] ? viewScan(segs[2]) : segs[1] === "asset" && segs[2] ? viewAsset(segs.slice(2).join("/")) : viewEstate();
     var d = asDomain(s0);
     if (d && segs.length === 1) return viewDomain(d);
@@ -804,6 +808,7 @@
     }
     function paintTp() {
       var box = $("#tp-body"); if (!box) return;
+      if (tp && window.MorrowWatch) window.MorrowWatch.services(d, tp);
       if (tp) box.innerHTML = tpHtml(tp) + (tpBusy ? '<p class="i-status">Re-checking the outside services…</p>' : "") + (tpErr ? '<p class="i-status" data-tone="bad">' + esc(tpErr) + "</p>" : "");
       else if (tpErr) box.innerHTML = '<p class="i-status" data-tone="bad">' + esc(tpErr) + '</p><div class="i-row"><button type="button" class="i-btn" id="tp-recheck">Try again</button></div>';
       else box.innerHTML = '<p class="i-status" role="status">Reading ' + esc(d) + "'s homepage and DNS for the services it depends on, then checking each one's key exchange. Up to half a minute.</p>";
@@ -893,8 +898,9 @@
             '<p class="i-fine"><a href="/check/' + enc(d) + '">Certificate-transparency check</a> &middot; <a href="/plain/' + enc(d) + '">plain</a> &middot; <a href="/api/public/grade/' + enc(d) + '">JSON</a></p>', { ch: "ref" });
       }
       var outside = panel("", "Who else is exposing you", '<div id="tp-body"></div>', { ch: "atlas", id: "tp" });
-      $("#d-body").innerHTML = gradeBlock + '<div id="hv-wrap"></div>' + what + outside + evidence;
+      $("#d-body").innerHTML = gradeBlock + '<div id="hv-wrap"></div>' + what + '<div id="w-wrap"></div>' + outside + evidence;
       paintTp();
+      if (window.MorrowWatch) window.MorrowWatch.domain(d, latest || r);
       basis().then(function (b) {
         var wrap = $("#hv-wrap"); if (!wrap || current !== r) return;
         var est = (b && b.crqc_estimate) || { low: ex.decrypt_year_low || 2035, likely: ex.decrypt_year_high || 2040, high: (ex.decrypt_year_high || 2040) + 5,
@@ -1299,6 +1305,11 @@
     }
     setTimeout(requests, 1500);
   }
+
+  /* What instrument-watch.js (watch mode, claims, /about-scanner) builds its views with. */
+  window.MorrowIns = { $: $, $$: $$, esc: esc, enc: enc, getJSON: getJSON, panel: panel, reading: reading, say: say, setView: setView,
+    status: status, stamp: stamp, day: day, ago: ago, copy: copy, flash: flash, byDepth: byDepth, depth: function () { return depth; },
+    token: token, workspace: workspace, main: main };
 
   /* ── start ─────────────────────────────────────────────────────────────── */
   dial();

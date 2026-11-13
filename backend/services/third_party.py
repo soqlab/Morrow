@@ -367,7 +367,7 @@ def _http_get(address: str, host: str, path: str, timeout: float, max_bytes: int
               deadline: Optional[float] = None) -> Dict[str, Any]:
     """One ``GET path`` over TLS to the pinned address, HTTP/1.0 so the body is never chunked."""
     ctx = _grade._context(verify=False, alpn=["http/1.1"])
-    request = (f"GET {path} HTTP/1.0\r\nHost: {host}\r\nUser-Agent: {_grade.USER_AGENT}\r\n"
+    request = (f"GET {path} HTTP/1.0\r\nHost: {host}\r\n{_grade.identity_header_lines(host)}"
                "Accept: text/html,application/xhtml+xml;q=0.9,*/*;q=0.1\r\nAccept-Encoding: identity\r\n"
                "Connection: close\r\n\r\n").encode("ascii")
     end = min(deadline or float("inf"), time.monotonic() + 2 * timeout)

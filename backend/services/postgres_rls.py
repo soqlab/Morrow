@@ -94,6 +94,14 @@ ORG_SCOPED_TABLES: List[str] = [
     "pq_ready_listings",
     # Owners' replies on the "Not yet post-quantum" list (services/not_ready.py).
     "not_ready_replies",
+    # Watch mode and domain claims (services/watch.py): who watches what, what changed, where it is
+    # delivered, and which organization claimed a domain by DNS.
+    "watch_domains",
+    "watch_events",
+    "watch_push_subscriptions",
+    "watch_channels",
+    "watch_feed_tokens",
+    "domain_claims",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -124,6 +132,12 @@ TENANT_COLUMNS: Dict[str, str] = {
     "pq_signature_revocations": "org_id",
     "pq_ready_listings": "org_id",
     "not_ready_replies": "org_id",
+    "watch_domains": "org_id",
+    "watch_events": "org_id",
+    "watch_push_subscriptions": "org_id",
+    "watch_channels": "org_id",
+    "watch_feed_tokens": "org_id",
+    "domain_claims": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".

@@ -133,6 +133,16 @@ try:
             "args": (),
         }
 
+    # Watch mode (services/watch.py): re-checks watched domains whose last check is older than
+    # MORROW_WATCH_INTERVAL_HOURS (default 24), at most MORROW_WATCH_TICK_MAX (default 10) a tick, and
+    # tells their watchers what changed. On by default; MORROW_WATCH_SCAN=0 stops it.
+    if _env_str("MORROW_WATCH_SCAN", "1").lower() not in ("0", "false", "no", "off"):
+        _beat["watch-tick-every-15m"] = {
+            "task": "morrow.watch_tick",
+            "schedule": 900.0,
+            "args": (),
+        }
+
     # Optional: daily GitHub repo sync
     _gh_cred = _env_str("GITHUB_SYNC_CREDENTIAL_ID")
     if _gh_cred:
@@ -342,6 +352,20 @@ def league_tick_task(max_domains: int | None = None) -> Dict[str, Any]:
         return league.tick(max(1, min(100, limit)))
     except Exception as exc:
         capture_exception(exc, {"task": "morrow.league_tick"})
+        raise
+
+
+@celery_app.task(name="morrow.watch_tick")
+def watch_tick_task(max_domains: int | None = None) -> Dict[str, Any]:
+    """Re-check due watched domains and notify their watchers (services/watch.py)."""
+    from services import watch
+
+    if not watch.enabled():
+        return {"disabled": True}
+    try:
+        return watch.tick(max_domains)
+    except Exception as exc:
+        capture_exception(exc, {"task": "morrow.watch_tick"})
         raise
 
 

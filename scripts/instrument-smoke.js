@@ -114,6 +114,37 @@ async function main() {
     await page.locator("#hv-say").waitFor();
     assert.ok(!(await page.locator("#hv-sw").count()), "the plain dial shows the expert migration control");
 
+    // Watch mode on the domain page. CI's server needs no sign-in, so this browser has a workspace:
+    // the answer comes first, the quiet claim line is there, and watching and claiming work.
+    const domainRe = new RegExp(SMOKE_DOMAIN.replace(/\./g, "\\."));
+    await page.locator("#w-panel #w-say").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#w-claim-line").innerText(), /Is this your domain\? Claim it to get alerts when this changes\./);
+    if (await page.locator("#w-stop").count()) { await page.locator("#w-stop").click(); await page.locator("#w-start").waitFor({ timeout: 15000 }); }
+    await page.locator("#w-start").click();
+    await page.locator("#w-stop").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#w-say").innerText(), /^You're watching /);
+    await page.locator("#w-claim-go").click();
+    await page.locator("#w-rec-name").waitFor({ timeout: 15000 });
+    assert.equal(await page.locator("#w-rec-name").innerText(), `_morrow-verify.${SMOKE_DOMAIN}`);
+    assert.match(await page.locator("#w-rec-value").innerText(), /^morrow-verify=/);
+
+    // What changed, what you watch, where alerts go. Push is off without VAPID keys and says so.
+    await page.goto(`${base}/watching`, { waitUntil: "networkidle" });
+    await page.locator("#wv-list").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#wv-list").innerText(), domainRe);
+    assert.match(await page.locator("#say").innerText(), /Nothing has changed|watched/);
+    assert.ok((await page.locator("#wv-push").innerText()).length > 10, "the push line is empty");
+    await page.locator("#wv-feed-new").click();
+    await page.locator("#wv-feed-url").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#wv-feed-url").innerText(), /\/api\/public\/watch-feed\/[A-Za-z0-9_-]{40,}\.atom$/);
+
+    // The scanner names itself, and this page says what it sends and how to stop it.
+    await page.goto(`${base}/about-scanner?host=${SMOKE_DOMAIN}`, { waitUntil: "networkidle" });
+    await page.locator("#as-ua").waitFor({ timeout: 15000 });
+    assert.equal(await page.locator("#as-ua").innerText(), "MorrowPQCheck/1.0 (+https://morrow.soqlab.com/about-scanner)");
+    assert.match(await page.locator("#say").innerText(), /MorrowPQCheck/);
+    assert.equal(await page.locator("#as-optout").getAttribute("href"), "/abuse");
+
     await page.goto(`${base}/wp-login.php`);
     assert.equal(await page.locator("#home-q").count(), 0, "a file path was treated as a domain");
 
@@ -121,7 +152,7 @@ async function main() {
     const small = await phone.newPage();
     small.on("pageerror", (e) => errors.push(String(e)));
     await routeDomain(small);
-    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", `/${SMOKE_DOMAIN}?depth=expert`]) {
+    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", "/watching", "/about-scanner", `/${SMOKE_DOMAIN}?depth=expert`]) {
       await small.goto(`${base}${path}`, { waitUntil: "networkidle" });
       const wide = await small.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(wide <= 1, `${path} overflows a 360px screen by ${wide}px`);
@@ -136,7 +167,7 @@ async function main() {
 
     assert.deepEqual(foreign, [], "the instrument contacted another origin");
     assert.deepEqual(errors, [], "JavaScript errors");
-    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, outside services worst first, trust readout, plain without JS, 360px layout.");
+    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, outside services worst first, watch and claim, /watching, /about-scanner, trust readout, plain without JS, 360px layout.");
   } finally {
     await browser.close();
   }
