@@ -2849,7 +2849,7 @@ function authGateHtml() {
             <input class="inp mono" id="gCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX"></div>
           <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink2)">
             <input id="gCodeRevoke" type="checkbox"> Also remove my other passkeys (a lost or stolen device)</label>
-          <button class="btn block" data-act="gateRecoveryCode" type="button" ${pkOk ? "" : "disabled"}>Use code and create a new passkey</button>
+          <button class="btn block" data-act="gateRecoveryCode" type="button" style="white-space:normal;height:auto;min-height:38px" ${pkOk ? "" : "disabled"}>Use recovery code</button>
           <span class="gsub" style="margin:0">Each code works once. You'll create a new passkey on this device, and you'll be signed out everywhere else.${c.password_reset_enabled ? ` No code? <a href="/reset-password" style="color:var(--ink2)">Get a recovery link by email</a> (if your account allows it).` : ""}</span>
         </div>` : ""}
         <div class="col" id="gPwBox" hidden>
@@ -3250,7 +3250,7 @@ ACTIONS.passkeys = async () => {
       <span style="font-size:12.5px;line-height:1.6">${rec.recovery_codes.total
         ? `${rec.recovery_codes.remaining} of ${rec.recovery_codes.total} unused. Each one lets you create a new passkey once if you lose yours.`
         : "You have none yet. Make a set and keep it somewhere safe: it's how you get back in without email if you lose your passkeys."}</span>
-      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-act="recoveryCodesNew" type="button">${rec.recovery_codes.total ? "Make new codes" : "Make recovery codes"}</button>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" data-act="recoveryCodesNew" data-had="${rec.recovery_codes.total ? "1" : ""}" type="button">${rec.recovery_codes.total ? "Make new codes" : "Make recovery codes"}</button>
       ${rec.recovery_codes.total ? `<span style="font-size:11.5px;color:var(--ink3)">Making new codes cancels the old ones.</span>` : ""}</div>
     </div>
     ${rec.has_email && rec.email_recovery_available ? `<div class="col" style="gap:6px">
@@ -3265,7 +3265,8 @@ ACTIONS.passkeys = async () => {
      <button class="btn pri" data-act="passkeyAdd" type="button">${I.lock}Add a passkey</button>`);
 };
 /** A new set of recovery codes, shown this once (the server keeps only keyed hashes of them). */
-ACTIONS.recoveryCodesNew = async () => {
+ACTIONS.recoveryCodesNew = async (btn) => {
+  const replaced = btn?.dataset?.had === "1";
   const box = $("#pkErr");
   const fail = (m) => { if (box) box.innerHTML = `<div class="banner bad">${I.alert}<div><span class="bx">${H(m)}</span></div></div>`; };
   const r = await safe("/auth/recovery-codes", { method: "POST", body: {} });
@@ -3273,7 +3274,7 @@ ACTIONS.recoveryCodesNew = async () => {
   const codes = r.data.codes || [];
   const text = `Morrow recovery codes\nEach code works once. Keep them somewhere safe and private.\n\n${codes.join("\n")}\n`;
   modal("Your recovery codes", `<div class="col">
-    <div class="banner warn">${I.alert}<div><span class="bx">This is the only time these codes are shown. Save them now: print them, or keep them in a password manager. Your old codes no longer work.</span></div></div>
+    <div class="banner warn">${I.alert}<div><span class="bx">This is the only time these codes are shown. Save them now: print them, or keep them in a password manager.${replaced ? " Your old codes no longer work." : ""}</span></div></div>
     <div class="mono" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;font-size:14px;padding:12px;border:1px solid var(--line);border-radius:10px;user-select:all">
       ${codes.map(c => `<span>${H(c)}</span>`).join("")}</div>
     <p style="margin:0;font-size:12.5px;color:var(--ink2);line-height:1.6">If you lose your passkeys, choose <b>Lost your passkey?</b> on the sign-in screen and enter one code. It lets you create a new passkey; each code works once.</p>
