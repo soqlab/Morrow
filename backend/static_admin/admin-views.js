@@ -28,7 +28,7 @@
     "support-sessions": { group: "Customers", title: "Support sessions", desc: "Read-only view-as-customer sessions: who opened a customer's console, why, for how long, and what they viewed." },
     onboarding: { group: "Customers", title: "Onboarding", desc: "Activation risk across the fleet and each tenant's onboarding checklist." },
     feedback: { group: "Customers", title: "Customer feedback", desc: "Review and triage customer reports across your organizations." },
-    trials: { group: "Customers", title: "Trial requests", desc: "People asking for an account. Approving one creates the organization and the invitation; a person decides every request." },
+    trials: { group: "Customers", title: "Account requests", desc: "Requests from the old public form, which is closed. Approving one creates the organization and the invitation; a person decides every request." },
     usage: { group: "Product", title: "Usage & adoption", desc: "Which product capabilities organizations use, and how that is changing." },
     flags: { group: "Product", title: "Feature flags", desc: "The flag catalog and per-organization overrides." },
     announcements: { group: "Product", title: "Announcements", desc: "Tell customers what is happening with a console banner." },
