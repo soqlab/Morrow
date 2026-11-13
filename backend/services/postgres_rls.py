@@ -83,6 +83,13 @@ ORG_SCOPED_TABLES: List[str] = [
     # Domain team sign-in (services/team_join.py): which verified domains admit people, and who joined.
     "org_domain_join_policies",
     "org_domain_joins",
+    # Post-quantum signing (services/pq_signing.py): a tenant's public keys, their history, and the
+    # signatures it put on the public record. Public reads of them run in a named platform scope.
+    "pq_signing_keys",
+    "pq_signing_key_events",
+    "pq_signatures",
+    "pq_signature_entries",
+    "pq_signature_revocations",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -106,6 +113,11 @@ TENANT_COLUMNS: Dict[str, str] = {
     "pq_rollouts": "org_id",
     "org_domain_join_policies": "org_id",
     "org_domain_joins": "org_id",
+    "pq_signing_keys": "org_id",
+    "pq_signing_key_events": "org_id",
+    "pq_signatures": "org_id",
+    "pq_signature_entries": "org_id",
+    "pq_signature_revocations": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".

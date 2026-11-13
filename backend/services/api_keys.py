@@ -11,6 +11,9 @@ cannot be pointed at another tenant. Scopes map onto the existing roles:
     read  -> viewer   (GET/HEAD/OPTIONS only)
     write -> operator (implies read)
     admin -> admin    (implies write and read)
+    sign  -> operator, but for one route only: POST /pq-signing/signatures, which puts a
+             post-quantum signature on the public record (routers/pq_signing.py). It stands alone,
+             so the key a release pipeline holds can do nothing else.
 
 API keys never authenticate /platform/*, /admin/* or credential-management /auth/*
 routes. Verified keys are cached per process for MORROW_API_KEY_CACHE_SECONDS
@@ -37,7 +40,9 @@ from services import route_paths as _route_paths
 logger = logging.getLogger(__name__)
 
 TOKEN_PREFIX = "pq_"
-SCOPES = ("read", "write", "admin")
+SCOPES = ("read", "write", "admin", "sign")
+#: The only requests a key with the "sign" scope may make.
+SIGN_ONLY_ROUTES = frozenset({("POST", "/pq-signing/signatures")})
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 BLOCKED_PREFIXES = ("/platform", "/admin", "/vendor-admin")
 AUTH_READ_ALLOWED = frozenset({"/auth/context", "/auth/memberships"})
@@ -127,9 +132,11 @@ def normalize_scopes(values: Iterable[Any]) -> List[str]:
     requested = {str(v or "").strip().lower() for v in (values or []) if str(v or "").strip()}
     unknown = requested - set(SCOPES)
     if unknown:
-        raise ValueError(f"Unknown scope(s): {', '.join(sorted(unknown))}. Use read, write, admin.")
+        raise ValueError(f"Unknown scope(s): {', '.join(sorted(unknown))}. Use read, write, admin or sign.")
     if not requested:
         raise ValueError("At least one scope is required.")
+    if "sign" in requested and len(requested) > 1:
+        raise ValueError("The sign scope stands alone: a signing key can only upload signatures.")
     if "admin" in requested:
         requested |= {"write", "read"}
     if "write" in requested:
@@ -141,7 +148,7 @@ def role_for_scopes(scopes: Iterable[str]) -> str:
     scope_set = set(scopes or [])
     if "admin" in scope_set:
         return "admin"
-    if "write" in scope_set:
+    if "write" in scope_set or "sign" in scope_set:
         return "operator"
     return "viewer"
 
@@ -416,7 +423,10 @@ def claims_for_request(token: str, method: str, path: str) -> Tuple[Optional[Dic
     if not record:
         return None, error, status
     scopes = set(record.get("scopes") or [])
-    if str(method or "GET").upper() not in SAFE_METHODS and not scopes & {"write", "admin"}:
+    if scopes == {"sign"}:
+        if (str(method or "GET").upper(), _route_paths.guard_path(path)) not in SIGN_ONLY_ROUTES:
+            return None, "This API key can only upload signatures (POST /pq-signing/signatures).", 403
+    elif str(method or "GET").upper() not in SAFE_METHODS and not scopes & {"write", "admin"}:
         return None, "This API key is read-only; the write scope is required for this request.", 403
     actor = f"apikey:{record['id']}"
     org = str(record["organization_id"])

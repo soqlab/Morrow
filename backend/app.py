@@ -1773,6 +1773,7 @@ _CSP_STRICT_VALUE = str(
 
 
 from routers import instrument as _instrument  # noqa: E402
+from routers.pq_signing import is_public_path as _pq_signing_public_path  # noqa: E402
 
 
 def _instrument_csp_for(path: str) -> str:
@@ -2345,6 +2346,10 @@ def _auth_public_path(path: str) -> bool:
     # about public hosts, with the same kind of guardrails, enforced in services/public_grade.py.
     if _route_paths.has_prefix(p, ("/check", "/api/public-check", "/r", "/trial-request",
                                    "/api/trial-request", "/api/public")):
+        return True
+    # The public record of post-quantum signatures (routers/pq_signing.py): read-only pages, JSON and
+    # a badge, plus POST /api/verify, which checks a signature file and stores nothing.
+    if _pq_signing_public_path(p):
         return True
     if p.startswith("/vendor-admin"):
         return True
@@ -22986,6 +22991,16 @@ from routers.migration_milestones import create_migration_milestones_router  # n
 from services.migration_milestones import milestones_for as _velocity_milestones  # noqa: E402
 
 app.include_router(create_migration_milestones_router(_require_role, _audit_event, _org))
+
+
+# Post-quantum signing for customers: keys on verified domains, the public record at /verify/<domain>.
+from routers.pq_signing import create_pq_signing_router  # noqa: E402
+from services import pq_signing as _pq_signing_schema  # noqa: E402
+
+app.include_router(create_pq_signing_router(_require_role, _audit_event, _org, os.path.join(BASE_DIR, "static"),
+                                            public_base=lambda request: _invite_links.public_base_url_only(),
+                                            limiter=limiter))
+register_deferred_schema("pq_signing", _pq_signing_schema.init_tables)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
