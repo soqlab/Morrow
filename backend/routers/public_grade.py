@@ -4,7 +4,14 @@
   GET /api/public/grade/{domain}.txt      the same, as ~15 plain lines for curl
   GET /api/public/badge/{domain}.svg      a shields-style "quantum-ready | A" badge
   GET /api/public/stats                   aggregate counts only
-  GET /api/public/history/{domain}        stored grades for one domain, newest first
+  GET /api/public/history/{domain}        stored grades for one domain, newest first; ?detail=1 adds
+                                          each full stored result
+  GET /api/public/history/{domain}.atom   Atom feed, one entry per grade change
+  GET /api/public/basis                   the decrypt years and their cited source
+  GET /api/public/build                   the running commit (services/build_info.py)
+  GET /api/public/deploys                 the hash-chained deploy log (services/deploy_log.py)
+  GET /api/public/manifest                signed hashes of every /ui/ file (services/page_manifest.py)
+  GET /api/public/league                  the sector league table (services/league.py)
 
 Unauthenticated by design (listed in app._auth_public_path) and never unguarded: validation, the
 SSRF guard, the opt-out list, per-IP / per-domain / global budgets, the concurrency cap and the
@@ -34,6 +41,7 @@ PREFIX = "/api/public"
 _RESULT_CACHE = "public, max-age=300"
 _BADGE_CACHE = "public, max-age=10800, s-maxage=10800"
 _BADGE_UNKNOWN_CACHE = "public, max-age=300"
+_SHORT_CACHE = "public, max-age=60"
 _DEFAULT_ORIGINS = "https://soqlab.com,https://www.soqlab.com,http://localhost:3100"
 
 
@@ -111,20 +119,71 @@ def create_public_grade_router(deps: Any) -> APIRouter:
     async def public_grade_stats():
         return JSONResponse(await run_in_threadpool(_grade.stats), headers={"Cache-Control": "public, max-age=300"})
 
-    @router.get("/history/{domain}")
-    async def public_grade_history(domain: str, limit: int = 30):
+    async def _history_host(domain: str):
+        """(host, None) or (None, error response): validation and the opt-out, shared by both forms."""
         from services import public_check
 
         try:
             host = _grade.normalize(domain)
         except _grade.GradeError as exc:
-            return JSONResponse(exc.as_dict(), status_code=exc.status_code, headers=_error_headers(exc))
+            return None, JSONResponse(exc.as_dict(), status_code=exc.status_code, headers=_error_headers(exc))
         covered = await run_in_threadpool(public_check.opted_out, host)
         if covered:
             exc = _grade.GradeError(403, "refused_optout", f"{covered} has asked not to be checked by this service.")
-            return JSONResponse(exc.as_dict(), status_code=403, headers=_error_headers(exc))
-        rows = await run_in_threadpool(_grade.history, host, limit)
+            return None, JSONResponse(exc.as_dict(), status_code=403, headers=_error_headers(exc))
+        return host, None
+
+    # Registered before "/history/{domain}" for the same reason as the .txt route above.
+    @router.get("/history/{domain}.atom")
+    async def public_grade_history_atom(request: Request, domain: str):
+        host, error = await _history_host(domain)
+        if error is not None:
+            return error
+        changes = await run_in_threadpool(_grade.grade_changes, host)
+        body = _grade.render_atom(host, changes, str(request.url))
+        return Response(body, media_type="application/atom+xml; charset=utf-8",
+                        headers={"Cache-Control": _RESULT_CACHE})
+
+    @router.get("/history/{domain}")
+    async def public_grade_history(domain: str, limit: int = 30, detail: str = ""):
+        host, error = await _history_host(domain)
+        if error is not None:
+            return error
+        rows = await run_in_threadpool(_grade.history, host, limit, _truthy(detail))
         return JSONResponse(rows, headers={"Cache-Control": _RESULT_CACHE})
+
+    @router.get("/basis")
+    async def public_basis():
+        from services import decrypt_window
+
+        return JSONResponse(decrypt_window.basis(), headers={"Cache-Control": "public, max-age=3600"})
+
+    @router.get("/build")
+    async def public_build():
+        from services import build_info
+
+        return JSONResponse(build_info.info(), headers={"Cache-Control": _SHORT_CACHE})
+
+    @router.get("/deploys")
+    async def public_deploys(limit: int = 50):
+        from services import deploy_log
+
+        return JSONResponse(await run_in_threadpool(deploy_log.listing, limit),
+                            headers={"Cache-Control": _SHORT_CACHE})
+
+    @router.get("/manifest")
+    async def public_manifest():
+        from services import page_manifest
+
+        return JSONResponse(await run_in_threadpool(page_manifest.manifest), headers={"Cache-Control": _SHORT_CACHE})
+
+    @router.get("/league")
+    async def public_league(sector: str = "", q: str = "", sort: str = "grade", dir: str = "asc",
+                            limit: int = 100, offset: int = 0):
+        from services import league
+
+        body = await run_in_threadpool(league.table, sector, q[:100], sort, dir, limit, offset)
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
 
     return router
 

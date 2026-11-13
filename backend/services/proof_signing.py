@@ -49,6 +49,11 @@ WELL_KNOWN_PATH = "/.well-known/morrow-proof-keys.json"
 #: Every signature is over this prefix followed by the canonical document, so a proof signature can
 #: never be replayed as a signature over some other kind of Morrow message.
 SIGNING_CONTEXT = b"morrow.migration-proof.v1\n"
+#: The page manifest (GET /api/public/manifest, services/page_manifest.py) is signed with the same
+#: keys under its own context, so a manifest signature can never be replayed as a proof and a proof
+#: signature can never be passed off as a manifest.
+MANIFEST_SIGNING_CONTEXT = b"morrow.page-manifest.v1\n"
+_CONTEXTS = (SIGNING_CONTEXT, MANIFEST_SIGNING_CONTEXT)
 
 _lock = threading.Lock()
 _ready = False
@@ -261,28 +266,45 @@ def _private_key(row: Dict[str, Any]):
     return key
 
 
-def sign(message: bytes, rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+def _known_context(context: bytes) -> bytes:
+    if context not in _CONTEXTS:
+        raise ValueError("unknown signing context")
+    return context
+
+
+def sign_in_context(context: bytes, message: bytes, rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """One signature per key over ``context + message``. ``context`` must be one of _CONTEXTS."""
+    prefix = _known_context(context)
     out = []
     for row in rows:
-        signature = _private_key(row).sign(SIGNING_CONTEXT + message)
+        signature = _private_key(row).sign(prefix + message)
         out.append({"kid": row["kid"], "alg": row["algorithm"], "signature": b64(signature)})
     return out
 
 
-def verify_signature(alg: str, public_b64: str, signature_b64: str, message: bytes) -> bool:
-    """Server-side mirror of the offline verifier's check (used by tests and the self-check)."""
+def sign(message: bytes, rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    return sign_in_context(SIGNING_CONTEXT, message, rows)
+
+
+def verify_in_context(context: bytes, alg: str, public_b64: str, signature_b64: str, message: bytes) -> bool:
     try:
+        prefix = _known_context(context)
         pub = base64.b64decode(public_b64)
         sig = base64.b64decode(signature_b64)
         if alg == ALG_ED25519:
-            Ed25519PublicKey.from_public_bytes(pub).verify(sig, SIGNING_CONTEXT + message)
+            Ed25519PublicKey.from_public_bytes(pub).verify(sig, prefix + message)
             return True
         if alg == ALG_MLDSA65 and MLDSA_AVAILABLE:
-            _mldsa.MLDSA65PublicKey.from_public_bytes(pub).verify(sig, SIGNING_CONTEXT + message)
+            _mldsa.MLDSA65PublicKey.from_public_bytes(pub).verify(sig, prefix + message)
             return True
     except Exception:
         return False
     return False
+
+
+def verify_signature(alg: str, public_b64: str, signature_b64: str, message: bytes) -> bool:
+    """Server-side mirror of the offline verifier's check (used by tests and the self-check)."""
+    return verify_in_context(SIGNING_CONTEXT, alg, public_b64, signature_b64, message)
 
 
 def reset_cache_for_tests() -> None:

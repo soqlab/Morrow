@@ -6,7 +6,8 @@ and decrypting it once a cryptographically relevant quantum computer (CRQC) exis
 
 - Code: `backend/services/public_grade.py` (probe, rubric, storage, CLI) and
   `backend/routers/public_grade.py` (HTTP surface and CORS).
-- Tests: `backend/test_public_grade.py`. None of them use the network.
+- Tests: `backend/test_public_grade.py` and `backend/test_public_instrument.py`. None of them use
+  the network.
 - Rubric version: `2026-11.1`. The JSON field `rubric_version` carries it, and a cached result from
   an older rubric is never served as current.
 
@@ -240,3 +241,133 @@ python -m services.public_grade example.com --json   # one domain, JSON
 | `MORROW_PUBLIC_GRADE_DEADLINE` | 25 | Whole-check deadline (s) |
 | `MORROW_PUBLIC_GRADE_SELF_ADDRESSES` | "" | Extra addresses that count as this server's own |
 | `MORROW_PUBLIC_API_CORS_ORIGINS` | soqlab.com, www.soqlab.com, localhost:3100 | CORS origins for `/api/public` |
+| `MORROW_GIT_COMMIT` | "" | The running commit for `/api/public/build`; else `RENDER_GIT_COMMIT`, `SOURCE_COMMIT`, `GIT_COMMIT` |
+| `MORROW_LEAGUE_SCAN` | 1 | Celery beat runs the league tick every 15 minutes; `0` turns it off |
+| `MORROW_LEAGUE_TICK_MAX` | 20 | Domains graded per league tick (1-100) |
+
+## Evidence routes: basis, build, deploys, manifest, league, feeds
+
+Also under `/api/public`, also unauthenticated, GET only, same CORS policy. Tests:
+`backend/test_public_instrument.py` (no network).
+
+| Route | What it returns |
+|---|---|
+| `GET /basis` | The decrypt years and their source, from `services/decrypt_window.py`: `{decrypt_year_low, decrypt_year_high, source_label, source_url, basis, pq_basis, pq_source_url}`. The public grade's `exposure` and the console's per-endpoint `decrypt_window` are built from the same module, so they never quote different dates. |
+| `GET /build` | `{commit, commit_short, source, repository, commit_url, started_at, rubric_version, python}`. `commit` comes from the first set variable of `MORROW_GIT_COMMIT`, `RENDER_GIT_COMMIT`, `SOURCE_COMMIT`, `GIT_COMMIT` and must match `^[0-9a-f]{7,40}$`; otherwise it is `null` (and `source` names nothing). It is never guessed. |
+| `GET /deploys?limit=50` | The deploy transparency log, newest first: `{entries: [{seq, commit, first_seen, prev_hash, entry_hash}], head_hash, chain_ok, count, genesis_hash, hash_rule}`. `chain_ok` is computed over every row on each request. |
+| `GET /manifest` | The signed page manifest (below). |
+| `GET /league?sector=&q=&sort=grade\|domain\|scanned&dir=asc\|desc&limit=(<=500)&offset=` | The league table (below). |
+| `GET /history/{domain}?detail=1` | As `/history/{domain}`, each entry also carrying `rubric_version` and the full stored `result`. At most 100 entries. |
+| `GET /history/{domain}.atom` | Atom feed (RFC 4287): one entry per grade change, newest first (the first check counts as a change). Entry ids are `urn:morrow:public-grade:<domain>:<scanned_at>`. An opted-out domain is refused with 403, as in the JSON form. |
+
+### Deploy log
+
+At startup (`_lifespan` in app.py, once per process) the server appends a row to
+`public_deploy_log` when its commit differs from the newest row's commit. Same commit, or no known
+commit: nothing is written. Rows are never updated or deleted. A rollback to an older commit is a
+new row.
+
+```
+entry_hash = sha256( canonical_json({"commit", "first_seen", "prev_hash", "seq"}) )   # lowercase hex
+canonical_json = sorted keys, separators (",", ":"), UTF-8, no ASCII escaping
+seq starts at 1; the first prev_hash is 64 zeros ("genesis_hash")
+```
+
+Anyone can recompute this from the JSON: `scripts/verify-deploy.py` does, and so can a few lines
+in any language. Keep a copy of `head_hash`: an operator who rewrote the whole table could produce
+a new valid chain, but not one that still contains the head you saved. Two replicas that start
+together both try to write the next `seq`; the primary key lets one win, and the other re-reads
+and stops because its commit is then the newest row.
+
+The commit only appears if the platform provides it. Render sets `RENDER_GIT_COMMIT` for
+Git-backed services; for images built elsewhere set `MORROW_GIT_COMMIT` (for example from
+`git rev-parse HEAD` at build time).
+
+### Signed page manifest
+
+```
+{"format": "morrow.page-manifest/v1", "commit": <sha or null>, "generated_at": <ISO>,
+ "files": [{"path": "/ui/<name>", "sha256": <hex>, "bytes": <int>}, ...],      # sorted by path
+ "signatures": [{"kid", "alg", "sig_b64"}, ...],
+ "keys_url": "/.well-known/morrow-proof-keys.json",
+ "signing_context": "morrow.page-manifest.v1\n",
+ "unsigned_reason": null | <why there is no signature>}
+```
+
+`files` is every regular file under `backend/static/` (fonts included; dotfiles and symlinks
+skipped), hashed once per process. Each active proof key (`services/proof_signing.py`: Ed25519, and
+ML-DSA-65 when the cryptography build has it) signs
+
+```
+b"morrow.page-manifest.v1\n" + canonical_json(manifest without "signatures" and "unsigned_reason")
+```
+
+The context differs from the migration-proof context (`morrow.migration-proof.v1\n`), so a manifest
+signature is never a valid proof signature and the reverse. Without `MORROW_VAULT_MASTER_KEY` there
+is no signing key: the manifest is served unsigned with `unsigned_reason` set, and its hashes can
+still be compared with git. Cached for 60 s.
+
+What it proves: the pages this server sends are the bytes of a public commit, and the deployment's
+long-lived key says so. It does not prove that the Python code running is that commit: the manifest
+is produced by the running code.
+
+### verify-deploy.py
+
+```
+git fetch
+python scripts/verify-deploy.py --url https://morrow.soqlab.com --repo .
+python scripts/verify-deploy.py --url https://morrow.soqlab.com --keys trusted-keys.json
+```
+
+It reads `/api/public/build`, `/api/public/manifest`, the keys and `/api/public/deploys`, then:
+every listed file must equal `git show <commit>:backend/static/<file>` (sha256 and size), files in
+the commit that are not listed are reported, at least one Ed25519 signature must verify and every
+signature present must verify (ML-DSA-65 is checked when the local cryptography build supports it),
+and the deploy chain is recomputed (from genesis when the whole log is returned) with the newest
+entry naming the running commit. Exit 0 verified, 1 a mismatch, 2 something could not be read.
+Standard library plus `cryptography`.
+
+### League
+
+`backend/league/sectors.json` (ported from the soqlab.com league) defines eight sectors. The league
+list is exactly the explicit `domains` of every sector, deduplicated: 829 domains when this was
+written (`list_size` reports the live number, after opt-outs). A domain's sector is its exact entry
+first, then a registry-reserved suffix rule (`.gov`, `.edu`, `.ac.<cc>`, `.nhs.uk` ...); anything
+else is `unclassified`. Nothing is guessed from names or content.
+
+`services/league.py` `tick(max_domains=20)` grades up to N domains whose newest attempt (a stored
+grade under the current rubric, or a recorded miss) is older than 7 days, never-tried first. It
+uses `public_grade.grade_one` (the same SSRF guard and timeouts) on at most 4 threads, skips
+`public_check.opted_out` domains without contacting them, stores successes with
+`public_grade.store` (so they appear in `/history`) and failures in `public_league_misses`. Each
+tick is a row in `public_league_runs`. The Celery beat entry `league-tick-every-15m` runs it
+(`MORROW_LEAGUE_SCAN=0` turns it off; `MORROW_LEAGUE_TICK_MAX` sets N). That is at most 80 domains
+an hour and each domain at most once a week. Without a worker:
+
+```
+cd backend && python -m services.league --tick --max 20
+python -m services.league --list      # the league list
+```
+
+`GET /league` answers from stored rows only (cached 60 s per process):
+
+```
+{"generated_at", "rubric_version", "list_size", "graded",
+ "sectors": [{"id", "name", "method", "sources", "count", "graded",
+              "grades": {"A": n, ... "F": n}, "pq_share": <0..1, or null when nothing graded>}],
+ "rows": [{"domain", "sector", "grade" (null if never graded under this rubric),
+           "previous_grade" (the grade before the latest change, or null),
+           "changed_at" (when the latest change was seen, null if never changed),
+           "group", "post_quantum", "scanned_at",
+           "miss" (error code of a failure newer than the grade, or null)}],
+ "total" (rows after the filters, before paging),
+ "last_run": {"started_at", "finished_at", "graded", "failed", "skipped"} | null}
+```
+
+`sort=grade` puts A first (`dir=desc`: F first); ungraded rows always sort last for `grade` and
+`scanned`. Opted-out domains are left out of the rows and the counts.
+
+New tables (feature store, deferred schemas `public_deploy_log` and `public_league`, no
+organisation column, SQLite and Postgres): `public_deploy_log (seq, commit_sha, first_seen,
+prev_hash, entry_hash)`, `public_league_misses (id, domain, scanned_at, error, detail)` and
+`public_league_runs (id, started_at, finished_at, graded, failed, skipped)`.
