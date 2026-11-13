@@ -7,6 +7,14 @@ Falls through gracefully if the env var is absent.
 An account has a password, passkeys (services/passkeys.py), or, for a moment while it moves from
 one to the other, both. password_hash is NULL for an account without a password; the first passkey
 an account registers sets it to NULL, and login() refuses any account that has a passkey.
+
+Email is optional. An account created from an administrator's setup link may have only a display
+name: it signs in with a discoverable passkey, which needs no username, and recovers with its
+recovery codes (services/recovery_codes.py). email is NULL for such an account (UNIQUE still holds
+for every address that is set: SQL treats NULLs as distinct) and every reader here returns "" for
+it. email_recovery says whether a lost-passkey or password-reset link may be emailed to the
+account's address. It is 1 by default, so accounts that existed before it keep the emailed
+recovery they had; the owner can switch it off once they hold recovery codes.
 """
 import hashlib
 import logging
@@ -37,14 +45,15 @@ def init_tables(db) -> None:
     db.execute("""
         CREATE TABLE IF NOT EXISTS morrow_users (
             id TEXT PRIMARY KEY,
-            email TEXT NOT NULL UNIQUE,
+            email TEXT UNIQUE,
             password_hash TEXT,
             full_name TEXT,
             role TEXT NOT NULL DEFAULT 'viewer',
             org_id TEXT NOT NULL DEFAULT 'org-alpha',
             is_active INTEGER NOT NULL DEFAULT 1,
             created_at INTEGER NOT NULL,
-            last_login_at INTEGER
+            last_login_at INTEGER,
+            email_recovery INTEGER NOT NULL DEFAULT 1
         )
     """)
     db.execute("""
@@ -56,77 +65,98 @@ def init_tables(db) -> None:
         )
     """)
     db.commit()
-    _allow_accounts_without_password(db)
+    _migrate_users_table(db)
     from services import passkeys as _passkeys
+    from services import recovery_codes as _recovery_codes
     _passkeys.init_tables(db)
+    _recovery_codes.init_tables(db)
     _ensure_default_admin(db)
 
 
-def _allow_accounts_without_password(db) -> None:
-    """Migration: morrow_users.password_hash was NOT NULL until passkeys; make it nullable.
+#: Every column of morrow_users, in table order, as the SQLite rebuild copies it.
+_USER_COLUMNS = ("id", "email", "password_hash", "full_name", "role", "org_id", "is_active", "created_at",
+                 "last_login_at", "email_recovery")
 
-    Postgres can drop the constraint in place. SQLite can't alter a column, so the table is rebuilt
-    the documented way (https://sqlite.org/lang_altertable.html#otheralter): inside one write
+
+def _migrate_users_table(db) -> None:
+    """Migration: bring an older morrow_users up to the current schema, keeping every row.
+
+    Three changes, each made once:
+      * password_hash was NOT NULL until passkeys: now nullable (accounts without a password);
+      * email was NOT NULL: now nullable (accounts without an email). UNIQUE stays;
+      * email_recovery is added with DEFAULT 1, so every existing account keeps emailed recovery.
+
+    Postgres alters the columns in place. SQLite can't drop NOT NULL, so the table is rebuilt the
+    documented way (https://sqlite.org/lang_altertable.html#otheralter): inside one write
     transaction, create the new table, copy every row, drop the old one, rename, and recreate the
     indexes the old table had (platform_analytics adds two). Nothing references morrow_users with a
-    foreign key. It runs once: afterwards the column is already nullable and this returns at once.
-    The API and the worker can both start at the same moment, so the check is repeated after the
-    write lock is held.
+    foreign key. Once done, the check below finds nothing to change and this returns at once. The
+    API and the worker can both start at the same moment, so the check is repeated after the write
+    lock is held.
     """
     import sqlite3
 
     if not isinstance(db, sqlite3.Connection):
-        try:
-            db.execute("ALTER TABLE morrow_users ALTER COLUMN password_hash DROP NOT NULL")
-            db.commit()
-        except Exception:
+        for statement in (
+            "ALTER TABLE morrow_users ALTER COLUMN password_hash DROP NOT NULL",
+            "ALTER TABLE morrow_users ALTER COLUMN email DROP NOT NULL",
+            "ALTER TABLE morrow_users ADD COLUMN IF NOT EXISTS email_recovery INTEGER NOT NULL DEFAULT 1",
+        ):
             try:
-                db.rollback()
+                db.execute(statement)
+                db.commit()
             except Exception:
-                pass
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
         return
 
-    def password_not_null() -> bool:
-        for row in db.execute("PRAGMA table_info(morrow_users)").fetchall():
-            if str(row[1]) == "password_hash":
-                return bool(row[3])
-        return False
+    def columns() -> dict:
+        """{column name: NOT NULL?}"""
+        return {str(row[1]): bool(row[3]) for row in db.execute("PRAGMA table_info(morrow_users)").fetchall()}
 
-    if not password_not_null():
+    def pending(cols: dict) -> bool:
+        return "email_recovery" not in cols or cols.get("password_hash", False) or cols.get("email", False)
+
+    if not pending(columns()):
         return
     if db.in_transaction:
         db.commit()
     db.execute("BEGIN IMMEDIATE")
     try:
-        if not password_not_null():
+        cols = columns()
+        if not pending(cols):
             db.rollback()
             return
-        indexes = [r[0] for r in db.execute(
-            "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='morrow_users' AND sql IS NOT NULL"
-        ).fetchall()]
-        db.execute("""
-            CREATE TABLE morrow_users_rebuild (
-                id TEXT PRIMARY KEY,
-                email TEXT NOT NULL UNIQUE,
-                password_hash TEXT,
-                full_name TEXT,
-                role TEXT NOT NULL DEFAULT 'viewer',
-                org_id TEXT NOT NULL DEFAULT 'org-alpha',
-                is_active INTEGER NOT NULL DEFAULT 1,
-                created_at INTEGER NOT NULL,
-                last_login_at INTEGER
-            )
-        """)
-        db.execute(
-            "INSERT INTO morrow_users_rebuild (id, email, password_hash, full_name, role, org_id, is_active, created_at, last_login_at) "
-            "SELECT id, email, password_hash, full_name, role, org_id, is_active, created_at, last_login_at FROM morrow_users"
-        )
-        db.execute("DROP TABLE morrow_users")
-        db.execute("ALTER TABLE morrow_users_rebuild RENAME TO morrow_users")
-        for sql in indexes:
-            db.execute(sql)
+        if "email_recovery" not in cols:
+            db.execute("ALTER TABLE morrow_users ADD COLUMN email_recovery INTEGER NOT NULL DEFAULT 1")
+        if cols.get("password_hash", False) or cols.get("email", False):
+            indexes = [r[0] for r in db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='morrow_users' AND sql IS NOT NULL"
+            ).fetchall()]
+            db.execute("""
+                CREATE TABLE morrow_users_rebuild (
+                    id TEXT PRIMARY KEY,
+                    email TEXT UNIQUE,
+                    password_hash TEXT,
+                    full_name TEXT,
+                    role TEXT NOT NULL DEFAULT 'viewer',
+                    org_id TEXT NOT NULL DEFAULT 'org-alpha',
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at INTEGER NOT NULL,
+                    last_login_at INTEGER,
+                    email_recovery INTEGER NOT NULL DEFAULT 1
+                )
+            """)
+            names = ", ".join(_USER_COLUMNS)
+            db.execute(f"INSERT INTO morrow_users_rebuild ({names}) SELECT {names} FROM morrow_users")  # nosec B608  # column names are the literal tuple above
+            db.execute("DROP TABLE morrow_users")
+            db.execute("ALTER TABLE morrow_users_rebuild RENAME TO morrow_users")
+            for sql in indexes:
+                db.execute(sql)
         db.commit()
-        logger.info("[AuthIssuer] morrow_users.password_hash is now nullable (passkey-only accounts).")
+        logger.info("[AuthIssuer] morrow_users migrated: password and email optional, email_recovery added.")
     except Exception:
         db.rollback()
         raise
@@ -180,14 +210,15 @@ def _create_user(db, email: str, password: str, full_name: str, role: str, org_i
 
 def create_passkey_user(db, user_id: str, email: str, full_name: str = "",
                         role: str = "viewer", org_id: str = "org-alpha") -> dict:
-    """An account without a password. The caller stores its first passkey right after."""
-    address = email.lower().strip()
-    if db.execute("SELECT id FROM morrow_users WHERE email=?", (address,)).fetchone():
+    """An account without a password. The caller stores its first passkey right after, or hands out a
+    setup link for it. `email` may be empty: the account is then stored with email NULL."""
+    address = str(email or "").lower().strip()
+    if address and db.execute("SELECT id FROM morrow_users WHERE email=?", (address,)).fetchone():
         raise ValueError("Email already registered")
     db.execute(
         "INSERT INTO morrow_users (id, email, password_hash, full_name, role, org_id, is_active, created_at) "
         "VALUES (?,?,NULL,?,?,?,1,?)",
-        (str(user_id), address, full_name, role, org_id, int(time.time())),
+        (str(user_id), address or None, full_name, role, org_id, int(time.time())),
     )
     db.commit()
     return {"id": str(user_id), "email": address, "role": role, "org_id": org_id, "full_name": full_name,
@@ -206,6 +237,25 @@ def drop_password(db, user_id: str) -> bool:
     return int(cur.rowcount or 0) > 0
 
 
+def email_recovery_enabled(db, user_id: str) -> bool:
+    """Whether a lost-passkey or password-reset link may be emailed to this account: it has an
+    address and its owner has not switched emailed recovery off."""
+    row = db.execute("SELECT email, email_recovery FROM morrow_users WHERE id=?", (str(user_id),)).fetchone()
+    return bool(row and row[0] and int(row[1] or 0))
+
+
+def set_email_recovery(db, user_id: str, enabled: bool) -> bool:
+    cur = db.execute("UPDATE morrow_users SET email_recovery=? WHERE id=?", (1 if enabled else 0, str(user_id)))
+    db.commit()
+    return int(cur.rowcount or 0) > 0
+
+
+def display_label(user: dict) -> str:
+    """How an account is named to its owner: its email, else its display name, else a short id."""
+    return (str(user.get("email") or "").strip() or str(user.get("full_name") or "").strip()
+            or "Morrow account " + str(user.get("id") or "")[:8])
+
+
 def create_user(db, email: str, password: str, full_name: str = "",
                 role: str = "viewer", org_id: str = "org-alpha") -> dict:
     _validate_password_strength(password)
@@ -216,13 +266,15 @@ def create_user(db, email: str, password: str, full_name: str = "",
 
 
 def get_user_by_email(db, email: str) -> Optional[dict]:
+    if not str(email or "").strip():
+        return None  # an account without an email is never found by one
     row = db.execute(
         "SELECT id, email, password_hash, full_name, role, org_id, is_active FROM morrow_users WHERE email=?",
         (email.lower().strip(),),
     ).fetchone()
     if not row:
         return None
-    return {"id": row[0], "email": row[1], "password_hash": row[2],
+    return {"id": row[0], "email": row[1] or "", "password_hash": row[2],
             "full_name": row[3], "role": row[4], "org_id": row[5], "is_active": row[6]}
 
 
@@ -233,7 +285,7 @@ def get_user_by_id(db, user_id: str) -> Optional[dict]:
     ).fetchone()
     if not row:
         return None
-    return {"id": row[0], "email": row[1], "full_name": row[2], "role": row[3],
+    return {"id": row[0], "email": row[1] or "", "full_name": row[2], "role": row[3],
             "org_id": row[4], "is_active": row[5], "created_at": row[6], "last_login_at": row[7]}
 
 
@@ -276,7 +328,7 @@ def list_users(db, org_id: str) -> list[dict]:
         "FROM morrow_users WHERE org_id=? ORDER BY created_at DESC",
         (org_id,),
     ).fetchall()
-    return [{"id": r[0], "email": r[1], "full_name": r[2], "role": r[3],
+    return [{"id": r[0], "email": r[1] or "", "full_name": r[2], "role": r[3],
              "org_id": r[4], "is_active": bool(r[5]), "created_at": r[6], "last_login_at": r[7]}
             for r in rows]
 

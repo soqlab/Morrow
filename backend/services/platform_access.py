@@ -300,7 +300,7 @@ def password_accounts(conn: Any, organization_id: str = "", query: str = "", lim
     except Exception:
         return []
     return [
-        {"id": r[0], "email": r[1], "full_name": r[2] or "", "role": r[3], "org_id": r[4],
+        {"id": r[0], "email": r[1] or "", "full_name": r[2] or "", "role": r[3], "org_id": r[4],
          "is_active": bool(r[5]), "created_at": r[6], "last_login_at": r[7]}
         for r in rows
     ]
