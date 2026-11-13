@@ -187,14 +187,22 @@
       .forEach(function (p) { if (!out.some(function (o) { return o.h === p.h; })) out.push(p); });
     return out.slice(0, limit);
   }
+  /* Remediation states in plain words. The server's values (verified_closed, pr_created ...) never
+     reach a suggestion row; an unknown one reads "status recorded" rather than leaking through. */
+  var FIX_STATUS = { suggested: "Suggested", pending: "Waiting for approval", open: "Open", approved: "Approved",
+    rejected: "Rejected", in_progress: "In progress", pr_created: "Change proposed in a pull request",
+    merged: "Change merged, not yet verified", validated: "Change validated", verified: "Verified",
+    verified_closed: "Fixed and verified", closed: "Closed" };
+  function fixStatus(v) { return FIX_STATUS[String(v || "").toLowerCase()] || "Status recorded"; }
   /* Your own assets and remediations, searched live in your workspace as you type. */
   function searchMine(q) {
     if (!WS || q.length < 2 || scanCommand(q)) return Promise.resolve([]);
     return getJSON("/search?limit=8&q=" + enc(q), { auth: token, cache: "no-store" }).then(function (r) {
       return ((r && r.results) || []).filter(function (x) { return x.type === "asset" || x.type === "remediation"; }).slice(0, 6).map(function (x) {
+        var d = x.data || {};
         return x.type === "asset"
-          ? { kind: "asset", t: x.title, h: "/asset/" + enc(x.title), hint: x.subtitle }
-          : { kind: "fix", t: x.title, h: "/ui/#remediation", hint: x.subtitle };
+          ? { kind: "asset", t: x.title, h: "/estate/asset/" + enc(x.title), hint: [d.algorithm, d.tls_version, d.risk_level ? d.risk_level + " risk" : ""].filter(Boolean).join(" \u00b7 ") }
+          : { kind: "fix", t: x.title, h: "/ui/#remediation", hint: fixStatus(d.status) + (d.target_host ? " \u00b7 " + d.target_host : "") };
       });
     }).catch(function () { return []; });
   }
@@ -301,7 +309,11 @@
     var strip = $("#i-conn"); if (!strip) return;
     Promise.all([connection(), basis()]).then(function (r) {
       var c = r[0], b = r[1];
-      var label = c.status === "pq" ? "post-quantum" : c.status === "classical" ? "classical" : "not reported";
+      // Shown only where the edge in front of this server reports the key exchange (the hosted
+      // service does; a self-hosted copy or local development may not): no "not reported" panel.
+      if (c.status === "unknown") { strip.hidden = true; return; }
+      strip.hidden = false;
+      var label = c.status === "pq" ? "post-quantum" : "classical";
       strip.innerHTML = '<div class="i-conn-in"><span>Your connection to Morrow</span>' +
         (c.tls ? "<span><b>" + esc(c.tls) + "</b></span>" : "") +
         (c.kex ? "<span>key exchange <b>" + esc(c.kex) + "</b></span>" : "") +
@@ -370,6 +382,29 @@
     if ((legacy && !tls13) || weak) return "E";
     return tls13 ? "C" : "D";
   }
+  /* What to say beside a grade. When the grade is set by something other than quantum
+     readability (an untrusted certificate, no forward secrecy), say that, in a warning colour,
+     never a reassuring "protected" next to a failing grade. */
+  function endpointStatus(r) {
+    var w = (r && r.decrypt_window) || {};
+    if (!r || !r.tls_version) return '<span class="i-dim">no TLS seen</span>';
+    if (r.days_until_expiry != null && r.days_until_expiry < 0) return '<span class="v-bad">certificate expired</span>';
+    if (r.verify_error) return '<span class="v-bad" title="' + esc(r.verify_error) + '">certificate not trusted</span>';
+    if (!(/1\.3/.test(r.tls_version) || /DHE/i.test(r.cipher_name || ""))) return '<span class="v-bad">no forward secrecy</span>';
+    if (w.status === "at_risk") return '<span class="v-warn">readable from ' + esc(w.readable_from) + "</span>";
+    if (w.status === "protected") {
+      var g = scanGrade(r);
+      return g === "A" ? '<span class="v-ok">protected</span>' : '<span class="v-ok">protected</span> <span class="v-warn">with a weakness</span>';
+    }
+    return '<span class="i-dim">key exchange not observed</span>';
+  }
+  function sinceWhen(iso) {
+    var d = new Date(iso), now = new Date();
+    if (isNaN(d)) return "";
+    if (d.toISOString().slice(0, 10) === now.toISOString().slice(0, 10)) return d.toISOString().slice(11, 16) + " UTC today";
+    if (now - d < 30 * 86400000) return d.toLocaleString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+    return monthName(iso);
+  }
   var ORDER = { A: 0, B: 1, C: 2, D: 3, E: 4, F: 5 };
   function gOrd(g) { return g in ORDER ? ORDER[g] : -1; }
   function typical(grades) {
@@ -418,7 +453,17 @@
     var now = estateFacts(pts[idx].estate), first = estateFacts(pts[0].estate);
     var n = now.keys.length, risky = now.atRisk.length;
     var trend = idx > 0 && first.typical && now.typical && first.typical !== now.typical
-      ? (ORDER[now.typical] < ORDER[first.typical] ? " Typical grade went from " + first.typical + " to " + now.typical : " Typical grade slipped from " + first.typical + " to " + now.typical) + " since " + monthName(pts[0].at) + "." : "";
+      ? (ORDER[now.typical] < ORDER[first.typical] ? " Typical grade went from " + first.typical + " to " + now.typical : " Typical grade slipped from " + first.typical + " to " + now.typical) + " since " + sinceWhen(pts[0].at) + "." : "";
+    if (!trend && idx > 0) {
+      // The typical grade can hold still while endpoints move: count the moves themselves.
+      var up = 0, down = 0;
+      Object.keys(pts[idx].estate).forEach(function (k) {
+        if (!pts[0].estate[k]) return;
+        var a = scanGrade(pts[0].estate[k].r), b = scanGrade(pts[idx].estate[k].r);
+        if (a && b && a !== b) { if (ORDER[b] < ORDER[a]) up++; else down++; }
+      });
+      if (up || down) trend = " Since " + sinceWhen(pts[0].at) + ": " + (up ? up + " endpoint" + (up === 1 ? "" : "s") + " improved" : "") + (up && down ? ", " : "") + (down ? down + " got worse" : "") + ".";
+    }
     return byDepth({
       plain: risky ? risky + " of your " + n + " endpoint" + (n === 1 ? "" : "s") + " send traffic a future quantum computer could read." + trend
                    : "All " + n + " of your scanned endpoint" + (n === 1 ? " is" : "s are") + " protected against future quantum decryption." + trend,
@@ -457,17 +502,16 @@
     say(byDepth({ plain: "Type a website's address to see whether traffic to it could be read by a future quantum computer, and how to fix it.",
       standard: "Type a domain, an algorithm, a CVE or a commit. A domain gets its answer, its grade and the fix.",
       expert: "Hostname → grade (rubric on /api/public); algorithm → reference; CVE → NVD; hex → commit check; “scan host” → your workspace." }));
-    main.innerHTML = inputBlock("home-q") + '<p class="i-fine">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p><div id="home-reading"></div>';
+    main.innerHTML = inputBlock("home-q") + '<p class="i-fine" id="home-hint">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p><div id="home-reading"></div>';
     bindRecognizer($("#home-q"), $("#home-q-l"));
+    $("#home-q").addEventListener("input", function () { $("#home-hint").hidden = !!this.value; });
     $("#home-q").focus();
     workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
   }
   function homePublic() {
     var box = $("#home-reading");
-    box.innerHTML = '<div class="ch-grid"><div class="span-6">' + panel("", "Your connection to Morrow", '<p id="home-conn" class="i-muted">Reading your connection&hellip;</p>', { ch: "conn" }) + "</div>" +
-      '<div class="span-6">' + panel("", "Checked on this server", '<dl class="readouts" id="home-stats"></dl><p class="i-fine" id="home-stats-n"></p>', { ch: "league" }) + "</div>" +
+    box.innerHTML = '<div class="ch-grid"><div class="span-12">' + panel("", "Checked on this server", '<dl class="readouts" id="home-stats"></dl><p class="i-fine" id="home-stats-n"></p>', { ch: "league" }) + "</div>" +
       '<div class="span-12">' + panel("", "By sector", '<div id="home-sectors" class="i-muted">Reading&hellip;</div>', { ch: "league", right: '<a href="/league">trend over time</a>' }) + "</div></div>";
-    Promise.all([connection(), basis()]).then(function (r) { $("#home-conn").textContent = connSentence(r[0], r[1]); });
     getJSON("/api/public/stats").then(function (s) {
       $("#home-stats").innerHTML = reading("Checks, 7 days", num(s.public_checks_7d)) + reading("Domains checked", num(s.domains_checked)) +
         reading("Post-quantum, 7 days", pct(s.pq_share_7d), "v-ok");
@@ -478,9 +522,7 @@
   }
   function homeSignedIn() {
     var box = $("#home-reading");
-    box.innerHTML = panel("", "Your estate", '<div id="home-estate" class="i-muted">Reading your scans&hellip;</div>', { ch: "grade", right: '<a href="/estate">through time</a>' }) +
-      '<p class="i-fine"><span id="home-conn"></span></p>';
-    Promise.all([connection(), basis()]).then(function (r) { $("#home-conn").textContent = connSentence(r[0], r[1]); });
+    box.innerHTML = panel("", "Your estate", '<div id="home-estate" class="i-muted">Reading your scans&hellip;</div>', { ch: "grade", right: '<a href="/estate">through time</a>' });
     estateHistory().then(function (H) {
       if (!H || !H.points.length) {
         say("Nothing in your workspace has been scanned yet. Type “scan” and one of your domains to take the first reading.");
@@ -499,8 +541,7 @@
     var shown = limit ? keys.slice(0, limit) : keys;
     var rows = shown.map(function (k) {
       var r = estate[k].r, w = r.decrypt_window || {};
-      return "<tr><td>" + gradeChip(scanGrade(r)) + '</td><td><a href="/estate/asset/' + enc(k) + '">' + esc(k) + "</a></td><td>" +
-        (w.status === "at_risk" ? '<span class="v-warn">readable from ' + esc(w.readable_from) + "</span>" : w.status === "protected" ? '<span class="v-ok">protected</span>' : '<span class="i-dim">not observed</span>') +
+      return "<tr><td>" + gradeChip(scanGrade(r)) + '</td><td><a href="/estate/asset/' + enc(k) + '">' + esc(k) + "</a></td><td>" + endpointStatus(r) +
         (depth === "expert" ? '</td><td class="mono">' + esc(r.key_exchange || "-") + " · " + esc(r.tls_version || "-") : "") + '</td><td class="mono i-dim">' + esc(day(estate[k].at)) + "</td></tr>";
     }).join("");
     return '<div class="i-table-wrap"><table class="i-table"><tbody>' + rows + "</tbody></table></div>" +
@@ -572,7 +613,7 @@
             : results.length + " endpoints scanned; typical grade " + (typical(grades) || "-") + ".");
         $("#sc-body").innerHTML = panel("", "Results", '<div class="i-table-wrap"><table class="i-table"><tbody>' + results.map(function (r, i) {
           var w = r.decrypt_window || {};
-          return "<tr><td>" + gradeChip(grades[i]) + '</td><td><a href="/estate/asset/' + enc(rTarget(r)) + '">' + esc(rTarget(r)) + "</a></td><td>" + (w.status === "at_risk" ? "readable from " + esc(w.readable_from) : w.status === "protected" ? "protected" : "not observed") + "</td><td><a href=\"/" + esc(hostOf(rTarget(r))) + '">the fix</a></td></tr>';
+          return "<tr><td>" + gradeChip(grades[i]) + '</td><td><a href="/estate/asset/' + enc(rTarget(r)) + '">' + esc(rTarget(r)) + "</a></td><td>" + endpointStatus(r) + "</td><td><a href=\"/" + esc(hostOf(rTarget(r))) + '">the fix</a></td></tr>';
         }).join("") + "</tbody></table></div>" + '<p class="i-fine">Finished ' + esc(stamp(s.created_at)) + '. <a href="/estate">Your estate through time</a>.</p>', { ch: "grade" });
         if (last === "running") { flash($("#say")); flash($("#sc-body")); }
       }).catch(function (e) { say("This scan could not be read: " + e.message); });
@@ -659,13 +700,20 @@
       say(answer(r));
       status($("#d-status"), isLatest ? "Checked " + stamp(r.scanned_at) + (r.cached ? ", stored result from " + ago(r.scanned_at) : "") + "." : "Showing the check of " + stamp(r.scanned_at) + ". The newest is " + stamp(latest.scanned_at) + ".");
       var fixes = r.fixes || [];
-      var shownFixes = depth === "expert" ? fixes : fixes.slice(0, 1);
+      // Which server's change to show: the detected one, or the one picked here (kept in ?server=).
+      var srvParam = (param("server") || "").toLowerCase();
+      var pickIdx = 0;
+      fixes.forEach(function (f, k) { if (srvParam && String(f.applies_to || "").toLowerCase() === srvParam) pickIdx = k; });
+      var shown = depth === "expert" ? fixes.map(function (f, k) { return k; }) : [pickIdx];
+      var picker = depth === "standard" && fixes.length > 1
+        ? '<p><label for="d-srv">Your server</label> <select id="d-srv" class="i-btn">' + fixes.map(function (f, k) { return '<option value="' + k + '"' + (k === pickIdx ? " selected" : "") + ">" + esc(f.applies_to || f.title) + "</option>"; }).join("") + "</select></p>" : "";
       var fixHtml = !fixes.length ? "<p>Nothing to change.</p>" : (depth === "plain"
-        ? "<p>" + esc(fixes[0].title) + ". Needs: " + esc(fixes[0].requires) + ".</p>"
-        : shownFixes.map(function (f, i) {
-          return '<div class="fix"><p><b>' + esc(f.title) + '</b> <button type="button" class="i-btn" data-copy="' + i + '">Copy</button></p><pre>' + esc(f.snippet) + "</pre>" +
+        ? "<p>" + esc(fixes[pickIdx].title) + ". Needs: " + esc(fixes[pickIdx].requires) + ".</p>"
+        : picker + shown.map(function (k) {
+          var f = fixes[k];
+          return '<div class="fix"><p><b>' + esc(f.title) + '</b> <button type="button" class="i-btn" data-copy="' + k + '">Copy</button></p><pre>' + esc(f.snippet) + "</pre>" +
             (depth === "expert" && f.notes ? '<p class="i-fine">' + esc(f.notes) + "</p>" : "") + '<p class="i-fine">Needs: ' + esc(f.requires) + "</p></div>";
-        }).join("") + (fixes.length > shownFixes.length ? '<p class="i-fine">' + (fixes.length - shownFixes.length) + " more server" + (fixes.length - shownFixes.length === 1 ? "" : "s") + " (nginx, Apache, Caddy, HAProxy, IIS) at expert depth.</p>" : ""));
+        }).join(""));
       var what = panel("", "What to do", fixHtml + '<div class="i-row"><button type="button" class="i-btn solid" id="d-recheck">Re-check now</button>' +
         (depth === "plain" ? "" : '<span class="i-fine">After the change, re-check: Morrow opens fresh connections instead of using the stored result.</span>') + "</div>", { ch: "tools" });
       var gradeBlock = depth === "plain" ? "" : panel("", "Grade", '<div class="i-answer"><div class="grade" id="d-grade" data-g="' + esc(r.grade) + '" aria-label="Grade ' + esc(r.grade) + '">' + esc(r.grade) + '</div><ul class="i-muted">' +
@@ -690,6 +738,8 @@
       $$("[data-copy]").forEach(function (b) { b.addEventListener("click", function () { copy(fixes[+b.getAttribute("data-copy")].snippet, b); }); });
       $$("[data-copy-el]").forEach(function (b) { b.addEventListener("click", function () { copy($("#" + b.getAttribute("data-copy-el")).textContent, b); }); });
       $("#d-recheck").addEventListener("click", function () { load(true); });
+      var srv = $("#d-srv");
+      if (srv) srv.addEventListener("change", function () { var f = fixes[+srv.value]; setParam("server", f && f.applies_to ? String(f.applies_to).toLowerCase() : null); render(); });
       paintScrub();
     }
 
@@ -734,7 +784,7 @@
   function viewLeague() {
     setView("league", "Sectors");
     say("Reading sector averages…");
-    main.innerHTML = '<div id="lg-mine"></div><div id="lg-body"></div>';
+    main.innerHTML = '<div id="lg-mine"></div><div id="lg-body"></div><div id="lg-ready"></div><div id="lg-not"></div>';
     getJSON("/api/public/league", { cache: "no-store" }).then(function (L) {
       SECTORS = L.sectors || [];
       var graded = L.graded, pq = 0, g = 0;
@@ -751,17 +801,130 @@
     }).catch(function (e) { say("The sector averages are not available right now."); $("#lg-body").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
     workspace().then(function (w) {
       if (!w) return;
-      getJSON("/instrument/rank", { auth: token, cache: "no-store" }).then(function (R) {
-        var rows = (R.domains || []).map(function (x) {
-          var where = x.grade && x.compared_with ? "better than " + pct(x.worse / x.compared_with) + " of " + num(x.compared_with) + " graded " + (x.sector === "unclassified" ? "sites" : x.sector_name + " sites") : x.grade ? "no graded sites to compare with" : 'not graded yet: <a href="/' + esc(x.domain) + '">grade it</a>';
-          return "<tr><td>" + gradeChip(x.grade) + "</td><td>" + esc(x.domain) + "</td><td>" + where + "</td></tr>";
-        }).join("");
-        $("#lg-mine").innerHTML = panel("", "Your verified domains (only you see this)", R.verified_domains ? '<div class="i-table-wrap"><table class="i-table"><tbody>' + rows + "</tbody></table></div>"
-          : '<p>Verify a domain you own in the console (<a href="/ui/#gateway">Website Gateway</a>) to see where it stands in its sector.</p>', { ch: "grade" });
-      }).catch(function () {});
+      paintMine();
     });
+    paintReady();
+    paintNotReady();
   }
 
+  /* Not yet post-quantum: popular sites (Tranco list only) whose newest check is below B, each
+     worded as what was measured, with the date, the source and the owner's reply if any. */
+  function paintNotReady() {
+    var box = $("#lg-not"); if (!box) return;
+    var sector = param("nr") || "";
+    getJSON("/api/public/not-ready" + (sector ? "?sector=" + enc(sector) : ""), { cache: "no-store" }).then(function (N) {
+      var m = N.methodology || {}, w = m.decrypt_window || {};
+      var options = '<option value="">All sectors</option>' + (N.sectors || []).map(function (s) { return '<option value="' + esc(s[0]) + '"' + (s[0] === sector ? " selected" : "") + ">" + esc(s[1]) + "</option>"; }).join("");
+      var rows = (N.entries || []).map(function (e) {
+        return '<li class="nr" data-d="' + esc(e.domain) + '"><p>' + gradeChip(e.grade) + " " + esc(e.statement).replace(esc(e.domain), '<a href="/' + esc(e.domain) + '">' + esc(e.domain) + "</a>") +
+          ' <a class="i-fine" href="' + esc(e.source_url) + '" rel="noopener">source of the years</a></p>' +
+          (e.reply ? '<p class="i-fine">Reply from the owner, ' + esc(day(e.reply.at)) + ": “" + esc(e.reply.text) + "”</p>" : "") +
+          '<p><button type="button" class="i-btn" data-recheck="' + esc(e.domain) + '">Re-check</button> <span class="i-status"></span></p></li>';
+      }).join("");
+      box.innerHTML = panel("", N.title || "Not yet post-quantum",
+        '<p><label for="nr-sector">Sector</label> <select id="nr-sector" class="i-btn">' + options + "</select> " +
+        '<a class="i-fine" href="/api/public/not-ready.atom' + (sector ? "?sector=" + enc(sector) : "") + '">feed of sites joining and leaving</a></p>' +
+        (rows ? '<ul class="nr-list">' + rows + "</ul>" : '<p class="i-empty">No site from the list is below B on this server' + (sector ? " in this sector" : "") + ".</p>") +
+        '<details class="i-fine"><summary>How this list is made</summary><p>' + esc(m.who || "") + "</p><p>" + esc(m.measured || "") + "</p><p>Rubric " + esc(m.rubric_version || "") +
+        ". The years " + esc(w.low) + "–" + esc(w.high) + ' come from the <a href="' + esc(w.source_url || "") + '" rel="noopener">' + esc(w.source || "") + "</a>. " + esc(m.leaves || "") + " " + esc(m.not_a_ranking || "") +
+        (m.list ? " List " + esc(m.list.list_id) + ", fetched " + esc(day(m.list.fetched_at)) + "." : "") + "</p></details>" +
+        '<details class="i-fine" id="nr-correct"><summary>Request a correction</summary><form id="nr-form"><p><label>Domain <input class="i-btn" name="domain" maxlength="253" required></label></p>' +
+        '<p><label>What is wrong <textarea class="i-btn" name="reason" maxlength="1000" rows="3" required></textarea></label></p>' +
+        '<p><label>How to reach you <input class="i-btn" name="contact" maxlength="200" required></label></p><p><button class="i-btn" type="submit">Send</button> <span class="i-status" id="nr-form-s"></span></p></form>' +
+        "<p>Requests are stored and read by a person. If you run a domain and want it never checked, use the <a href=\"/abuse\">opt-out</a>: an opted-out domain is never listed.</p></details>",
+        { ch: "league", right: num(N.count) + " sites" });
+      $("#nr-sector").addEventListener("change", function () { setParam("nr", this.value || null); paintNotReady(); });
+      $$("#lg-not [data-recheck]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          var d = b.getAttribute("data-recheck"), st = b.parentNode.querySelector(".i-status");
+          b.setAttribute("aria-busy", "true"); status(st, "Checking " + d + " now\u2026");
+          getJSON("/api/public/grade/" + enc(d) + "?fresh=1", { cache: "no-store" }).then(function (r) {
+            status(st, "Checked " + stamp(r.scanned_at) + ": grade " + r.grade + (r.grade === "A" || r.grade === "B" ? ". It leaves this list." : "."), r.grade === "A" || r.grade === "B" ? "ok" : null);
+            if (r.grade === "A" || r.grade === "B") flash(b.closest("li"));
+          }).catch(function (e) { status(st, e.message, "bad"); }).finally(function () { b.removeAttribute("aria-busy"); });
+        });
+      });
+      $("#nr-form").addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var f = ev.target, st = $("#nr-form-s");
+        fetch("/api/public/corrections", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, credentials: "omit",
+          body: JSON.stringify({ domain: f.domain.value, reason: f.reason.value, contact: f.contact.value }) })
+          .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.detail || ("HTTP " + r.status)); return b; }); })
+          .then(function () { status(st, "Received. A person will read it.", "ok"); f.reset(); })
+          .catch(function (e) { status(st, e.message, "bad"); });
+      });
+    }).catch(function (e) { box.innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
+  }
+
+  /* Your verified domains: where each stands in its sector (only you see it) and whether it is on
+     the public opt-in list. Listing needs an admin; the server refuses anything not verified or
+     not graded A or B, and says why. */
+  function paintMine() {
+    Promise.all([getJSON("/instrument/rank", { auth: token, cache: "no-store" }).catch(function () { return null; }),
+                 getJSON("/instrument/pq-ready", { auth: token, cache: "no-store" }).catch(function () { return null; }),
+                 getJSON("/instrument/replies", { auth: token, cache: "no-store" }).catch(function () { return null; })]).then(function (r) {
+      var R = r[0], P = r[1];
+      MY_REPLIES = (r[2] && r[2].replies) || {};
+      if (!R && !P) return;
+      var listing = {}; ((P && P.domains) || []).forEach(function (x) { listing[x.domain] = x; });
+      var rows = ((R && R.domains) || []).map(function (x) {
+        var where = x.grade && x.compared_with ? "better than " + pct(x.worse / x.compared_with) + " of " + num(x.compared_with) + " graded " + (x.sector === "unclassified" ? "sites" : x.sector_name + " sites") : x.grade ? "no graded sites to compare with" : 'not graded yet: <a href="/' + esc(x.domain) + '">grade it</a>';
+        var L = listing[x.domain] || {};
+        var state = L.listed ? '<span class="v-ok">on the public list since ' + esc(day(L.joined_at)) + '</span> <button type="button" class="i-btn" data-list="0" data-d="' + esc(x.domain) + '">Leave the list</button>'
+          : (L.eligible ? '<button type="button" class="i-btn" data-list="1" data-d="' + esc(x.domain) + '">List as post-quantum ready</button>' : '<span class="i-dim">listing needs grade A or B</span>') +
+            (L.removed_reason ? '<br><span class="v-warn">' + esc(L.removed_reason) + "</span>" : "");
+        var rep = (MY_REPLIES || {})[x.domain];
+        var reply = '<br><details class="i-fine"><summary>' + (rep ? "Your reply, " + esc(day(rep.at)) : "Reply on the public lists") + '</summary><textarea class="i-btn" maxlength="280" rows="2" data-reply="' + esc(x.domain) + '">' + esc(rep ? rep.text : "") +
+          '</textarea><button type="button" class="i-btn" data-reply-save="' + esc(x.domain) + '">Save reply</button>' + (rep ? ' <button type="button" class="i-btn" data-reply-del="' + esc(x.domain) + '">Remove</button>' : "") + "<br>Plain text, at most 280 characters, shown with the date beside this domain if it is listed.</details>";
+        return "<tr><td>" + gradeChip(x.grade) + "</td><td>" + esc(x.domain) + "</td><td>" + where + "</td><td>" + state + reply + "</td></tr>";
+      }).join("");
+      $("#lg-mine").innerHTML = panel("", "Your verified domains (only you see this)", (R && R.verified_domains) ? '<div class="i-table-wrap"><table class="i-table"><tbody>' + rows + '</tbody></table></div><p class="i-status" id="lg-mine-s"></p>'
+        : '<p>Verify a domain you own in the console (<a href="/ui/#gateway">Website Gateway</a>) to see where it stands in its sector, and to list it as post-quantum ready.</p>', { ch: "grade" });
+      $$("#lg-mine [data-list]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var d = btn.getAttribute("data-d"), on = btn.getAttribute("data-list") === "1";
+          btn.setAttribute("aria-busy", "true");
+          var headers = { "Content-Type": "application/json", Accept: "application/json" };
+          if (token) headers.Authorization = "Bearer " + token;
+          fetch("/instrument/pq-ready/" + enc(d), { method: "PUT", credentials: "same-origin", headers: headers, body: JSON.stringify({ listed: on }) })
+            .then(function (res) { return res.json().then(function (b) { if (!res.ok) throw new Error(b.detail || ("HTTP " + res.status)); return b; }); })
+            .then(function () { paintMine(); paintReady(); })
+            .catch(function (e) { status($("#lg-mine-s"), e.message, "bad"); btn.removeAttribute("aria-busy"); });
+        });
+      });
+      function send(method, d, body) {
+        var headers = { "Content-Type": "application/json", Accept: "application/json" };
+        if (token) headers.Authorization = "Bearer " + token;
+        return fetch("/instrument/replies/" + enc(d), { method: method, credentials: "same-origin", headers: headers, body: body ? JSON.stringify(body) : undefined })
+          .then(function (res) { return res.json().then(function (b) { if (!res.ok) throw new Error(b.detail || ("HTTP " + res.status)); return b; }); })
+          .then(function () { paintMine(); paintNotReady(); })
+          .catch(function (e) { status($("#lg-mine-s"), e.message, "bad"); });
+      }
+      $$("#lg-mine [data-reply-save]").forEach(function (b) { b.addEventListener("click", function () { var d = b.getAttribute("data-reply-save"); send("PUT", d, { text: $('#lg-mine [data-reply="' + d + '"]').value }); }); });
+      $$("#lg-mine [data-reply-del]").forEach(function (b) { b.addEventListener("click", function () { send("DELETE", b.getAttribute("data-reply-del")); }); });
+    });
+  }
+  var MY_REPLIES = {};
+  function paintReady() {
+    var box = $("#lg-ready"); if (!box) return;
+    var order = param("order") === "joined" ? "joined" : "name";
+    getJSON("/api/public/pq-ready?order=" + order, { cache: "no-store" }).then(function (Q) {
+      var rows = (Q.entries || []).map(function (e) {
+        return '<tr><td><a href="/' + esc(e.domain) + '">' + esc(e.domain) + "</a></td><td>" + esc(e.sector_name) + "</td><td>" + gradeChip(e.grade) + '</td><td class="mono">' + esc(day(e.checked_at)) + '</td><td class="mono i-dim">' + esc(day(e.joined_at)) + "</td></tr>";
+      }).join("");
+      box.innerHTML = panel("", "Post-quantum ready, by choice", (rows ? '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Domain</th><th>Sector</th><th>Grade</th><th>Checked</th><th>Listed since</th></tr></thead><tbody>' + rows + "</tbody></table></div>"
+          : '<p class="i-empty">No organisation has listed itself yet.</p>') +
+        '<p class="i-fine">' + esc(Q.about || "") + ' Ordered ' + (order === "name" ? 'by name; <a href="?order=joined">by date listed</a>' : 'by date listed; <a href="/league">by name</a>') + '. <a href="/api/public/pq-ready.atom">Feed</a>.</p>',
+        { ch: "grade", right: num(Q.count) + " listed" });
+    }).catch(function (e) { box.innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
+  }
+
+  /* A cell's label: the host without its group's domain and port, cut to fit the cell. */
+  function shortLabel(id, group) {
+    var t = String(id).replace(/:\d+$/, "");
+    if (group && t.length > group.length && t.slice(-group.length - 1) === "." + group) t = t.slice(0, -group.length - 1);
+    return t.length > 11 ? t.slice(0, 10) + "…" : t;
+  }
   function drawAtlas(wrap, groups) {
     var NS = "http://www.w3.org/2000/svg", GAP = 8, CELL = 10;
     var blocks = groups.map(function (g) { var n = Math.max(1, Math.ceil(Math.sqrt(g.cells.length))); return { g: g, n: n, size: n * CELL }; });
@@ -779,7 +942,7 @@
       b.g.cells.forEach(function (c, i) {
         var cx = b.x + (i % b.n) * CELL, cy = b.y + Math.floor(i / b.n) * CELL;
         html += '<a href="' + esc(c.href) + '" class="atlas-cell" data-id="' + esc(c.id) + '"><title>' + esc(c.label + (c.g ? " — grade " + c.g : " — not graded")) + '</title><rect x="' + (cx + .8) + '" y="' + (cy + .8) + '" width="' + (CELL - 1.6) + '" height="' + (CELL - 1.6) + '" data-g="' + esc(c.g || "") + '"></rect>' +
-          '<text class="atlas-cell-label" x="' + (cx + 1.2) + '" y="' + (cy + CELL / 2 + .9) + '">' + esc(c.id) + "</text></a>";
+          '<text class="atlas-cell-label" x="' + (cx + 1.2) + '" y="' + (cy + CELL / 2 + .9) + '">' + esc(shortLabel(c.id, b.g.id)) + "</text></a>";
       });
       html += "</g>";
     });
@@ -798,7 +961,7 @@
     function apply() {
       svg.setAttribute("viewBox", v.x + " " + v.y + " " + v.w + " " + v.h);
       var k = full.w / v.w;
-      svg.setAttribute("data-zoom", k > 7 ? "near" : k > 2.5 ? "mid" : "far");
+      svg.setAttribute("data-zoom", k > 3 ? "near" : k > 1.6 ? "mid" : "far");
       clearTimeout(saveT); saveT = setTimeout(function () { setParam("v", k > 1.01 ? [Math.round(v.x), Math.round(v.y), Math.round(v.w)].join(",") : null); }, 300);
     }
     function zoomAt(f, px, py) {
@@ -822,11 +985,11 @@
     svg.addEventListener("click", function (e) {
       if (moved) { e.preventDefault(); return; }
       var k = full.w / v.w, a = e.target.closest("a.atlas-cell");
-      if (a && k > 7) return; // close enough to read names: follow the link
+      if (a && k > 3) return; // names are showing: follow the link
       e.preventDefault();
       var reg = e.target.closest(".atlas-region"); if (!reg) return;
       var fr = reg.querySelector(".atlas-frame"), bx = +fr.getAttribute("x"), by = +fr.getAttribute("y"), bw = +fr.getAttribute("width");
-      if (a && k > 2.5) { var r2 = a.querySelector("rect"); var cx = +r2.getAttribute("x"), cy = +r2.getAttribute("y"); v = { x: cx - 40, y: cy - 40 * full.h / full.w, w: 80, h: 80 * full.h / full.w }; }
+      if (a && k > 1.6) { var r2 = a.querySelector("rect"); var cx = +r2.getAttribute("x"), cy = +r2.getAttribute("y"); v = { x: cx - 40, y: cy - 40 * full.h / full.w, w: 80, h: 80 * full.h / full.w }; }
       else { var w = Math.max(bw + 30, 60); v = { x: bx - 15, y: by - 25, w: w, h: w * full.h / full.w }; }
       $("#at-scope").textContent = reg.querySelector(".atlas-region-label").textContent;
       apply();

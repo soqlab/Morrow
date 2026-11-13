@@ -354,7 +354,56 @@ each domain the organisation has verified by DNS TXT (`services/domain_verificat
 public grade, its sector by the same rules, and how many graded sites in that sector (all sectors
 when it is unclassified) have a better, equal or worse grade. No other site is named.
 
-New tables (feature store, deferred schemas `public_deploy_log` and `public_league`, no
-organisation column, SQLite and Postgres): `public_deploy_log (seq, commit_sha, first_seen,
+### Post-quantum ready, by choice (opt-in list)
+
+`GET /pq-ready?order=name|joined` and `GET /pq-ready.atom` publish the organisations that chose to
+be listed. A domain can be listed only when its organisation verified it by DNS TXT, its newest
+public grade is A or B, and an admin opted it in (`PUT /instrument/pq-ready/{domain}`
+`{"listed": true|false}`, admin or owner; `GET /instrument/pq-ready` shows the organisation's own
+verified domains, their state and, after a removal, why). Nothing is listed by default. Opting out
+is immediate. The weekly league tick also re-grades every listed domain and then re-checks the list:
+a grade below B, or a domain no longer verified, takes the entry off at once and the reason is kept
+for the organisation's view. Entries are alphabetical or by date listed, never ranked. A domain
+verified by two organisations appears once.
+
+```
+{"entries": [{"domain", "sector", "sector_name", "grade", "checked_at", "joined_at"}],
+ "count", "order": "name"|"joined", "about"}
+```
+
+Storage: `pq_ready_listings (org_id, domain, listed, joined_at, removed_at, removed_reason, grade,
+checked_at, updated_by)`, org-scoped and in the Postgres RLS plan. The public read and the weekly
+re-check run in named `tenant_scope.platform_scope` blocks. Tests: `backend/test_pq_ready.py`.
+
+### Not yet post-quantum (named list of popular sites)
+
+`GET /not-ready?sector=` and `GET /not-ready.atom?sector=` (joins and leaves) publish popular sites
+whose newest check is below B. Safeguards, all enforced in `services/not_ready.py` and tested in
+`backend/test_not_ready.py`:
+
+* **Who:** only domains from the stored Tranco list (`services/tranco.py`, top
+  `MORROW_LEAGUE_TRANCO_SIZE`, default 10000, `0` turns it off; refreshed weekly from
+  tranco-list.eu by the league tick). Never a domain typed into the checker, never an opted-out
+  domain. A site leaves on its first check graded A or B.
+* **Wording:** one measured sentence per entry with its date, e.g. `acme.com: traffic recorded
+  today could be decrypted around 2035-2040 (checked 2026-11-13). Key exchange: x25519 only.`,
+  plus the source of the years. No labels; a test holds every sentence to a list of banned words.
+* **Order:** sector, then name. The grade is shown; entries are not ranked against each other.
+* **Methodology** is in the response and on the page: rubric version, what is measured, who is
+  included, and the source of 2035-2040.
+* **Right of reply:** an admin of an organisation that verified the domain can attach one
+  plain-text statement (at most 280 characters, control characters removed), shown dated with the
+  entry: `PUT/DELETE /instrument/replies/{domain}`, audited. Table `not_ready_replies` is org-scoped
+  and in the RLS plan; the public read runs in a named `platform_scope`.
+* **Corrections:** `POST /corrections` `{domain, reason, contact}` stores a request in
+  `public_correction_requests`, at most 5 an hour per address, and writes it to the checker's
+  abuse log (`/platform/public-check/log`) for a person to read.
+
+Coverage depends on the tick: 10,000 sites once a week need about 60 per 15-minute tick
+(`MORROW_LEAGUE_TICK_MAX=60`); at the default 20, a full pass takes about three weeks.
+
+New tables (feature store; deferred schemas `public_deploy_log`, `public_league`, `tranco`,
+`not_ready` and `pq_ready`; the two org-scoped ones, `pq_ready_listings` and `not_ready_replies`,
+are in the RLS plan; the rest have no organisation column): `public_deploy_log (seq, commit_sha, first_seen,
 prev_hash, entry_hash)`, `public_league_misses (id, domain, scanned_at, error, detail)` and
 `public_league_runs (id, started_at, finished_at, graded, failed, skipped)`.

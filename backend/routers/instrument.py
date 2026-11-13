@@ -249,6 +249,13 @@ def create_instrument_router(deps: Any) -> APIRouter:
         body = ("<h1>Sector averages</h1><p>How each sector's well-known sites are spread over the grades. "
                 "No site is named or ranked; any single domain can be checked above.</p>"
                 + (table if rows else "<p>Nothing graded yet.</p>"))
+        from services import pq_ready
+
+        ready = pq_ready.public_list("name")
+        body += ("<h2>Post-quantum ready, by choice</h2><p>" + _e(ready["about"]) + "</p>"
+                 + ("<ul>" + "".join(f"<li><a href=\"/plain/{_e(e['domain'])}\">{_e(e['domain'])}</a>: {_e(e['sector_name'])}, "
+                                     f"grade {_e(e['grade'])}, checked {_e(e['checked_at'][:10])}</li>" for e in ready["entries"])
+                    + "</ul>" if ready["entries"] else "<p>No organisation has listed itself yet.</p>"))
         return _page("Sector averages", body)
 
     @router.get("/plain/{domain}")

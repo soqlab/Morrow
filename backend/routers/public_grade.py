@@ -152,6 +152,60 @@ def create_public_grade_router(deps: Any) -> APIRouter:
         rows = await run_in_threadpool(_grade.history, host, limit, _truthy(detail))
         return JSONResponse(rows, headers={"Cache-Control": _RESULT_CACHE})
 
+    # The opt-in post-quantum ready list (services/pq_ready.py): only domains whose verified owner
+    # chose to be listed while graded A or B. Alphabetical or by date joined; never ranked.
+    # "Not yet post-quantum" (services/not_ready.py): popular sites from the Tranco list whose newest
+    # check is below B, worded as measured facts with their date and source; never ranked.
+    @router.get("/not-ready.atom")
+    async def public_not_ready_feed(request: Request, sector: str = ""):
+        from services import not_ready
+        from services.public_config import public_base_url
+
+        base = (public_base_url() or str(request.base_url)).rstrip("/")
+        body = await run_in_threadpool(not_ready.atom, base, sector[:40])
+        return Response(body, media_type="application/atom+xml; charset=utf-8", headers={"Cache-Control": "public, max-age=300"})
+
+    @router.get("/not-ready")
+    async def public_not_ready(sector: str = ""):
+        from services import not_ready
+
+        body = await run_in_threadpool(not_ready.entries, sector[:40])
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
+
+    @router.post("/corrections")
+    async def public_correction(request: Request):
+        from services import not_ready
+
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        try:
+            body = await run_in_threadpool(not_ready.request_correction, payload.get("domain"), payload.get("reason"),
+                                           payload.get("contact"), _ip(request))
+        except not_ready.ReplyError as exc:
+            return JSONResponse({"error": exc.code, "detail": exc.detail}, status_code=exc.status_code,
+                                headers={"Cache-Control": "no-store"})
+        return JSONResponse(body, status_code=201, headers={"Cache-Control": "no-store"})
+
+    @router.get("/pq-ready.atom")
+    async def public_pq_ready_feed(request: Request):
+        from services import pq_ready
+        from services.public_config import public_base_url
+
+        base = (public_base_url() or str(request.base_url)).rstrip("/")
+        body = await run_in_threadpool(pq_ready.atom, base)
+        return Response(body, media_type="application/atom+xml; charset=utf-8", headers={"Cache-Control": "public, max-age=300"})
+
+    @router.get("/pq-ready")
+    async def public_pq_ready(order: str = "name"):
+        from services import pq_ready
+
+        body = await run_in_threadpool(pq_ready.public_list, "joined" if order == "joined" else "name")
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
+
     @router.get("/basis")
     async def public_basis():
         from services import decrypt_window

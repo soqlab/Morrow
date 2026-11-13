@@ -57,7 +57,7 @@ SCHEMA = """
     )
 """
 
-_ready = False
+_ready = ""
 _ready_lock = threading.Lock()
 _cache: Dict[str, Any] = {}
 _cache_lock = threading.Lock()
@@ -88,17 +88,25 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _db_identity() -> str:
+    return (f"{os.getenv('MORROW_FEATURE_STORE_BACKEND', '')}|{os.getenv('MORROW_SCANNER_DB', '')}|"
+            f"{os.getenv('DATABASE_URL', '')[:12]}")
+
+
 def _init() -> None:
+    """Create the table once per database. A per-process flag alone skipped a second database
+    (tests switch databases), and every read there failed with "no such table"."""
     global _ready
-    if _ready:
+    identity = _db_identity()
+    if _ready == identity:
         return
     with _ready_lock:
-        if _ready:
+        if _ready == identity:
             return
         with feature_conn() as conn:
             conn.execute(SCHEMA)
             conn.commit()
-        _ready = True
+        _ready = identity
 
 
 def init_tables() -> None:
@@ -107,7 +115,7 @@ def init_tables() -> None:
     # Always run the (idempotent) DDL: the ready flag is per process, not per database, so after
     # another database was initialised it would skip the one being prepared now.
     global _ready
-    _ready = False
+    _ready = ""
     _init()
 
 

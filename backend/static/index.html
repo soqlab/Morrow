@@ -1163,7 +1163,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
 <link rel="stylesheet" href="/ui/console.css?v=20261113-drawer">
 <link rel="stylesheet" href="/ui/oops.css?v=20261113-instrument">
-<link rel="stylesheet" href="/ui/console-instrument.css?v=20261113">
+<link rel="stylesheet" href="/ui/console-instrument.css?v=20261113-still">
 <script src="/ui/oops.js?v=20261113-instrument" defer></script>
 <script src="/ui/passkey.js?v=20261112-passkeys" defer></script>
 </head>
@@ -4180,19 +4180,20 @@ function missionPulsePanel(ctx) {
     /* $0 across zero modelled assets is not a finding; it reads as one. */
     ["Modeled exposure", (ctx.HN && Number(ctx.HN.measured_asset_count ?? ctx.HN.asset_count) > 0) ? USD(ctx.HN.total_exposure_usd) : "—",
       !ctx.HN ? "Exposure model unavailable"
-        : Number(ctx.HN.measured_asset_count ?? ctx.HN.asset_count) > 0 ? `${NUM(ctx.HN.asset_count)} HNDL-modeled assets`
-        : "Not enough data yet — run a scan"],
+        : Number(ctx.HN.measured_asset_count ?? ctx.HN.asset_count) > 0 ? `Model, not a measurement: ${NUM(ctx.HN.asset_count)} assets, each: a fixed yearly data value for its port's service × criticality × years already recordable (at most 5) × a planning probability that its algorithm is broken. Inputs per asset: HNDL Exposure.`
+        : "Not enough data yet — run a scan", "modelled"],
     /* Reads "—" and "Not enough data yet" on an empty workspace: an unscored
        estate must never appear on the Overview as a percentage. */
     ["Crypto-agility",
       (ctx.A && ctx.A.cryptoflex_score != null) ? PCT(ctx.A.cryptoflex_score, 0) : "—",
       !ctx.A ? "Agility model unavailable"
         : ctx.A.cryptoflex_score == null ? "Not enough data yet — run a scan"
-        : (ctx.A.classification || "measured agility score")],
+        : `${ctx.A.classification || "agility score"}: a weighted score over scanned evidence (TLS versions, provider, key types); dimensions and weights in the CryptoFlex card.`, "modelled"],
     ["Pipeline checks", source.cicd ? (ci.length ? `${NUM(passing)}/${NUM(ci.length)}` : "No runs") : "—", source.cicd ? (ci.length ? "recorded checks passing" : "No pipeline scans recorded") : "Pipeline source unavailable"],
   ];
-  return `<div class="metricRiver overviewMetrics">${metrics.map(([label, value, detail]) =>
-    `<div class="metricRow"><small>${H(label)}</small><b>${H(String(value))}</b><p>${H(detail)}</p></div>`).join("")}</div>`;
+  // Modelled figures (money, scores) show only at expert depth, with their basis beside them.
+  return `<div class="metricRiver overviewMetrics">${metrics.map(([label, value, detail, kind]) =>
+    `<div class="metricRow${kind ? " " + kind : ""}"><small>${H(label)}</small><b>${H(String(value))}</b><p>${H(detail)}</p></div>`).join("")}</div>`;
 }
 function strategicCapabilityPanel(ctx) {
   const canaryHits = (ctx.canaries || []).filter(x => x.hit_count || x.triggered).length;
@@ -4446,7 +4447,7 @@ function missionRiskMapCard(assets, repos, rems, fixes, scans) {
     // Motion that encodes data is only useful if the reader knows it does, so the
     // rule is stated rather than left to be inferred from watching.
     { icon: I.map, sub: `${NUM(nodes.length)} nodes and ${NUM(edges.length)} links from scans, assets, repos and fixes `
-      + `- the riskiest links move, faster the higher the score; refreshes every ${MISSION_LIVE_MS / 1000}s` });
+      + `- links in the accent colour carry the highest risk scores; the map is redrawn from new data every ${MISSION_LIVE_MS / 1000}s` });
 }
 function evidenceTimelineCard(scans, rems, readiness) {
   const events = [];

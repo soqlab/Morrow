@@ -257,3 +257,15 @@ select.i-btn { background: var(--bg-2); }
 .spark .tick { display: block; width: 5px; background: var(--ok); }
 .fix { border-top: 1px solid var(--line); padding-top: 10px; margin-bottom: 10px; }
 .fix p { margin: 0 0 6px; }
+/* Buttons: ruled, mono, never a bare box. Solid is the one action of a view (Re-check). */
+.ins .i-btn { padding: 0 14px; background: var(--bg-2); border: 1px solid var(--line-2); font: 500 13px var(--mono); letter-spacing: .02em; color: var(--text); cursor: pointer; }
+.ins .i-btn:hover { background: var(--bg-3); }
+.ins .i-btn.solid { background: var(--ch-grade) !important; border-color: var(--ch-grade) !important; color: var(--on-solid) !important; }
+.ins .i-btn.solid:hover { filter: brightness(1.08); }
+.ins .fix .i-btn { min-height: 28px; padding: 0 10px; font-size: 12px; margin-left: 8px; vertical-align: middle; }
+.i-conn[hidden] { display: none; }
+@media (max-width: 560px) { .i-top-right { width: 100%; } .i-cmd-btn { flex: 1; } .i-cmd-btn .t { display: inline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
+.nr-list { list-style: none; margin: 0; padding: 0; }
+.nr-list li { border-top: 1px solid var(--line); padding: 10px 0; }
+.nr-list p { margin: 0 0 6px; }
+.ins textarea.i-btn, .ins input.i-btn { display: block; width: 100%; max-width: 520px; min-height: 34px; padding: 6px 10px; font: 14px var(--sans); white-space: normal; }

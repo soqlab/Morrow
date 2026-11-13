@@ -26476,6 +26476,12 @@ from services import migration_milestones as _migration_milestones_schema  # noq
 from services import pq_rollout as _pq_rollout_schema  # noqa: E402
 register_deferred_schema("domain_verification", _domain_verification_schema.init_tables)
 register_deferred_schema("team_join", _team_join.init_tables)
+from services import pq_ready as _pq_ready_schema  # noqa: E402
+register_deferred_schema("pq_ready", _pq_ready_schema.init_tables)
+from services import not_ready as _not_ready_schema  # noqa: E402
+from services import tranco as _tranco_schema  # noqa: E402
+register_deferred_schema("not_ready", _not_ready_schema.init_tables)
+register_deferred_schema("tranco", _tranco_schema.init_tables)
 register_deferred_schema("code_hosts", _code_hosts_schema.init_tables)
 register_deferred_schema("migration_milestones", _migration_milestones_schema.init_tables)
 register_deferred_schema("crypto_switch", _crypto_switch_schema.init_tables)
@@ -26508,6 +26514,87 @@ def instrument_private_rank(request: Request):
     body = league.private_rank(domains)
     body["verified_domains"] = len(domains)
     return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/instrument/pq-ready", include_in_schema=False)
+def instrument_pq_ready_mine(request: Request):
+    """Your verified domains and whether each is on the public post-quantum ready list (and why not)."""
+    _require_role(request, ["viewer", "analyst", "admin", "owner"],
+                  action="read", resource_type="organization", resource_id="*")
+    from services import pq_ready
+
+    return JSONResponse({"domains": pq_ready.for_org(current_organization_id())}, headers={"Cache-Control": "no-store"})
+
+
+class _PqReadyChoice(BaseModel):
+    listed: bool
+
+
+@app.put("/instrument/pq-ready/{domain}", include_in_schema=False)
+def instrument_pq_ready_choose(domain: str, choice: _PqReadyChoice, request: Request):
+    """An admin lists or unlists one of the organisation's verified domains. Unlisting is immediate."""
+    _require_role(request, ["admin", "owner"], action="update", resource_type="pq_ready_listing", resource_id=domain)
+    from services import domain_verification, pq_ready
+
+    actor = str(_actor_from_request(request).get("actor_id") or "")
+    try:
+        if choice.listed:
+            body = pq_ready.opt_in(current_organization_id(), domain, actor)
+        else:
+            body = pq_ready.opt_out(current_organization_id(), domain, actor)
+    except pq_ready.ListingError as exc:
+        return JSONResponse({"detail": exc.detail, "error": exc.code}, status_code=exc.status_code)
+    except domain_verification.DomainError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    _audit_event(request, action="pq_ready.listed" if choice.listed else "pq_ready.unlisted",
+                 resource_type="pq_ready_listing", resource_id=body["domain"])
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
+class _NotReadyReply(BaseModel):
+    text: str = Field(default="", max_length=2000)
+
+
+@app.get("/instrument/replies", include_in_schema=False)
+def instrument_replies_mine(request: Request):
+    """Your organisation's replies on the "Not yet post-quantum" list."""
+    _require_role(request, ["viewer", "analyst", "admin", "owner"],
+                  action="read", resource_type="organization", resource_id="*")
+    from services import not_ready
+
+    return JSONResponse({"replies": not_ready.my_replies(current_organization_id()), "max": not_ready.REPLY_MAX},
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.put("/instrument/replies/{domain}", include_in_schema=False)
+def instrument_reply_set(domain: str, reply: _NotReadyReply, request: Request):
+    """Right of reply: one dated plain-text statement on a domain the organisation has verified."""
+    _require_role(request, ["admin", "owner"], action="update", resource_type="not_ready_reply", resource_id=domain)
+    from services import domain_verification, not_ready
+
+    try:
+        body = not_ready.set_reply(current_organization_id(), domain, reply.text,
+                                   str(_actor_from_request(request).get("actor_id") or ""))
+    except not_ready.ReplyError as exc:
+        return JSONResponse({"detail": exc.detail, "error": exc.code}, status_code=exc.status_code)
+    except domain_verification.DomainError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    _audit_event(request, action="not_ready.reply_set", resource_type="not_ready_reply", resource_id=body["domain"],
+                 details={"length": len(body["text"])})
+    return JSONResponse(body, headers={"Cache-Control": "no-store"})
+
+
+@app.delete("/instrument/replies/{domain}", include_in_schema=False)
+def instrument_reply_delete(domain: str, request: Request):
+    _require_role(request, ["admin", "owner"], action="delete", resource_type="not_ready_reply", resource_id=domain)
+    from services import domain_verification, not_ready
+
+    try:
+        removed = not_ready.delete_reply(current_organization_id(), domain)
+    except domain_verification.DomainError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    _audit_event(request, action="not_ready.reply_removed", resource_type="not_ready_reply", resource_id=domain)
+    return JSONResponse({"removed": removed}, headers={"Cache-Control": "no-store"})
 
 
 # The instrument views and /plain (routers/instrument.py). Included last: its /{domain} route
