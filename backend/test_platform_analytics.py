@@ -259,13 +259,17 @@ def test_unknown_organization_is_404(api):
 def test_buckets_are_zero_filled_and_delta_is_null_when_previous_is_zero(api):
     client, _, db_path = api
     make_org(client, "org-alpha")
-    add_scan(db_path, "org-alpha", now() - timedelta(minutes=5))
+    when = now() - timedelta(minutes=5)
+    add_scan(db_path, "org-alpha", when)
     pa.clear_cache()
     body = client.get("/platform/analytics/overview?range=7d", headers=owner()).json()
     scans = body["kpis"]["scans"]
     assert scans["value"] == 1 and scans["previous"] == 0 and scans["delta_pct"] is None
     points = body["series"]["scans"]
-    assert [p["value"] for p in points] == [0, 0, 0, 0, 0, 0, 1]
+    # The scan lands in its own day's bucket; in the first minutes after midnight UTC that is yesterday's.
+    expected = [1 if p["t"].startswith(when.strftime("%Y-%m-%d")) else 0 for p in points]
+    assert len(points) == 7 and sum(expected) == 1
+    assert [p["value"] for p in points] == expected
     assert body["series"]["feedback"] == [{"t": p["t"], "value": 0} for p in points]
     # organization was created in range and none existed before
     assert body["kpis"]["organizations"]["previous"] == 0 and body["kpis"]["organizations"]["delta_pct"] is None

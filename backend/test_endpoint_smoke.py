@@ -33,6 +33,9 @@ EXTERNAL_OR_STREAMING = (
     # 400; once any earlier test has saved one (a shared Postgres database keeps it) it makes a
     # real outbound call, and 502 is its correct answer for an unreachable webhook.
     "/integrations/slack/test",
+    # The public quantum-readiness grade: a cache miss makes outbound TLS connections to the domain.
+    # Covered without network, through mocks, in test_public_grade.py.
+    "/api/public/grade", "/api/public/badge",
 )
 
 # A 503 that names an unconfigured optional dependency is correct behaviour, not
