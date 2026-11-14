@@ -38,7 +38,7 @@ rights) before you agree to Part A. If you are unsure, ask before contributing.
 ## 1. Definitions
 
 - **"SOQLAB"** means the person or entity that owns and maintains the Morrow project under the name
-  SOQLAB (at the date of this version, Yasseen Nandally), and its successors and assigns.
+  SOQLAB (legal entity details to be confirmed), and its successors and assigns.
 - **"You"** means the individual who agrees to Part A, or the organization that agrees to Part B,
   together with, for an organization, every entity that controls it, is controlled by it, or is
   under common control with it. "Control" means owning more than fifty percent of the voting

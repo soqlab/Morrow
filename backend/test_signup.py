@@ -27,8 +27,9 @@ from services import team_join, watch
 CODE_RE = re.compile(r"^[A-HJ-KM-NP-Z2-9]{4}(-[A-HJ-KM-NP-Z2-9]{4}){3}$")
 
 
-@pytest.fixture
-def hosted(api, mail, monkeypatch):
+# Registered as "hosted" but defined as hosted_fixture, so test_org_owner can import it (see api_fixture).
+@pytest.fixture(name="hosted")
+def hosted_fixture(api, mail, monkeypatch):
     """The hosted configuration: passkeys only, scans limited to verified domains, sign-up open."""
     monkeypatch.setenv("MORROW_PASSKEYS_ONLY", "1")
     monkeypatch.setenv("MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS", "1")

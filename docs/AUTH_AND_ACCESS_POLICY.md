@@ -142,6 +142,38 @@ identity provider; none of this changes that check.
 - `morrow_signups` and `morrow_org_owners`, like the other auth tables, have no tenant column and
   live in the main database, so they are not in the Postgres RLS plan.
 
+## The organization's owner: roles and removals
+
+Rules in `services/member_policy.py`, enforced on every route that changes a member's role or removes
+one: `PUT /auth/users/{id}/role`, `POST /auth/users/{id}/deactivate`, `POST|PATCH|DELETE
+/organizations/{id}/members[/{user}]`, `PUT /admin/users/role`, `DELETE /admin/users` and
+`POST /admin/orgs/{id}/invite`.
+
+- In an organization with a recorded owner, only the owner may change an admin's role, make someone
+  an admin (by a role change, by adding a member or by an invitation with an admin role) or
+  remove/deactivate an admin. Other admins keep managing members who are not admins (viewer,
+  operator, analyst). An invite-joined admin is an admin like any other.
+- Nobody changes their own role. The owner can't be demoted or removed from inside the organization
+  at all, so it never ends up without one: the owner first hands ownership to another active admin
+  with `POST /auth/organization/owner/transfer {"user_id"}`. That needs a recent sign-in
+  (`MORROW_PASSKEY_REAUTH_SECONDS`, as for adding a passkey; 401 "sign in again" otherwise). The
+  previous owner stays an admin, which the new owner can then change. Journaled
+  `org_owner.transferred`, audited `auth.org_owner.transferred`.
+- An organization without a recorded owner (made before owners were recorded, or by a platform
+  operator) keeps the earlier rules for managing admins, except that nobody changes their own role.
+  A platform operator records or replaces its owner with `PUT /platform/customers/{id}/owner
+  {"user_id", "reason"}` (operator role, MFA step-up; the account must be an active admin of the
+  organization). Journaled `org_owner.set`, audited `auth.org_owner.set`, platform admin log
+  `platform.org_owner_set`.
+- Platform operators change or remove an admin or the owner through `/platform/customers/{id}/members`
+  and `/platform/customers/{id}/users/{user}/deactivate`, with an MFA step-up whenever the change
+  touches an admin or the owner or makes someone an admin.
+- A refusal answers 403 with a plain sentence, is journaled `member_change.refused` (or
+  `org_owner.refused`) and audited with decision `deny` and the reason (`owner_required`,
+  `owner_protected`, `own_role`). Someone in another organization gets 404, as before.
+- `GET /auth/users` also returns `owner_id` and `you`; the console marks the owner, disables the
+  buttons the caller can't use with a one-line reason and offers "Make owner" to the owner.
+
 ## Domain team sign-in
 
 An organization admin can let anyone with a verified mailbox at one of the organization's verified

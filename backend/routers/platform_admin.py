@@ -237,6 +237,23 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         except Exception:
             return default
 
+    def touches_admin(organization_id: str, user_id: str, member: Optional[Dict[str, Any]], new_role: str = "") -> bool:
+        """The change concerns an admin or the organization's owner, or makes someone an admin.
+
+        Customer admins can't make such a change unless they own the organization
+        (services/member_policy.py); an operator can, with a fresh MFA step-up.
+        """
+        from services import member_policy as _member_policy
+        from services import signup as _signup
+
+        if _member_policy.privileged(new_role) or _member_policy.privileged((member or {}).get("role")):
+            return True
+        account = issuer_call(lambda conn: _auth_issuer.get_user_by_id(conn, user_id), None)
+        if account and str(account.get("org_id") or "") == organization_id and _member_policy.privileged(account.get("role")):
+            return True
+        owner = issuer_call(lambda conn: _signup.owner_of(conn, organization_id), "")
+        return bool(owner) and owner == user_id
+
     # ── Identity ─────────────────────────────────────────────────────────────
 
     @router.get("/platform/whoami")
@@ -442,6 +459,8 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         actor = guard(request, WRITE)
         require_org(organization_id)
         member = get_organization_member(organization_id, user_id)
+        if touches_admin(organization_id, user_id, member, req.role):
+            _operator_auth.require_step_up(actor, "change an admin's role")
         account_updated = bool(issuer_call(lambda conn: _auth_issuer.update_user_role(conn, user_id, req.role, organization_id), False))
         if member:
             member = upsert_organization_member(organization_id, user_id, role=req.role,
@@ -462,10 +481,13 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
     @router.delete("/platform/customers/{organization_id}/members/{user_id}")
     def platform_remove_member(organization_id: str, user_id: str, request: Request,
                                reason: str = Query(..., min_length=3, max_length=500)):
-        guard(request, WRITE)
+        actor = guard(request, WRITE)
         require_org(organization_id)
-        if not get_organization_member(organization_id, user_id):
+        member = get_organization_member(organization_id, user_id)
+        if not member:
             raise HTTPException(status_code=404, detail="Organization member not found.")
+        if touches_admin(organization_id, user_id, member):
+            _operator_auth.require_step_up(actor, "remove an admin")
         result = remove_organization_member(organization_id, user_id)
         record(organization_id, "platform.member_removed", reason, {"user_id": user_id})
         return {"ok": True, "result": result}
@@ -474,6 +496,8 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         actor = guard(request, WRITE)
         require_org(organization_id)
         member = get_organization_member(organization_id, user_id)
+        if not active and touches_admin(organization_id, user_id, member):
+            _operator_auth.require_step_up(actor, "deactivate an admin")
         account = bool(issuer_call(lambda conn: _auth_issuer.set_user_active(conn, user_id, organization_id, active), False))
         if member:
             member = upsert_organization_member(organization_id, user_id, role=str(member.get("role") or "viewer"),

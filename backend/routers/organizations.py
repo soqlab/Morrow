@@ -54,6 +54,20 @@ class OrganizationMemberRoleRequest(BaseModel):
     status: str = "active"
 
 
+def _guard_member_change(request: Request, organization_id: str, actor: Dict[str, Any], user_id: str,
+                         action: str, new_role: str = "", existing: Optional[Dict[str, Any]] = None) -> None:
+    """Who may change whose role and who may remove whom: services/member_policy.py, enforced in
+    app.py (_guard_member_change), which journals and audits a refusal and answers 403."""
+    app_module = sys.modules.get("app")
+    guard = getattr(app_module, "_guard_member_change", None) if app_module else None
+    if guard is None:
+        return
+    existing = existing or {}
+    guard(request, org_id=organization_id, caller_ids=[actor.get("actor_id")],
+          target_ids=[user_id, existing.get("email")], target_roles=[existing.get("role")],
+          action=action, new_role=new_role, target_label=str(existing.get("email") or ""))
+
+
 def _active_org_id(request: Request) -> str:
     return str(getattr(request.state, "org_id", current_organization_id()) or "").strip()
 
@@ -167,9 +181,19 @@ def create_organizations_router(require_role: RequireRole, actor_from_request: A
             resource_id=organization_id,
         )
         _ensure_active_org(request, organization_id, actor)
+        current = get_organization_member(organization_id, req.user_id)
+        # Upserting an existing member may change their role or disable them; adding one grants a role.
+        if not current:
+            _guard_member_change(request, organization_id, actor, req.user_id, "grant", new_role=req.role)
+        else:
+            if str(req.role or "").strip().lower() != str(current.get("role") or "").strip().lower():
+                _guard_member_change(request, organization_id, actor, req.user_id, "role", new_role=req.role,
+                                     existing=current)
+            if str(req.status or "active").strip().lower() != "active":
+                _guard_member_change(request, organization_id, actor, req.user_id, "remove", existing=current)
         # `seats` is a published plan limit; a directly added member is the other way one is used
         # (the first is an invitation). A no-op unless billing enforcement is on.
-        if not get_organization_member(organization_id, req.user_id):
+        if not current:
             app_module = sys.modules.get("app")
             enforce = getattr(app_module, "_enforce_seat_limit_or_402", None) if app_module else None
             if enforce:
@@ -211,6 +235,12 @@ def create_organizations_router(require_role: RequireRole, actor_from_request: A
         existing = get_organization_member(organization_id, user_id)
         if not existing:
             raise HTTPException(status_code=404, detail="organization member not found")
+        role_changes = str(req.role or "").strip().lower() != str(existing.get("role") or "").strip().lower()
+        disables = str(req.status or "active").strip().lower() != "active"
+        if role_changes:
+            _guard_member_change(request, organization_id, actor, user_id, "role", new_role=req.role, existing=existing)
+        if disables:
+            _guard_member_change(request, organization_id, actor, user_id, "remove", existing=existing)
         row = upsert_organization_member(
             organization_id,
             user_id,
@@ -240,6 +270,8 @@ def create_organizations_router(require_role: RequireRole, actor_from_request: A
             resource_id=f"{organization_id}:{user_id}",
         )
         _ensure_active_org(request, organization_id)
+        existing = get_organization_member(organization_id, user_id)
+        _guard_member_change(request, organization_id, actor, user_id, "remove", existing=existing)
         result = remove_organization_member(organization_id, user_id)
         append_audit_log(
             actor_id=actor["actor_id"],

@@ -9550,6 +9550,9 @@ VIEWS.admin = async (host) => {
   ]);
   const C = ctx.ok ? ctx.data : {};
   const U = users.ok ? rows(users.data, "users") : [];
+  /* Who owns the organization and who is asking: the server decides; this only hides what it would refuse. */
+  const OWNER = users.ok ? String(users.data.owner_id || "") : "";
+  const ME = users.ok ? String(users.data.you || "") : "";
   const O = orgs.ok ? rows(orgs.data) : [];
   const AL = audit.ok ? rows(audit.data) : [];
   const platOff = plat.ok === false || /disabled/i.test(JSON.stringify(plat.data || ""));
@@ -9611,14 +9614,15 @@ VIEWS.admin = async (host) => {
       <div class="g g-2-1">
         ${bind(users, () => card("Users", table([
           { h: "User", w: "26%", f: u => `<b>${H(u.email || u.full_name || u.username || u.id)}</b><span class="sub mono">${H(String(u.id || "").slice(0, 20))}</span>` },
-          { h: "Role", f: u => pill(u.role) },
+          { h: "Role", f: u => `${pill(u.role)}${OWNER && u.id === OWNER ? ` <span class="pill ok">Owner</span>` : ""}` },
           { h: "Status", f: u => u.is_active === false || u.active === false ? `<span class="pill">Deactivated</span>` : `<span class="pill ok">Active</span>` },
           { h: "Created", f: u => `<span style="font-size:11px;color:var(--ink3)">${H(AGO(u.created_at))}</span>` },
-          { h: "", w: "1%", f: u => `<div class="row tight">
-            ${actBtn("Role", "userRole", { cls: "btn xs", data: { id: u.id } })}
-            ${authCfg().passkeys_enabled ? actBtn("Recovery link", "userRecover", { cls: "btn xs", data: { id: u.id, name: u.full_name || u.email || "" } }) : ""}
-            ${actBtn("Disable", "userOff", { cls: "btn xs danger", data: { id: u.id } })}</div>` },
-        ], U, { max: "420px", empty: "No users — the server is running in header-auth mode." }), {
+          { h: "", w: "1%", f: u => { const no = memberLimits(u, OWNER, ME); return `<div class="row tight">
+            ${no.role ? offBtn("Role", no.role) : actBtn("Role", "userRole", { cls: "btn xs", data: { id: u.id, admin: OWNER && ME !== OWNER ? "" : "1" } })}
+            ${authCfg().passkeys_enabled ? (no.recover ? offBtn("Recovery link", no.recover) : actBtn("Recovery link", "userRecover", { cls: "btn xs", data: { id: u.id, name: u.full_name || u.email || "" } })) : ""}
+            ${no.owner ? "" : actBtn("Make owner", "userOwner", { cls: "btn xs", data: { id: u.id, name: u.full_name || u.email || "" } })}
+            ${no.off ? offBtn("Disable", no.off, "btn xs danger") : actBtn("Disable", "userOff", { cls: "btn xs danger", data: { id: u.id } })}</div>`; } },
+        ], U, { max: "420px", empty: "No users — the server is running in header-auth mode." }) + (users.ok && U.length ? `<p class="sub" style="margin:0;padding:10px 14px;font-size:11.5px;color:var(--ink3)">${H(ownerNote(OWNER, ME))}</p>` : ""), {
           icon: I.users, flush: true, act: `${authCfg().invite_links_enabled ? actBtn("Invite link", "inviteLink", { cls: "btn sm pri", icon: I.link }) : ""}${authCfg().passkeys_enabled ? actBtn("Set up account", "userSetup", { cls: "btn sm", icon: I.link }) : ""}${authCfg().passkeys_only ? "" : actBtn("Register user", "userNew", { cls: "btn sm pri", icon: I.plus })}` }), "/auth/users")}
         <div class="col">
           ${card("Your context", kvList([
@@ -10029,9 +10033,41 @@ ACTIONS.userNewGo = async () => {
   if (!r.ok) return err(r.err);
   $("#overlay").innerHTML = ""; ok("User registered"); retry();
 };
+/** What the caller can't do to this member, each with its one-line reason ("" when they can).
+ *  Mirrors services/member_policy.py; the server still decides and refuses the rest. */
+function memberLimits(u, owner, me) {
+  const isMe = !!me && u.id === me, isOwner = !!owner && u.id === owner, iOwn = !!owner && me === owner;
+  const admin = isOwner || ["admin", "owner", "org_admin", "platform_admin"].includes(String(u.role || "").toLowerCase());
+  const active = !(u.is_active === false || u.active === false);
+  return {
+    role: isMe ? "You can't change your own role." + (iOwn ? " Make another admin the owner first." : "")
+      : isOwner ? "The owner keeps the admin role."
+      : owner && !iOwn && admin ? "Only the organization's owner can change an admin's role." : "",
+    off: isOwner ? "The owner can't be deactivated." + (iOwn ? " Make another admin the owner first." : "")
+      : owner && !iOwn && admin ? "Only the organization's owner can deactivate an admin." : "",
+    recover: isMe ? "Use one of your recovery codes."
+      : admin && !iOwn ? "Only the organization's owner can make a recovery link for an admin." : "",
+    owner: !(iOwn && !isMe && active && String(u.role || "").toLowerCase() === "admin") ? "not offered" : "",
+  };
+}
+function ownerNote(owner, me) {
+  if (!owner) return "No owner is recorded for this organization: admins manage each other, nobody changes their own role, and Morrow support can record an owner.";
+  if (me === owner) return "You own this organization. Only you change or remove admins. To step down, make another admin the owner first.";
+  return "Only the organization's owner changes or removes admins. You manage members who aren't admins.";
+}
+const offBtn = (label, why, cls = "btn xs") => `<button class="${cls}" type="button" disabled title="${H(why)}" aria-label="${H(label + ": " + why)}">${H(label)}</button>`;
+ACTIONS.userOwner = (b) => modal("Make owner", `<div class="col">
+  <p style="margin:0;line-height:1.6">Make <b>${H(b.dataset.name || "this admin")}</b> the owner of this organization? They will decide who is an admin, and you will stay an admin they can manage. Only they can hand it back. If you signed in a while ago, Morrow asks you to sign in again first.</p>
+</div>`, `<button class="btn" data-close type="button">Cancel</button><button class="btn pri" data-act="userOwnerGo" data-id="${H(b.dataset.id)}" type="button">Make owner</button>`);
+ACTIONS.userOwnerGo = async (b) => {
+  const r = await safe("/auth/organization/owner/transfer", { method: "POST", body: { user_id: b.dataset.id } });
+  if (!r.ok) return err(r.err);
+  $("#overlay").innerHTML = ""; ok("Ownership transferred"); retry();
+};
 ACTIONS.userRole = (b) => modal("Change user role", `
   <div class="field"><label for="urRole">New role</label>
-    <select class="inp" id="urRole">${ROLES.map(r => `<option value="${r}">${TITLE(r)}</option>`).join("")}</select></div>`,
+    <select class="inp" id="urRole">${ROLES.filter(r => b.dataset.admin || r !== "admin").map(r => `<option value="${r}">${TITLE(r)}</option>`).join("")}</select></div>
+  ${b.dataset.admin ? "" : `<p class="sub" style="margin:8px 0 0;font-size:11.5px">Only the organization's owner can make someone an admin.</p>`}`,
   `<button class="btn" data-close type="button">Cancel</button>
    <button class="btn pri" data-act="userRoleGo" data-id="${H(b.dataset.id)}" type="button">Update role</button>`);
 ACTIONS.userRoleGo = async (b) => {

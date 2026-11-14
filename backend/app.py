@@ -684,6 +684,7 @@ from services.auth_issuer import (
     login as _issuer_login,
     create_user as _issuer_create_user,
     get_user_by_id as _issuer_get_user,
+    get_user_by_email as _issuer_get_user_by_email,
     list_users as _issuer_list_users,
     update_user_role as _issuer_update_role,
     deactivate_user as _issuer_deactivate,
@@ -18363,10 +18364,13 @@ def api_admin_list_users(org_id: str, request: Request):
 @app.post("/admin/orgs/{org_id}/invite")
 @app.post("/v1/admin/orgs/{org_id}/invite")
 def api_admin_invite_user(org_id: str, body: AdminInviteUserRequest, request: Request):
-    """Send a user invitation to an org."""
-    _require_role(request, allowed_roles=["admin"],
-                  action="admin.invite_user", resource_type="organization", resource_id=org_id,
-                  organization_id=org_id)
+    """Send a user invitation to an org. An invitation with an admin role needs the organization's
+    owner when one is recorded (services/member_policy.py)."""
+    actor = _require_role(request, allowed_roles=["admin"],
+                          action="admin.invite_user", resource_type="organization", resource_id=org_id,
+                          organization_id=org_id)
+    _guard_member_change(request, org_id=org_id, caller_ids=[actor["actor_id"]], target_ids=[body.email],
+                         action=_member_policy.GRANT, new_role=body.role, target_label=body.email)
     result = _admin_invite_user(org_id, body.email, body.role, body.invited_by, body.expires_hours)
     if result.get("ok") and result.get("token"):
         # The landing-page link: the token rides in the URL fragment, so it never reaches server logs.
@@ -18437,20 +18441,39 @@ def api_admin_accept_invite(body: AcceptInviteRequest, request: Request):
 @app.put("/admin/users/role")
 @app.put("/v1/admin/users/role")
 def api_admin_update_role(body: AdminUpdateRoleRequest, request: Request):
-    """Change a user's role within an org."""
-    _require_role(request, allowed_roles=["admin"],
-                  action="admin.update_role", resource_type="organization", resource_id=body.org_id,
-                  organization_id=body.org_id)
+    """Change a user's role within an org. Admins' roles, and making someone an admin, need the
+    organization's owner; nobody changes their own role (services/member_policy.py)."""
+    actor = _require_role(request, allowed_roles=["admin"],
+                          action="admin.update_role", resource_type="organization", resource_id=body.org_id,
+                          organization_id=body.org_id)
+    _guard_member_change(request, org_id=body.org_id, caller_ids=[actor["actor_id"]], target_ids=[body.email],
+                         target_roles=_admin_console_roles(body.org_id, body.email), action=_member_policy.ROLE,
+                         new_role=body.new_role, target_label=body.email)
     return {"api_version": "v1", **_admin_update_role(body.org_id, body.email, body.new_role, body.actor)}
+
+
+def _admin_console_roles(org_id: str, email: str) -> List[str]:
+    """The role(s) admin_users records for this address in the organization."""
+    address = str(email or "").strip().lower()
+    try:
+        return [str(u.get("role") or "") for u in _admin_list_users(org_id)
+                if str(u.get("email") or "").strip().lower() == address]
+    except Exception:
+        logging.debug("[AUTH] admin_users lookup failed", exc_info=True)
+        return []
 
 
 @app.delete("/admin/users")
 @app.delete("/v1/admin/users")
 def api_admin_remove_user(body: AdminRemoveUserRequest, request: Request):
-    """Suspend a user from an org."""
-    _require_role(request, allowed_roles=["admin"],
-                  action="admin.remove_user", resource_type="organization", resource_id=body.org_id,
-                  organization_id=body.org_id)
+    """Suspend a user from an org. Suspending an admin needs the organization's owner, and the owner
+    can't be suspended from inside the organization (services/member_policy.py)."""
+    actor = _require_role(request, allowed_roles=["admin"],
+                          action="admin.remove_user", resource_type="organization", resource_id=body.org_id,
+                          organization_id=body.org_id)
+    _guard_member_change(request, org_id=body.org_id, caller_ids=[actor["actor_id"]], target_ids=[body.email],
+                         target_roles=_admin_console_roles(body.org_id, body.email), action=_member_policy.REMOVE,
+                         target_label=body.email)
     return {"api_version": "v1", **_admin_remove_user(body.org_id, body.email, body.actor)}
 
 
@@ -25200,6 +25223,7 @@ async def auth_password_reset_confirm(body: PasswordResetConfirmBody, request: R
 
 from services import passkeys as _passkeys  # noqa: E402
 from services import signup as _signup  # noqa: E402
+from services import member_policy as _member_policy  # noqa: E402
 from services import team_join as _team_join  # noqa: E402
 from services.auth_issuer import (  # noqa: E402
     create_passkey_user as _issuer_create_passkey_user,
@@ -26587,19 +26611,93 @@ def _require_issuer_admin(request: Request) -> tuple[Dict[str, Any], str]:
 
 @app.get("/auth/users")
 async def auth_list_users(request: Request):
-    """List users in the caller's organization (admin only)."""
+    """List users in the caller's organization (admin only).
+
+    Also says who owns the organization (`owner_id`, "" when none is recorded) and who is asking
+    (`you`), so the console offers only the changes the caller may make (services/member_policy.py).
+    """
     _require_auth_issuer_enabled()
-    _, org_id = _require_issuer_admin(request)
+    admin, org_id = _require_issuer_admin(request)
     with _db() as db:
         users = _issuer_list_users(db, org_id)
-    return {"users": users}
+        owner_id = _signup.owner_of(db, org_id)
+    return {"users": users, "owner_id": owner_id, "you": str(admin.get("sub") or "")}
+
+
+def _owner_of_org(organization_id: str) -> str:
+    """The organization's recorded owner, "" when none is recorded. 503 when it can't be read."""
+    try:
+        with _db() as db:
+            return _signup.owner_of(db, organization_id)
+    except Exception as exc:
+        text = str(exc).lower()
+        if "no such table" in text or ("morrow_org_owners" in text and "does not exist" in text):
+            # The built-in sign-in isn't set up here (it creates the table), so no owner was recorded.
+            return ""
+        logging.exception("[AUTH] owner lookup failed for %s", organization_id)
+        raise HTTPException(503, "Couldn't check who owns this organization. Try again.") from None
+
+
+def _issuer_identities(organization_id: str, *ids: Any) -> Dict[str, Any]:
+    """Every id and email a person is known by in this organization, and their account's role.
+
+    Older routes name people by email, newer ones by account id; the owner is recorded by account id.
+    """
+    known = {str(v).strip() for v in ids if str(v or "").strip()}
+    roles: set = set()
+    try:
+        with _db() as db:
+            for value in list(known):
+                user = _issuer_get_user(db, value)
+                if not user and "@" in value:
+                    user = _issuer_get_user_by_email(db, value.lower())
+                if user and str(user.get("org_id") or "") == organization_id:
+                    known.update({str(user.get("id") or ""), str(user.get("email") or "").lower()})
+                    roles.add(str(user.get("role") or "").strip().lower())
+    except Exception:
+        logging.debug("[AUTH] account lookup failed for a member change", exc_info=True)
+    return {"ids": {v for v in known if v}, "roles": roles}
+
+
+def _first_id(ids: set) -> str:
+    """An account id when there is one, else an email."""
+    return (sorted(v for v in ids if "@" not in v) or sorted(ids) or [""])[0]
+
+
+def _guard_member_change(request: Request, *, org_id: str, caller_ids: Any, target_ids: Any,
+                         target_roles: Any = (), action: str, new_role: str = "", target_label: str = "") -> str:
+    """Refuse (403, journaled and audited with decision deny) a member change the caller may not make.
+
+    The rules are in services/member_policy.py. Returns the organization's owner id ("" if none) when
+    the change is allowed. Platform operators don't come through here: they use /platform routes.
+    """
+    owner_id = _owner_of_org(org_id)
+    caller = _issuer_identities(org_id, *caller_ids)
+    target = _issuer_identities(org_id, *target_ids)
+    roles = {str(r or "").strip().lower() for r in target_roles if str(r or "").strip()} | target["roles"]
+    refusal = _member_policy.check(owner_id=owner_id, caller_ids=caller["ids"], target_ids=target["ids"],
+                                   target_roles=roles, action=action, new_role=new_role)
+    if refusal is None:
+        return owner_id
+    target_id, caller_id = _first_id(target["ids"]), _first_id(caller["ids"])
+    _auth_journal(request, "member_change.refused",
+                  user={"id": target_id, "org_id": org_id, "role": (sorted(roles) or [""])[0]},
+                  method="jwt", subject=target_label, status_code=403, required=False)
+    _audit_event(request, action=f"auth.member.{action}", resource_type="user", resource_id=target_id,
+                 decision="deny", reason=refusal.reason,
+                 details={"by": caller_id, "new_role": new_role, "owner_recorded": bool(owner_id)})
+    raise HTTPException(403, refusal.detail)
 
 
 @app.put("/auth/users/{user_id}/role")
 async def auth_update_role(user_id: str, request: Request):
-    """Update a user's role within the caller's organization (admin only)."""
+    """Update a user's role within the caller's organization (admin only).
+
+    Only the organization's owner changes an admin's role or makes someone an admin, and nobody
+    changes their own role (services/member_policy.py). Other admins manage members who aren't admins.
+    """
     _require_auth_issuer_enabled()
-    _, org_id = _require_issuer_admin(request)
+    admin, org_id = _require_issuer_admin(request)
     try:
         body = await request.json()
     except Exception:
@@ -26610,22 +26708,135 @@ async def auth_update_role(user_id: str, request: Request):
     if role not in VALID_USER_ROLES:
         raise HTTPException(status_code=400, detail=f"role must be one of: {', '.join(sorted(VALID_USER_ROLES))}")
     with _db() as db:
+        user = _issuer_get_user(db, user_id)
+    if not user or user.get("org_id") != org_id:
+        raise HTTPException(status_code=404, detail="User not found")
+    caller_id = str(admin.get("sub") or "")
+    owner_id = _guard_member_change(request, org_id=org_id, caller_ids=[caller_id], target_ids=[user["id"]],
+                                    target_roles=[user.get("role")], action=_member_policy.ROLE, new_role=role,
+                                    target_label=user.get("email") or "")
+    with _db() as db:
         ok = _issuer_update_role(db, user_id, role, org_id)
     if not ok:
         raise HTTPException(status_code=404, detail="User not found")
+    if _member_policy.privileged(user.get("role")) or _member_policy.privileged(role):
+        _audit_event(request, action="auth.member.role", resource_type="user", resource_id=user["id"],
+                     details={"by": caller_id, "from": user.get("role") or "", "to": role,
+                              "as": "owner" if owner_id and owner_id == caller_id else "admin"})
     return {"ok": True}
 
 
 @app.post("/auth/users/{user_id}/deactivate")
 async def auth_deactivate_user(user_id: str, request: Request):
-    """Deactivate a user account in the caller's organization (admin only)."""
+    """Deactivate a user account in the caller's organization (admin only).
+
+    Only the organization's owner deactivates an admin, and nobody deactivates the owner from inside
+    the organization (services/member_policy.py).
+    """
     _require_auth_issuer_enabled()
-    _, org_id = _require_issuer_admin(request)
+    admin, org_id = _require_issuer_admin(request)
+    with _db() as db:
+        user = _issuer_get_user(db, user_id)
+    if not user or user.get("org_id") != org_id:
+        raise HTTPException(status_code=404, detail="User not found")
+    _guard_member_change(request, org_id=org_id, caller_ids=[admin.get("sub")], target_ids=[user["id"]],
+                         target_roles=[user.get("role")], action=_member_policy.REMOVE,
+                         target_label=user.get("email") or "")
     with _db() as db:
         ok = _issuer_deactivate(db, user_id, org_id)
     if not ok:
         raise HTTPException(status_code=404, detail="User not found")
     return {"ok": True}
+
+
+class OwnerTransferBody(BaseModel):
+    user_id: str = Field(..., min_length=1, max_length=200)
+
+
+@app.post("/auth/organization/owner/transfer")
+@limiter.limit(_RATE_AUTH)
+async def auth_transfer_ownership(body: OwnerTransferBody, request: Request):
+    """The owner hands the organization to another active admin of it.
+
+    Needs a recent sign-in (MORROW_PASSKEY_REAUTH_SECONDS, as for adding a passkey or making recovery
+    codes): a stolen access token must not be enough to give the organization away. The previous
+    owner stays an admin; the new owner may then change their role. Journaled and audited, and so is
+    a refusal.
+    """
+    _require_auth_issuer_enabled()
+    admin, org_id = _require_issuer_admin(request)
+    caller_id = str(admin.get("sub") or "")
+
+    def refuse(reason: str, detail: str, user: Optional[Dict[str, Any]] = None, status: int = 403) -> None:
+        _auth_journal(request, "org_owner.refused", user=user or {"id": caller_id, "org_id": org_id, "role": "admin"},
+                      method="jwt", subject=(user or {}).get("email") or "", status_code=status, required=False)
+        _audit_event(request, action="auth.org_owner.transferred", resource_type="organization", resource_id=org_id,
+                     decision="deny", reason=reason, details={"by": caller_id, "to": str(body.user_id)[:200]})
+        raise HTTPException(status, detail)
+
+    def work():
+        with _db() as db:
+            owner_id = _signup.owner_of(db, org_id)
+            if not owner_id or owner_id != caller_id:
+                refuse("owner_required", "Only the organization's owner can transfer ownership.")
+            if not _recent_sign_in(admin):
+                refuse("reauth_required", "For your security, sign in again, then transfer ownership.", status=401)
+            user = _issuer_get_user(db, body.user_id)
+            if not user or user.get("org_id") != org_id:
+                raise HTTPException(404, "User not found")
+            if user["id"] == caller_id:
+                refuse("own_account", "You already own this organization.", user)
+            if not user.get("is_active") or str(user.get("role") or "").strip().lower() != "admin":
+                refuse("not_admin", "Ownership goes to an active admin of this organization. Make them an admin first.", user)
+            _signup.set_owner(db, org_id, user["id"])
+        _auth_journal(request, "org_owner.transferred", user=user, method="jwt", subject=user.get("email") or "",
+                      required=False)
+        _audit_event(request, action="auth.org_owner.transferred", resource_type="organization", resource_id=org_id,
+                     details={"from": caller_id, "to": user["id"]})
+        return {"ok": True, "owner_id": user["id"], "previous_owner_id": caller_id}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+class PlatformOwnerBody(BaseModel):
+    user_id: str = Field(..., min_length=1, max_length=200)
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
+@app.put("/platform/customers/{organization_id}/owner")
+@limiter.limit(_RATE_AUTH)
+async def platform_set_org_owner(organization_id: str, body: PlatformOwnerBody, request: Request):
+    """Record or replace an organization's owner: a platform operator (operator or owner role).
+
+    For an organization made before owners were recorded or by an operator, and for one whose owner
+    is gone. The account must be an active admin of the organization. Needs a fresh MFA step-up and
+    is journaled, written to the organization's audit log and to the platform admin log.
+    """
+    _require_auth_issuer_enabled()
+    actor = _require_platform_admin(request, _PLATFORM_ADMIN_WRITE_ROLES)
+    _operator_auth.require_step_up(actor, "set an organization's owner")
+    operator_id = str(actor.get("actor_id") or "platform")[:160]
+    organization_id = str(organization_id or "").strip()
+
+    def work():
+        with _db() as db:
+            user = _issuer_get_user(db, body.user_id)
+            if not user or str(user.get("org_id") or "") != organization_id:
+                raise HTTPException(404, "No account with that id in this organization.")
+            if not user.get("is_active") or str(user.get("role") or "").strip().lower() != "admin":
+                raise HTTPException(409, "The owner must be an active admin of the organization. Make them an admin first.")
+            previous = _signup.set_owner(db, organization_id, user["id"])
+        _auth_journal(request, "org_owner.set", user=user, method="jwt", subject=user.get("email") or "", required=False)
+        ctx = set_current_organization_id(organization_id)
+        try:
+            _audit_event(request, action="auth.org_owner.set", resource_type="organization", resource_id=organization_id,
+                         details={"by": operator_id, "as": "platform_operator", "from": previous, "to": user["id"]},
+                         actor={"actor_id": operator_id, "actor_role": "platform_operator"})
+        finally:
+            reset_current_organization_id(ctx)
+        _record_platform_admin_event(organization_id, "platform.org_owner_set", reason=body.reason,
+                                     details={"user_id": user["id"], "previous_owner_id": previous})
+        return {"ok": True, "organization_id": organization_id, "owner_id": user["id"], "previous_owner_id": previous}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
 
 
 @app.post("/auth/change-password")

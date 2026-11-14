@@ -40,10 +40,13 @@ organization, like morrow_auth_tickets, and it lives in the same database.
 
 Owners. The account that signs up owns the organization it creates, recorded in morrow_org_owners
 (one row per organization, written once and never moved by a role change, a deactivation or an
-invitation into another organization). Ownership decides one thing today: only the owner, or a
-platform operator, may issue a recovery link for an administrator of the organization (app.py,
-POST /auth/accounts/{id}/recovery-link), because a recovery link is a way into the account. An
-organization made before owners were recorded, or by an operator, has no owner row: its admins'
+invitation into another organization). Only the owner, or a platform operator, may issue a
+recovery link for an administrator of the organization (app.py, POST /auth/accounts/{id}/recovery-link),
+because a recovery link is a way into the account; and only the owner may change an admin's role,
+make someone an admin or remove an admin (services/member_policy.py). The owner row moves only
+through set_owner: the owner hands it to another admin (POST /auth/organization/owner/transfer), or
+a platform operator sets it (PUT /platform/customers/{id}/owner). An organization made before
+owners were recorded, or by an operator, has no owner row until an operator sets one: its admins'
 recovery links come from a platform operator.
 """
 
@@ -119,6 +122,26 @@ def record_owner(db, organization_id: str, user_id: str) -> None:
     db.execute("INSERT INTO morrow_org_owners (org_id, user_id, created_at) VALUES (?,?,?)",
                (organization_id, user_id, int(time.time())))
     db.commit()
+
+
+def set_owner(db, organization_id: str, user_id: str) -> str:
+    """Make `user_id` the organization's owner, replacing any owner. Returns the previous owner ("" if none).
+
+    Callers decide who may do this (the owner transferring it, or a platform operator) and check that
+    the account is an active admin of the organization; this only writes the row.
+    """
+    organization_id, user_id = str(organization_id or "").strip(), str(user_id or "").strip()
+    if not organization_id or not user_id:
+        raise ValueError("an owner needs an organization and an account")
+    previous = owner_of(db, organization_id)
+    if previous:
+        db.execute("UPDATE morrow_org_owners SET user_id = ?, created_at = ? WHERE org_id = ?",
+                   (user_id, int(time.time()), organization_id))
+    else:
+        db.execute("INSERT INTO morrow_org_owners (org_id, user_id, created_at) VALUES (?,?,?)",
+                   (organization_id, user_id, int(time.time())))
+    db.commit()
+    return previous
 
 
 def owner_of(db, organization_id: str) -> str:

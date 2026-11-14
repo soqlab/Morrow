@@ -35,6 +35,8 @@ AUTH_EVENTS = {
     # recovery link an admin issues for a member who lost every passkey and recovery code.
     "signup.completed", "signup.refused", "signup.rate_limited", "invite_link.issued", "invite_link.revoked",
     "account_recovery.issued", "account_recovery.refused",
+    # Member changes only the organization's owner may make (services/member_policy.py), and ownership.
+    "member_change.refused", "org_owner.transferred", "org_owner.set", "org_owner.refused",
 }
 
 
