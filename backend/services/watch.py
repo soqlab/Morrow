@@ -1009,4 +1009,19 @@ def about_scanner(example_host: str = "example.com") -> Dict[str, Any]:
                     "how": "Ask once and the domain and every name under it are refused before DNS is even looked up. "
                            "If you have claimed the domain in Morrow, you can do it yourself from its page."},
         "stored": "The handshake facts and the grade, with the date. No page content, no cookies, no personal data.",
+        "sources": _sources(),
     }
+
+
+def _sources() -> List[Dict[str, Any]]:
+    """Where the numbers on a domain page come from, with their licences."""
+    from services import decrypt_window, shelf_life
+
+    return [
+        {"name": decrypt_window.EXPOSURE_SOURCE_LABEL, "url": decrypt_window.EXPOSURE_SOURCE_URL,
+         "used_for": "the quantum years on the harvest clock (2035 quite possible, 2040 likely)",
+         "note": "Morrow quotes the survey's answers; 2045 is Morrow's own outer bound."},
+        {"name": f"Shelf-Life v{shelf_life.EDITION}", "url": shelf_life.SOURCE_URL,
+         "used_for": "how long each kind of data must stay private, by jurisdiction, on the harvest clock",
+         "note": shelf_life.ATTRIBUTION + " Not legal advice: values are reference estimates for risk planning."},
+    ]

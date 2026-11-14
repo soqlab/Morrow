@@ -9,6 +9,9 @@
 **/*.sqlite
 **/*.sqlite3
 **/data/
+# ...except the vendored Shelf-Life catalogue, which is code data, not a local database.
+!backend/data/shelf-life
+!backend/data/shelf-life/**
 **/.venv
 **/venv
 **/__pycache__

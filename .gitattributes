@@ -2,3 +2,5 @@
 *.sh text eol=lf
 # Fuzz inputs are exact bytes: never convert their line endings.
 backend/fuzz/corpus/** -text
+# The vendored Shelf-Life catalogue is checked against its SHA-256 at load: keep its bytes exact.
+backend/data/shelf-life/** -text

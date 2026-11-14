@@ -156,6 +156,28 @@ async function main() {
     await page.locator("#hv-say").waitFor();
     assert.ok(!(await page.locator("#hv-sw").count()), "the plain dial shows the expert migration control");
 
+    // Shelf-Life: ?data=&jur= set the dial from the catalogue, the sentence quotes it, the picker
+    // changes it and stays in the URL; plain says just the number, expert adds basis and the law.
+    await page.goto(`${base}/${SMOKE_DOMAIN}?depth=plain&data=health&jur=GB&qday=2040`, { waitUntil: "networkidle" });
+    await page.locator("#hv-cat").waitFor({ timeout: 15000 });
+    clock = await page.locator("#hv-say").innerText();
+    assert.match(clock, /^UK health records need to stay private for at least 50 years, up to 100 \(Shelf-Life v0\.1\)\. Traffic captured today could be read around 2040/, clock);
+    assert.match(clock, new RegExp(`that's ${year + 50 - 2040} to ${year + 100 - 2040} years too early\\.$`), clock);
+    assert.equal((await page.locator("#hv-cat").innerText()).trim(), "Health records (UK): at least 50 years.");
+    assert.equal(await page.locator("#hv-keep-o").innerText(), `100 years, until ${year + 100}`);
+    await page.locator("#hv-data").selectOption("tax-records");
+    assert.ok(page.url().includes("data=tax") && page.url().includes("jur=GB") && !page.url().includes("keep="), "the picker is not kept in the URL: " + page.url());
+    assert.match(await page.locator("#hv-say").innerText(), /^UK tax records need to stay private for at least 20 years, up to 75/);
+    await page.locator("#hv-keep").fill("2");
+    assert.equal(await page.locator("#hv-data").inputValue(), "", "moving the dial out of the range kept the category");
+    await page.goto(`${base}/${SMOKE_DOMAIN}?depth=expert&data=health&jur=US`, { waitUntil: "networkidle" });
+    await page.locator("#hv-cat a").first().waitFor({ timeout: 15000 });
+    const cat = await page.locator("#hv-cat").innerText();
+    assert.match(cat, /130 years.*legal_minimum.*Set by law, high confidence/s, cat);
+    assert.ok((await page.locator('#hv-cat a[href^="https://"]').count()) >= 2, "expert shows no citation links");
+    await page.goto(`${base}/${SMOKE_DOMAIN}?depth=plain`, { waitUntil: "networkidle" });
+    await page.locator("#hv-say").waitFor({ timeout: 15000 });
+
     // Watch mode on the domain page. CI's server needs no sign-in, so this browser has a workspace:
     // the answer comes first, the quiet claim line is there, and watching and claiming work.
     const domainRe = new RegExp(SMOKE_DOMAIN.replace(/\./g, "\\."));
@@ -219,7 +241,7 @@ async function main() {
     small.on("pageerror", (e) => errors.push(String(e)));
     await routeDomain(small);
     await routeReports(small);
-    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", "/watching", "/about-scanner", `/${SMOKE_DOMAIN}?depth=expert`,
+    for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", "/watching", "/about-scanner", `/${SMOKE_DOMAIN}?depth=expert`, `/${SMOKE_DOMAIN}?depth=expert&data=legal&jur=DE`, `/${SMOKE_DOMAIN}?depth=standard&data=health&jur=AU`,
       "/vendors", `/vendors/r/${SMOKE_TOKEN}?depth=expert`, "/changes", "/report/finance?depth=expert"]) {
       await small.goto(`${base}${path}`, { waitUntil: "networkidle" });
       const wide = await small.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -238,7 +260,7 @@ async function main() {
 
     assert.deepEqual(foreign, [], "the instrument contacted another origin");
     assert.deepEqual(errors, [], "JavaScript errors");
-    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, trust readout, plain without JS, 360px layout.");
+    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, the Shelf-Life picker, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, trust readout, plain without JS, 360px layout.");
   } finally {
     await browser.close();
   }
