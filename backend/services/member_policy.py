@@ -41,6 +41,12 @@ class Refusal:
     detail: str
 
 
+def last_admin() -> Refusal:
+    """Refusal for deactivating or removing yourself when nobody else is an active admin."""
+    return Refusal("last_admin", "You're the only active admin of this organization, so you can't deactivate or "
+                                 "remove yourself. Make someone else an admin first.")
+
+
 def privileged(role: object) -> bool:
     return str(role or "").strip().lower() in PRIVILEGED_ROLES
 

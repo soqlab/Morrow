@@ -20,7 +20,6 @@ from db import (
     list_remediations,
     list_scan_rows,
     list_user_memberships,
-    remove_organization_member,
     reset_current_organization_id,
     set_current_organization_id,
     upsert_organization,
@@ -66,6 +65,57 @@ def _guard_member_change(request: Request, organization_id: str, actor: Dict[str
     guard(request, org_id=organization_id, caller_ids=[actor.get("actor_id")],
           target_ids=[user_id, existing.get("email")], target_roles=[existing.get("role")],
           action=action, new_role=new_role, target_label=str(existing.get("email") or ""))
+
+
+def _apply(request: Request, organization_id: str, actor: Dict[str, Any], user_id: str, kind: str,
+           **kwargs: Any) -> Dict[str, Any]:
+    """Make an allowed change through services/member_access.py (app._apply_member_change journals and
+    audits it): the account and the membership move together, and lowered access revokes tokens."""
+    app_module = sys.modules.get("app")
+    applier = getattr(app_module, "_apply_member_change", None) if app_module else None
+    if applier is not None:
+        return applier(request, org_id=organization_id, ids=[user_id], kind=kind,
+                       by=str(actor.get("actor_id") or ""), **kwargs)
+    from services import member_access
+
+    try:
+        return member_access.apply(organization_id, [user_id], kind, actor=str(actor.get("actor_id") or ""), **kwargs)
+    except member_access.NotFound:
+        raise HTTPException(status_code=404, detail="organization member not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+def _change_member(request: Request, organization_id: str, actor: Dict[str, Any], user_id: str,
+                   current: Optional[Dict[str, Any]], role: str, status: str, display_name: str,
+                   email: str) -> Dict[str, Any]:
+    """Apply a POST/PATCH of a member: the role change, then the status change, each through _apply;
+    a change of name or email alone is written to the membership as before."""
+    role = str(role or "viewer").strip().lower()
+    status = str(status or "active").strip().lower()
+    if status not in {"active", "disabled"}:
+        raise HTTPException(status_code=400, detail="status must be active or disabled")
+    profile = {"display_name": display_name or str((current or {}).get("display_name") or ""),
+               "email": email or str((current or {}).get("email") or "")}
+    was_active = str((current or {}).get("status") or "active").lower() == "active"
+    summary: Dict[str, Any] = {}
+    if not current or role != str(current.get("role") or "").strip().lower():
+        summary = _apply(request, organization_id, actor, user_id, "role", role=role, profile=profile, create=True)
+    if status == "disabled" and (was_active or not current):
+        summary = _apply(request, organization_id, actor, user_id, "deactivate")
+    elif status == "active" and current and not was_active:
+        summary = _apply(request, organization_id, actor, user_id, "reactivate")
+    if not summary:
+        upsert_organization_member(organization_id, user_id, role=role, display_name=profile["display_name"],
+                                   email=profile["email"], status=status)
+    elif current and (profile["display_name"] != str(current.get("display_name") or "")
+                      or profile["email"] != str(current.get("email") or "")):
+        fresh = get_organization_member(organization_id, user_id) or {}
+        if fresh:
+            upsert_organization_member(organization_id, user_id, role=str(fresh.get("role") or role),
+                                       display_name=profile["display_name"], email=profile["email"],
+                                       status=str(fresh.get("status") or status))
+    return summary
 
 
 def _active_org_id(request: Request) -> str:
@@ -198,14 +248,9 @@ def create_organizations_router(require_role: RequireRole, actor_from_request: A
             enforce = getattr(app_module, "_enforce_seat_limit_or_402", None) if app_module else None
             if enforce:
                 enforce(organization_id)
-        row = upsert_organization_member(
-            organization_id,
-            req.user_id,
-            role=req.role,
-            display_name=req.display_name,
-            email=req.email,
-            status=req.status,
-        )
+        _change_member(request, organization_id, actor, req.user_id, current, req.role, req.status,
+                       req.display_name, req.email)
+        row = get_organization_member(organization_id, req.user_id)
         append_audit_log(
             actor_id=actor["actor_id"],
             actor_role=actor["actor_role"],
@@ -241,14 +286,9 @@ def create_organizations_router(require_role: RequireRole, actor_from_request: A
             _guard_member_change(request, organization_id, actor, user_id, "role", new_role=req.role, existing=existing)
         if disables:
             _guard_member_change(request, organization_id, actor, user_id, "remove", existing=existing)
-        row = upsert_organization_member(
-            organization_id,
-            user_id,
-            role=req.role,
-            display_name=req.display_name or str(existing.get("display_name") or ""),
-            email=req.email or str(existing.get("email") or ""),
-            status=req.status,
-        )
+        _change_member(request, organization_id, actor, user_id, existing, req.role, req.status,
+                       req.display_name, req.email)
+        row = get_organization_member(organization_id, user_id)
         append_audit_log(
             actor_id=actor["actor_id"],
             actor_role=actor["actor_role"],
@@ -272,7 +312,14 @@ def create_organizations_router(require_role: RequireRole, actor_from_request: A
         _ensure_active_org(request, organization_id)
         existing = get_organization_member(organization_id, user_id)
         _guard_member_change(request, organization_id, actor, user_id, "remove", existing=existing)
-        result = remove_organization_member(organization_id, user_id)
+        if existing:
+            summary = _apply(request, organization_id, actor, user_id, "remove")
+            result = {"ok": True, "deleted": 1, "organization_id": organization_id, "user_id": user_id,
+                      "access_tokens_revoked": summary.get("access_tokens_revoked", False),
+                      "refresh_sessions_revoked": summary.get("refresh_sessions_revoked", 0),
+                      "api_keys_revoked": summary.get("api_keys_revoked", [])}
+        else:
+            result = {"ok": True, "deleted": 0, "organization_id": organization_id, "user_id": user_id}
         append_audit_log(
             actor_id=actor["actor_id"],
             actor_role=actor["actor_role"],

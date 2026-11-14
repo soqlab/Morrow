@@ -1504,6 +1504,17 @@ async def _lifespan(_app: FastAPI):
         _push_init(_db17)
         _issuer_init(_db17)
 
+    # One-off, idempotent: bring accounts and memberships that disagree into line, toward the lesser
+    # access, logging each fix by id (services/member_access.py). Never stops the server starting.
+    def _reconcile_access():
+        try:
+            fixes = _member_access.reconcile()
+            if fixes:
+                logging.warning("[access-reconcile] %d account/membership mismatch(es) fixed", len(fixes))
+        except Exception:
+            logging.exception("[access-reconcile] failed; records left as they were")
+    await run_in_threadpool(_reconcile_access)
+
     _drift_start(_db, _push)
 
     async def maintain_security_journal():
@@ -10844,11 +10855,16 @@ def _actor_from_request(request: Request) -> Dict[str, str]:
         actor_role = DEFAULT_USER_ROLE if DEFAULT_USER_ROLE in VALID_USER_ROLES else "viewer"
     org_id = str(getattr(request.state, "org_id", current_organization_id()) or DEFAULT_ORG_ID).strip() or DEFAULT_ORG_ID
     try:
+        # The membership is authoritative for a person's role in the organization
+        # (services/member_access.py); the token's role claim is only used when there is none. A
+        # disabled membership has no role at all, so every role check refuses it.
         member = get_organization_member(org_id, actor_id)
         if member and str(member.get("status") or "").lower() == "active":
             member_role = str(member.get("role") or "").strip().lower()
             if member_role in VALID_USER_ROLES:
                 actor_role = member_role
+        elif member:
+            actor_role = "disabled"
     except Exception as _actor_exc:
         logging.debug("[AUTH] Actor context resolution failed: %s", _actor_exc)
     return {"actor_id": actor_id, "actor_role": actor_role}
@@ -18446,10 +18462,20 @@ def api_admin_update_role(body: AdminUpdateRoleRequest, request: Request):
     actor = _require_role(request, allowed_roles=["admin"],
                           action="admin.update_role", resource_type="organization", resource_id=body.org_id,
                           organization_id=body.org_id)
-    _guard_member_change(request, org_id=body.org_id, caller_ids=[actor["actor_id"]], target_ids=[body.email],
-                         target_roles=_admin_console_roles(body.org_id, body.email), action=_member_policy.ROLE,
-                         new_role=body.new_role, target_label=body.email)
-    return {"api_version": "v1", **_admin_update_role(body.org_id, body.email, body.new_role, body.actor)}
+    owner_id = _guard_member_change(request, org_id=body.org_id, caller_ids=[actor["actor_id"]],
+                                    target_ids=[body.email], target_roles=_admin_console_roles(body.org_id, body.email),
+                                    action=_member_policy.ROLE, new_role=body.new_role, target_label=body.email)
+    if not _member_access.member_role(body.new_role):
+        return {"api_version": "v1", "ok": False, "error": f"Invalid role: {body.new_role}"}
+    try:
+        result = _apply_member_change(request, org_id=body.org_id, ids=[body.email], kind=_member_access.ROLE,
+                                      role=body.new_role, console_role=body.new_role, by=actor["actor_id"],
+                                      owner_id=owner_id)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        return {"api_version": "v1", "ok": False, "error": "User not found"}
+    return {"api_version": "v1", "ok": True, "email": body.email, **_access_summary(result), "role": body.new_role}
 
 
 def _admin_console_roles(org_id: str, email: str) -> List[str]:
@@ -18471,10 +18497,17 @@ def api_admin_remove_user(body: AdminRemoveUserRequest, request: Request):
     actor = _require_role(request, allowed_roles=["admin"],
                           action="admin.remove_user", resource_type="organization", resource_id=body.org_id,
                           organization_id=body.org_id)
-    _guard_member_change(request, org_id=body.org_id, caller_ids=[actor["actor_id"]], target_ids=[body.email],
-                         target_roles=_admin_console_roles(body.org_id, body.email), action=_member_policy.REMOVE,
-                         target_label=body.email)
-    return {"api_version": "v1", **_admin_remove_user(body.org_id, body.email, body.actor)}
+    owner_id = _guard_member_change(request, org_id=body.org_id, caller_ids=[actor["actor_id"]],
+                                    target_ids=[body.email], target_roles=_admin_console_roles(body.org_id, body.email),
+                                    action=_member_policy.REMOVE, target_label=body.email)
+    try:
+        result = _apply_member_change(request, org_id=body.org_id, ids=[body.email], kind=_member_access.DEACTIVATE,
+                                      by=actor["actor_id"], owner_id=owner_id)
+    except HTTPException as exc:
+        if exc.status_code != 404:
+            raise
+        return {"api_version": "v1", "ok": False, "error": "User not found"}
+    return {"api_version": "v1", "ok": True, "email": body.email, "status": "suspended", **_access_summary(result)}
 
 
 @app.get("/admin/orgs/{org_id}/rate-limits")
@@ -25224,6 +25257,7 @@ async def auth_password_reset_confirm(body: PasswordResetConfirmBody, request: R
 from services import passkeys as _passkeys  # noqa: E402
 from services import signup as _signup  # noqa: E402
 from services import member_policy as _member_policy  # noqa: E402
+from services import member_access as _member_access  # noqa: E402
 from services import team_join as _team_join  # noqa: E402
 from services.auth_issuer import (  # noqa: E402
     create_passkey_user as _issuer_create_passkey_user,
@@ -26601,11 +26635,19 @@ def _require_issuer_admin(request: Request) -> tuple[Dict[str, Any], str]:
         raise HTTPException(status_code=401, detail="Invalid token") from None
     if _session_revocation.is_revoked(payload):
         raise HTTPException(status_code=401, detail="Token has been revoked")
-    if payload.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin role required")
     org_id = str(payload.get("org_id") or "").strip()
     if not org_id:
         raise HTTPException(status_code=403, detail="Token carries no organization")
+    # The token proves who is asking; whether they are an admin is read from the records now, not
+    # from the role the token was issued with (services/member_access.py). A demotion or deactivation
+    # also revokes their tokens; this keeps the answer right even for a token that slipped past.
+    try:
+        access = _member_access.effective_access(org_id, str(payload.get("sub") or ""))
+    except Exception:
+        logging.exception("[AUTH] access lookup failed")
+        raise HTTPException(status_code=503, detail="Couldn't check your access. Try again.") from None
+    if not access["active"] or access["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
     return payload, org_id
 
 
@@ -26677,6 +26719,16 @@ def _guard_member_change(request: Request, *, org_id: str, caller_ids: Any, targ
     roles = {str(r or "").strip().lower() for r in target_roles if str(r or "").strip()} | target["roles"]
     refusal = _member_policy.check(owner_id=owner_id, caller_ids=caller["ids"], target_ids=target["ids"],
                                    target_roles=roles, action=action, new_role=new_role)
+    if refusal is None and action == _member_policy.REMOVE and caller["ids"] & target["ids"]:
+        # Deactivating or removing yourself is refused when nobody else could administer the
+        # organization afterwards (an organization without a recorded owner could end up with none).
+        try:
+            others = _member_access.other_active_admins(org_id, target["ids"])
+        except Exception:
+            logging.exception("[AUTH] admin count failed for a member change")
+            raise HTTPException(503, "Couldn't check who else administers this organization. Try again.") from None
+        if others == 0:
+            refusal = _member_policy.last_admin()
     if refusal is None:
         return owner_id
     target_id, caller_id = _first_id(target["ids"]), _first_id(caller["ids"])
@@ -26687,6 +26739,36 @@ def _guard_member_change(request: Request, *, org_id: str, caller_ids: Any, targ
                  decision="deny", reason=refusal.reason,
                  details={"by": caller_id, "new_role": new_role, "owner_recorded": bool(owner_id)})
     raise HTTPException(403, refusal.detail)
+
+
+def _apply_member_change(request: Request, *, org_id: str, ids: Any, kind: str, role: str = "",
+                         console_role: str = "", profile: Optional[Dict[str, str]] = None, create: bool = False,
+                         by: str = "", owner_id: str = "") -> Dict[str, Any]:
+    """Apply an allowed change through services/member_access.py: the account and the membership move
+    together, and lowered access takes the person's tokens with it. Journaled and audited. 404 when
+    nothing records the person in the organization."""
+    try:
+        result = _member_access.apply(org_id, ids, kind, role=role, console_role=console_role, profile=profile,
+                                      create=create, actor=by, reason=f"member {kind}")
+    except _member_access.NotFound:
+        raise HTTPException(status_code=404, detail="User not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    _auth_journal(request, "member_change.applied",
+                  user={"id": result["user_id"], "org_id": org_id, "role": result["role"]},
+                  method="jwt", required=False)
+    _audit_event(request, action=f"auth.member.{kind}", resource_type="user", resource_id=result["user_id"],
+                 details={"by": by, "from": result["previous_role"], "to": result["role"],
+                          "active": result["active"], "as": "owner" if owner_id and owner_id == by else "admin",
+                          "access_tokens_revoked": result["access_tokens_revoked"],
+                          "refresh_sessions_revoked": result["refresh_sessions_revoked"],
+                          "api_keys_revoked": result["api_keys_revoked"], "rebound_to": result["rebound_to"]})
+    return result
+
+
+def _access_summary(result: Dict[str, Any]) -> Dict[str, Any]:
+    return {key: result[key] for key in ("role", "active", "access_tokens_revoked", "refresh_sessions_revoked",
+                                         "api_keys_revoked")}
 
 
 @app.put("/auth/users/{user_id}/role")
@@ -26715,15 +26797,10 @@ async def auth_update_role(user_id: str, request: Request):
     owner_id = _guard_member_change(request, org_id=org_id, caller_ids=[caller_id], target_ids=[user["id"]],
                                     target_roles=[user.get("role")], action=_member_policy.ROLE, new_role=role,
                                     target_label=user.get("email") or "")
-    with _db() as db:
-        ok = _issuer_update_role(db, user_id, role, org_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="User not found")
-    if _member_policy.privileged(user.get("role")) or _member_policy.privileged(role):
-        _audit_event(request, action="auth.member.role", resource_type="user", resource_id=user["id"],
-                     details={"by": caller_id, "from": user.get("role") or "", "to": role,
-                              "as": "owner" if owner_id and owner_id == caller_id else "admin"})
-    return {"ok": True}
+    result = await run_in_threadpool(lambda: _apply_member_change(
+        request, org_id=org_id, ids=[user["id"]], kind=_member_access.ROLE, role=role, by=caller_id,
+        owner_id=owner_id))
+    return {"ok": True, **_access_summary(result)}
 
 
 @app.post("/auth/users/{user_id}/deactivate")
@@ -26739,14 +26816,13 @@ async def auth_deactivate_user(user_id: str, request: Request):
         user = _issuer_get_user(db, user_id)
     if not user or user.get("org_id") != org_id:
         raise HTTPException(status_code=404, detail="User not found")
-    _guard_member_change(request, org_id=org_id, caller_ids=[admin.get("sub")], target_ids=[user["id"]],
-                         target_roles=[user.get("role")], action=_member_policy.REMOVE,
-                         target_label=user.get("email") or "")
-    with _db() as db:
-        ok = _issuer_deactivate(db, user_id, org_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"ok": True}
+    caller_id = str(admin.get("sub") or "")
+    owner_id = _guard_member_change(request, org_id=org_id, caller_ids=[caller_id], target_ids=[user["id"]],
+                                    target_roles=[user.get("role")], action=_member_policy.REMOVE,
+                                    target_label=user.get("email") or "")
+    result = await run_in_threadpool(lambda: _apply_member_change(
+        request, org_id=org_id, ids=[user["id"]], kind=_member_access.DEACTIVATE, by=caller_id, owner_id=owner_id))
+    return {"ok": True, **_access_summary(result)}
 
 
 class OwnerTransferBody(BaseModel):
@@ -26786,7 +26862,8 @@ async def auth_transfer_ownership(body: OwnerTransferBody, request: Request):
                 raise HTTPException(404, "User not found")
             if user["id"] == caller_id:
                 refuse("own_account", "You already own this organization.", user)
-            if not user.get("is_active") or str(user.get("role") or "").strip().lower() != "admin":
+            access = _member_access.effective_access(org_id, user["id"])
+            if not user.get("is_active") or not access["active"] or access["role"] != "admin":
                 refuse("not_admin", "Ownership goes to an active admin of this organization. Make them an admin first.", user)
             _signup.set_owner(db, org_id, user["id"])
         _auth_journal(request, "org_owner.transferred", user=user, method="jwt", subject=user.get("email") or "",
@@ -26822,7 +26899,8 @@ async def platform_set_org_owner(organization_id: str, body: PlatformOwnerBody, 
             user = _issuer_get_user(db, body.user_id)
             if not user or str(user.get("org_id") or "") != organization_id:
                 raise HTTPException(404, "No account with that id in this organization.")
-            if not user.get("is_active") or str(user.get("role") or "").strip().lower() != "admin":
+            access = _member_access.effective_access(organization_id, user["id"])
+            if not user.get("is_active") or not access["active"] or access["role"] != "admin":
                 raise HTTPException(409, "The owner must be an active admin of the organization. Make them an admin first.")
             previous = _signup.set_owner(db, organization_id, user["id"])
         _auth_journal(request, "org_owner.set", user=user, method="jwt", subject=user.get("email") or "", required=False)

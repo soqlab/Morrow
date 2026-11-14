@@ -39,11 +39,9 @@ from db import (
     list_organizations,
     list_remediations,
     list_scan_rows,
-    remove_organization_member,
     reset_current_organization_id,
     set_current_organization_id,
     upsert_organization,
-    upsert_organization_member,
 )
 from db_postgres import pg_product_conn, postgres_main_db_requested
 from services import admin_console as _admin_console
@@ -52,6 +50,7 @@ from services import api_keys as _api_keys
 from services import auth_issuer as _auth_issuer
 from services import platform_access as _access
 from services import platform_operators as _operators
+from services import member_access as _member_access
 from services import session_revocation as _revocation
 from services import operator_auth as _operator_auth
 
@@ -236,6 +235,16 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
                 return fn(conn)
         except Exception:
             return default
+
+    def apply_change(organization_id: str, user_id: str, kind: str, actor: Dict[str, Any], reason: str,
+                     **kwargs: Any) -> Dict[str, Any]:
+        try:
+            return _member_access.apply(organization_id, [user_id], kind, actor=str(actor.get("actor_id") or "platform"),
+                                        reason=reason, **kwargs)
+        except _member_access.NotFound:
+            raise HTTPException(status_code=404, detail="No member or sign-in account with that id in this organization.") from None
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
 
     def touches_admin(organization_id: str, user_id: str, member: Optional[Dict[str, Any]], new_role: str = "") -> bool:
         """The change concerns an admin or the organization's owner, or makes someone an admin.
@@ -445,12 +454,15 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
 
     @router.post("/platform/customers/{organization_id}/members")
     def platform_add_member(organization_id: str, req: MemberCreateRequest, request: Request):
-        guard(request, WRITE)
+        actor = guard(request, WRITE)
         require_org(organization_id)
         if get_organization_member(organization_id, req.user_id):
             raise HTTPException(status_code=409, detail="That user is already a member; change their role instead.")
-        member = upsert_organization_member(organization_id, req.user_id.strip(), role=req.role,
-                                            display_name=req.display_name.strip(), email=req.email.strip().lower())
+        # Through services/member_access.py, so a sign-in account bound to this organization gets the
+        # same role as the membership.
+        apply_change(organization_id, req.user_id.strip(), _member_access.ROLE, actor, req.reason, role=req.role,
+                     create=True, profile={"display_name": req.display_name.strip(), "email": req.email.strip().lower()})
+        member = get_organization_member(organization_id, req.user_id.strip())
         record(organization_id, "platform.member_added", req.reason, {"user_id": req.user_id, "role": req.role})
         return {"ok": True, "member": member}
 
@@ -461,22 +473,19 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         member = get_organization_member(organization_id, user_id)
         if touches_admin(organization_id, user_id, member, req.role):
             _operator_auth.require_step_up(actor, "change an admin's role")
-        account_updated = bool(issuer_call(lambda conn: _auth_issuer.update_user_role(conn, user_id, req.role, organization_id), False))
-        if member:
-            member = upsert_organization_member(organization_id, user_id, role=req.role,
-                                                display_name=str(member.get("display_name") or ""),
-                                                email=str(member.get("email") or ""),
-                                                status=str(member.get("status") or "active"))
-        if not member and not account_updated:
-            raise HTTPException(status_code=404, detail="No member or sign-in account with that id in this organization.")
-        if account_updated:
-            # Issued tokens carry the old role claim; cut them off so the next refresh picks up the new role.
-            _revocation.revoke("user", user_id, revoked_by=actor["actor_id"], reason="role changed")
+        # The account and the membership change together; a demotion revokes the person's tokens
+        # (services/member_access.py). A promotion applies from the next request.
+        result = apply_change(organization_id, user_id, _member_access.ROLE, actor, req.reason, role=req.role)
+        account_updated = bool(result["account_updated"])
+        member = get_organization_member(organization_id, user_id)
         record(organization_id, "platform.member_role_changed", req.reason, {
-            "user_id": user_id, "role": req.role, "membership_updated": bool(member), "password_account_updated": account_updated,
+            "user_id": user_id, "role": req.role, "membership_updated": bool(result["membership_updated"]),
+            "password_account_updated": account_updated, "access_tokens_revoked": result["access_tokens_revoked"],
+            "api_keys_revoked": result["api_keys_revoked"],
         })
         return {"ok": True, "member": member, "password_account_updated": account_updated,
-                "access_tokens_reissue_required": account_updated}
+                "access_tokens_revoked": result["access_tokens_revoked"],
+                "access_tokens_reissue_required": result["access_tokens_revoked"]}
 
     @router.delete("/platform/customers/{organization_id}/members/{user_id}")
     def platform_remove_member(organization_id: str, user_id: str, request: Request,
@@ -488,9 +497,15 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=404, detail="Organization member not found.")
         if touches_admin(organization_id, user_id, member):
             _operator_auth.require_step_up(actor, "remove an admin")
-        result = remove_organization_member(organization_id, user_id)
-        record(organization_id, "platform.member_removed", reason, {"user_id": user_id})
-        return {"ok": True, "result": result}
+        change = apply_change(organization_id, user_id, _member_access.REMOVE, actor, reason)
+        result = {"ok": True, "deleted": 1, "organization_id": organization_id, "user_id": user_id}
+        record(organization_id, "platform.member_removed", reason, {
+            "user_id": user_id, "access_tokens_revoked": change["access_tokens_revoked"],
+            "refresh_sessions_revoked": change["refresh_sessions_revoked"], "api_keys_revoked": change["api_keys_revoked"],
+            "account_moved_to": change["rebound_to"],
+        })
+        return {"ok": True, "result": result, "access_tokens_revoked": change["access_tokens_revoked"],
+                "refresh_sessions_revoked": change["refresh_sessions_revoked"]}
 
     def set_user_status(organization_id: str, user_id: str, active: bool, req: UserStatusRequest, request: Request):
         actor = guard(request, WRITE)
@@ -498,23 +513,18 @@ def create_platform_admin_router(deps: Any) -> APIRouter:
         member = get_organization_member(organization_id, user_id)
         if not active and touches_admin(organization_id, user_id, member):
             _operator_auth.require_step_up(actor, "deactivate an admin")
-        account = bool(issuer_call(lambda conn: _auth_issuer.set_user_active(conn, user_id, organization_id, active), False))
-        if member:
-            member = upsert_organization_member(organization_id, user_id, role=str(member.get("role") or "viewer"),
-                                                display_name=str(member.get("display_name") or ""),
-                                                email=str(member.get("email") or ""),
-                                                status="active" if active else "disabled")
-        if not member and not account:
-            raise HTTPException(status_code=404, detail="No member or sign-in account with that id in this organization.")
-        sessions = 0
-        if not active and req.revoke_sessions:
-            if account:
-                sessions = int(issuer_call(lambda conn: _auth_issuer.revoke_refresh_sessions(conn, user_id=user_id), 0))
-            _revocation.revoke("user", user_id, revoked_by=actor["actor_id"], reason="user deactivated")
+        # Deactivation always takes the person's access tokens and sessions with it, whatever
+        # revoke_sessions says: it has to take effect on their very next request.
+        change = apply_change(organization_id, user_id,
+                              _member_access.REACTIVATE if active else _member_access.DEACTIVATE, actor, req.reason)
+        account = bool(change["account_updated"])
+        member = get_organization_member(organization_id, user_id)
+        sessions = int(change["refresh_sessions_revoked"])
         action = "platform.user_reactivated" if active else "platform.user_deactivated"
         record(organization_id, action, req.reason, {
             "user_id": user_id, "membership_updated": bool(member), "password_account_updated": account,
-            "refresh_sessions_revoked": sessions, "access_tokens_revoked": bool(not active and req.revoke_sessions),
+            "refresh_sessions_revoked": sessions, "access_tokens_revoked": change["access_tokens_revoked"],
+            "api_keys_revoked": change["api_keys_revoked"], "account_moved_to": change["rebound_to"],
         })
         return {"ok": True, "member": member, "password_account_updated": account,
                 "refresh_sessions_revoked": sessions, "access_tokens_revoked": bool(not active and req.revoke_sessions)}

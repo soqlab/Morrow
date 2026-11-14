@@ -13,6 +13,12 @@ every replica within that window.
 
 A storage error keeps the last known list rather than failing every request; the
 failure is logged.
+
+Precision: `revoked_before` is whole seconds, like a JWT's iat, and `created_at` records the
+revocation to the millisecond. Tokens from the built-in issuer also carry `iat_ms`, so a token
+minted in the same second but after the revocation (signing in again straight after a role
+change) is not caught by it. A token without `iat_ms` keeps the whole-second rule: issued in the
+revocation's second or earlier means revoked.
 """
 
 from __future__ import annotations
@@ -34,6 +40,25 @@ _CACHE: Dict[str, Any] = {"loaded_at": 0.0, "db": None, "cutoffs": {}}
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _iso_ms(epoch: float) -> str:
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _cutoff_ms(revoked_before: int, created_at: object) -> int:
+    """The revocation instant in milliseconds; the end of its second when created_at can't say."""
+    whole = int(revoked_before) * 1000 + 999
+    try:
+        stamp = datetime.fromisoformat(str(created_at or "").replace("Z", "+00:00"))
+    except ValueError:
+        return whole
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    if "." not in str(created_at or ""):
+        return whole
+    ms = int(stamp.timestamp() * 1000)
+    return ms if ms // 1000 == int(revoked_before) else whole
 
 
 def _cache_seconds() -> float:
@@ -87,7 +112,9 @@ def subject_key(kind: str, identifier: str) -> str:
 def revoke(kind: str, identifier: str, *, revoked_by: str = "", reason: str = "") -> int:
     """Reject every access token for the subject issued up to now. Returns the cut-off (epoch)."""
     key = subject_key(kind, identifier)
-    cutoff = int(time.time())
+    now = time.time()
+    cutoff = int(now)
+    stamp = _iso_ms(now)
     init_tables()
     with feature_conn() as conn:
         try:
@@ -95,17 +122,17 @@ def revoke(kind: str, identifier: str, *, revoked_by: str = "", reason: str = ""
                 conn.execute(
                     "INSERT INTO platform_token_revocations (subject, revoked_before, reason, revoked_by, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (key, cutoff, str(reason or "")[:500], str(revoked_by or "")[:160], _now_iso()),
+                    (key, cutoff, str(reason or "")[:500], str(revoked_by or "")[:160], stamp),
                 )
         except INTEGRITY_ERRORS:
             conn.execute(
                 "UPDATE platform_token_revocations SET revoked_before = ?, reason = ?, revoked_by = ?, created_at = ? "
                 "WHERE subject = ?",
-                (cutoff, str(reason or "")[:500], str(revoked_by or "")[:160], _now_iso(), key),
+                (cutoff, str(reason or "")[:500], str(revoked_by or "")[:160], stamp, key),
             )
         conn.commit()
     with _LOCK:
-        _CACHE["cutoffs"][key] = cutoff
+        _CACHE["cutoffs"][key] = _cutoff_ms(cutoff, stamp)
     return cutoff
 
 
@@ -134,8 +161,8 @@ def refresh() -> None:
     try:
         init_tables()
         with feature_conn() as conn:
-            rows = conn.execute("SELECT subject, revoked_before FROM platform_token_revocations").fetchall()
-        cutoffs = {str(r[0]): int(r[1]) for r in rows}
+            rows = conn.execute("SELECT subject, revoked_before, created_at FROM platform_token_revocations").fetchall()
+        cutoffs = {str(r[0]): _cutoff_ms(int(r[1]), r[2]) for r in rows}
     except Exception as exc:  # keep the last known list; never fail every request on a storage blip
         logger.warning("[token-revocation] refresh failed: %s", exc.__class__.__name__)
         if _CACHE["db"] != identity:
@@ -172,11 +199,18 @@ def is_revoked(claims: Optional[Dict[str, Any]], org_id: str = "") -> bool:
     org = str(org_id or _claim_org(claims)).strip()
     if org:
         candidates.append(f"org:{org}")
-    cutoff = max((cutoffs.get(c, 0) for c in candidates), default=0)
+    cutoff = max((cutoffs.get(c, 0) for c in candidates), default=0)  # milliseconds
     if not cutoff:
         return False
     try:
         issued_at = int(claims.get("iat"))
     except (TypeError, ValueError):
         return True  # no issue time: cannot prove it post-dates the revocation
-    return issued_at <= cutoff
+    issued_ms = issued_at * 1000
+    try:
+        precise = int(claims.get("iat_ms"))
+        if precise // 1000 == issued_at:
+            issued_ms = precise
+    except (TypeError, ValueError):
+        pass
+    return issued_ms <= cutoff

@@ -386,7 +386,8 @@ def _require_secret() -> str:
 
 def issue_access_token(user: dict) -> str:
     secret = _require_secret()
-    now = int(time.time())
+    moment = time.time()
+    now = int(moment)
     payload = {
         "sub": user["id"],
         "email": user["email"],
@@ -396,6 +397,9 @@ def issue_access_token(user: dict) -> str:
         "iss": _ISSUER,
         "aud": _AUDIENCE,
         "iat": now,
+        # Milliseconds, so a revocation in the same second (services/session_revocation.py) does not
+        # catch a token minted after it.
+        "iat_ms": int(moment * 1000),
         "exp": now + _TOKEN_TTL,
         "jti": str(uuid.uuid4()),
     }

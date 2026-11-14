@@ -37,6 +37,8 @@ AUTH_EVENTS = {
     "account_recovery.issued", "account_recovery.refused",
     # Member changes only the organization's owner may make (services/member_policy.py), and ownership.
     "member_change.refused", "org_owner.transferred", "org_owner.set", "org_owner.refused",
+    # A role change, deactivation, reactivation or removal that went through (services/member_access.py).
+    "member_change.applied",
 }
 
 

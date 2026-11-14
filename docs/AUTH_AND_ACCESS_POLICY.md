@@ -174,6 +174,54 @@ one: `PUT /auth/users/{id}/role`, `POST /auth/users/{id}/deactivate`, `POST|PATC
 - `GET /auth/users` also returns `owner_id` and `you`; the console marks the owner, disables the
   buttons the caller can't use with a one-line reason and offers "Make owner" to the owner.
 
+## Role changes, deactivation and removal take effect at once
+
+One function, `services/member_access.py` `apply()`, makes every change to what a person may do in an
+organization: `PUT /auth/users/{id}/role`, `POST /auth/users/{id}/deactivate`, `POST|PATCH|DELETE
+/organizations/{id}/members[/{user}]`, `PUT /admin/users/role`, `DELETE /admin/users`,
+`POST|PATCH|DELETE /platform/customers/{id}/members[/{user}]` and
+`/platform/customers/{id}/users/{user}/deactivate|reactivate`. The rules above decide whether a change
+is allowed; this decides how it is made.
+
+- **One authoritative record.** A person's role and status in an organization is their membership
+  (`organization_memberships`). The built-in account (`morrow_users`) carries the role and active flag
+  for the organization it is bound to, which its tokens are minted from, and is written in the same
+  transaction as the membership (with the membership in Postgres: the account write is held until the
+  membership commits, and the membership is put back if the account can't be committed). The
+  invitation record (`admin_users`) follows. Authorization reads the records, not the token's role
+  claim: the membership when there is one, else the account's own role; an inactive account or a
+  disabled membership has no role. Ownership transfer and `PUT /platform/customers/{id}/owner` check
+  the same thing.
+- **Demotion, deactivation, removal: the very next request.** When access goes down, every access
+  token the person holds is revoked (a per-user "valid after" time in `platform_token_revocations`,
+  checked on every request, cached for `MORROW_TOKEN_REVOCATION_CACHE_SECONDS`, default 10, and applied
+  at once on the replica that made the change). A demoted person keeps their refresh session, whose
+  next token carries the new role; a deactivated or removed person's refresh sessions are deleted. The
+  organization API keys they created whose scope is above their new role are revoked (`admin` keys on
+  a demotion to operator; every key when they lose access). `POST /platform/customers/{id}/users/{user}/deactivate`
+  revokes tokens whatever `revoke_sessions` says.
+- **Promotion: the next request.** Nothing is revoked. The token the person holds still says the old
+  role, but every check reads the records, so the new role applies straight away; it shows in the token
+  after the next refresh or sign-in.
+- **Removing or deactivating someone in the organization their account is bound to** moves the account
+  to another organization where they are an active member, or deactivates it when there is none: an
+  account can't keep minting tokens for an organization it no longer belongs to. Adding them back as a
+  member gives the account its access back.
+- **Same-second sign-in.** Built-in tokens carry `iat_ms`, and a revocation records its time to the
+  millisecond, so a token minted just after a revocation is not caught by it. Tokens without `iat_ms`
+  (other identity providers) keep the whole-second rule.
+- **The last admin.** Nobody deactivates or removes themselves when no other active admin would be
+  left (403 `last_admin`, journaled `member_change.refused`); this matters in an organization without
+  a recorded owner, where it was possible.
+- **Records.** Each change is journaled `member_change.applied` and audited
+  `auth.member.<role|deactivate|reactivate|remove>` with what was revoked; operator changes also go to
+  the platform admin log.
+- **Startup reconciliation.** Once per start, idempotently, every account is compared with its
+  membership in the organization it is bound to. A missing membership is recorded from the account;
+  a disagreement is resolved toward the lesser access (the lower role, disabled if either says so),
+  and the tokens of anyone whose access went down are revoked. Each fix is logged with the
+  organization and account id only.
+
 ## Domain team sign-in
 
 An organization admin can let anyone with a verified mailbox at one of the organization's verified
