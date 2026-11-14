@@ -34,7 +34,7 @@ AUTH_EVENTS = {
     # Public sign-up with a passkey (services/signup.py), invite links an admin hands over, and the
     # recovery link an admin issues for a member who lost every passkey and recovery code.
     "signup.completed", "signup.refused", "signup.rate_limited", "invite_link.issued", "invite_link.revoked",
-    "account_recovery.issued",
+    "account_recovery.issued", "account_recovery.refused",
 }
 
 

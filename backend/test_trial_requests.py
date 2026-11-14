@@ -55,6 +55,7 @@ def test_both_public_routes_answer_410_and_record_nothing(client, store, monkeyp
         body = response.json()
         assert body["recorded"] is False
         assert body["sign_in"] == "/ui/"
+        assert body["sign_up"] == "/signup"
         assert "passkey" in body["detail"]
         assert response.headers["cache-control"] == "no-store"
     # Even an empty or malformed body is the same answer: there is nothing left to validate.
@@ -63,11 +64,18 @@ def test_both_public_routes_answer_410_and_record_nothing(client, store, monkeyp
     assert sent == [], "a retired form must not send any email"
 
 
-def test_the_old_pages_redirect_to_passkey_sign_in(client):
+def test_the_old_pages_redirect_to_public_sign_up(client):
     for path in ("/trial", "/trial-request"):
         moved = client.get(path, follow_redirects=False)
         assert moved.status_code == 308, path
-        assert moved.headers["location"] == "/ui/", path
+        assert moved.headers["location"] == "/signup", path
+        head = client.head(path, follow_redirects=False)
+        assert head.status_code == 308, path
+        assert head.headers["location"] == "/signup", path
+    # The POST APIs stay gone; their answer points at sign-up too.
+    gone = client.post("/api/trial-request", json={})
+    assert gone.status_code == 410
+    assert gone.headers["link"] == '</signup>; rel="alternate"'
 
 
 def test_the_retired_routes_still_answer_without_an_account(client):

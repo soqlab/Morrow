@@ -3,6 +3,7 @@
 import ast
 from pathlib import Path
 import sqlite3
+import threading
 
 import pytest
 
@@ -33,10 +34,15 @@ def test_webhook_connections_release_on_success_and_error(monkeypatch, tmp_path,
         db.enable_connection_pool()
     original = db.get_connection
     held = []
+    this_thread = threading.get_ident()
 
     def tracked():
         connection = original()
-        held.append(connection)  # Retain it: garbage collection must not hide a leak.
+        # Only this test's own calls. A background thread left running by an earlier test (an audit
+        # or delivery worker) also calls db.get_connection while it is patched, and its connection
+        # is legitimately still open when we look: that made this test fail now and then.
+        if threading.get_ident() == this_thread:
+            held.append(connection)  # Retain it: garbage collection must not hide a leak.
         return connection
 
     def assert_released():

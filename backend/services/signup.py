@@ -37,6 +37,14 @@ operator rate-limit override that an operator can change under Access > Rate lim
 
 The table has no tenant column: a sign-up record belongs to the platform's abuse budget, not to an
 organization, like morrow_auth_tickets, and it lives in the same database.
+
+Owners. The account that signs up owns the organization it creates, recorded in morrow_org_owners
+(one row per organization, written once and never moved by a role change, a deactivation or an
+invitation into another organization). Ownership decides one thing today: only the owner, or a
+platform operator, may issue a recovery link for an administrator of the organization (app.py,
+POST /auth/accounts/{id}/recovery-link), because a recovery link is a way into the account. An
+organization made before owners were recorded, or by an operator, has no owner row: its admins'
+recovery links come from a platform operator.
 """
 
 from __future__ import annotations
@@ -56,6 +64,14 @@ TABLE = """
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL DEFAULT '',
         ip_hash TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL
+    )
+"""
+
+OWNERS_TABLE = """
+    CREATE TABLE IF NOT EXISTS morrow_org_owners (
+        org_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
         created_at INTEGER NOT NULL
     )
 """
@@ -89,7 +105,27 @@ def _int_env(name: str, default: int) -> int:
 def init_tables(db) -> None:
     db.execute(TABLE)
     db.execute("CREATE INDEX IF NOT EXISTS idx_morrow_signups_created ON morrow_signups (created_at)")
+    db.execute(OWNERS_TABLE)
     db.commit()
+
+
+def record_owner(db, organization_id: str, user_id: str) -> None:
+    """The account that created the organization owns it. Written once: an existing owner stays."""
+    organization_id, user_id = str(organization_id or "").strip(), str(user_id or "").strip()
+    if not organization_id or not user_id:
+        raise ValueError("an owner needs an organization and an account")
+    if owner_of(db, organization_id):
+        return
+    db.execute("INSERT INTO morrow_org_owners (org_id, user_id, created_at) VALUES (?,?,?)",
+               (organization_id, user_id, int(time.time())))
+    db.commit()
+
+
+def owner_of(db, organization_id: str) -> str:
+    """The id of the account that owns the organization, or "" when none is recorded."""
+    row = db.execute("SELECT user_id FROM morrow_org_owners WHERE org_id = ?",
+                     (str(organization_id or "").strip(),)).fetchone()
+    return str(row[0] or "") if row else ""
 
 
 def requested() -> bool:

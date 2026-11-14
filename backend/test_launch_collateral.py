@@ -16,8 +16,8 @@ CHECKER_DOCUMENTS = (
 
 #: The traditional website's pages that the instrument replaced, and where each address lands now.
 RETIRED_PAGES = {
-    "/trial": "/ui/",
-    "/trial-request": "/ui/",
+    "/trial": "/signup",
+    "/trial-request": "/signup",
     "/scanner": "/about-scanner",
     "/check": "/",
 }

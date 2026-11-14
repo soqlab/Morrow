@@ -284,7 +284,7 @@ Sign-in is passkeys only, and nobody signs up by email. An administrator creates
 hands over a single-use setup link (`POST /auth/accounts`), or invites the person into an
 organization; either way the person creates a passkey and never chooses a password.
 `/auth/register` stays admin-only. The old emailed trial request is retired: `/trial` redirects to
-the sign-in screen at `/ui/` and `POST /api/trial-request` answers 410, while requests made before
+free public sign-up with a passkey at `/signup` and `POST /api/trial-request` answers 410, while requests made before
 that stay readable in the admin portal under **Customers → Trial requests**. With
 `MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1` each organization can scan only domains it has proved it
 controls with a DNS TXT record, and IP addresses are refused.
@@ -324,7 +324,9 @@ subdomain. Every default and its setting is in
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the house style, how to add a scanner check or an
 AI adapter, and what a reviewable pull request looks like. By participating you agree to the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+[Code of Conduct](CODE_OF_CONDUCT.md). Pull requests need the author's agreement to the
+[Contributor Licence Agreement](CLA.md): you keep your copyright, and SOQLAB may also license
+Morrow under other terms.
 
 ## Licence
 

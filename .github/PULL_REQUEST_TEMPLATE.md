@@ -43,6 +43,16 @@ something, say so — an honest gap is reviewable, a silent one is not.
 - [ ] Docs updated where this invalidates them
 - [ ] No unrelated reformatting in the diff
 
+## Contributor licence agreement
+
+<!--
+Required. Pull requests are merged only from authors who agree to CLA.md: you keep the copyright
+in your contribution and grant SOQLAB a licence to it, including the right to relicense it. See
+the "Contributor licence agreement" section of CONTRIBUTING.md.
+-->
+
+- [ ] I agree to CLA.md
+
 ## Anything a reviewer should know
 
 <!--

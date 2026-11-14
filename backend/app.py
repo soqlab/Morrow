@@ -1964,13 +1964,13 @@ def public_information_page(request: Request):
 
 #: Old pages of the marketing site, retired for the instrument. Each address keeps answering, with a
 #: permanent redirect to what replaced it, so a bookmark or a link in somebody's README still lands.
-#:   /trial, /trial-request   the emailed-link account request. Accounts sign in with a passkey at
-#:                            /ui/; the request API answers 410 (routers/trial_requests.py).
+#:   /trial, /trial-request   the emailed-link account request. Sign-up is public and free now, with
+#:                            a passkey at /signup; the request API answers 410 (routers/trial_requests.py).
 #:   /scanner                 the old scanner-identity page; /about-scanner says what connects now.
 #: /check is retired in routers/public_check.py, because /check/{domain} lives there too.
 _RETIRED_PAGES = {
-    "/trial": "/ui/",
-    "/trial-request": "/ui/",
+    "/trial": "/signup",
+    "/trial-request": "/signup",
     "/scanner": "/about-scanner",
 }
 
@@ -2564,7 +2564,7 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/check/{domain}", "purpose": "the old permalink; redirects to the permanent record at /r/{domain}"},
             {"path": "/r/{domain}", "purpose": "permanent public record of a domain's post-quantum posture; server-rendered, no account"},
             {"path": "/r/{domain}/badge.svg", "purpose": "embeddable posture badge; renders from stored data and never starts a check"},
-            {"path": "/trial-request", "purpose": "retired emailed-link account request; the page redirects to passkey sign-in at /ui/ and the API answers 410"},
+            {"path": "/trial-request", "purpose": "retired emailed-link account request; the page redirects to passkey sign-up at /signup and the API answers 410"},
             {"path": "/api/public-check", "purpose": "the public checker's API; rate limited per IP, per domain and globally"},
             {"path": "/api/public/grade/{domain}", "purpose": "public quantum-readiness grade (A-F) of a public HTTPS endpoint; JSON, .txt for terminals; rate limited and cached"},
             {"path": "/api/public/badge/{domain}.svg", "purpose": "embeddable quantum-readiness grade badge"},
@@ -25457,6 +25457,7 @@ def _finish_signup(db, request: Request, user_id: str, context: Dict[str, Any], 
         codes = _recovery_codes.generate(db, user_id)
         _signup.record(db, user_id, ip)
         _signup.add_owner(org_id, user_id, full_name)
+        _signup.record_owner(db, org_id, user_id)
     except BaseException:
         _delete_new_account(db, user_id)
         raise
@@ -25896,24 +25897,90 @@ async def auth_issue_recovery_link(user_id: str, request: Request):
     recovery link (MORROW_ACCOUNT_RECOVERY_TTL_SECONDS, default 30 minutes), a newer one replaces it,
     and issuing it is journaled and written to the organization's audit log. An account that was never
     set up gets a setup link instead (POST /auth/accounts/{user_id}/setup-link).
+
+    Who may issue one. A recovery link is a way into the account, so an admin may issue one only for
+    a member who is not an admin. One for an admin, or for the organization's owner, needs the owner
+    (services/signup.py, morrow_org_owners), or a platform operator through
+    POST /platform/accounts/{user_id}/recovery-link. Nobody issues one for their own account: they
+    use a recovery code. A refusal is journaled and audited like an issue.
     """
     _require_auth_issuer_enabled()
     admin, org_id = _require_issuer_admin(request)
     if not _passkeys.available():
         raise HTTPException(404, "Recovery links need passkeys, which aren't set up on this server.")
+    caller_id = str(admin.get("sub") or "")
+
+    def refuse(user: Dict[str, Any], reason: str, detail: str) -> None:
+        _auth_journal(request, "account_recovery.refused", user=user, method="passkey", subject=user.get("email") or "",
+                      status_code=403, required=False)
+        _audit_event(request, action="auth.account_recovery.issued", resource_type="user", resource_id=user["id"],
+                     decision="deny", reason=reason, details={"issued_by": caller_id, "role": user.get("role") or ""})
+        raise HTTPException(403, detail)
 
     def work():
         with _db() as db:
             user = _issuer_get_user(db, user_id)
             if not user or user.get("org_id") != org_id or not user.get("is_active"):
                 raise HTTPException(404, "User not found")
+            if user["id"] == caller_id:
+                refuse(user, "own_account", "You can't make a recovery link for your own account. "
+                                            "Use one of your recovery codes.")
+            owner_id = _signup.owner_of(db, org_id)
+            privileged = user["id"] == owner_id or str(user.get("role") or "").strip().lower() in _RECOVERY_PRIVILEGED_ROLES
+            if privileged and (not owner_id or caller_id != owner_id):
+                refuse(user, "owner_required", "Only the organization's owner can make a recovery link for an admin. "
+                                               "If the owner can't, ask Morrow support.")
             if _account_unconfigured(db, user["id"]):
                 raise HTTPException(409, "This account was never set up. Make it a setup link instead.")
             token = _passkeys.issue_ticket(db, "recover", user_id=user["id"], email=user.get("email") or "")
         _auth_journal(request, "account_recovery.issued", user=user, method="passkey", subject=user.get("email") or "",
                       required=False)
         _audit_event(request, action="auth.account_recovery.issued", resource_type="user", resource_id=user["id"],
-                     details={"issued_by": str(admin.get("sub") or "")})
+                     details={"issued_by": caller_id, "as": "owner" if privileged else "admin"})
+        return {"user": {k: user.get(k) for k in ("id", "email", "full_name", "role", "org_id")},
+                "recovery_link": _account_link("recover", token), "expires_in": _passkeys.ticket_ttl("recover")}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+#: Roles whose recovery link only the organization's owner (or a platform operator) may issue.
+_RECOVERY_PRIVILEGED_ROLES = frozenset({"admin", "owner", "org_admin", "platform_admin"})
+
+
+@app.post("/platform/accounts/{user_id}/recovery-link")
+@limiter.limit(_RATE_AUTH)
+async def platform_issue_recovery_link(user_id: str, request: Request):
+    """A recovery link for any set-up account, issued by a platform operator (operator or owner role).
+
+    The way back in for an organization's owner, or for an admin of an organization with no recorded
+    owner. Needs a fresh MFA step-up like other destructive operator actions, and is journaled,
+    written to the organization's audit log and to the platform admin log.
+    """
+    _require_auth_issuer_enabled()
+    actor = _require_platform_admin(request, _PLATFORM_ADMIN_WRITE_ROLES)
+    _operator_auth.require_step_up(actor, "issue an account recovery link")
+    if not _passkeys.available():
+        raise HTTPException(404, "Recovery links need passkeys, which aren't set up on this server.")
+    operator_id = str(actor.get("actor_id") or "platform")[:160]
+
+    def work():
+        with _db() as db:
+            user = _issuer_get_user(db, user_id)
+            if not user or not user.get("is_active"):
+                raise HTTPException(404, "User not found")
+            if _account_unconfigured(db, user["id"]):
+                raise HTTPException(409, "This account was never set up. Make it a setup link instead.")
+            token = _passkeys.issue_ticket(db, "recover", user_id=user["id"], email=user.get("email") or "")
+        org_id = str(user.get("org_id") or "")
+        _auth_journal(request, "account_recovery.issued", user=user, method="passkey", subject=user.get("email") or "",
+                      required=False)
+        ctx = set_current_organization_id(org_id)
+        try:
+            _audit_event(request, action="auth.account_recovery.issued", resource_type="user", resource_id=user["id"],
+                         details={"issued_by": operator_id, "as": "platform_operator"},
+                         actor={"actor_id": operator_id, "actor_role": "platform_operator"})
+        finally:
+            reset_current_organization_id(ctx)
+        _record_platform_admin_event(org_id, "platform.account_recovery_issued", details={"user_id": user["id"]})
         return {"user": {k: user.get(k) for k in ("id", "email", "full_name", "role", "org_id")},
                 "recovery_link": _account_link("recover", token), "expires_in": _passkeys.ticket_ttl("recover")}
     return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)

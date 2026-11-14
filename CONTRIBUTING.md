@@ -7,6 +7,23 @@ easy to review.
 By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). To report a security
 vulnerability, follow [SECURITY.md](SECURITY.md) instead of opening an issue.
 
+## Contributor licence agreement
+
+**A pull request can be merged only if its author agrees to the [Contributor Licence
+Agreement](CLA.md).** Morrow is published under the AGPL-3.0, and SOQLAB keeps the option of also
+offering it under other terms, such as a commercial licence. The agreement gives SOQLAB a
+perpetual, royalty-free copyright and patent licence to your contribution, including the right to
+sublicense and relicense it. You keep the copyright in what you wrote.
+
+- **On your own behalf:** tick "I agree to CLA.md" in the pull request template. That is the
+  whole process; there is no bot and nothing to sign elsewhere.
+- **For your employer or another organization:** someone who can bind the organization agrees to
+  Part B of [CLA.md](CLA.md) by email to contact@soqlab.com, listing who may contribute for it;
+  each of those people also ticks the box.
+
+A pull request without the box ticked is not reviewed until it is. If you can't agree, open an
+issue describing the change instead; someone may implement it independently.
+
 ## Setup
 
 ```bash
@@ -193,6 +210,7 @@ A good pull request:
 - **Does not reformat code it is not changing.** Whitespace churn hides the real diff.
 - **Updates the docs it invalidates**, including `.env.example` if you add a setting and
   `CHANGELOG.md` under `## [Unreleased]`.
+- **Has "I agree to CLA.md" ticked** (see [Contributor licence agreement](#contributor-licence-agreement)).
 
 Small, well-explained changes get merged. Large unexplained ones tend to stall, so if you are
 planning something substantial, open an issue first and we can agree the shape before you write it.

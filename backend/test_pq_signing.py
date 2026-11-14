@@ -307,7 +307,9 @@ def test_revocation_keeps_only_what_was_recorded_before_the_compromise(signing):
     assert verdict(s, unrecorded, b"x")["valid"]          # valid while the key is trusted, though not on the record
     time.sleep(1.1)                                       # times are kept to the second
 
-    since = (datetime.now(timezone.utc) + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Well in the future: the server truncates its own clock to the second, so "now + 1 second",
+    # truncated here, could equal the server's "now" by the time the request lands, and pass.
+    since = (datetime.now(timezone.utc) + timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = s.client.post(f"/pq-signing/domains/{DOMAIN}/keys/{key.key}/revoke", headers=s.admin,
                         json={"note": "laptop stolen", "compromised_since": since})
     assert res.status_code == 400                         # in the future

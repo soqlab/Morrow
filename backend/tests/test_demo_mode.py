@@ -103,7 +103,11 @@ def _traces(path, org):
 
 def test_purge_leaves_no_trace_and_keeps_audit_log_immutable(tmp_path, monkeypatch):
     db = tmp_path / "demo.db"
-    monkeypatch.setenv("MORROW_SCANNER_DB", str(db))
+    # Point the purge at this file without moving MORROW_SCANNER_DB. db.get_connection() reads that
+    # variable on every call and builds the full schema in whatever file it names, so a background
+    # thread still running from an earlier test (a TestClient's workers) could create "assets" here
+    # between setenv and the seed below: "table assets already exists", now and then.
+    monkeypatch.setattr(dm, "_db_path", lambda: str(db))
     monkeypatch.setenv("MORROW_DATA_DIR", str(tmp_path))
     _seed_db(db)
 

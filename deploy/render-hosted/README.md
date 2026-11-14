@@ -84,7 +84,7 @@ that registers a new passkey. Organizations can also let colleagues join by work
 
 ## Customer accounts: passkeys, limited to verified domains
 
-There is no sign-up by email. The trial form at `/trial` is retired: the page redirects to `/ui/`,
+There is no sign-up by email. The trial form at `/trial` is retired: the page redirects to `/signup`,
 `POST /trial-request` and `POST /api/trial-request` answer 410 and record nothing, and
 `MORROW_SELF_SIGNUP` no longer does anything. An administrator creates an account with a setup link
 (`POST /auth/accounts`) or an invitation, and the person creates a passkey

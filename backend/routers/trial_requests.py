@@ -1,12 +1,12 @@
 """Trial requests: the retired public form, and the operator queue that still reads the old rows.
 
 Public (unauthenticated, rate limited) -- retired
-  POST /trial-request                    410 Gone: accounts sign in with a passkey at /ui/
+  POST /trial-request                    410 Gone: sign up with a passkey at /signup
   POST /api/trial-request                410 Gone, the same answer
 
   The form asked for an email address and answered by emailing a link, which is the one kind of
   sign-in Morrow no longer offers. Nothing is recorded and nothing is sent. The page addresses
-  (GET /trial, GET /trial-request) redirect to /ui/ from app.py.
+  (GET /trial, GET /trial-request) redirect to /signup from app.py.
 
 Operator (platform key / operator session, like the rest of /platform/*)
   GET    /platform/trial-requests                 the queue of past requests, pending first
@@ -38,13 +38,17 @@ WRITE = _operators.WRITE_ROLES
 #: Nothing here may be cached: a queue is operational.
 _NO_STORE = {"Cache-Control": "no-store"}
 
-#: Where a person who wants an account goes now.
+#: Where a person who wants an account goes now: public, free sign-up with a passkey.
+SIGN_UP_PATH = "/signup"
+
+#: Where a person who already has an account, or a setup link, goes.
 SIGN_IN_PATH = "/ui/"
 
 #: The whole answer of a retired public route.
 RETIRED = {
-    "detail": "Account requests by email have ended. Morrow signs you in with a passkey: "
-              "open /ui/ to sign in or to use a setup link.",
+    "detail": "Account requests by email have ended. Sign-up is free, with a passkey: "
+              "open /signup to create an organization, or /ui/ to sign in or to use a setup link.",
+    "sign_up": SIGN_UP_PATH,
     "sign_in": SIGN_IN_PATH,
     "recorded": False,
 }
@@ -74,7 +78,7 @@ def create_trial_requests_router(deps: Any) -> APIRouter:
     # ── Public: retired ──────────────────────────────────────────────────────
 
     def _gone() -> JSONResponse:
-        return JSONResponse(RETIRED, status_code=410, headers={**_NO_STORE, "Link": f'<{SIGN_IN_PATH}>; rel="alternate"'})
+        return JSONResponse(RETIRED, status_code=410, headers={**_NO_STORE, "Link": f'<{SIGN_UP_PATH}>; rel="alternate"'})
 
     @router.post("/trial-request", include_in_schema=False)
     @deps.limiter.limit(deps.public_rate)

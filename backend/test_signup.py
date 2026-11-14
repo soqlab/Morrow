@@ -349,6 +349,91 @@ def test_an_admin_issues_a_recovery_link_for_a_member_who_lost_everything(hosted
     assert mail == []
 
 
+def _join_by_invite(client, admin_headers):
+    token = invite_token(client.post("/auth/invite-links", headers=admin_headers).json()["invite_link"])
+    begin = client.post("/auth/passkey/register/begin", json={"kind": "team", "token": token})
+    joined = client.post("/auth/passkey/register/finish", json={"challenge_id": begin.json()["challenge_id"],
+                                                                "credential": SoftAuthenticator().create(begin.json()["options"]),
+                                                                "token": token})
+    assert joined.status_code == 200, joined.text
+    return joined.json()
+
+
+def _session_as(account):
+    """A fresh session for an account whose role changed: tokens carry the role they were issued with."""
+    from services import auth_issuer
+
+    import app as app_module
+
+    with app_module._db() as db:
+        user = auth_issuer.get_user_by_id(db, account["user"]["id"])
+        return {"access_token": auth_issuer.issue_access_token(user), "user": user}
+
+
+def test_only_the_owner_issues_recovery_links_for_admins(hosted, mail):
+    """A recovery link is a way into an account. An admin who isn't the owner may issue one only for a
+    member who isn't an admin; one for an admin or the owner needs the owner or a platform operator."""
+    from test_invite_landing import op
+
+    client, app_module = hosted
+    owner, _ = signed_up(client, organization="Acme")
+    owner_headers = bearer(owner["access_token"])
+    owner_id = owner["user"]["id"]
+    second = _join_by_invite(client, owner_headers)
+    third = _join_by_invite(client, owner_headers)
+    viewer = _join_by_invite(client, owner_headers)
+    for account in (second, third):
+        assert client.put(f"/auth/users/{account['user']['id']}/role", headers=owner_headers,
+                          json={"role": "admin"}).status_code == 200
+    second_headers = bearer(_session_as(second)["access_token"])
+
+    def issue(headers, account_id):
+        return client.post(f"/auth/accounts/{account_id}/recovery-link", headers=headers)
+
+    # Another admin: not for the owner, not for a fellow admin, not for themselves.
+    for target in (owner_id, third["user"]["id"], second["user"]["id"]):
+        refused = issue(second_headers, target)
+        assert refused.status_code == 403, (target, refused.text)
+        assert "recovery_link" not in refused.text
+    # ... but still for a member who isn't an admin.
+    assert issue(second_headers, viewer["user"]["id"]).status_code == 200
+    # The owner may issue one for an admin and for a member, and not for themselves.
+    assert issue(owner_headers, third["user"]["id"]).status_code == 200
+    assert issue(owner_headers, viewer["user"]["id"]).status_code == 200
+    assert issue(owner_headers, owner_id).status_code == 403
+    # Refusals and issues are both journaled.
+    assert len(events("account_recovery.refused")) == 4
+    assert len(events("account_recovery.issued")) == 3
+
+    # The owner's way back in is a platform operator, who needs an operator role.
+    assert client.post(f"/platform/accounts/{owner_id}/recovery-link", headers=op("auditor")).status_code == 403
+    assert client.post(f"/platform/accounts/{owner_id}/recovery-link").status_code in (401, 403)
+    rescued = client.post(f"/platform/accounts/{owner_id}/recovery-link", headers=op("operator"))
+    assert rescued.status_code == 200, rescued.text
+    match = re.fullmatch(r"https://app\.example/reset-password#recover=([A-Za-z0-9_-]+)", rescued.json()["recovery_link"])
+    assert match
+    res = register(client, SoftAuthenticator(), "recover", match.group(1))
+    assert res.status_code == 200 and res.json()["user"]["id"] == owner_id
+    assert len(events("account_recovery.issued")) == 4
+    assert client.post("/platform/accounts/nobody/recovery-link", headers=op("operator")).status_code == 404
+    assert mail == []
+
+
+def test_without_a_recorded_owner_admin_recovery_links_come_from_an_operator(hosted, mail):
+    """An organization made before owners were recorded has no owner: no admin may issue a link for
+    an admin, the earliest account included."""
+    client, app_module = hosted
+    owner, _ = signed_up(client, organization="Acme")
+    owner_headers = bearer(owner["access_token"])
+    second = _join_by_invite(client, owner_headers)
+    assert client.put(f"/auth/users/{second['user']['id']}/role", headers=owner_headers,
+                      json={"role": "admin"}).status_code == 200
+    with app_module._db() as db:
+        db.execute("DELETE FROM morrow_org_owners")
+        db.commit()
+    assert client.post(f"/auth/accounts/{second['user']['id']}/recovery-link", headers=owner_headers).status_code == 403
+
+
 # ── with the flag off, self-hosters keep the emailed flows ────────────────────────────────────
 
 def test_flag_off_keeps_emailed_recovery_and_closes_sign_up(api, mail, monkeypatch):

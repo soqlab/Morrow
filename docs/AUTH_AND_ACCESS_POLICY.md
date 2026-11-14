@@ -131,8 +131,16 @@ identity provider; none of this changes that check.
   that registers a new passkey, signs the account out everywhere else and can remove its other
   passkeys. Journaled `account_recovery.issued`, audited `auth.account_recovery.issued`. An account
   that was never set up gets a setup link instead.
-- `morrow_signups`, like the other auth tables, has no tenant column and lives in the main database,
-  so it is not in the Postgres RLS plan. No other table was added.
+  A recovery link is a way into the account, so an admin may issue one only for a member who is not
+  an admin. One for an admin, or for the organization's owner, needs the owner: the account that
+  signed up and created the organization, recorded once in `morrow_org_owners` and not moved by a
+  role change or a deactivation. Nobody issues one for their own account (that is what recovery
+  codes are for). A refusal is journaled `account_recovery.refused` and audited with decision
+  `deny`. The owner's own way back in, and an admin's in an organization with no recorded owner
+  (made by an operator, or before owners were recorded), is a platform operator:
+  `POST /platform/accounts/{id}/recovery-link` (operator role, MFA step-up, platform admin log).
+- `morrow_signups` and `morrow_org_owners`, like the other auth tables, have no tenant column and
+  live in the main database, so they are not in the Postgres RLS plan.
 
 ## Domain team sign-in
 
