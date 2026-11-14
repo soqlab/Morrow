@@ -8,6 +8,8 @@
                                           each full stored result
   GET /api/public/history/{domain}.atom   Atom feed, one entry per grade change
   GET /api/public/basis                   the decrypt years and their cited source
+  GET /api/public/shelf-life              how long data must stay private, by category and jurisdiction
+                                          (Shelf-Life v0.1, CC BY 4.0; services/shelf_life.py)
   GET /api/public/exposure/{domain}       the outside services it depends on, worst first; ?fresh=1
   GET /api/public/build                   the running commit (services/build_info.py)
   GET /api/public/deploys                 the hash-chained deploy log (services/deploy_log.py)
@@ -224,6 +226,15 @@ def create_public_grade_router(deps: Any) -> APIRouter:
         from services import decrypt_window
 
         return JSONResponse(decrypt_window.basis(), headers={"Cache-Control": "public, max-age=3600"})
+
+    @router.get("/shelf-life")
+    async def public_shelf_life():
+        from services import shelf_life
+
+        body = await run_in_threadpool(shelf_life.public_payload)
+        # A published edition never changes; a refused file is answered briefly so a fix shows soon.
+        cache = "public, max-age=3600" if body.get("available") else "public, max-age=300"
+        return JSONResponse(body, headers={"Cache-Control": cache})
 
     @router.get("/build")
     async def public_build():

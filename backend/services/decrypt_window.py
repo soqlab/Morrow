@@ -125,8 +125,9 @@ CRQC_ESTIMATE = {
     "high_label": "a cautious outer bound Morrow uses for the dial, not a survey answer",
     "is_estimate": True,
 }
-#: How long a secret can be asked to last, in years. Past this the answer no longer changes.
-SHELF_YEARS_MAX = 75
+#: How long a secret can be asked to last, in years: the longest value in the Shelf-Life catalogue
+#: (services/shelf_life.YEARS_MAX; genetic and US health records reach 130).
+SHELF_YEARS_MAX = 130
 MIGRATION_YEARS_MAX = 20
 
 

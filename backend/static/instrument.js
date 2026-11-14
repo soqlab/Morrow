@@ -675,28 +675,102 @@
     out.mosca = x + y > z - year;
     return out;
   }
+  /* The example buttons stand in when the Shelf-Life catalogue is not served (or failed its checksum). */
   var SHELF_EXAMPLES = [[1, "sessions, one-time codes"], [7, "financial records"], [10, "customer data"], [25, "health records"], [50, "state secrets"]];
+  var SHELF_MAX = 130;
   function yrs(n) { return n + " year" + (n === 1 ? "" : "s"); }
+  /* Shelf-Life (services/shelf_life.py, CC BY 4.0, SOQLAB and contributors): how long a kind of data
+     must stay private, by jurisdiction, with the legal basis. The mapping below mirrors the module's. */
+  var shelfP = null;
+  function shelfLife() {
+    if (!shelfP) shelfP = getJSON("/api/public/shelf-life").then(function (c) { return c && c.available && c.entries ? c : null; }).catch(function () { return null; });
+    return shelfP;
+  }
+  function shelfIndex(c) {
+    if (c._ix) return c._ix;
+    var ix = { e: {}, cat: {}, jur: {} };
+    c.entries.forEach(function (e) { ix.e[e.id] = e; });
+    c.categories.forEach(function (k) { ix.cat[k.id] = k; });
+    c.jurisdictions.forEach(function (j) { ix.jur[j.code] = j; });
+    c._ix = ix; return ix;
+  }
+  /* ?data=health or ?data=health-records -> the category id (shelf_life.resolve_category). */
+  function shelfCategory(c, v) {
+    v = String(v || "").trim().toLowerCase(); if (!v) return null;
+    for (var i = 0; i < c.categories.length; i++) if (c.categories[i].id === v || c.categories[i].short === v) return c.categories[i].id;
+    return null;
+  }
+  /* The jurisdiction, then the neutral entry, then the law containing it, then the list (shelf_life.pick). */
+  function shelfPick(c, cat, jur) {
+    var ix = shelfIndex(c), order = [jur, "INT", (c.parents || {})[jur]].concat(c.fallback_order || []);
+    for (var i = 0; i < order.length; i++) if (order[i] && ix.e[cat + "/" + order[i]]) return { e: ix.e[cat + "/" + order[i]], k: ix.cat[cat], j: ix.jur[order[i]], req: jur, code: order[i] };
+    return null;
+  }
+  /* A country-code TLD that makes the jurisdiction obvious (shelf_life.jurisdiction_for_domain). */
+  function tldJur(c, d) { var t = String(d || "").toLowerCase().replace(/\.$/, "").split(".").pop(); return (c && c.tld_jurisdictions || {})[t] || null; }
+  function choosableJur(c, code) { var j = code && shelfIndex(c).jur[String(code).toUpperCase()]; return j && j.choosable ? j.code : null; }
+  function defaultJur(c, d) {
+    var nav = (navigator.language || "").split("-")[1];
+    return choosableJur(c, param("jur")) || tldJur(c, d) || choosableJur(c, LS.get("morrow_jur", "")) || choosableJur(c, nav) || "EU";
+  }
+  /* The dial's stops: every year to 40, every 2 to 80, every 5 to 130, plus every catalogue value and the URL's. */
+  function keepStops(c, extra) {
+    var s = {}, i;
+    for (i = 0; i <= 40; i++) s[i] = 1;
+    for (i = 42; i <= 80; i += 2) s[i] = 1;
+    for (i = 85; i <= SHELF_MAX; i += 5) s[i] = 1;
+    if (c) c.entries.forEach(function (e) { [e.min, e.max, e.years].forEach(function (v) { if (v != null && v >= 0 && v <= SHELF_MAX) s[v] = 1; }); });
+    (extra || []).forEach(function (v) { if (v != null && !isNaN(v)) s[Math.max(0, Math.min(SHELF_MAX, v))] = 1; });
+    return Object.keys(s).map(Number).sort(function (a, b) { return a - b; });
+  }
+  function shelfLabel(sel) { return sel.k.label; }
+  function lowerFirst(s) { return /^[A-Z][a-z]/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s; }
+  function upperFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  /* "UK health records need to stay private for at least 50 years, up to 100 (Shelf-Life v0.1)." */
+  function shelfClause(sel, edition) {
+    var e = sel.e, name = (sel.j.adjective ? sel.j.adjective + " " + lowerFirst(sel.k.label) : sel.k.label);
+    var span = e.min === e.max && !e.open_ended ? yrs(e.max) : "at least " + yrs(e.min) + (e.max > e.min ? ", up to " + e.max + (e.open_ended ? " or more" : "") : " or more");
+    return upperFirst(name) + (sel.k.plural ? " need" : " needs") + " to stay private for " + span + " (Shelf-Life v" + edition + ").";
+  }
+  function shelfBasis(e) {
+    var w = e.basis === "legal_minimum" ? "Set by law" : e.basis === "sector_guidance" ? "From official guidance" : e.basis === "legal_retention" ? "Set by a legal retention period" : "Reasoned estimate";
+    return w + ", " + e.confidence + " confidence" + (e.basis === "reasoned_estimate" && e.confidence === "low" ? ": move the dial if you know your data better." : ".");
+  }
   function harvestState(est) {
     var year = new Date().getUTCFullYear();
-    var keep = parseInt(param("keep") || LS.get("morrow_keep", "10"), 10);
+    var kp = parseInt(param("keep") || "", 10);
+    var keep = isNaN(kp) ? parseInt(LS.get("morrow_keep", "10"), 10) : kp;
     if (isNaN(keep)) keep = 10;
     var q = parseInt(param("qday") || "", 10);
     if (isNaN(q)) q = est.low;
     var sw = parseInt(param("switch") || "1", 10);
     if (isNaN(sw)) sw = 1;
-    return { year: year, keep: Math.max(0, Math.min(50, keep)), qday: Math.max(est.low, Math.min(est.high, q)), sw: Math.max(0, Math.min(10, sw)) };
+    return { year: year, keep: Math.max(0, Math.min(SHELF_MAX, keep)), keepFromUrl: !isNaN(kp), qday: Math.max(est.low, Math.min(est.high, q)), sw: Math.max(0, Math.min(10, sw)) };
   }
-  function harvestSentence(d, r, h, est) {
+  /* sel: the Shelf-Life entry the dial is set to, or null when the person set their own figure. */
+  function harvestSentence(d, r, h, est, sel, edition) {
     var kx = r.key_exchange || {}, group = kx.group || "a classical group";
-    if (!h.harvestable) return byDepth({
+    var clause = sel ? shelfClause(sel, edition) + " " : "";
+    if (!h.harvestable) return clause + byDepth({
       plain: "Traffic captured today can't be read later: " + d + " uses a post-quantum key exchange. Data that must stay private until " + h.secretUntil + " stays private on this connection.",
       standard: "Traffic captured today stays unreadable: " + d + " negotiated " + group + ", so a recording kept until " + h.secretUntil + " or beyond cannot be decrypted with a quantum computer.",
       expert: "Not harvestable: " + group + " includes ML-KEM (FIPS 203). Mosca's z does not bound x for this handshake; x = " + h.x + " (until " + h.secretUntil + ") is safe against Shor."
     });
-    if (h.readableFrom === h.year) return "Nothing is encrypted: traffic captured today can be read today, and your data needs to stay private until " + h.secretUntil + ".";
-    var when = h.z === est.low ? "around " + h.z : h.z === est.likely ? "around " + h.z + " (the likely estimate)" : "around " + h.z;
+    if (h.readableFrom === h.year) return clause + "Nothing is encrypted: traffic captured today can be read today, and your data needs to stay private until " + h.secretUntil + ".";
+    var when = h.z === est.likely ? "around " + h.z + " (the likely estimate)" : "around " + h.z;
     var tail = h.exposed ? " — " + yrs(h.short) + " short." : ", so it makes it, with " + yrs(h.margin) + " to spare.";
+    if (sel) {
+      var lowShort = Math.max(0, h.year + sel.e.min - h.z);
+      var early = lowShort === h.short ? yrs(h.short) : lowShort === 0 ? "up to " + yrs(h.short) : lowShort + " to " + yrs(h.short);
+      var selTail = h.exposed ? " — that's " + early + " too early." : ", so it makes it, with " + yrs(h.margin) + " to spare.";
+      var e = sel.e;
+      return byDepth({
+        plain: clause + "Traffic captured today could be read " + when + selTail,
+        standard: clause + "Traffic to " + d + " captured today could be read " + when + ", once a quantum computer breaks " + group + selTail,
+        expert: "Shelf-Life v" + edition + " " + e.id + ": " + e.min + "–" + e.max + (e.open_ended ? "+" : "") + " y (" + e.basis + ", " + e.confidence + "); x = max. Mosca: x + y " + (h.mosca ? ">" : "≤") + " z with x = " + h.x + ", y = " + h.y + ", z = " + (h.z - h.year) +
+          " (CRQC " + h.z + "; " + group + " is classical). Today's traffic: " + (h.exposed ? early + " short" : yrs(h.margin) + " spare") + ". Data sent until " + (h.year + h.y) + " must last until " + h.lastUntil + ": " + (h.shortAfter ? yrs(h.shortAfter) + " short." : "inside the window.")
+      });
+    }
     return byDepth({
       plain: "Traffic captured today could be read " + when + ". Your data needs to stay private until " + h.secretUntil + tail,
       standard: "Traffic to " + d + " captured today could be read " + when + ", once a quantum computer breaks " + group + ". Data that must stay private for " + yrs(h.x) + " has to last until " + h.secretUntil + tail,
@@ -704,12 +778,19 @@
         (h.exposed ? yrs(h.short) + " short" : yrs(h.margin) + " spare") + ". Data sent until " + (h.year + h.y) + ", when the switch is done, must last until " + h.lastUntil + ": " + (h.shortAfter ? yrs(h.shortAfter) + " short." : "inside the window.")
     });
   }
-  function harvestPanelHtml(est) {
-    var examples = SHELF_EXAMPLES.map(function (e) { return '<button type="button" class="i-btn hv-ex" data-keep="' + e[0] + '">' + e[0] + " y: " + esc(e[1]) + "</button>"; }).join("");
+  function harvestPanelHtml(est, cat) {
+    var pick = "";
+    if (cat) {
+      pick = '<div class="hv-pick"><select id="hv-data" class="i-btn" aria-label="What kind of data"><option value="">Kind of data…</option>' +
+        cat.categories.map(function (k) { return '<option value="' + esc(k.id) + '">' + esc(k.label) + "</option>"; }).join("") + "</select>" +
+        '<select id="hv-jur" class="i-btn" aria-label="Whose law">' + cat.jurisdictions.filter(function (j) { return j.choosable; }).map(function (j) { return '<option value="' + esc(j.code) + '">' + esc(j.short) + "</option>"; }).join("") + "</select></div>" +
+        '<p class="i-fine hv-cat" id="hv-cat"></p>';
+    } else if (depth !== "plain") {
+      pick = '<div class="i-row hv-exs" aria-label="Examples">' + SHELF_EXAMPLES.map(function (e) { return '<button type="button" class="i-btn hv-ex" data-keep="' + e[0] + '">' + e[0] + " y: " + esc(e[1]) + "</button>"; }).join("") + "</div>";
+    }
     return panel("", "Harvest clock", '<p class="i-big hv-say" id="hv-say" aria-live="polite"></p>' +
       '<div class="hv-dials">' +
-      '<div class="hv-dial"><label for="hv-keep">How long the data must stay private</label><input type="range" id="hv-keep" min="0" max="50" step="1"><output id="hv-keep-o" for="hv-keep"></output>' +
-      (depth === "plain" ? "" : '<div class="i-row hv-exs" aria-label="Examples">' + examples + "</div>") + "</div>" +
+      '<div class="hv-dial"><label for="hv-keep">How long the data must stay private</label><input type="range" id="hv-keep" min="0" max="' + SHELF_MAX + '" step="1"><output id="hv-keep-o" for="hv-keep"></output>' + pick + "</div>" +
       '<div class="hv-dial"><label for="hv-q">When a quantum computer can break it (estimate)</label><input type="range" id="hv-q" min="' + est.low + '" max="' + est.high + '" step="1" list="hv-q-marks"><output id="hv-q-o" for="hv-q"></output>' +
       '<datalist id="hv-q-marks"><option value="' + est.low + '" label="low"></option><option value="' + est.likely + '" label="likely"></option><option value="' + est.high + '" label="high"></option></datalist></div>' +
       (depth === "expert" ? '<div class="hv-dial"><label for="hv-sw">Years to finish switching (y)</label><input type="range" id="hv-sw" min="0" max="10" step="1"><output id="hv-sw-o" for="hv-sw"></output></div>' : "") +
@@ -717,22 +798,54 @@
       '<div class="hv-line" id="hv-line" aria-hidden="true"><i class="hv-band" id="hv-band"></i><i class="hv-gap" id="hv-gap"></i><i class="hv-mark hv-z" id="hv-z"><b></b></i><i class="hv-mark hv-u" id="hv-u"><b></b></i><span class="hv-a0" id="hv-a0"></span><span class="hv-a1" id="hv-a1"></span></div>' +
       '<p class="i-fine" id="hv-src"></p>', { ch: "conn", id: "hv" });
   }
-  function bindHarvest(d, r, est, sourceUrl) {
+  function bindHarvest(d, r, est, sourceUrl, cat) {
     var box = $("#hv"); if (!box) return;
     var st = harvestState(est), ex = r.exposure || {}, kx = r.key_exchange || {};
     var tls = !!(r.tls && r.tls.negotiated), pq = !!kx.post_quantum;
     if (!tls && ex.recorded_traffic_at_risk === false) tls = true;
     var keep = $("#hv-keep", box), q = $("#hv-q", box), sw = $("#hv-sw", box);
-    keep.value = st.keep; q.value = st.qday; if (sw) sw.value = st.sw;
+    var dataSel = $("#hv-data", box), jurSel = $("#hv-jur", box), edition = cat ? cat.edition : "";
+    var tld = cat ? tldJur(cat, d) : null;
+    // The kind of data: from ?data= (with ?jur=, else the domain's TLD, else this device's choice).
+    var sel = null, startYears = st.keep;
+    if (cat) {
+      jurSel.value = defaultJur(cat, d);
+      var cid = shelfCategory(cat, param("data"));
+      if (cid) { sel = shelfPick(cat, cid, jurSel.value); dataSel.value = cid; if (!st.keepFromUrl) startYears = sel.e.years; }
+    }
+    var stops = keepStops(cat, [st.keep, startYears]);
+    keep.max = String(stops.length - 1);
+    function toIdx(y) { var b = 0; for (var i = 0; i < stops.length; i++) if (Math.abs(stops[i] - y) < Math.abs(stops[b] - y)) b = i; return b; }
+    function years() { return stops[+keep.value] || 0; }
+    function inRange(s, x) { return s && x >= s.e.min && (s.e.open_ended || x <= s.e.max); }
+    keep.value = String(toIdx(startYears)); q.value = st.qday; if (sw) sw.value = st.sw;
+    if (sel && !inRange(sel, years())) { sel = null; dataSel.value = ""; }
     // The quantum year matters only to a classical exchange.
     q.disabled = pq || !tls;
     function place(el, yr, lo, hi) { var f = Math.max(0, Math.min(1, (yr - lo) / (hi - lo))); el.style.left = (f * 100).toFixed(2) + "%"; el.classList.toggle("flip", f > 0.55); }
+    function paintCat() {
+      var out = $("#hv-cat", box); if (!out) return;
+      if (!sel) { out.textContent = "Pick a kind of data to set the dial from Shelf-Life v" + edition + ", or set your own figure."; return; }
+      var e = sel.e, place_ = sel.code === "INT" ? "" : " (" + sel.j.short + ")";
+      var label = esc(shelfLabel(sel) + place_);
+      var fall = sel.code !== sel.req ? " Shelf-Life v" + esc(edition) + " has no " + esc(shelfIndex(cat).jur[sel.req].short) + " entry for " + esc(lowerFirst(sel.k.label)) + "; this is the " + (sel.code === "INT" ? "jurisdiction-neutral" : esc(sel.j.short)) + " one." : "";
+      var srcLink = '<a href="' + esc(cat.attribution.source_url) + '" rel="noopener">Shelf-Life v' + esc(edition) + "</a>";
+      var range = e.min === e.max ? yrs(e.max) : e.min + " to " + e.max + (e.open_ended ? "+" : "") + " years";
+      out.innerHTML = byDepth({
+        plain: label + ": at least " + esc(yrs(e.min)) + "." + fall,
+        standard: label + ": " + esc(range) + "; the dial uses " + esc(yrs(e.years)) + ". " + esc(shelfBasis(e)) + fall + " " + srcLink + ".",
+        expert: label + ": " + esc(range) + "; the dial uses " + esc(yrs(e.years)) + " (" + esc(e.id) + ", basis " + esc(e.basis) + (e.open_ended ? ", open-ended: " + e.max + " is a floor" : "") + "). " +
+          esc(shelfBasis(e)) + fall + (e.citations.length ? " Law: " + e.citations.map(function (c) { return '<a href="' + esc(c.url) + '" rel="noopener">' + esc(c.instrument + (c.provision ? ", " + c.provision : "")) + "</a>"; }).join("; ") + "." : "") +
+          " " + srcLink + ", " + esc(cat.attribution.licence) + ". Not legal advice."
+      });
+    }
     function paint() {
-      var x = +keep.value, z = +q.value, y = sw ? +sw.value : st.sw;
+      var x = years(), z = +q.value, y = sw ? +sw.value : st.sw;
       var h = harvestClock(tls, pq, x, y, z, st.year);
-      $("#hv-say", box).textContent = harvestSentence(d, r, h, est);
+      $("#hv-say", box).textContent = harvestSentence(d, r, h, est, inRange(sel, x) ? sel : null, edition);
       box.setAttribute("data-exposed", String(!!h.exposed));
       $("#hv-keep-o", box).textContent = yrs(x) + ", until " + h.secretUntil;
+      keep.setAttribute("aria-valuetext", yrs(x) + ", until " + h.secretUntil);
       $("#hv-q-o", box).textContent = pq ? "no effect on " + (kx.group || "this exchange") : z + (z === est.low ? ": low, " + est.low_label : z === est.likely ? ": likely, " + est.likely_label : z === est.high ? ": high, " + est.high_label : "");
       if (sw) $("#hv-sw-o", box).textContent = yrs(y) + ", done in " + (st.year + y);
       var lo = st.year, hi = Math.max(est.high, h.secretUntil + (depth === "expert" ? y : 0)) + 2;
@@ -745,18 +858,34 @@
       gap.hidden = !h.exposed || h.readableFrom == null;
       if (!gap.hidden) { place(gap, h.readableFrom, lo, hi); gap.style.width = ((h.secretUntil - h.readableFrom) / (hi - lo) * 100).toFixed(2) + "%"; }
       $("#hv-a0", box).textContent = String(lo); $("#hv-a1", box).textContent = String(hi);
+      paintCat();
     }
     function keepUrl() {
-      LS.set("morrow_keep", keep.value);
-      setParam("keep", keep.value === "10" ? null : keep.value);
+      var x = years();
+      LS.set("morrow_keep", String(x));
+      setParam("keep", sel ? (x === sel.e.years ? null : x) : (x === 10 ? null : x));
+      setParam("data", sel ? sel.k.short : null);
+      setParam("jur", sel && sel.req !== tld ? sel.req : null);
       setParam("qday", +q.value === est.low ? null : q.value);
       if (sw) setParam("switch", sw.value === "1" ? null : sw.value);
     }
-    [keep, q, sw].forEach(function (el) { if (!el) return; el.addEventListener("input", paint); el.addEventListener("change", keepUrl); });
-    $$(".hv-ex", box).forEach(function (b) { b.addEventListener("click", function () { keep.value = b.getAttribute("data-keep"); paint(); keepUrl(); }); });
+    // Moving the dial out of the entry's range means the person has their own figure.
+    keep.addEventListener("input", function () { if (sel && !inRange(sel, years())) { sel = null; dataSel.value = ""; } paint(); });
+    [q, sw].forEach(function (el) { if (el) el.addEventListener("input", paint); });
+    [keep, q, sw].forEach(function (el) { if (el) el.addEventListener("change", keepUrl); });
+    function choose() {
+      sel = dataSel.value ? shelfPick(cat, dataSel.value, jurSel.value) : null;
+      if (sel) keep.value = String(toIdx(sel.e.years));
+      paint(); keepUrl();
+    }
+    if (dataSel) dataSel.addEventListener("change", choose);
+    if (jurSel) jurSel.addEventListener("change", function () { LS.set("morrow_jur", jurSel.value); choose(); });
+    $$(".hv-ex", box).forEach(function (b) { b.addEventListener("click", function () { keep.value = String(toIdx(+b.getAttribute("data-keep"))); paint(); keepUrl(); }); });
     $("#hv-src", box).innerHTML = (pq ? "Read from this check's key exchange, " + esc(kx.group || "") + ". " : tls ? "Read from this check's key exchange, " + esc(kx.group || "not observed, so treated as classical") + ". " : "") +
       "The quantum year is an estimate, not a fact: " + esc(est.low) + " (low) to " + esc(est.likely) + " (likely) are from the " +
-      '<a href="' + esc(sourceUrl) + '" rel="noopener">Global Risk Institute expert survey</a>; ' + esc(est.high) + " (high) is Morrow's outer bound. Your choices stay in the address and on this device.";
+      '<a href="' + esc(sourceUrl) + '" rel="noopener">Global Risk Institute expert survey</a>; ' + esc(est.high) + " (high) is Morrow's outer bound." +
+      (cat ? ' How long data must stay private: <a href="' + esc(cat.attribution.source_url) + '" rel="noopener">Shelf-Life v' + esc(edition) + "</a> by " + esc(cat.attribution.author) + ' (<a href="' + esc(cat.attribution.licence_url) + '" rel="noopener">' + esc(cat.attribution.licence) + "</a>), unchanged; not legal advice." : "") +
+      " Your choices stay in the address and on this device.";
     paint();
   }
 
@@ -906,12 +1035,13 @@
       $("#d-body").innerHTML = gradeBlock + '<div id="hv-wrap"></div>' + what + '<div id="w-wrap"></div>' + outside + evidence;
       paintTp();
       if (window.MorrowWatch) window.MorrowWatch.domain(d, latest || r);
-      basis().then(function (b) {
+      Promise.all([basis(), shelfLife()]).then(function (got) {
+        var b = got[0], shelf = got[1];
         var wrap = $("#hv-wrap"); if (!wrap || current !== r) return;
         var est = (b && b.crqc_estimate) || { low: ex.decrypt_year_low || 2035, likely: ex.decrypt_year_high || 2040, high: (ex.decrypt_year_high || 2040) + 5,
           low_label: "quite possible", likely_label: "likely", high_label: "Morrow's outer bound" };
-        wrap.innerHTML = harvestPanelHtml(est);
-        bindHarvest(d, r, est, (b && b.source_url) || ex.source_url || "");
+        wrap.innerHTML = harvestPanelHtml(est, shelf);
+        bindHarvest(d, r, est, (b && b.source_url) || ex.source_url || "", shelf);
       });
       $$("[data-copy]").forEach(function (b) { b.addEventListener("click", function () { copy(fixes[+b.getAttribute("data-copy")].snippet, b); }); });
       $$("[data-copy-el]").forEach(function (b) { b.addEventListener("click", function () { copy($("#" + b.getAttribute("data-copy-el")).textContent, b); }); });

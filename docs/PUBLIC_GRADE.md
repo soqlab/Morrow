@@ -113,6 +113,33 @@ prediction, and the `basis` string says so. When a new edition is published, upd
 When key exchange is post-quantum, `recorded_traffic_at_risk` is false, both years are null, and
 the source is NIST FIPS 203.
 
+### How long the data must stay private: Shelf-Life
+
+The harvest clock on `/<domain>` also needs the other side of Mosca's inequality: how long the
+data sent today has to stay secret. That comes from **Shelf-Life v0.1**
+(<https://github.com/soqlab/shelf-life>, *Shelf-Life: confidentiality lifetimes of data
+categories*, SOQLAB and contributors, CC BY 4.0): 51 entries, 13 data categories, the EU, UK, US,
+Germany, Canada, Australia and one jurisdiction-neutral entry, each with a range, its basis
+(`legal_minimum`, `legal_retention`, `sector_guidance` or `reasoned_estimate`), a confidence and
+legal citations. It is not legal advice.
+
+- The file is vendored unchanged in `backend/data/shelf-life/` (with its `.sha256` and a `NOTICE`),
+  so it works offline. `.gitattributes` keeps its bytes exact. `services/shelf_life.py` checks the
+  SHA-256 against both the published `.sha256` file and a value pinned in code before using it; a
+  file that does not match is logged and not used, and the clock falls back to its example buttons.
+- `GET /api/public/shelf-life` serves it trimmed for the page (categories, jurisdictions, entries
+  with `min`, `max`, `years`, `basis`, `confidence` and verified citation links, the TLD table,
+  attribution), `Cache-Control: public, max-age=3600` (300 when the file was refused, with
+  `available: false` and the reason).
+- The clock's picker sets the dial to an entry's `max` (the conservative end; `value` if an entry
+  has one) and shows the range. The jurisdiction defaults from an obvious country-code TLD (`.uk`
+  UK, `.de` Germany, EU member TLDs and `.eu` EU, `.ca`, `.au`, `.us`/`.gov`/`.mil`), otherwise the
+  person's last choice on this device. A category with no entry for that jurisdiction uses the
+  jurisdiction-neutral entry, then the law containing it (Germany to EU), then the first of EU, US,
+  UK, Germany, Canada, Australia, and says so. Links: `?data=health&jur=GB` (`data` is a category id
+  or its first word), together with `?keep=`, `?qday=` and `?switch=`. The dial goes to 130 years,
+  every year to 40, every two to 80, every five after, plus every catalogue value.
+
 ## Fixes
 
 Each fix has the fields `{id, title, applies_to, snippet, notes, requires}`.
@@ -255,6 +282,7 @@ Also under `/api/public`, also unauthenticated, GET only, same CORS policy. Test
 | Route | What it returns |
 |---|---|
 | `GET /basis` | The decrypt years and their source, from `services/decrypt_window.py`: `{decrypt_year_low, decrypt_year_high, source_label, source_url, basis, pq_basis, pq_source_url}`. The public grade's `exposure` and the console's per-endpoint `decrypt_window` are built from the same module, so they never quote different dates. |
+| `GET /shelf-life` | Shelf-Life v0.1, how long each kind of data must stay private by jurisdiction, trimmed for the harvest clock (see "How long the data must stay private" above). CC BY 4.0, SOQLAB and contributors. |
 | `GET /build` | `{commit, commit_short, source, repository, commit_url, started_at, rubric_version, python}`. `commit` comes from the first set variable of `MORROW_GIT_COMMIT`, `RENDER_GIT_COMMIT`, `SOURCE_COMMIT`, `GIT_COMMIT` and must match `^[0-9a-f]{7,40}$`; otherwise it is `null` (and `source` names nothing). It is never guessed. |
 | `GET /deploys?limit=50` | The deploy transparency log, newest first: `{entries: [{seq, commit, first_seen, prev_hash, entry_hash}], head_hash, chain_ok, count, genesis_hash, hash_rule}`. `chain_ok` is computed over every row on each request. |
 | `GET /manifest` | The page file list (below). |

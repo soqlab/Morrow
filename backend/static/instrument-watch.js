@@ -310,7 +310,10 @@
         '<div class="span-6">' + X.panel("", "Make it stop", stop, { ch: "tools" }) + "</div>" +
         '<div class="span-6">' + X.panel("", "What it sends", what + (plain ? "" : '<p class="i-fine">' + esc(f.stored) + "</p>"), { ch: "conn" }) + "</div>" +
         '<div class="span-6">' + X.panel("", "How often", oft, { ch: "league" }) + "</div>" +
-        (plain ? "" : '<div class="span-6">' + X.panel("", "Never", never + (expert ? '<p class="i-fine">The guard is services/public_grade.resolve_pinned; the code is <a href="https://github.com/soqlab/Morrow" rel="noopener">public</a>, and <a href="/trust">/trust</a> shows which commit runs here.</p>' : ""), { ch: "ref" }) + "</div>") + "</div>";
+        (plain ? "" : '<div class="span-6">' + X.panel("", "Never", never + (expert ? '<p class="i-fine">The guard is services/public_grade.resolve_pinned; the code is <a href="https://github.com/soqlab/Morrow" rel="noopener">public</a>, and <a href="/trust">/trust</a> shows which commit runs here.</p>' : ""), { ch: "ref" }) + "</div>") +
+        '<div class="span-12">' + X.panel("", "Where the numbers come from", "<ul>" + (f.sources || []).map(function (s) {
+          return '<li><a href="' + esc(s.url) + '" rel="noopener">' + esc(s.name) + "</a>: " + esc(s.used_for) + "." + (plain ? "" : " " + esc(s.note)) + "</li>";
+        }).join("") + "</ul>", { ch: "ref", id: "as-sources" }) + "</div></div>";
     }).catch(function (e) { document.getElementById("as-body").innerHTML = '<p class="i-status" data-tone="bad">' + esc(e.message) + "</p>"; });
   }
 

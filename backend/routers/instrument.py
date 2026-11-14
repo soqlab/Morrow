@@ -360,7 +360,10 @@ def create_instrument_router(deps: Any) -> APIRouter:
                 + "".join(f"<li>{_e(n)}</li>" for n in f["never"]) + "</ul>"
                 "<h2>Your own result</h2><p>Open <code>/your-domain.com</code> on this server, for example "
                 f"<a href=\"/plain/example.com\">/plain/example.com</a>.</p><h2>Make it stop</h2><p>{_e(f['opt_out']['how'])} "
-                f"<a href=\"{_e(f['opt_out']['page'])}\">Opt a domain out</a>.</p><p>{_e(f['stored'])}</p>")
+                f"<a href=\"{_e(f['opt_out']['page'])}\">Opt a domain out</a>.</p><p>{_e(f['stored'])}</p>"
+                "<h2>Where the numbers come from</h2><ul>"
+                + "".join(f"<li><a href=\"{_e(s['url'])}\">{_e(s['name'])}</a>: {_e(s['used_for'])}. {_e(s['note'])}</li>"
+                          for s in f.get("sources") or []) + "</ul>")
         return _page("About the scanner", body)
 
     @router.get("/plain/{domain}")

@@ -1,0 +1,17 @@
+Shelf-Life: confidentiality lifetimes of data categories, edition 0.1 (2026-11-14)
+
+Files: v0.1.json, v0.1.json.sha256
+Title: Shelf-Life: confidentiality lifetimes of data categories
+Author: SOQLAB and contributors
+Source: https://github.com/soqlab/shelf-life (to be published)
+Licence: Creative Commons Attribution 4.0 International (CC BY 4.0)
+         https://creativecommons.org/licenses/by/4.0/
+Changes made: none. The files are byte-identical copies of catalogue/v0.1.json and
+catalogue/v0.1.json.sha256 from the source above; Morrow checks the SHA-256 when it loads
+the catalogue and does not use a file that does not match.
+
+Not legal advice. Values are reference estimates for risk planning; check current law and
+take professional advice for compliance decisions.
+
+Morrow uses the catalogue in the harvest clock on /<domain> pages and serves a trimmed copy
+at GET /api/public/shelf-life (backend/services/shelf_life.py).

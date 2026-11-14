@@ -279,6 +279,11 @@ select.i-btn { background: var(--bg-2); }
 .hv-dial output { display: block; font: 500 14px var(--mono); margin-top: 4px; overflow-wrap: anywhere; }
 .hv-exs { margin-top: 8px; gap: 6px; }
 .ins .hv-ex { min-height: 26px; padding: 0 8px; font-size: 11.5px; }
+.hv-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.hv-pick select { min-width: 0; max-width: 100%; flex: 1 1 140px; }
+.hv-pick select + select { flex: 0 1 auto; }
+.ins .hv-cat { margin: 6px 0 0; overflow-wrap: anywhere; }
+.hv-cat a { overflow-wrap: anywhere; }
 .hv-line { position: relative; height: 58px; border-bottom: 1px solid var(--line-2); margin: 6px 0 26px; }
 .hv-line [hidden] { display: none; }
 .hv-band { position: absolute; bottom: 0; height: 10px; background: color-mix(in srgb, var(--warn) 24%, transparent); }
