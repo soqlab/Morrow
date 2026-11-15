@@ -21,9 +21,10 @@
     const value = String(params.get(name) || "").trim().toLowerCase().replace(/\.$/, "");
     return DOMAIN.test(value) ? value : "";
   };
-  const watch = pick("watch");
-  const claim = watch ? "" : pick("claim");
+  let watch = pick("watch");
+  let claim = watch ? "" : pick("claim");
   let session = null;
+  let soqlab = false;   // Sign in with SOQLAB is on (/auth/config soqlab_id_enabled, /ui/soqlab-id.js)
 
   async function request(method, path, body, token) {
     const controller = new AbortController();
@@ -74,7 +75,8 @@
   const signIn = { label: "Sign in", href: "/ui/" };
 
   // ---------- the form ----------
-  function ask() {
+  function ask(problem = "") {
+    if (soqlab) return askSoqlab(problem);
     const lead = watch ? `One passkey and you're watching ${watch}. No email, no password.`
       : claim ? `One passkey, then a DNS record proves ${claim} is yours. No email, no password.`
       : "One passkey on this device, and you're in. No email, no password.";
@@ -87,6 +89,49 @@
         </form>`,
       actions: [{ label: "Create passkey and account", primary: true, run: create }, signIn] });
     $("signupName").focus();
+  }
+
+  /* With SOQLAB on, the default is a SOQLAB passkey (made at id.soqlab.com, linked to this new Morrow
+     account only); a passkey for Morrow alone stays one click away. */
+  function askSoqlab(problem) {
+    const lead = watch ? `One SOQLAB passkey and you're watching ${watch}. No email, no password.`
+      : claim ? `One SOQLAB passkey, then a DNS record proves ${claim} is yours. No email, no password.`
+      : "One SOQLAB passkey and you're in. You can use the same passkey for Q-Lab later. No email, no password.";
+    state({ title: watch ? `Watch ${watch}.` : claim ? `Claim ${claim}.` : "Create your account.", lead,
+      body: `<form class="invite-form" novalidate>
+          <label>Your name (optional)<input id="signupName" type="text" autocomplete="name" maxlength="120"></label>
+          <label>Organization (optional)<input id="signupOrg" type="text" autocomplete="organization" maxlength="120"></label>
+          <div class="signup-trap" aria-hidden="true"><label>Website<input id="signupWebsite" type="text" tabindex="-1" autocomplete="off"></label></div>
+          <p class="invite-error" id="signupError" role="alert">${esc(problem)}</p>
+        </form>
+        ${para("You'll make the passkey at id.soqlab.com and come straight back here. SOQLAB gives Morrow an ID made only for Morrow: no name, no email.")}`,
+      actions: [{ label: "Create account with a SOQLAB passkey", primary: true, run: createSoqlab },
+        { label: "Make a passkey for Morrow only", run: create }, signIn] });
+    $("signupName").focus();
+  }
+
+  async function createSoqlab() {
+    const error = $("signupError");
+    error.textContent = "";
+    const r = await MorrowSoqlab.start("signup", { full_name: $("signupName").value.trim(), organization: $("signupOrg").value.trim(),
+      website: $("signupWebsite").value, return_to: "signup" }, { keep: { watch, claim } });
+    if (r.ok) return;
+    if (r.status === 404) return closed(r.detail);
+    error.textContent = r.detail || "Sign-up didn't start. Try again.";
+  }
+
+  async function finishSoqlab(answer) {
+    if (answer.error) return ask(MorrowSoqlab.message(answer));
+    state({ title: "Creating your account.", lead: "One moment.", body: para("Checking the answer from SOQLAB.") });
+    const r = await MorrowSoqlab.finish(answer);
+    const keep = r.keep || {};
+    watch = DOMAIN.test(String(keep.watch || "")) ? keep.watch : "";
+    claim = !watch && DOMAIN.test(String(keep.claim || "")) ? keep.claim : "";
+    if (!r.ok || !r.data || !r.data.access_token) return ask(r.detail || "Your account wasn't created. Try again.");
+    session = r.data;
+    store.set("morrow_token", session.access_token);
+    if (session.refresh_token) store.set("morrow_refresh", session.refresh_token);
+    showCodes(session.recovery_codes || []);
   }
 
   async function create() {
@@ -173,6 +218,9 @@
       cfg = res.ok ? await res.json() : {};
     } catch { cfg = {}; }
     if (!cfg || !cfg.signup_enabled) return closed("");
+    soqlab = !!cfg.soqlab_id_enabled && !!window.MorrowSoqlab;
+    const answer = soqlab ? MorrowSoqlab.pending() : null;
+    if (answer) return finishSoqlab(answer);
     if (!window.MorrowPasskey || !MorrowPasskey.supported()) {
       return state({ title: "This browser can't create a passkey.", tone: "bad", lead: "Open this page in a current browser, or on your phone.",
         body: para("Passkeys need a recent Chrome, Edge, Safari or Firefox, and this site's own address over HTTPS."), actions: [signIn] });

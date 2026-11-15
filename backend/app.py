@@ -2330,6 +2330,11 @@ def _auth_public_path(path: str) -> bool:
         # once, and all it buys is a short-lived ticket that can only register a passkey
         # (services/recovery_codes.py). Rate limited by _RATE_AUTH and journaled either way.
         "/auth/recovery-codes/redeem",
+        # Sign in with SOQLAB (services/soqlab_id.py): starting a round trip and coming back from it. Each
+        # authenticates from its own payload (a single-use flow bound to the tab, PKCE, a signed ID token;
+        # linking also checks the Bearer token itself). Rate limited by _RATE_AUTH; 404 while switched off.
+        "/auth/soqlab/start",
+        "/auth/soqlab/callback",
         # Public sign-up with a passkey (services/signup.py): the page. The ceremony itself is
         # /auth/passkey/register/begin|finish above, kind "signup", with its own per-address and
         # global budgets.
@@ -2511,8 +2516,18 @@ def _public_auth_config() -> Dict[str, Any]:
         # Public sign-up with a passkey (services/signup.py): a new organization, no email.
         "signup_enabled": bool(AUTH_ISSUER_ENABLED) and _signup_enabled(),
         # Hosted for customers: the sign-in screen offers no developer token options.
+        # Sign in with SOQLAB (services/soqlab_id.py): off unless MORROW_SOQLAB_ID_* are all set.
+        "soqlab_id_enabled": bool(AUTH_ISSUER_ENABLED) and _soqlab_id_enabled(),
         "simple_sign_in": str(os.getenv("MORROW_SIGNIN_SIMPLE", "0") or "0").strip().lower() in {"1", "true", "yes", "on"},
     }
+
+
+def _soqlab_id_enabled() -> bool:
+    try:
+        from services import soqlab_id
+        return soqlab_id.enabled()
+    except Exception:
+        return False
 
 
 def _passkeys_available() -> bool:
@@ -25757,6 +25772,276 @@ async def auth_remove_passkey(credential_id: str, request: Request):
             _auth_journal(request, "passkey.removed", user=user, method="passkey", subject=(user or {}).get("email") or "",
                           required=False)
             return {"passkeys": _passkeys.list_passkeys(db, uid)}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+# â”€â”€ Sign in with SOQLAB (services/soqlab_id.py) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#
+# Off unless MORROW_SOQLAB_ID_ISSUER, _CLIENT_ID, _CLIENT_SECRET and _LINK_KEY are all set: then every
+# route below answers 404 and /auth/config says soqlab_id_enabled=false, so the console shows nothing.
+
+from services import soqlab_id as _soqlab_id  # noqa: E402
+
+
+def _require_soqlab_id() -> None:
+    if not AUTH_ISSUER_ENABLED or not _soqlab_id.enabled():
+        raise HTTPException(404, "Sign in with SOQLAB isn't turned on here.")
+
+
+def _soqlab_error(exc: "_soqlab_id.SoqlabIdError") -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+class SoqlabStartBody(BaseModel):
+    purpose: str = Field(..., min_length=4, max_length=10)
+    # recover: the recovery ticket (from a recovery code or an emailed recovery link).
+    token: str = Field("", max_length=256)
+    # recover: also remove this account's Morrow passkeys (a lost or stolen device).
+    revoke_other_passkeys: bool = False
+    # signup: as for /auth/passkey/register/begin, kind "signup".
+    full_name: str = Field("", max_length=200)
+    organization: str = Field("", max_length=200)
+    website: str = Field("", max_length=200)
+    return_to: str = Field("console", max_length=10)
+
+
+class SoqlabCallbackBody(BaseModel):
+    code: str = Field(..., min_length=1, max_length=512)
+    state: str = Field(..., min_length=16, max_length=512)
+    flow: str = Field(..., min_length=16, max_length=128)
+    iss: str = Field("", max_length=512)
+    token: str = Field("", max_length=256)
+
+
+def _soqlab_session(db, request: Request, user: Dict[str, Any], event: str = "login.success") -> Dict[str, Any]:
+    session = _issuer_start_session(db, user)
+    try:
+        _auth_journal(request, event, user=session["user"], method="soqlab", subject=user.get("email") or "")
+    except HTTPException:
+        _issuer_revoke(db, session["refresh_token"])
+        raise
+    return session
+
+
+def _recent_bearer(db, request: Request) -> Dict[str, Any]:
+    """The signed-in, active account behind this request, signed in recently (as for adding a passkey)."""
+    payload = _issuer_bearer(request)
+    user = _issuer_get_user(db, str(payload.get("sub") or ""))
+    if not user or not user.get("is_active"):
+        raise HTTPException(401, "Sign in again.")
+    if int(time.time()) - int(payload.get("iat") or 0) > _passkeys.reauth_seconds():
+        raise HTTPException(401, "For your security, sign in again, then link SOQLAB.")
+    return user
+
+
+@app.post("/auth/soqlab/start")
+@limiter.limit(_RATE_AUTH)
+async def auth_soqlab_start(body: SoqlabStartBody, request: Request):
+    """Start a round trip to SOQLAB ID: {authorize_url, flow}. The page keeps `flow` (sessionStorage)."""
+    _require_soqlab_id()
+    purpose = body.purpose.strip().lower()
+
+    def work():
+        with _db() as db:
+            try:
+                if purpose == "login":
+                    return _soqlab_id.start(db, "login", return_to=body.return_to)
+                if purpose == "link":
+                    user = _recent_bearer(db, request)
+                    if _soqlab_id.link_of_user(db, user["id"]):
+                        raise HTTPException(409, "This account is already linked to a SOQLAB passkey.")
+                    return _soqlab_id.start(db, "link", user_id=user["id"], return_to=body.return_to)
+                if purpose == "recover":
+                    ticket = _passkeys.peek_ticket(db, body.token, "recover")
+                    user = _issuer_get_user(db, ticket["user_id"])
+                    if not user or not user.get("is_active"):
+                        raise HTTPException(404, "This link isn't valid. Request a new one.")
+                    return _soqlab_id.start(db, "recover", user_id=user["id"], return_to=body.return_to,
+                                            context={"ticket": ticket["token_sha256"],
+                                                     "revoke_other_passkeys": bool(body.revoke_other_passkeys)})
+                if purpose == "signup":
+                    if not _signup_enabled():
+                        raise HTTPException(404, "Sign-up isn't open on this server. Ask an admin of your organization for an invite link.")
+                    if body.website.strip():
+                        _auth_journal(request, "signup.refused", method="soqlab", status_code=400, required=False)
+                        raise HTTPException(400, "This sign-up request isn't valid. Reload the page and try again.")
+                    try:
+                        _signup.check_budget(db, _client_ip_for_monitoring(request))
+                    except _signup.SignupError as exc:
+                        _auth_journal(request, "signup.rate_limited", method="soqlab", status_code=exc.status_code, required=False)
+                        raise HTTPException(exc.status_code, exc.detail) from None
+                    return _soqlab_id.start(db, "signup", user_id=_soqlab_id.new_user_id(), return_to=body.return_to,
+                                            context={"full_name": _signup.clean(body.full_name, _signup.MAX_NAME),
+                                                     "organization": _signup.clean(body.organization, _signup.MAX_ORGANIZATION)})
+                raise HTTPException(400, "Unknown kind of SOQLAB sign-in.")
+            except _soqlab_id.SoqlabIdError as exc:
+                raise _soqlab_error(exc) from None
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.get("/auth/soqlab/callback", include_in_schema=False)
+async def auth_soqlab_callback_page(request: Request):
+    """Where SOQLAB ID sends the browser back. Hands the answer to the page that started the round trip
+    (which holds the tab's `flow` secret); nothing is used up here."""
+    _require_soqlab_id()
+    q = request.query_params
+    state = str(q.get("state") or "")[:512]
+
+    def work():
+        with _db() as db:
+            return _soqlab_id.return_path(db, state) if state else "/ui/"
+    path = await run_in_threadpool(work)
+    params = {"soqlab_state": state, "soqlab_iss": str(q.get("iss") or "")[:512]}
+    if q.get("error"):
+        params["soqlab_error"] = str(q.get("error"))[:64]
+        params["soqlab_error_description"] = str(q.get("error_description") or "")[:64]
+    else:
+        params["soqlab_code"] = str(q.get("code") or "")[:512]
+    return RedirectResponse(path + "?" + urllib.parse.urlencode(params), status_code=303, headers=_NO_STORE)
+
+
+def _finish_soqlab_signup(db, request: Request, user_id: str, context: Dict[str, Any], sub: str) -> Dict[str, Any]:
+    """Sign-up through SOQLAB: a new organization, its admin account linked to the new SOQLAB passkey,
+    and recovery codes (shown once). Same rules and budgets as a passkey sign-up (_finish_signup)."""
+    if not _signup_enabled():
+        raise HTTPException(404, "Sign-up isn't open on this server.")
+    if _soqlab_id.user_of_sub(db, sub):
+        raise HTTPException(409, "This SOQLAB passkey already has a Morrow account. Sign in with SOQLAB instead.")
+    ip = _client_ip_for_monitoring(request)
+    try:
+        _signup.check_budget(db, ip)
+    except _signup.SignupError as exc:
+        _auth_journal(request, "signup.rate_limited", method="soqlab", status_code=exc.status_code, required=False)
+        raise HTTPException(exc.status_code, exc.detail) from None
+    full_name = _signup.clean(context.get("full_name"), _signup.MAX_NAME)
+    org_name = _signup.organization_name(full_name, _signup.clean(context.get("organization"), _signup.MAX_ORGANIZATION))
+    try:
+        org_id = _signup.create_organization(org_name)
+    except Exception:
+        logger.exception("sign-up: the organization could not be created")
+        raise HTTPException(503, "Your account couldn't be created just now. Try again in a minute.") from None
+    try:
+        user = _issuer_create_passkey_user(db, user_id, "", full_name, "admin", org_id)
+    except ValueError:
+        raise HTTPException(409, "This sign-up was already used. Sign in with SOQLAB.") from None
+    try:
+        _soqlab_id.bind(db, user_id, sub)
+        codes = _recovery_codes.generate(db, user_id)
+        _signup.record(db, user_id, ip)
+        _signup.add_owner(org_id, user_id, full_name)
+        _signup.record_owner(db, org_id, user_id)
+    except BaseException:
+        _soqlab_id.unbind(db, user_id)
+        _delete_new_account(db, user_id)
+        raise
+    user = _issuer_get_user(db, user_id)
+    _auth_journal(request, "signup.completed", user=user, method="soqlab", subject="", required=False)
+    ctx = set_current_organization_id(org_id)
+    try:
+        _audit_event(request, action="auth.signup.completed", resource_type="organization", resource_id=org_id,
+                     details={"organization_name": org_name, "sign_in": "soqlab"}, actor={"actor_id": user_id, "actor_role": "admin"})
+    finally:
+        reset_current_organization_id(ctx)
+    session = _soqlab_session(db, request, user)
+    return {**session, "recovery_codes": codes, "organization": {"id": org_id, "name": org_name}}
+
+
+@app.post("/auth/soqlab/callback")
+@limiter.limit(_RATE_AUTH)
+async def auth_soqlab_callback(body: SoqlabCallbackBody, request: Request):
+    """Finish a round trip: check it, exchange the code, then sign in, link, recover or sign up."""
+    _require_soqlab_id()
+
+    def refused(status: int, detail: str):
+        _auth_journal(request, "soqlab.refused", method="soqlab", status_code=status, required=False)
+        return HTTPException(status, detail)
+
+    def work():
+        with _db() as db:
+            try:
+                flow = _soqlab_id.claim(db, body.state, body.flow)
+                claims = _soqlab_id.exchange(flow, body.code, body.iss)
+            except _soqlab_id.SoqlabIdError as exc:
+                raise refused(exc.status_code, exc.detail) from None
+            sub, purpose = claims["sub"], flow["purpose"]
+            try:
+                if purpose == "login":
+                    user = _issuer_get_user(db, _soqlab_id.user_of_sub(db, sub)) if _soqlab_id.user_of_sub(db, sub) else None
+                    if not user:
+                        raise refused(404, "No Morrow account uses this SOQLAB passkey yet. Sign in with your Morrow passkey, "
+                                           "then link SOQLAB under Sign-in & recovery.")
+                    if not user.get("is_active"):
+                        raise refused(401, "This account is not active.")
+                    _soqlab_id.touch(db, sub)
+                    return {**_soqlab_session(db, request, user), "purpose": "login"}
+                if purpose == "link":
+                    payload = _issuer_bearer(request)
+                    if str(payload.get("sub") or "") != flow["user_id"]:
+                        raise refused(403, "This link was started by a different account. Sign in as that account and start again.")
+                    user = _issuer_get_user(db, flow["user_id"])
+                    if not user or not user.get("is_active"):
+                        raise refused(401, "Sign in again.")
+                    _soqlab_id.bind(db, user["id"], sub)
+                    _auth_journal(request, "soqlab.linked", user=user, method="soqlab", subject=user.get("email") or "", required=False)
+                    return {"purpose": "link", "linked": True}
+                if purpose == "recover":
+                    if not hmac.compare_digest(str(flow["context"].get("ticket") or ""), _passkeys.ticket_hash(body.token)):
+                        raise refused(400, "This SOQLAB passkey request belongs to a different recovery link. Start again.")
+                    _passkeys.claim_ticket(db, body.token, "recover")
+                    user = _issuer_get_user(db, flow["user_id"])
+                    if not user or not user.get("is_active"):
+                        raise refused(404, "This link isn't valid. Request a new one.")
+                    _soqlab_id.bind(db, user["id"], sub, replace=True)
+                    revoked = _passkeys.remove_other_passkeys(db, user["id"], "") if flow["context"].get("revoke_other_passkeys") else 0
+                    _issuer_revoke_sessions(db, user_id=user["id"])
+                    removed = _issuer_drop_password(db, user["id"])
+                    _auth_journal(request, "account_recovery.completed", user=user, method="soqlab", subject=user.get("email") or "", required=False)
+                    session = _soqlab_session(db, request, user)
+                    return {**session, "purpose": "recover", "password_removed": removed, "other_passkeys_removed": revoked}
+                return {**_finish_soqlab_signup(db, request, flow["user_id"], flow["context"], sub), "purpose": "signup"}
+            except _soqlab_id.SoqlabIdError as exc:
+                raise refused(exc.status_code, exc.detail) from None
+            except _passkeys.PasskeyError as exc:
+                raise _passkey_error(exc) from None
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.get("/auth/soqlab/link")
+async def auth_soqlab_link_status(request: Request):
+    """Whether the signed-in account is linked to a SOQLAB passkey (never the pairwise ID itself)."""
+    _require_soqlab_id()
+    payload = _issuer_bearer(request)
+
+    def work():
+        uid = str(payload.get("sub") or "")
+        with _db() as db:
+            link = _soqlab_id.link_of_user(db, uid)
+            other_ways = _passkeys.count_passkeys(db, uid) > 0 or _issuer_has_password(db, uid)
+            return {"linked": bool(link), "linked_at": (link or {}).get("created_at"),
+                    "last_used_at": (link or {}).get("last_used_at"), "can_unlink": bool(link) and other_ways,
+                    "issuer_host": _soqlab_id.issuer_host()}
+    return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
+
+
+@app.delete("/auth/soqlab/link")
+async def auth_soqlab_unlink(request: Request):
+    """Unlink: delete Morrow's link, then ask SOQLAB ID to forget it. Refused when it's the only way in."""
+    _require_soqlab_id()
+    payload = _issuer_bearer(request)
+
+    def work():
+        uid = str(payload.get("sub") or "")
+        with _db() as db:
+            if not _soqlab_id.link_of_user(db, uid):
+                raise HTTPException(404, "This account isn't linked to a SOQLAB passkey.")
+            if _passkeys.count_passkeys(db, uid) == 0 and not _issuer_has_password(db, uid):
+                raise HTTPException(409, "SOQLAB is the only way into this account. Add a Morrow passkey first, then unlink.")
+            sub = _soqlab_id.unbind(db, uid)
+            user = _issuer_get_user(db, uid)
+            _auth_journal(request, "soqlab.unlinked", user=user, method="soqlab", subject=(user or {}).get("email") or "", required=False)
+        return {"linked": False, "forgotten_by_soqlab": _soqlab_id.remote_unlink(sub)}
     return JSONResponse(await run_in_threadpool(work), headers=_NO_STORE)
 
 

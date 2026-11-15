@@ -31,6 +31,8 @@ AUTH_EVENTS = {
     # administrator creates with a setup link (possibly without an email).
     "recovery_codes.generated", "recovery_code.used", "recovery_code.refused", "email_recovery.changed",
     "account_setup.issued",
+    # Sign in with SOQLAB (services/soqlab_id.py): linking and unlinking an account.
+    "soqlab.linked", "soqlab.unlinked", "soqlab.refused",
     # Public sign-up with a passkey (services/signup.py), invite links an admin hands over, and the
     # recovery link an admin issues for a member who lost every passkey and recovery code.
     "signup.completed", "signup.refused", "signup.rate_limited", "invite_link.issued", "invite_link.revoked",
@@ -208,7 +210,7 @@ def _insert(kind, values):
 
 
 def record_auth(event_type, *, user=None, method="password", source_ip="", user_agent="", subject="", status_code=200):
-    if event_type not in AUTH_EVENTS or method not in {"password", "passkey", "recovery_code", "saml", "jwt", "refresh_token", "api_key"}:
+    if event_type not in AUTH_EVENTS or method not in {"password", "passkey", "recovery_code", "saml", "jwt", "refresh_token", "api_key", "soqlab"}:
         raise ValueError("Unsupported authentication event")
     # Identity is supplied only after authentication, never from a requested role/org or failed email.
     user = user or {}
