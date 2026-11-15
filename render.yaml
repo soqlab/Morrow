@@ -141,6 +141,10 @@ services:
       # gets a session; the passkey deletes the password.
       - key: MORROW_PASSKEYS_ONLY
         value: "1"
+      # AI assistants over MCP (tools/morrow_mcp, services/mcp_access.py) are for self-hosted installs
+      # at first: the hosted service refuses every request marked X-Client: mcp/... while this is not 1.
+      - key: MORROW_MCP_ENABLED
+        value: "0"
       # Public sign-up at /signup (services/signup.py): one passkey makes a new organization and its
       # admin; no email. Unset it follows MORROW_PASSKEYS_ONLY. Stays closed unless passkeys work and
       # MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1. Budgets: MORROW_SIGNUP_PER_IP_PER_HOUR (3),

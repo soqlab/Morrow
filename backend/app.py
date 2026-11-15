@@ -699,6 +699,7 @@ from services.auth_issuer import (
 from services import platform_operators as _platform_operators
 from services import session_revocation as _session_revocation
 from services import api_keys as _api_keys
+from services import mcp_access as _mcp_access
 from services import route_paths as _route_paths  # one canonical path for every route guard
 from services import platform_access as _platform_access
 from services import support_sessions as _support_sessions  # vendor support read-only "view as customer"
@@ -3202,6 +3203,11 @@ async def set_request_auth_context(request: Request, call_next):
     # that is unknown, revoked, expired, out of scope, or aimed at platform/admin routes fails loudly
     # instead of falling back to header identity. The key's organization is authoritative.
     bearer = _jwt_token_from_auth_header(request.headers.get("authorization", ""))
+    # AI assistants over MCP (X-Client: mcp/<tool>): a read-only organization key, GET only, journaled,
+    # and only where MORROW_MCP_ENABLED=1 (off on the hosted service). See services/mcp_access.py.
+    mcp_tool = _mcp_access.tool_name(request.headers.get("x-client", ""))
+    if mcp_tool is not None:
+        return await _mcp_access.handle(request, call_next, bearer, mcp_tool)
     # Vendor support "view as customer" tokens: verified and policed in ONE place, in every auth mode,
     # before any other credential handling (read-only, allow-listed, org-bound, revocable, journaled).
     if _support_sessions.looks_like_support_token(bearer):
