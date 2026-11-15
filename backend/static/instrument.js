@@ -122,19 +122,23 @@
     { t: "Domains you watch, and what changed", h: "/watching", k: "watch watching alerts notifications push changes feed webhook", g: "Yours", ws: true },
     { t: "About the scanner: what connects to your server", h: "/about-scanner", k: "scanner user agent logs bot crawler opt out morrowpqcheck", g: "Public" }
   ];
-  var CONSOLE_PLACES = [["overview", "Overview", "posture summary"], ["scans", "TLS Scanner", "run scans, diff against a baseline"],
+  /* The console's sidebar, as places. Overview carries the quantum-risk readings ("Why it matters").
+     The enterprise views are listed only when the console's Enterprise switch is on in this browser
+     (localStorage morrow_enterprise, the same origin); every one still opens at its address. */
+  var CONSOLE_PLACES = [["overview", "Overview", "posture summary, why it matters"], ["scans", "TLS Scanner", "run scans, diff against a baseline"],
     ["assets", "Asset Inventory", "owners, tags, collections"], ["cbom", "CBOM / SBOM", "CycloneDX bill of materials"],
-    ["hndl", "HNDL Exposure", "harvest-now-decrypt-later queue"], ["qday", "Q-Day Forecast", "CRQC trajectory, milestones"],
-    ["graph", "Blast Radius", "certificate blast radius, CA contagion"], ["canaries", "Canaries & QTISN", "canary tokens, threat intel"],
-    ["data-control", "Data Control", "AI permissions, data boundary, receipts"], ["airlock", "Quantum Airlock", "privacy wall, trust passports"],
-    ["gateway", "Website Gateway", "domain ownership, filtering"], ["remediation", "Remediation", "fix queue, playbooks, code generation"],
-    ["scanners", "Deep Scanners", "SAST, secrets, dependencies, IaC"], ["operations", "Operations", "drift, SLA, schedules"],
-    ["governance", "Governance", "policies, compliance evidence"], ["board", "Board & ROI", "board risk, ROI models"],
-    ["vendors", "Third Party", "vendor assessments"], ["integrations", "Integrations", "GitHub, Slack, Jira, webhooks, CI"],
-    ["knowledge", "Knowledge", "knowledge base, provider capabilities"], ["admin", "Administration", "users, organizations, audit"],
-    ["api", "API Explorer", "every endpoint"], ["guide", "Guide & Tutorial", "what every screen does"],
-    ["g-airlock", "Airlock Guide", "deploying the collector"], ["g-trust-passport", "Passport Guide", "sharing proof"], ["g-admin-page", "Administrator Guide", "running the platform"]];
-  CONSOLE_PLACES.forEach(function (p) { PLACES.push({ t: p[1], h: "/ui/#" + p[0], k: p[0] + " " + p[2] + " console", g: "Console", hint: p[2] }); });
+    ["signing", "Signing", "post-quantum signatures for releases"], ["remediation", "Remediation", "fix queue, playbooks, code generation"],
+    ["integrations", "Integrations", "GitHub, Slack, Jira, webhooks, CI"], ["admin", "Administration", "settings: users, organizations, audit"],
+    ["api", "API Explorer", "settings: every endpoint"], ["guide", "Guide & Tutorial", "what every screen does"],
+    ["knowledge", "Knowledge", "knowledge base, provider capabilities"]];
+  var ENTERPRISE_PLACES = [["data-control", "Data Control", "AI permissions, data boundary, receipts"], ["airlock", "Quantum Airlock", "privacy wall, trust passports"],
+    ["gateway", "Website Gateway", "domain ownership, filtering"], ["scanners", "Deep Scanners", "SAST, secrets, dependencies, IaC"],
+    ["operations", "Operations", "drift, SLA, schedules"], ["governance", "Governance", "policies, compliance evidence"],
+    ["board", "Board & ROI", "board risk, ROI models"], ["vendors", "Third Party", "vendor assessments"],
+    ["g-airlock", "Airlock Guide", "deploying the collector"], ["g-trust-passport", "Passport Guide", "sharing proof"]];
+  var enterpriseOn = false;
+  try { enterpriseOn = localStorage.getItem("morrow_enterprise") === "1"; } catch (e) { enterpriseOn = false; }
+  (enterpriseOn ? CONSOLE_PLACES.concat(ENTERPRISE_PLACES) : CONSOLE_PLACES).forEach(function (p) { PLACES.push({ t: p[1], h: "/ui/#" + p[0], k: p[0] + " " + p[2] + " console", g: "Console", hint: p[2] }); });
 
   /* The signed-in workspace, if this browser has one: the console's own token, same origin. */
   var wsP = null;

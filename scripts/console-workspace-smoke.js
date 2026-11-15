@@ -107,7 +107,7 @@ async function main() {
     assert.equal(await page.locator(".overviewMetrics .metricRow").first().locator("b").innerText(), "—");
     assert.ok((await page.locator(".overviewMetrics").innerText()).includes("Inventory source unavailable"));
     await page.unroute("**/assets");
-    for (const route of ["/security","/privacy","/terms","/support","/pricing","/pilot","/data-boundary","/airlock-deployment","/dpa","/trust-passport-demo","/enterprise-admin","/abuse","/invite"]) {
+    for (const route of ["/security","/privacy","/terms","/support","/legal","/data-boundary","/airlock-deployment","/dpa","/enterprise-admin","/abuse","/invite"]) {
       await page.goto(base + route);
       if (route === "/invite") {
         assert.equal(await page.locator('link[href*="/ui/experience.css"]').count(), 1);
