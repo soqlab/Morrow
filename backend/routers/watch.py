@@ -17,12 +17,17 @@ Signed in (any role watches; an admin or owner claims, because a claim speaks fo
   POST   /instrument/claims/{domain}/check       look the record up now and claim
   DELETE /instrument/claims/{domain}             give the claim up
   POST   /instrument/claims/{domain}/opt-out     the owner asks Morrow never to check it again
+  GET    /instrument/claims/{domain}/badge       the live safe badge: on or off, the snippet, what it shows
+  PUT    /instrument/claims/{domain}/badge       turn it on (claimed domains only)
+  DELETE /instrument/claims/{domain}/badge       turn it off
 
 Public (under /api/public, so the auth gate lets them through):
   GET /api/public/claim/{domain}                 claimed or not, since when, the owner's public reply
   GET /api/public/scanner                       what the checker sends, when, and how to opt out
   GET /api/public/push-key                       the VAPID public key, or why push is off
   GET /api/public/watch-feed/{token}.atom        a private feed: the random token is the credential
+  GET /api/public/safe-badge/{domain}.svg        the live safe badge image (stored data only; no cookies)
+  GET /api/public/safe-badge/{domain}            the same answer as JSON: safe or neutral, verified when
 """
 
 from __future__ import annotations
@@ -197,6 +202,61 @@ def create_watch_router(deps: Any) -> APIRouter:
             return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=_NO_STORE)
         audit(request, "domain.opted_out_by_owner", "domain_claim", name)
         return JSONResponse({"domain": out.get("domain", name), "opted_out": True}, headers=_NO_STORE)
+
+    # ── the live safe badge (services/safe_badge.py) ──
+    @router.get("/instrument/claims/{domain}/badge")
+    async def badge_get(request: Request, domain: str):
+        from services import safe_badge
+
+        org, _ = who(request, ANY_ROLE, "read", "safe_badge", domain)
+        return await call(safe_badge.owner_view, org, domain)
+
+    @router.put("/instrument/claims/{domain}/badge")
+    async def badge_on(request: Request, domain: str):
+        from services import safe_badge
+
+        org, user = who(request, ADMIN, "update", "safe_badge", domain)
+        resp = await call(safe_badge.enable, org, user, domain)
+        if resp.status_code == 200:
+            audit(request, "safe_badge.enabled", "safe_badge", domain)
+        return resp
+
+    @router.delete("/instrument/claims/{domain}/badge")
+    async def badge_off(request: Request, domain: str):
+        from services import safe_badge
+
+        org, _ = who(request, ADMIN, "update", "safe_badge", domain)
+        try:
+            removed = await run_in_threadpool(safe_badge.disable, org, domain)
+        except _watch.WatchError as exc:
+            return _err(exc)
+        audit(request, "safe_badge.disabled", "safe_badge", domain)
+        return JSONResponse({"removed": removed}, headers=_NO_STORE)
+
+    # The image is registered before the JSON: "{domain}" would otherwise also match "x.com.svg".
+    @router.get("/api/public/safe-badge/{domain}.svg")
+    async def safe_badge_svg(domain: str):
+        from services import safe_badge
+
+        try:
+            st = await run_in_threadpool(safe_badge.status, domain)
+        except _watch.WatchError:
+            st = {"state": "neutral"}
+        # No cookies are set on this response; it may be embedded on any site, including ones that
+        # require Cross-Origin-Resource-Policy for their images.
+        return Response(safe_badge.svg(st), media_type="image/svg+xml",
+                        headers={"Cache-Control": safe_badge.SVG_CACHE, "Cross-Origin-Resource-Policy": "cross-origin",
+                                 "X-Robots-Tag": "noindex"})
+
+    @router.get("/api/public/safe-badge/{domain}")
+    async def safe_badge_json(domain: str):
+        from services import safe_badge
+
+        try:
+            st = await run_in_threadpool(safe_badge.status, domain)
+        except _watch.WatchError as exc:
+            return _err(exc)
+        return JSONResponse(st, headers={"Cache-Control": "public, max-age=300"})
 
     # ── public ──
     @router.get("/api/public/claim/{domain}")

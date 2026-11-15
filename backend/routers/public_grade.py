@@ -10,6 +10,8 @@
   GET /api/public/basis                   the decrypt years and their cited source
   GET /api/public/shelf-life              how long data must stay private, by category and jurisdiction
                                           (Shelf-Life v0.1, CC BY 4.0; services/shelf_life.py)
+  GET /api/public/risk-sentence           the quantum risk in one sentence (services/risk_sentence.py):
+                                          ?host=&state=&fixable=&data=&jur=&observed=&others=
   GET /api/public/exposure/{domain}       the outside services it depends on, worst first; ?fresh=1
   GET /api/public/build                   the running commit (services/build_info.py)
   GET /api/public/deploys                 the hash-chained deploy log (services/deploy_log.py)
@@ -90,7 +92,31 @@ def create_public_grade_router(deps: Any) -> APIRouter:
             result = await run_in_threadpool(_grade.check, domain, _ip(request), _truthy(fresh))
         except _grade.GradeError as exc:
             return JSONResponse(exc.as_dict(), status_code=exc.status_code, headers=_error_headers(exc))
+        result = _with_risk(result)
         return JSONResponse(result, headers={"Cache-Control": "no-store" if _truthy(fresh) else _RESULT_CACHE})
+
+    def _with_risk(result: Any) -> Any:
+        """The one-sentence risk (default kind of data) next to the grade; the grade stands without it."""
+        if not isinstance(result, dict) or "grade" not in result:
+            return result
+        from services import risk_sentence
+
+        try:
+            return {**result, "risk": risk_sentence.for_grade(result)}
+        except Exception:
+            return result
+
+    @router.get("/risk-sentence")
+    async def public_risk_sentence(host: str = "", state: str = "", fixable: str = "0", data: str = "",
+                                   jur: str = "", observed: str = "1", others: str = "0"):
+        from services import risk_sentence
+
+        if not risk_sentence.clean_host(host) or state not in risk_sentence.STATES:
+            return JSONResponse({"error": "bad_request", "detail": "Give host (a host name or address) and state "
+                                 "(safe, at_risk, no_tls or unknown)."}, status_code=400, headers={"Cache-Control": "no-store"})
+        body = await run_in_threadpool(risk_sentence.build, host, state, fixable, data[:60], jur[:8],
+                                       (observed or "1").strip().lower() not in ("0", "false", "no"), others)
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=3600"})
 
     def _badge_grade(domain: str, client_ip: str) -> Optional[str]:
         try:

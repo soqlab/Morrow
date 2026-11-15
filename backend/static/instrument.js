@@ -644,10 +644,12 @@
         say(!results.length ? "The scan finished without a result." + (s.error ? " " + s.error : "") :
           results.length === 1 ? rTarget(r0) + ": grade " + (grades[0] || "-") + ". " + (w0.status === "at_risk" ? "Traffic recorded today could be read from about " + w0.readable_from + "–" + w0.readable_by + "." : w0.status === "protected" ? "Protected against future quantum decryption." : "Its key exchange was not observed.")
             : results.length + " endpoints scanned; typical grade " + (typical(grades) || "-") + ".");
-        $("#sc-body").innerHTML = panel("", "Results", '<div class="i-table-wrap"><table class="i-table"><tbody>' + results.map(function (r, i) {
+        var rq = results.length ? riskFromResults(results) : null;
+        $("#sc-body").innerHTML = (rq ? riskHtml() : "") + panel("", "Results", '<div class="i-table-wrap"><table class="i-table"><tbody>' + results.map(function (r, i) {
           var w = r.decrypt_window || {};
           return "<tr><td>" + gradeChip(grades[i]) + '</td><td><a href="/estate/asset/' + enc(rTarget(r)) + '">' + esc(rTarget(r)) + "</a></td><td>" + endpointStatus(r) + "</td><td><a href=\"/" + esc(hostOf(rTarget(r))) + '#make-safe">' + (grades[i] && ORDER[grades[i]] > 0 ? "make it safe" : "its proof") + "</a></td></tr>";
         }).join("") + "</tbody></table></div>" + '<p class="i-fine">Finished ' + esc(stamp(s.created_at)) + '. <a href="/estate">Your estate through time</a>.</p>', { ch: "grade" });
+        if (rq) bindRisk(rq);
         if (last === "running") { flash($("#say")); flash($("#sc-body")); }
       }).catch(function (e) { say("This scan could not be read: " + e.message); });
       last = last || "running";
@@ -674,9 +676,10 @@
         (w.basis ? '<p class="i-fine">' + esc(w.basis) + (w.source_url ? ' <a href="' + esc(w.source_url) + '" rel="noopener">source</a>' : "") + "</p>" : "") + (w.notes || []).map(function (n) { return '<p class="i-fine">' + esc(n) + "</p>"; }).join("");
       var times = '<div class="i-table-wrap"><table class="i-table"><tbody>' + hist.slice().reverse().map(function (h) { return "<tr><td>" + gradeChip(scanGrade(h.r)) + '</td><td class="mono">' + esc(stamp(h.at)) + '</td><td class="mono">' + esc(h.r.key_exchange || "-") + '</td><td><a href="/estate/scan/' + enc(h.scan) + '">scan</a></td></tr>'; }).join("") + "</tbody></table></div>";
       var kit = window.MorrowSafe && g && ORDER[g] > 0 && asDomain(host) ? window.MorrowSafe : null;
-      $("#as-body").innerHTML = panel("", "What to do", what, { ch: "tools" }) + (kit ? panel("", "Make it safe", kit.html(), { ch: "tools", id: "make-safe" }) : "") +
+      $("#as-body").innerHTML = riskHtml() + panel("", "What to do", what, { ch: "tools" }) + (kit ? panel("", "Make it safe", kit.html(), { ch: "tools", id: "make-safe" }) : "") +
         (depth === "plain" ? "" : panel("", "Its history", times, { ch: "league" })) + (depth === "expert" ? panel("", "Evidence", evidence, { ch: "conn" }) : "");
       $("#as-scan").onclick = function () { startScan(host); };
+      bindRisk(riskFromResults([r]));
       // The public grade of the same host drives the fix, the watch and the proof, as on /<host>.
       if (kit) getJSON("/api/public/grade/" + enc(host), { cache: "default" })
         .then(function (pr) { kit.mount($("#ms-box"), host, pr, {}); })
@@ -907,6 +910,8 @@
       sel = dataSel.value ? shelfPick(cat, dataSel.value, jurSel.value) : null;
       if (sel) keep.value = String(toIdx(sel.e.years));
       paint(); keepUrl();
+      if (sel) LS.set("morrow_data", sel.k.short);
+      document.dispatchEvent(new CustomEvent("morrow:data"));
     }
     if (dataSel) dataSel.addEventListener("change", choose);
     if (jurSel) jurSel.addEventListener("change", function () { LS.set("morrow_jur", jurSel.value); choose(); });
@@ -916,6 +921,84 @@
       '<a href="' + esc(sourceUrl) + '" rel="noopener">Global Risk Institute expert survey</a>; ' + esc(est.high) + " (high) is Morrow's outer bound." +
       (cat ? ' How long data must stay private: <a href="' + esc(cat.attribution.source_url) + '" rel="noopener">Shelf-Life v' + esc(edition) + "</a> by " + esc(cat.attribution.author) + ' (<a href="' + esc(cat.attribution.licence_url) + '" rel="noopener">' + esc(cat.attribution.licence) + "</a>), unchanged; not legal advice." : "") +
       " Your choices stay in the address and on this device.";
+    paint();
+  }
+
+  /* ── your quantum risk in one sentence ────────────────────────────────────
+     Built by services/risk_sentence.py (GET /api/public/risk-sentence) from the harvest clock, the
+     Shelf-Life kind of data and how many settings fix it, so every view says the same words. The
+     kind of data is assumed until the person picks one here; the pick goes in ?data= and ?jur=, and
+     the harvest clock below follows it (and the other way round, through "morrow:data"). */
+  function riskQuery(q) {
+    return "/api/public/risk-sentence?" + Object.keys(q).filter(function (k) { return q[k] != null && q[k] !== ""; })
+      .map(function (k) { return k + "=" + enc(q[k]); }).join("&");
+  }
+  function riskHtml() {
+    return '<section class="risk" id="risk" aria-label="Your quantum risk"><p class="risk-say" id="risk-say" aria-live="polite">Working out what this means for your data…</p><div id="risk-as"></div></section>';
+  }
+  /* What a console scan result says, in the sentence's terms (decrypt_window.for_scan_result). */
+  function riskFromResults(results) {
+    var at = results.filter(function (r) { return (r.decrypt_window || {}).status === "at_risk"; });
+    var safe = results.filter(function (r) { return (r.decrypt_window || {}).status === "protected"; });
+    var pickR = at[0] || (safe.length === results.length ? safe[0] : results[0]);
+    if (!pickR) return null;
+    var w = pickR.decrypt_window || {};
+    return {
+      host: hostOf(rTarget(pickR)),
+      state: at.length ? "at_risk" : safe.length && safe.length === results.length ? "safe" : "unknown",
+      fixable: (pickR.findings || []).filter(function (f) { return f.remediation || f.recommendation; }).length,
+      observed: (w.notes || []).some(function (n) { return /could not be seen/.test(n); }) ? "0" : "1",
+      others: Math.max(0, (at.length ? at.length : results.length) - 1)
+    };
+  }
+  var riskRefresh = null;
+  document.addEventListener("morrow:data", function () { if (riskRefresh) riskRefresh(); });
+  /* A public grade result (or a stored one from before the sentence existed) in the sentence's terms. */
+  function gradeRiskQ(d, r) {
+    var ex = r.exposure || {}, k = r.risk || {};
+    var state = k.state || (ex.recorded_traffic_at_risk === false ? "safe" : ex.recorded_traffic_at_risk && !ex.decrypt_year_low ? "no_tls" : "at_risk");
+    var fixable = k.fixable != null ? k.fixable : r.settings_to_fix ? r.settings_to_fix.length : state === "safe" ? 0 : (r.fixes || []).length ? 1 : 0;
+    return { host: d, state: state, fixable: fixable, observed: state === "at_risk" && (r.key_exchange || {}).observed === false ? "0" : "1" };
+  }
+  function bindRisk(q, onPick) {
+    var box = $("#risk"); if (!box) return;
+    var built = false, seq = 0;
+    function fromUrl() { q.data = param("data") || LS.get("morrow_data", ""); q.jur = param("jur") || LS.get("morrow_jur", ""); }
+    function paint() {
+      var mine = ++seq;
+      getJSON(riskQuery(q)).then(function (r) {
+        if (mine !== seq || !document.body.contains(box)) return;
+        $("#risk-say", box).textContent = r.sentence;
+        var d = r.data, c = r.choices || {}, as = $("#risk-as", box);
+        var est = r.estimate || {};
+        var why = esc(r.assumption) + ' The quantum year is an estimate from the <a href="' + esc(est.source_url || "") + '" rel="noopener">Global Risk Institute expert survey</a>, not a date.';
+        if (!d || !(c.categories || []).length) { as.innerHTML = '<p class="i-fine">' + why + "</p>"; return; }
+        if (!built) {
+          as.innerHTML = '<div class="risk-pick"><label for="risk-data" id="risk-lbl"></label><select id="risk-data" class="i-btn">' +
+            c.categories.map(function (k) { return '<option value="' + esc(k.short) + '">' + esc(k.label) + "</option>"; }).join("") +
+            '</select><select id="risk-jur" class="i-btn" aria-label="Whose law">' + c.jurisdictions.map(function (j) { return '<option value="' + esc(j.code) + '">' + esc(j.short) + "</option>"; }).join("") +
+            '</select></div><p class="i-fine" id="risk-why"></p>';
+          built = true;
+          $("#risk-data", box).addEventListener("change", pick);
+          $("#risk-jur", box).addEventListener("change", pick);
+        }
+        $("#risk-lbl", box).textContent = d.assumed ? "Assumed kind of data (change it)" : "Kind of data";
+        $("#risk-data", box).value = d.short;
+        var jsel = $("#risk-jur", box);
+        if (c.jurisdictions.some(function (j) { return j.code === d.requested_jurisdiction; })) jsel.value = d.requested_jurisdiction;
+        $("#risk-why", box).innerHTML = why;
+      }).catch(function (e) { if (mine === seq) $("#risk-say", box).textContent = "Morrow could not put this into one sentence just now: " + e.message; });
+    }
+    function pick() {
+      q.data = $("#risk-data", box).value; q.jur = $("#risk-jur", box).value;
+      LS.set("morrow_data", q.data); LS.set("morrow_jur", q.jur);
+      setParam("data", q.data); setParam("jur", q.jur);
+      setParam("keep", null);  // the harvest clock follows the picked kind of data, not an older figure
+      paint();
+      if (onPick) onPick();
+    }
+    riskRefresh = function () { if (document.body.contains(box)) { fromUrl(); paint(); } };
+    fromUrl();
     paint();
   }
 
@@ -1065,19 +1148,23 @@
             '<p class="i-fine"><a href="/r/' + enc(d) + '">Certificate-transparency record</a> &middot; <a href="/plain/' + enc(d) + '">plain</a> &middot; <a href="/api/public/grade/' + enc(d) + '">JSON</a></p>', { ch: "ref" });
       }
       var outside = panel("", "Who else is exposing you", '<div id="tp-body"></div>', { ch: "atlas", id: "tp" });
-      $("#d-body").innerHTML = gradeBlock + '<div id="hv-wrap"></div>' + what + '<div id="w-wrap"></div>' + outside + evidence;
+      $("#d-body").innerHTML = riskHtml() + gradeBlock + '<div id="hv-wrap"></div>' + what + '<div id="w-wrap"></div>' + outside + evidence;
       paintTp();
       if (safeKit) safeKit.mount($("#ms-box"), d, latest || r, { onLive: function () { load(false); } });
       if (location.hash === "#make-safe" && !render.scrolled) { render.scrolled = true; var ms = $("#make-safe"); if (ms) ms.scrollIntoView({ block: "start" }); }
       if (window.MorrowWatch) window.MorrowWatch.domain(d, latest || r);
-      Promise.all([basis(), shelfLife()]).then(function (got) {
-        var b = got[0], shelf = got[1];
-        var wrap = $("#hv-wrap"); if (!wrap || current !== r) return;
-        var est = (b && b.crqc_estimate) || { low: ex.decrypt_year_low || 2035, likely: ex.decrypt_year_high || 2040, high: (ex.decrypt_year_high || 2040) + 5,
-          low_label: "quite possible", likely_label: "likely", high_label: "Morrow's outer bound" };
-        wrap.innerHTML = harvestPanelHtml(est, shelf);
-        bindHarvest(d, r, est, (b && b.source_url) || ex.source_url || "", shelf);
-      });
+      function harvest() {
+        Promise.all([basis(), shelfLife()]).then(function (got) {
+          var b = got[0], shelf = got[1];
+          var wrap = $("#hv-wrap"); if (!wrap || current !== r) return;
+          var est = (b && b.crqc_estimate) || { low: ex.decrypt_year_low || 2035, likely: ex.decrypt_year_high || 2040, high: (ex.decrypt_year_high || 2040) + 5,
+            low_label: "quite possible", likely_label: "likely", high_label: "Morrow's outer bound" };
+          wrap.innerHTML = harvestPanelHtml(est, shelf);
+          bindHarvest(d, r, est, (b && b.source_url) || ex.source_url || "", shelf);
+        });
+      }
+      harvest();
+      bindRisk(gradeRiskQ(d, r), harvest);
       $$("[data-copy]").forEach(function (b) { b.addEventListener("click", function () { copy(fixes[+b.getAttribute("data-copy")].snippet, b); }); });
       $$("[data-copy-el]").forEach(function (b) { b.addEventListener("click", function () { copy($("#" + b.getAttribute("data-copy-el")).textContent, b); }); });
       $("#d-recheck").addEventListener("click", function () { load(true); });
