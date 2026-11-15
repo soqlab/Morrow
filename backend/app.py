@@ -1764,7 +1764,7 @@ _CSP_VALUE = str(
 # "/r/" carries the trailing slash deliberately: this tuple is matched with str.startswith, and a
 # bare "/r" would also claim /repositories, /remediations and /robots.txt.
 _CSP_STRICT_PREFIXES = ("/vendor-admin", "/invite", "/check", "/public-check", "/abuse", "/scanner",
-                        "/r/", "/trial", "/join", "/signup")   # "/trial" also covers "/trial-request"
+                        "/r/", "/trial", "/join", "/signup", "/legal")   # "/trial" also covers "/trial-request"
 _CSP_STRICT_VALUE = str(
     os.getenv(
         "MORROW_CSP_VALUE_STRICT",
@@ -1918,12 +1918,11 @@ def public_security_page():
 @app.get("/enterprise-admin", include_in_schema=False)
 @app.get("/admin-page", include_in_schema=False)
 def public_enterprise_admin_page():
-    return _public_static_html("enterprise-admin.html")
-
-
-@app.get("/trust-passport-demo", include_in_schema=False)
-def public_trust_passport_demo_page():
-    return _public_static_html("trust-passport-demo.html")
+    """Kept for the operators and buyers who have the link, but no longer something to find: it is
+    out of the sitemap and asks search engines not to index it."""
+    response = _public_static_html("enterprise-admin.html")
+    response.headers["X-Robots-Tag"] = "noindex"
+    return response
 
 
 @app.get("/privacy", include_in_schema=False)
@@ -1942,8 +1941,8 @@ def public_support_page():
 
 
 _PUBLIC_INFO_PAGES = {
-    "/pricing": "pricing.html",
-    "/pilot": "pilot.html",
+    # Every policy in one place: the footer's "Legal & trust" link.
+    "/legal": "legal.html",
     "/data-boundary": "data-boundary.html",
     "/airlock-deployment": "airlock-deployment.html",
     "/dpa": "dpa.html",
@@ -1962,8 +1961,7 @@ _PUBLIC_INFO_PAGES = {
 }
 
 
-@app.get("/pricing", include_in_schema=False)
-@app.get("/pilot", include_in_schema=False)
+@app.get("/legal", include_in_schema=False)
 @app.get("/data-boundary", include_in_schema=False)
 @app.get("/airlock-deployment", include_in_schema=False)
 @app.get("/dpa", include_in_schema=False)
@@ -1986,6 +1984,19 @@ _RETIRED_PAGES = {
     "/trial-request": "/signup",
     "/scanner": "/about-scanner",
 }
+
+
+#: Pages folded into the product itself. Morrow is free, so there is nothing to price and no pilot to
+#: scope, and the Trust Passport is shown inside the console where a real one is made. Each address
+#: answers with a permanent (301) redirect to the instrument; the files stay in static/ unserved.
+_MOVED_TO_HOME = frozenset({"/pricing", "/pilot", "/trust-passport-demo"})
+
+
+@app.api_route("/pricing", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/pilot", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/trust-passport-demo", methods=["GET", "HEAD"], include_in_schema=False)
+def moved_to_home_page():
+    return RedirectResponse(url="/", status_code=301)
 
 
 @app.api_route("/trial", methods=["GET", "HEAD"], include_in_schema=False)
@@ -2037,11 +2048,9 @@ _SITEMAP_PAGES = (
     ("/algorithms", "0.7", "monthly"),
     ("/trust", "0.6", "weekly"),
     ("/plain", "0.5", "weekly"),
-    ("/pricing", "0.7", "monthly"),
     ("/security", "0.7", "monthly"),
-    ("/airlock-deployment", "0.6", "monthly"),
     ("/data-boundary", "0.6", "monthly"),
-    ("/pilot", "0.5", "monthly"),
+    ("/legal", "0.5", "monthly"),
     ("/public-check/terms", "0.4", "yearly"),
     ("/public-check/acceptable-use", "0.4", "yearly"),
     ("/public-check/privacy", "0.4", "yearly"),
@@ -2269,7 +2278,7 @@ def _jwt_payload_from_auth_header(auth_header: str) -> Dict[str, Any]:
 
 def _auth_public_path(path: str) -> bool:
     p = str(path or "").strip() or "/"
-    if p in _PUBLIC_INFO_PAGES or p in _RETIRED_PAGES:
+    if p in _PUBLIC_INFO_PAGES or p in _RETIRED_PAGES or p in _MOVED_TO_HOME:
         return True
     # /status is documented as "suitable for a public/internal status page" and deliberately reports
     # nothing beyond api ok/degraded and database ok/degraded -- no versions, no DSNs, no component
@@ -2281,6 +2290,8 @@ def _auth_public_path(path: str) -> bool:
         "/health",
         "/healthz",
         "/robots.txt",
+        # robots.txt names it, so a crawler must be able to read it without a login.
+        "/sitemap.xml",
         "/favicon.ico",
         "/favicon.svg",
         "/docs",
@@ -2561,8 +2572,9 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/trust", "purpose": "running commit, signed page manifest and deploy log"},
             {"path": "/plain", "purpose": "the same answers as plain HTML without scripts"},
             {"path": "/api/public", "purpose": "public grade, badge, history, league, build, deploys and manifest; read-only, rate limited"},
-            {"path": "/pricing", "purpose": "commercial editions and scoping"},
-            {"path": "/pilot", "purpose": "controlled enterprise pilot"},
+            {"path": "/legal", "purpose": "index of every policy: terms, privacy, data processing, opt-out, security"},
+            {"path": "/pricing", "purpose": "old pricing address; Morrow is free, redirects to /"},
+            {"path": "/pilot", "purpose": "old pilot address; redirects to /"},
             {"path": "/data-boundary", "purpose": "evidence collection and privacy boundary"},
             {"path": "/airlock-deployment", "purpose": "collector deployment guide"},
             {"path": "/dpa", "purpose": "data processing review overview"},
@@ -2572,7 +2584,7 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/terms", "purpose": "terms of service"},
             {"path": "/support", "purpose": "support and incident process"},
             {"path": "/invite", "purpose": "invitation landing page; accepting still requires sign-in as the invited email"},
-            {"path": "/trust-passport-demo", "purpose": "non-sensitive demo of proof sharing"},
+            {"path": "/trust-passport-demo", "purpose": "old passport overview address; redirects to /"},
             {"path": "/check", "purpose": "the old checker page; redirects to the instrument at / (or /{domain} with ?domain=)"},
             {"path": "/check/{domain}", "purpose": "the old permalink; redirects to the permanent record at /r/{domain}"},
             {"path": "/r/{domain}", "purpose": "permanent public record of a domain's post-quantum posture; server-rendered, no account"},

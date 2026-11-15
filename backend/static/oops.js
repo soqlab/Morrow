@@ -64,10 +64,10 @@
   if (standalone) {
     const PUBLIC = [
       ["/", "Home", "Morrow"], ["/", "Check a domain", "Free post-quantum check"], ["/security", "Security", "Buyer security FAQ"],
-      ["/pricing", "Pricing", "Plans and pilots"], ["/pilot", "Pilot", "Scope an engagement"], ["/support", "Support", "Contact"],
+      ["/legal", "Legal & trust", "Terms, privacy, opt-out"], ["/support", "Support", "Contact"],
       ["/data-boundary", "Data boundary", "What leaves"], ["/airlock-deployment", "Deployment", "Deployment guide"], ["/dpa", "DPA", "Data processing"],
-      ["/privacy", "Privacy", "Privacy policy"], ["/terms", "Terms", "Terms of service"], ["/trust-passport-demo", "Trust Passport", "What a passport contains"],
-      ["/enterprise-admin", "Enterprise admin", "How operations run"], ["/ui/", "Console", "Open the workspace"],
+      ["/privacy", "Privacy", "Privacy policy"], ["/terms", "Terms", "Terms of service"],
+      ["/ui/", "Console", "Open the workspace"],
     ];
     const candidates = PUBLIC.map(([href, label, hint]) => ({ key: `${href.replace(/\//g, " ")} ${label}`, href, label, hint }));
     mount(standalone, {

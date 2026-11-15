@@ -115,7 +115,7 @@ async function main() {
     await page.waitForFunction(() => !sessionStorage.getItem("morrow_platform_admin_key") && document.querySelector("#mEvents").textContent === "--");
     console.log("Traffic filters and credential cleanup checks passed.");
 
-    for (const path of ["/", "/ui/", "/vendor-admin/", "/vendor-admin/traffic.html", "/security", "/pricing", "/enterprise-admin", "/trust-passport-demo"]) {
+    for (const path of ["/", "/ui/", "/vendor-admin/", "/vendor-admin/traffic.html", "/security", "/legal", "/enterprise-admin"]) {
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(base + path, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(500);

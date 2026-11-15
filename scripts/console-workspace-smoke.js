@@ -19,6 +19,8 @@ async function main() {
     await page.locator("#home-q").waitFor();
     await page.goto(base + "/ui/#overview");
     await page.locator(".consoleHero").waitFor({ timeout: 60000 });
+    // The first thing on the console is Make it safe.
+    assert.ok((await page.locator("#safeForm button[type=submit]").innerText()).includes("Make it safe"));
     assert.equal(await page.locator("#orgSel").count(), 1);
     assert.equal(await page.locator("#identity").count(), 1);
     assert.equal(await page.locator(".overviewMetrics .meter").count(), 0, "No invented coverage bars");
@@ -107,7 +109,7 @@ async function main() {
     assert.equal(await page.locator(".overviewMetrics .metricRow").first().locator("b").innerText(), "—");
     assert.ok((await page.locator(".overviewMetrics").innerText()).includes("Inventory source unavailable"));
     await page.unroute("**/assets");
-    for (const route of ["/security","/privacy","/terms","/support","/pricing","/pilot","/data-boundary","/airlock-deployment","/dpa","/trust-passport-demo","/enterprise-admin","/abuse","/invite"]) {
+    for (const route of ["/security","/privacy","/terms","/support","/legal","/data-boundary","/airlock-deployment","/dpa","/enterprise-admin","/abuse","/invite"]) {
       await page.goto(base + route);
       if (route === "/invite") {
         assert.equal(await page.locator('link[href*="/ui/experience.css"]').count(), 1);
