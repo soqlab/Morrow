@@ -460,3 +460,19 @@ def test_the_record_page_makes_make_it_safe_the_primary_action():
     html = registry_page.render_record({"domain": "example.com", "posture": _check.POSTURE_CLASSICAL, "result": {}},
                                        [], "https://morrow.test")
     assert '<a class="btn" href="/example.com#make-safe">Make it safe</a>' in html
+
+
+def test_the_image_keeps_the_recipes_file():
+    """The root .dockerignore drops every data/ directory; the recipes must be let back in."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, ".dockerignore"), encoding="utf-8") as fh:
+        lines = [line.strip() for line in fh]
+    assert "**/data/" in lines
+    assert "!backend/data/make_safe_recipes.json" in lines[lines.index("**/data/"):]
+
+
+def test_a_domain_without_a_record_also_leads_to_make_it_safe():
+    from services import registry_page
+
+    html = registry_page.render_missing("example.com", "https://morrow.test")
+    assert '<a class="btn" href="/example.com#make-safe">Make it safe</a>' in html

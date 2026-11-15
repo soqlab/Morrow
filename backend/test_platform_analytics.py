@@ -422,7 +422,9 @@ def test_search_api_keys_expose_no_secret_or_hash(api):
     hits = [r for r in res.json()["results"] if r["type"] == "api_key"]
     assert len(hits) == 1 and hits[0]["route"] == f"#/api-keys?id={key['id']}"
     assert set(hits[0]) == {"type", "id", "title", "subtitle", "organization_id", "route"}
-    for value in (secret, salt, key_hash, secret.split("_")[-1]):
+    # The random part is token_urlsafe, which can itself contain "_": split once after the prefix,
+    # or a one-character tail such as "0" fails the check by chance.
+    for value in (secret, salt, key_hash, secret.split("_", 2)[-1]):
         assert value not in res.text
 
 

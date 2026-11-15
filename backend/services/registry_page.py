@@ -520,8 +520,8 @@ def render_missing(domain: str, origin: str) -> str:
         f"    <h1>{esc(domain)}</h1>",
         '    <p class="lede">There is no record for this domain: nobody has run the free check '
         "on it yet.</p>",
-        f'    <p class="actions"><a class="btn" href="/{esc(domain)}">'
-        "See its live grade</a></p>",
+        f'    <p class="actions"><a class="btn" href="/{esc(domain)}#make-safe">Make it safe</a> '
+        f'<a href="/{esc(domain)}">See its live grade</a></p>',
         '    <p class="fine">Running it contacts this endpoint once on port 443, the way a '
         'browser does. The <a href="/public-check/acceptable-use">acceptable-use policy</a> '
         "applies: check hosts you own, a supplier you are assessing, or a domain you are "
