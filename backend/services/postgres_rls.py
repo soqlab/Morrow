@@ -105,6 +105,8 @@ ORG_SCOPED_TABLES: List[str] = [
     "watch_channels",
     "watch_feed_tokens",
     "domain_claims",
+    # The live safe badge switch (services/safe_badge.py): which claimed domain shows the badge.
+    "safe_badges",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -142,6 +144,7 @@ TENANT_COLUMNS: Dict[str, str] = {
     "watch_channels": "org_id",
     "watch_feed_tokens": "org_id",
     "domain_claims": "org_id",
+    "safe_badges": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".

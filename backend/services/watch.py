@@ -459,7 +459,19 @@ def due_domains(limit: int, now: Optional[datetime] = None) -> List[str]:
     with _scope("watch tick: which watched domains are due, across every organization"), feature_conn() as conn:
         names = sorted({r["domain"] for r in conn.execute("SELECT DISTINCT domain FROM watch_domains").fetchall()})
         states = {r["domain"]: r["checked_at"] for r in conn.execute("SELECT domain, checked_at FROM watch_domain_state").fetchall()}
-    due = sorted((states.get(d) or "", d) for d in names if (states.get(d) or "") < cutoff)
+    # A domain whose owner shows the live safe badge (services/safe_badge.py) is re-checked at least
+    # every RECHECK_HOURS, watched or not, so the badge never rests on an old answer.
+    try:
+        from services import safe_badge
+
+        badges = set(safe_badge.active_domains())
+        badge_cutoff = iso((now or now_utc()) - timedelta(hours=min(interval_hours(), safe_badge.RECHECK_HOURS)))
+    except Exception:
+        logger.warning("watch tick: could not read which domains show the safe badge")
+        badges, badge_cutoff = set(), cutoff
+    names = sorted(set(names) | badges)
+    due = sorted((states.get(d) or "", d) for d in names
+                 if (states.get(d) or "") < (badge_cutoff if d in badges else cutoff))
     out = []
     for _, d in due:
         if len(out) >= max(0, int(limit)):
@@ -960,8 +972,17 @@ def public_claim(domain: Any) -> Dict[str, Any]:
                              (row["org_id"], name)).fetchone()
             if r:
                 reply = {"text": r["text"], "at": r["created_at"]}
+    badge = None
+    if row:
+        try:
+            from services import safe_badge
+
+            st = safe_badge.status(name)
+            badge = {k: st.get(k) for k in ("enabled", "state", "verified_at", "safe_since", "explanation")} if st["enabled"] else None
+        except Exception:
+            badge = None
     return {"domain": name, "claimed": bool(row), "since": row["claimed_at"] if row else None, "reply": reply,
-            "how": "Claim it with a DNS TXT record: no email, no call."}
+            "badge": badge, "how": "Claim it with a DNS TXT record: no email, no call."}
 
 
 # ── /about-scanner ──────────────────────────────────────────────────────────

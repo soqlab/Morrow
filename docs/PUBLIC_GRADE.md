@@ -140,6 +140,23 @@ legal citations. It is not legal advice.
   or its first word), together with `?keep=`, `?qday=` and `?switch=`. The dial goes to 130 years,
   every year to 40, every two to 80, every five after, plus every catalogue value.
 
+### Your quantum risk in one sentence
+
+Every report starts with one sentence (services/risk_sentence.py): the public check at `/<domain>`,
+the instrument's `/scan/<id>` and `/estate/asset/<key>`, and the console's scan results. For example:
+"Your personal data sent to api.example.com today could be read from about 2035 (expert estimates:
+2035 to 2040), but it needs to stay private until 2096. Fix 2 settings and traffic from then on can't
+be read with a quantum computer." It joins numbers Morrow already has: the year from the harvest
+clock's estimate (always "about", with the survey's range), how long the data must stay private from
+Shelf-Life (`max` of the entry, as on the dial), and how many settings fix it (`settings_to_fix` on
+the public grade: `pq`, `protocols`, `ciphers`, `certificate`; on a console scan, the findings with
+a remediation). Until the person picks a kind of data it assumes personal data under the law the
+TLD suggests (else EU) and says so under the sentence, with a picker that changes it in place and
+keeps it in `?data=&jur=` (the harvest clock follows). A host that is already safe, not encrypted,
+or not reached gets that answer instead. `GET /api/public/risk-sentence?host=&state=&fixable=&data=&jur=&observed=&others=`
+(`state`: `safe`, `at_risk`, `no_tls`, `unknown`) returns the sentence and what it was built from;
+`GET /api/public/grade/<domain>` carries it as `risk` for the default kind of data.
+
 ## Fixes
 
 Each fix has the fields `{id, title, applies_to, snippet, notes, requires}`.
@@ -529,6 +546,27 @@ claim moves. A claim turns watching on, shows the fix plan, the public reply
 (`PUT /instrument/replies/<domain>`), the owner's own opt-out, and "Talk to SOQLAB about migrating"
 (a `mailto:` draft to `MORROW_SALES_CONTACT`, default contact@soqlab.com, sent from the owner's own mail
 app). `GET /api/public/claim/<domain>` says whether a domain is claimed and since when, never by whom.
+
+### The live safe badge
+
+The organization holding a claim can turn on a badge (`PUT /instrument/claims/<domain>/badge`, admin;
+`GET` shows the snippet, `DELETE` turns it off) and paste one line on its own site:
+
+    <a href="https://morrow.soqlab.com/<domain>"><img src="https://morrow.soqlab.com/api/public/safe-badge/<domain>.svg"
+       alt="Morrow quantum-safety check for <domain>" height="20" referrerpolicy="no-referrer"></a>
+
+`GET /api/public/safe-badge/<domain>.svg` reads "Quantum-safe | verified <date>" only while the badge
+is on, the claim is still held by the organization that turned it on, and Morrow's newest stored
+check is at most 48 hours old, grade A or B, with a post-quantum key exchange. Otherwise it reads
+"Morrow | quantum check" and claims nothing; it never says "not safe" on the owner's site, and an
+opted-out domain is always neutral. The watch tick re-checks every badged domain at least every 24
+hours, watched or not, with the same guarded probe, per-tick limit and scanner User-Agent. Serving
+the image never contacts the domain: stored data only, cached in memory for 5 minutes and dropped
+as soon as a new check is stored; `Cache-Control: public, max-age=3600`, `Cross-Origin-Resource-Policy:
+cross-origin`, no cookies, no script, nothing loaded from elsewhere. It skips the per-organization
+rate limit and the traffic monitor (`app._is_embed_path`). `GET /api/public/safe-badge/<domain>` gives
+the same answer as JSON with `safe_since`, and `/api/public/claim/<domain>` includes it, so the
+domain page the badge links to states the same thing. `safe_badges` is org-scoped and in the RLS plan.
 
 | Variable | Default | Meaning |
 |---|---|---|

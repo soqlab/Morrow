@@ -139,6 +139,13 @@ async function main() {
     await page.goto(`${base}/${SMOKE_DOMAIN}?depth=standard&keep=15`, { waitUntil: "networkidle" });
     await page.locator("#hv-say").waitFor({ timeout: 15000 });
     const year = new Date().getUTCFullYear();
+    // Your quantum risk in one sentence, first on the page: the assumed kind of data is named and
+    // can be changed in place (services/risk_sentence.py answers through /api/public/risk-sentence).
+    await page.locator("#risk-data").waitFor({ timeout: 15000 });
+    const risk = await page.locator("#risk-say").innerText();
+    assert.match(risk, new RegExp(`^Your personal data sent to harvest-smoke\\.example today could be read from about 2035 \\(expert estimates: 2035 to 2040\\), but it needs to stay private until ${year + 70}\\. Fix 1 setting and traffic from then on can't be read with a quantum computer\\.$`), risk);
+    assert.match(await page.locator("#risk").innerText(), /Assumed kind of data/i);
+    assert.equal(await page.locator("#d-body > *").first().getAttribute("id"), "risk", "the sentence is not first");
     let clock = await page.locator("#hv-say").innerText();
     assert.match(clock, /could be read around 2035/, clock);
     assert.ok(clock.includes(`until ${year + 15}`) && /short\./.test(clock), clock);
@@ -155,6 +162,12 @@ async function main() {
     await page.locator('#i-dial button[data-d="plain"]').click();
     await page.locator("#hv-say").waitFor();
     assert.ok(!(await page.locator("#hv-sw").count()), "the plain dial shows the expert migration control");
+    await page.locator("#risk-data").waitFor({ timeout: 15000 });
+    await page.locator("#risk-data").selectOption("health");
+    await page.waitForFunction(() => /^Your health records sent to /.test(document.querySelector("#risk-say").textContent), null, { timeout: 15000 });
+    assert.ok(page.url().includes("data=health"), "the risk picker is not kept in the URL: " + page.url());
+    await page.waitForFunction(() => { const s = document.querySelector("#hv-data"); return s && s.value === "health-records"; }, null, { timeout: 15000 });
+    assert.match(await page.locator("#risk-lbl").innerText(), /^Kind of data$/i);
 
     // Shelf-Life: ?data=&jur= set the dial from the catalogue, the sentence quotes it, the picker
     // changes it and stays in the URL; plain says just the number, expert adds basis and the law.
@@ -260,7 +273,7 @@ async function main() {
 
     assert.deepEqual(foreign, [], "the instrument contacted another origin");
     assert.deepEqual(errors, [], "JavaScript errors");
-    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, harvest clock dials, the Shelf-Life picker, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, trust readout, plain without JS, 360px layout.");
+    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, the risk sentence and its data picker, harvest clock dials, the Shelf-Life picker, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, trust readout, plain without JS, 360px layout.");
   } finally {
     await browser.close();
   }
