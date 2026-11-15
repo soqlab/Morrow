@@ -19,6 +19,8 @@ async function main() {
     await page.locator("#home-q").waitFor();
     await page.goto(base + "/ui/#overview");
     await page.locator(".consoleHero").waitFor({ timeout: 60000 });
+    // The first thing on the console is Make it safe.
+    assert.ok((await page.locator("#safeForm button[type=submit]").innerText()).includes("Make it safe"));
     assert.equal(await page.locator("#orgSel").count(), 1);
     assert.equal(await page.locator("#identity").count(), 1);
     assert.equal(await page.locator(".overviewMetrics .meter").count(), 0, "No invented coverage bars");

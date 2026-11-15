@@ -3785,12 +3785,23 @@ VIEWS.overview = async (host) => {
   const nextLine = nothingYet ? "Scan a host you run to get the first reading: TLS version, key exchange and certificate, with what to change."
     : nextFix ? `Next fix: ${nextFix.asset_key || nextFix.host || nextFix.repository || "top of the queue"}${nextFix.priority_score != null ? ` (priority ${NUM(nextFix.priority_score)})` : ""}`
     : `${NUM(AS.length)} assets in inventory, ${NUM(SC.length)} recent scans.`;
+  /* Make it safe is the first thing on the console: a domain, then its page at the Make it safe
+     panel (the fix for its own stack, a watched re-check, a signed proof). Pre-filled with the host
+     at the top of the fix queue when that is a plain hostname. */
+  const queued = safeDomain(String(nextFix?.host || nextFix?.asset_key || "").split(":")[0]);
   const hero = `<section class="consoleHero">
     <div class="overviewEyebrow"><span>Overview</span><span>Read at ${H(snapshot)}</span></div>
+    <form class="safeForm" id="safeForm" novalidate>
+      <label for="safeQ">Make a domain quantum-safe</label>
+      <div class="safeRow"><input class="inp mono" id="safeQ" type="text" inputmode="url" autocomplete="url" autocapitalize="none"
+        spellcheck="false" placeholder="your-domain.com" value="${H(queued || "")}" aria-describedby="safeNote">
+        <button class="btn pri" type="submit">${I.shield}Make it safe</button></div>
+      <span class="safeNote" id="safeNote" aria-live="polite">The exact change for what serves it, a re-check once it is live, and a signed proof.</span>
+    </form>
     <div class="overviewHeading"><h2>${H(reading)}</h2>
       <p>${H(nextLine)}</p>
       <div class="overviewActions">
-        ${actBtn("Start a TLS scan", "nav", { cls: "btn pri", icon: I.radar, data: { to: "scans" } })}
+        ${actBtn("Start a TLS scan", "nav", { cls: "btn", icon: I.radar, data: { to: "scans" } })}
         ${S.enterprise ? actBtn("Open Quantum Airlock", "nav", { cls: "btn", icon: I.lock, data: { to: "airlock" } }) : ""}
       </div>
     </div>
@@ -3893,6 +3904,19 @@ VIEWS.overview = async (host) => {
     </div></details>`
     + `<details class="workspaceFold"><summary><span>Platform capabilities</span><small>Collectors, gateways, pipelines, and evidence</small></summary><div class="foldContent">${strategicCapabilityPanel(missionCtx)}</div></details>`
     + `<details class="workspaceFold"><summary><span>Operating runway</span><small>Regulation, monitoring, and maturity</small></summary><div class="foldContent">${tiles}</div></details>`;
+
+  $("#safeForm", host)?.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const field = $("#safeQ", host), note = $("#safeNote", host);
+    const d = safeDomain(field.value);
+    if (!d) {
+      note.dataset.tone = "bad";
+      note.textContent = field.value.trim() ? "That isn't a domain. Type one like example.com." : "Type a domain first, like example.com.";
+      field.focus();
+      return;
+    }
+    location.href = "/" + d + "#make-safe";
+  });
 
   /* Live mission control.
 
@@ -4048,6 +4072,12 @@ async function startMissionLive(seed) {
     } finally { inFlight = false; }
   };
   S.livePoll = setInterval(tick, MISSION_LIVE_MS);
+}
+/** A hostname from what someone typed or pasted (a URL, a host:port), or "" when it is not one. */
+function safeDomain(raw) {
+  const host = String(raw || "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+    .split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/\.$/, "").replace(/^\*\./, "");
+  return /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/.test(host) ? host : "";
 }
 /* Why it matters: the four Quantum Risk views folded into one panel. Each line is one reading from
    data Overview already loaded, and a button to the view that explains it. A reading that is not

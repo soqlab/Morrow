@@ -509,16 +509,36 @@
       '<div class="i-opts" id="' + id + '-l" role="listbox"></div>';
   }
 
-  /* Home: the one input and a live reading. Signed in, the reading is your estate. */
+  /* Home: one domain input whose only action is Make it safe, and a live reading. It opens the
+     domain's page at its Make it safe panel (make-safe.js): the fix for that host's own stack, a
+     watched re-check, and a signed proof once it is live. Algorithms, CVEs, commits and pages are
+     still one Ctrl K away, but they are not the hero. Signed in, the reading is your estate. */
+  var HOME_HINT = "The exact change for your server, a re-check once it is live, and a signed proof. Anything else: Ctrl K.";
   function viewHome() {
     setView("grade", null);
-    say(byDepth({ plain: "Type a website's address to see whether traffic to it could be read by a future quantum computer, and how to fix it.",
-      standard: "Type a domain, an algorithm, a CVE or a commit. A domain gets its answer, its grade and the fix.",
-      expert: "Hostname → grade (rubric on /api/public); algorithm → reference; CVE → NVD; hex → commit check; “scan host” → your workspace." }));
-    main.innerHTML = inputBlock("home-q") + '<p class="i-fine" id="home-hint">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p><div id="home-reading"></div>';
-    bindRecognizer($("#home-q"), $("#home-q-l"));
-    $("#home-q").addEventListener("input", function () { $("#home-hint").hidden = !!this.value; });
-    $("#home-q").focus();
+    say(byDepth({ plain: "Type your website's address. Morrow shows the one change that keeps its traffic safe from future quantum computers.",
+      standard: "Type your domain. Morrow grades it, names what serves it and shows the change that makes it quantum-safe.",
+      expert: "Hostname → live grade, terminating stack, the vendor-sourced change, a watched re-check and a signed proof. Ctrl K for algorithms, CVEs, commits." }));
+    main.innerHTML = '<form class="i-safe" id="home-form" novalidate>' +
+      '<label class="i-safe-l" for="home-q">Type your domain</label>' +
+      '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
+      '<input id="home-q" name="domain" type="text" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint"></div>' +
+      '<button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div>' +
+      '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p></form><div id="home-reading"></div>';
+    var input = $("#home-q"), hint = $("#home-hint");
+    input.addEventListener("input", function () { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; });
+    $("#home-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var d = asDomain(input.value);
+      if (!d) {
+        hint.setAttribute("data-tone", "bad");
+        hint.textContent = input.value.trim() ? "That isn't a domain. Type one like example.com." : "Type your domain first, like example.com.";
+        input.focus();
+        return;
+      }
+      location.href = "/" + d + "#make-safe";
+    });
+    input.focus();
     workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
   }
   function homePublic() {
@@ -539,7 +559,7 @@
     estateHistory().then(function (H) {
       if (!H || !H.points.length) {
         say("Nothing in your workspace has been scanned yet. Type “scan” and one of your domains to take the first reading.");
-        $("#home-estate").innerHTML = '<p>Your estate is empty. Try <code>scan ' + esc(recent().filter(function (r) { return r.kind === "domain"; }).map(function (r) { return r.id; })[0] || "your-domain.com") + '</code> in the input above.</p>';
+        $("#home-estate").innerHTML = '<p>Your estate is empty. Press Ctrl K and type <code>scan ' + esc(recent().filter(function (r) { return r.kind === "domain"; }).map(function (r) { return r.id; })[0] || "your-domain.com") + '</code>.</p>';
         return;
       }
       say(estateSentence(H));
