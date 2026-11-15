@@ -43,12 +43,12 @@
   }
 
   /* ── the domain page ───────────────────────────────────────────────────── */
-  var D = { d: null, r: null, tp: null, pub: null, mine: null, watch: null, signed: null, busy: false, msg: "", tone: null, record: null };
+  var D = { d: null, r: null, tp: null, pub: null, mine: null, watch: null, signed: null, busy: false, msg: "", tone: null, record: null, badge: null };
 
   function domain(d, r) {
     var fresh = D.d !== d;
     D.r = r;
-    if (fresh) { D = { d: d, r: r, tp: null, pub: null, mine: null, watch: null, signed: null, busy: false, msg: "", tone: null, record: null }; load(); }
+    if (fresh) { D = { d: d, r: r, tp: null, pub: null, mine: null, watch: null, signed: null, busy: false, msg: "", tone: null, record: null, badge: null }; load(); }
     else paint();
   }
   function services(d, tp) { if (D.d === d) { D.tp = tp; paint(); } }
@@ -63,8 +63,34 @@
       return Promise.all([
         send("GET", "/instrument/watch/" + I().enc(d)).catch(function () { return null; }),
         send("GET", "/instrument/claims/" + I().enc(d)).catch(function () { return null; })
-      ]).then(function (y) { if (D.d !== d) return; D.watch = y[0]; D.mine = y[1]; paint(); });
+      ]).then(function (y) { if (D.d !== d) return; D.watch = y[0]; D.mine = y[1]; paint(); loadBadge(); });
     });
+  }
+
+  /* The live safe badge (services/safe_badge.py): only the organization holding the claim sees this. */
+  function loadBadge() {
+    var d = D.d;
+    if (!D.mine || !D.mine.claimed) { D.badge = null; return; }
+    send("GET", "/instrument/claims/" + I().enc(d) + "/badge").then(function (b) { if (D.d === d) { D.badge = b; paint(); } }, function () {});
+  }
+  function badgePart() {
+    var X = I(), esc = X.esc, b = D.badge, d = D.d;
+    var html = '<h3 id="w-badge">A badge for your site</h3>';
+    if (!b) return html + '<p class="i-status">Reading your badge&hellip;</p>';
+    var st = b.status || {};
+    var how = "Morrow re-checks " + d + " every day with the same check as this page. The badge says \u201cQuantum-safe\u201d only while Morrow's newest check, at most " +
+      (b.fresh_hours || 48) + " hours old, found a post-quantum key exchange. Otherwise it quietly shows \u201cMorrow \u00b7 quantum check\u201d and claims nothing. The image sets no cookies, runs no script and loads nothing else.";
+    if (!b.enabled) {
+      return html + "<p>" + esc("Show visitors that " + d + " is quantum-safe, verified by Morrow and re-checked daily. You paste one line of HTML on your site; it links to " + d + "'s signed quantum-safe proof on Morrow.") + "</p>" +
+        '<p class="i-fine">' + esc(how) + '</p><div class="i-row"><button type="button" class="i-btn solid" id="w-badge-on">Turn on the badge</button></div>';
+    }
+    var now = st.state === "safe"
+      ? "Your badge shows \u201cQuantum-safe \u00b7 verified " + String(st.verified_at || "").slice(0, 10) + "\u201d" + (st.safe_since ? ", safe since " + String(st.safe_since).slice(0, 10) : "") + "."
+      : "Your badge makes no claim right now. " + (st.explanation || "");
+    return html + '<p id="w-badge-now">' + esc(now) + '</p><p><img src="/api/public/safe-badge/' + X.enc(d) + '.svg" alt="Your badge as visitors see it" height="20"></p>' +
+      '<p id="w-badge-lbl">Paste this where the badge should appear on your site:</p><pre id="w-badge-code" tabindex="0" aria-labelledby="w-badge-lbl">' + esc(b.snippet) + "</pre>" +
+      '<div class="i-row"><button type="button" class="i-btn solid" data-wcopy="w-badge-code">Copy the HTML</button><button type="button" class="i-btn" id="w-badge-off">Turn the badge off</button></div>' +
+      '<p class="i-fine">' + esc(how) + "</p>";
   }
 
   function act(p, okMsg) {
@@ -89,7 +115,7 @@
     var pub = D.pub || {}, mine = D.mine || {}, w = D.watch || {};
     var lines = [], body = "";
     var claimLine = pub.claimed
-      ? '<p class="i-fine">' + esc(d) + " has been claimed by its owner since " + esc(X.day(pub.since)) + "." + (pub.reply ? "</p><p><b>The owner says</b> (" + esc(X.day(pub.reply.at)) + "): " + esc(pub.reply.text) : "") + "</p>"
+      ? '<p class="i-fine">' + esc(d) + " has been claimed by its owner since " + esc(X.day(pub.since)) + "." + esc(badgeLine(pub.badge)) + (pub.reply ? "</p><p><b>The owner says</b> (" + esc(X.day(pub.reply.at)) + "): " + esc(pub.reply.text) : "") + "</p>"
       : '<p class="i-fine" id="w-claim-line">Is this your domain? <a href="#w-claim" id="w-claim-go">Claim it</a> to get alerts when this changes.</p>';
     if (D.signed === null) { box.innerHTML = X.panel("", "Watch", '<p class="i-status">Reading whether you watch ' + esc(d) + "&hellip;</p>", { ch: "trust", id: "w-panel" }); return; }
     if (!D.signed) {
@@ -121,6 +147,7 @@
         '<p><label for="w-reply">Your public reply on ' + esc(d) + "'s page (280 characters)</label></p>" +
         '<div class="i-field"><input id="w-reply" type="text" maxlength="280" autocomplete="off" value="' + esc(pub.reply ? pub.reply.text : "") + '" placeholder="We are rolling out X25519MLKEM768 in Q1."></div>' +
         '<div class="i-row"><button type="button" class="i-btn" id="w-reply-save">Publish reply</button>' + (pub.reply ? '<button type="button" class="i-btn" id="w-reply-del">Remove reply</button>' : "") + "</div>" +
+        badgePart() +
         '<p class="i-fine">Claimed ' + esc(X.day(mine.claimed_at)) + ' by DNS.</p><div class="i-row"><button type="button" class="i-btn" id="w-release">Give up the claim</button><button type="button" class="i-btn" id="w-optout">Stop Morrow checking ' + esc(d) + "</button></div>";
     } else if (mine.claimed_by_other) {
       body += '<p class="i-fine">Another organization has claimed ' + esc(d) + ". If you control its DNS, you can still claim it: the claim moves once their record is gone.</p>" + claimPart(mine);
@@ -131,6 +158,14 @@
     box.innerHTML = X.panel("", "Watch", body, { ch: "trust", id: "w-panel" });
     if (D.busy) X.$$("#w-panel button").forEach(function (b) { b.setAttribute("aria-busy", "true"); });
     bindDomain();
+  }
+
+  /* What the public page says about the owner's badge, so the badge's link lands on the same answer. */
+  function badgeLine(b) {
+    if (!b || !b.enabled) return "";
+    return b.state === "safe"
+      ? " The owner shows Morrow's quantum-safe badge: verified " + String(b.verified_at || "").slice(0, 10) + (b.safe_since ? ", safe since " + String(b.safe_since).slice(0, 10) : "") + "."
+      : " The owner's Morrow badge makes no claim right now. " + (b.explanation || "");
   }
 
   function claimPart(mine) {
@@ -166,7 +201,7 @@
     on("w-check", function () {
       act(send("POST", "/instrument/claims/" + e + "/check"), "Claimed. " + d + " is yours in Morrow, and you're watching it.")
         .then(function (res) { D.mine = res; D.record = null; return Promise.all([send("GET", "/instrument/watch/" + e), X.getJSON("/api/public/claim/" + e, { cache: "no-store" })]); })
-        .then(function (y) { D.watch = y[0]; D.pub = y[1]; paint(); X.flash(document.getElementById("w-owner")); }, function () {});
+        .then(function (y) { D.watch = y[0]; D.pub = y[1]; paint(); loadBadge(); X.flash(document.getElementById("w-owner")); }, function () {});
     });
     on("w-reply-save", function () {
       var text = (document.getElementById("w-reply") || {}).value || "";
@@ -177,6 +212,11 @@
     on("w-optout", function () {
       if (!window.confirm("Morrow will never connect to " + d + " or any name under it again, and its stored result is deleted. Watching stops working for it. Go ahead?")) return;
       act(send("POST", "/instrument/claims/" + e + "/opt-out"), d + " is opted out: Morrow will not connect to it again.").then(function () { paint(); }, function () {});
+    });
+    on("w-badge-on", function () { act(send("PUT", "/instrument/claims/" + e + "/badge"), "The badge is on. Copy the HTML below onto your site.").then(function (b) { D.badge = b; paint(); }, function () {}); });
+    on("w-badge-off", function () {
+      act(send("DELETE", "/instrument/claims/" + e + "/badge"), "The badge is off. Anywhere it is still pasted, it now shows \u201cMorrow \u00b7 quantum check\u201d and claims nothing.")
+        .then(function () { return send("GET", "/instrument/claims/" + e + "/badge"); }).then(function (b) { D.badge = b; paint(); }, function () {});
     });
     X.$$("[data-wcopy]").forEach(function (b) { b.addEventListener("click", function () { X.copy(document.getElementById(b.getAttribute("data-wcopy")).textContent, b); }); });
   }

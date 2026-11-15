@@ -69,6 +69,18 @@
       <p>Read the <a href="/public-check/privacy">privacy notice for the free checker</a>, and the <a href="/abuse">abuse and opt-out page</a> if you operate a domain and do not want it checked. The <a href="/about-scanner">scanner identity page</a> identifies the traffic for an operator who found it in their logs.</p>
     </section>
 
+    <section class="doc-section" id="safe-badge">
+      <h2>The Safe Badge On Other Sites</h2>
+      <p>The owner of a domain they have claimed in Morrow by DNS can paste Morrow's quantum-safe badge on their own site. When someone visits that site, their browser loads the badge image from Morrow. What that request leaves behind:</p>
+      <ul>
+        <li>No cookies are set or read, and the image runs no script and loads nothing from anyone else: no fonts, no other images, no third-party requests.</li>
+        <li>No referrer: the snippet asks the browser not to send the address of the page the badge is on.</li>
+        <li>It is not written to Morrow's traffic monitor, so Morrow keeps no IP address, browser or page address for it. Morrow's application log notes the route pattern (not the domain), the status code and how long it took.</li>
+        <li>The web server's standard access line (the connecting address and status, without the address requested) goes to the hosting platform's log stream, as for every request, and the hosting provider's network may briefly log the connection.</li>
+      </ul>
+      <p>What the badge shows comes only from Morrow's own daily check of the domain, never from the visitor. Browsers and caches may keep the image for up to an hour.</p>
+    </section>
+
     <section class="doc-section">
       <h2>Contact</h2>
       <p>Privacy requests: customers can raise them through <b>Feedback</b> in the console or with their named account contact, who will route them to the privacy owner. If you are not yet a customer, contact us through the <a href="/pilot">pilot request</a> page.</p>

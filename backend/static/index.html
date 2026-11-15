@@ -378,6 +378,12 @@ pre.out{
 .banner.info{background:var(--infobg);border-color:color-mix(in srgb,var(--info) 30%,transparent);color:var(--info)}
 .banner.ok{background:var(--okbg);border-color:color-mix(in srgb,var(--ok) 30%,transparent);color:var(--ok)}
 .banner b{font-weight:670;display:block;margin-bottom:2px}
+.riskTop{border-left:3px solid var(--brand);padding:2px 0 2px 14px;margin:0 0 16px;max-width:76ch}
+.riskSay{font-size:clamp(17px,2vw,21px);line-height:1.35;font-weight:560;margin:0 0 8px;color:var(--ink);overflow-wrap:anywhere}
+.riskPick{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.riskPick label{flex:1 0 100%;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)}
+.riskPick select{min-width:0;max-width:100%;font:inherit;font-size:12.5px;padding:5px 8px;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm)}
+.riskWhy{font-size:11.5px;color:var(--ink2);margin:8px 0 0;line-height:1.5;overflow-wrap:anywhere}
 .banner .bx{color:var(--ink2)}
 
 /* ---------- hero (overview) ---------- */
@@ -5370,6 +5376,7 @@ function renderLiveResults(results) {
     <span class="bx">The scan ran, but the scan row could not be written. Downstream views (CBOM, HNDL, remediation) will not see these.</span></div></div>`
     + scanResultBlocks({ status: "completed", results, progress: { done: results.length, total: results.length, percent: 100 }, summary: {} }, null, null);
   wire(pane);
+  paintRisk(pane);
 }
 function pollScan(id) {
   if (S.poll) clearInterval(S.poll);
@@ -5407,6 +5414,69 @@ async function renderScanPane(id) {
   S.scan.results = res.data.results || [];
   pane.innerHTML = scanResultBlocks(res.data, diff, id);
   wire(pane);
+  paintRisk(pane);
+}
+/* Your quantum risk in one sentence (services/risk_sentence.py, GET /api/public/risk-sentence): the
+   harvest clock, the Shelf-Life kind of data and the fixable findings, the same words as the public
+   check. The kind of data is assumed until it is picked here; the pick is kept on this device. */
+function riskQ(list) {
+  const at = list.filter(r => r.decrypt_window?.status === "at_risk");
+  const safe = list.filter(r => r.decrypt_window?.status === "protected");
+  const r = at[0] || (safe.length === list.length ? safe[0] : list[0]);
+  if (!r) return null;
+  return {
+    host: String(rTarget(r) || "").replace(/:443$/, ""),
+    state: at.length ? "at_risk" : safe.length && safe.length === list.length ? "safe" : "unknown",
+    fixable: (r.findings || []).filter(f => f.remediation || f.recommendation).length,
+    observed: (r.decrypt_window?.notes || []).some(n => /could not be seen/.test(n)) ? "0" : "1",
+    others: Math.max(0, (at.length || list.length) - 1),
+  };
+}
+function riskTop(list) {
+  const q = riskQ(list);
+  if (!q) return "";
+  return `<section class="riskTop" data-risk="${H(JSON.stringify(q))}" aria-label="Your quantum risk">
+    <p class="riskSay" aria-live="polite">Working out what this means for your data…</p><div class="riskAs"></div></section>`;
+}
+async function paintRisk(root) {
+  const box = root?.querySelector(".riskTop");
+  if (!box) return;
+  let q;
+  try { q = JSON.parse(box.dataset.risk || "{}"); } catch { return; }
+  q.data = LS.get("morrow_data", "") || ""; q.jur = LS.get("morrow_jur", "") || "";
+  let built = false;
+  const say = box.querySelector(".riskSay"), as = box.querySelector(".riskAs");
+  const draw = async () => {
+    const qs = Object.entries(q).filter(([, v]) => v !== "" && v != null).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+    let r;
+    try { r = await api(`/api/public/risk-sentence?${qs}`); }
+    catch (e) { say.textContent = `Morrow could not put this into one sentence just now: ${e.message}`; return; }
+    if (!document.body.contains(box)) return;
+    say.textContent = r.sentence;
+    const d = r.data, c = r.choices || {}, est = r.estimate || {};
+    const why = `${H(r.assumption)} The quantum year is an estimate from the <a href="${H(est.source_url || "")}" target="_blank" rel="noopener">Global Risk Institute expert survey</a>, not a date.`;
+    if (!d || !(c.categories || []).length) { as.innerHTML = `<p class="riskWhy">${why}</p>`; return; }
+    if (!built) {
+      const id = `rk${Math.random().toString(36).slice(2, 8)}`;
+      as.innerHTML = `<div class="riskPick"><label for="${id}" class="riskLbl"></label>
+        <select id="${id}" class="riskData">${c.categories.map(k => `<option value="${H(k.short)}">${H(k.label)}</option>`).join("")}</select>
+        <select class="riskJur" aria-label="Whose law">${c.jurisdictions.map(j => `<option value="${H(j.code)}">${H(j.short)}</option>`).join("")}</select></div>
+        <p class="riskWhy"></p>`;
+      built = true;
+      const pick = () => {
+        q.data = as.querySelector(".riskData").value; q.jur = as.querySelector(".riskJur").value;
+        LS.set("morrow_data", q.data); LS.set("morrow_jur", q.jur);
+        draw();
+      };
+      as.querySelector(".riskData").addEventListener("change", pick);
+      as.querySelector(".riskJur").addEventListener("change", pick);
+    }
+    as.querySelector(".riskLbl").textContent = d.assumed ? "Assumed kind of data (change it)" : "Kind of data";
+    as.querySelector(".riskData").value = d.short;
+    if (c.jurisdictions.some(j => j.code === d.requested_jurisdiction)) as.querySelector(".riskJur").value = d.requested_jurisdiction;
+    as.querySelector(".riskWhy").innerHTML = why;
+  };
+  draw();
 }
 /** Build the whole result panel. Works with or without a persisted scan id. */
 function scanResultBlocks(d, diff, id) {
@@ -5421,7 +5491,7 @@ function scanResultBlocks(d, diff, id) {
   const expiring = list.filter(r => r.days_until_expiry != null && r.days_until_expiry < 30).length;
   const hasId = !!id;
 
-  return `
+  return `${riskTop(list)}
     <div class="g g4">
       ${kpi("Assets scanned", NUM(list.length), { icon: I.server, tone: "var(--brand)",
         sub: `${NUM(findings.length)} finding${findings.length === 1 ? "" : "s"} raised` })}

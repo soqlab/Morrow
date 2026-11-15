@@ -843,6 +843,8 @@ def grade_from_facts(facts: Dict[str, Any]) -> Dict[str, Any]:
         "server_software": server_software,
         "platform": platform,
         "fixes": [] if grade == "A" else fixes_for(platform, needs),
+        # What the fixes change, one entry per setting (services/risk_sentence.py counts them).
+        "settings_to_fix": [k for k in ("pq", "protocols", "ciphers", "certificate") if needs.get(k)] if grade != "A" else [],
         "reasons": reasons,
         "rubric_version": RUBRIC_VERSION,
     }
@@ -1214,6 +1216,9 @@ def store(result: Dict[str, Any]) -> None:
              str(kx.get("group") or ""), 1 if kx.get("post_quantum") else 0, RUBRIC_VERSION,
              json.dumps(stored, separators=(",", ":"), sort_keys=True)))
         conn.commit()
+    from services import safe_badge
+
+    safe_badge.forget(str(result.get("domain") or ""))  # a live badge reads this new answer, not a cached one
 
 
 def latest(domain: str, max_age_seconds: Optional[int] = None) -> Optional[Dict[str, Any]]:

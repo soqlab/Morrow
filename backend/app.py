@@ -3132,6 +3132,16 @@ def _is_cheap_path(path: str) -> bool:
     return _is_probe_path(path) or _is_static_path(path)
 
 
+def _is_embed_path(path: str) -> bool:
+    """The live safe badge image (services/safe_badge.py), loaded by visitors of other people's sites.
+
+    It reads stored data from an in-memory cache and never contacts the domain, so it skips the
+    per-organization rate limit (every anonymous visitor of every badged site would share one
+    bucket) and is not written to the traffic monitor: no visitor IP or browser is kept for it.
+    """
+    return path.startswith("/api/public/safe-badge/") and path.endswith(".svg") and path.count("/") == 4
+
+
 def _extract_org_id_from_request(request: Request) -> str:
     payload = getattr(request.state, "auth_claims", {}) if hasattr(request.state, "auth_claims") else {}
     org_id = _extract_org_id_from_payload(payload if isinstance(payload, dict) else {})
@@ -3324,7 +3334,7 @@ async def audit_write_operations(request: Request, call_next):
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
-    if _is_cheap_path(request.url.path):
+    if _is_cheap_path(request.url.path) or _is_embed_path(request.url.path):
         return await call_next(request)  # see _is_cheap_path
     ip = request.client.host if request.client else "unknown"
     org_id = _extract_org_id_from_request(request)
@@ -3448,7 +3458,7 @@ async def require_api_key(request: Request, call_next):
 
 @app.middleware("http")
 async def traffic_monitoring(request: Request, call_next):
-    if _is_cheap_path(request.url.path):
+    if _is_cheap_path(request.url.path) or _is_embed_path(request.url.path):
         request.state.skip_traffic_record = True
     started = time.time()
     try:
@@ -27576,6 +27586,9 @@ from routers.watch import create_watch_router as _create_watch_router  # noqa: E
 from services import watch as _watch_schema  # noqa: E402
 
 register_deferred_schema("watch", _watch_schema.init_tables)
+from services import safe_badge as _safe_badge_schema  # noqa: E402
+
+register_deferred_schema("safe_badge", _safe_badge_schema.init_tables)
 app.include_router(_create_watch_router(_PlatformAdminDeps(
     require_role=_require_role,
     org_id=lambda: current_organization_id(),
