@@ -2289,6 +2289,8 @@ def _auth_public_path(path: str) -> bool:
         "/health",
         "/healthz",
         "/robots.txt",
+        # robots.txt names it, so a crawler must be able to read it without a login.
+        "/sitemap.xml",
         "/favicon.ico",
         "/favicon.svg",
         "/docs",
