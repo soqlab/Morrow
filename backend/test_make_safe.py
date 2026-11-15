@@ -469,3 +469,10 @@ def test_the_image_keeps_the_recipes_file():
         lines = [line.strip() for line in fh]
     assert "**/data/" in lines
     assert "!backend/data/make_safe_recipes.json" in lines[lines.index("**/data/"):]
+
+
+def test_a_domain_without_a_record_also_leads_to_make_it_safe():
+    from services import registry_page
+
+    html = registry_page.render_missing("example.com", "https://morrow.test")
+    assert '<a class="btn" href="/example.com#make-safe">Make it safe</a>' in html
