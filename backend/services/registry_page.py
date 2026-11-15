@@ -48,11 +48,10 @@ _NAV = (
     ("/", "Check a domain"),
 )
 
+#: The checker's terms, privacy and acceptable-use pages are one click further, on /legal.
 _FOOTER_LINKS = (
-    ("/public-check/terms", "Terms of use"),
-    ("/public-check/acceptable-use", "Acceptable use"),
+    ("/legal", "Legal &amp; trust"),
     ("/abuse", "Abuse &amp; opt-out"),
-    ("/public-check/privacy", "Checker privacy"),
     ("/about-scanner", "What connects to your server"),
     ("/support", "Support"),
 )
