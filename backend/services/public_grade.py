@@ -514,6 +514,23 @@ def detect_platform(server_header: Optional[str], headers: Optional[Dict[str, st
     return "unknown"
 
 
+#: Response headers that say which CDN, load balancer or server answered, kept (clipped) on the result
+#: so services/make_safe.py can name the stack. Names only from this list; nothing else is stored.
+EDGE_HEADERS = ("server", "via", "cf-ray", "x-amz-cf-id", "x-amz-cf-pop", "x-amz-apigw-id", "x-amzn-requestid",
+                "x-azure-ref", "x-served-by", "x-fastly-request-id", "x-cache", "x-akamai-transformed",
+                "akamai-grn", "x-goog-generation", "x-cloud-trace-context", "x-powered-by")
+
+
+def edge_headers(headers: Optional[Dict[str, str]]) -> Dict[str, str]:
+    """The fingerprinting subset of a response's headers, each value clipped to 100 printable characters."""
+    out: Dict[str, str] = {}
+    for name in EDGE_HEADERS:
+        value = _clean_header((headers or {}).get(name))
+        if value:
+            out[name] = value
+    return out
+
+
 def empty_facts(domain: str, address: str = "") -> Dict[str, Any]:
     return {
         "domain": domain, "address": address, "reachable": True, "tls": False, "error": "",
@@ -523,7 +540,7 @@ def empty_facts(domain: str, address: str = "") -> Dict[str, Any]:
         "kx_group": "", "kx_family": "", "kx_observed": False, "kx_reason": "",
         "pq_groups_accepted": [], "rsa_kx_accepted": None, "rsa_kx_cipher": "",
         "weak_ciphers_accepted": [], "weak_cipher_probe": "not_run",
-        "server_header": None, "platform": "unknown", "connections": 0, "notes": [],
+        "server_header": None, "platform": "unknown", "edge_headers": {}, "connections": 0, "notes": [],
     }
 
 
@@ -684,6 +701,7 @@ def probe(host: str, address: str, timeout: Optional[float] = None,
         elif "headers" in part:
             facts["server_header"] = _clean_header(part["headers"].get("server"))
             facts["platform"] = detect_platform(facts["server_header"], part["headers"])
+            facts["edge_headers"] = edge_headers(part["headers"])
         elif "head_error" in part:
             facts["notes"].append(f"no HTTP response headers read ({part['head_error']})")
     if facts["kx_family"] in ("pq_hybrid", "pq_pure"):
@@ -994,7 +1012,7 @@ def _fix_iis(needs: Dict[str, bool]) -> Dict[str, str]:
                   "Enable-TlsEccCurve command; -Position 0 matters, or the classical group may still be chosen. "
                   "A Group Policy 'ECC Curve Order' overrides it. Windows Server 2022 and earlier have no ML-KEM "
                   "in Schannel: there the only route is a TLS-terminating proxy or CDN in front of IIS."),
-        "requires": "Windows Server 2025 with the July 2026 update (KB5099536) or later",
+        "requires": "Windows Server 2025 (or Windows 11 24H2+) with a current cumulative update; Microsoft lists the minimum builds",
     }
 
 
@@ -1061,6 +1079,7 @@ def build_result(facts: Dict[str, Any], scanned_at: str, cached: bool = False) -
     graded = grade_from_facts(facts)
     out: Dict[str, Any] = {"domain": facts.get("domain"), "scanned_at": scanned_at, "cached": bool(cached)}
     out.update(graded)
+    out["edge_headers"] = dict(facts.get("edge_headers") or {})
     out["connections"] = int(facts.get("connections") or 0)
     out["notes"] = list(facts.get("notes") or [])
     return out

@@ -163,6 +163,11 @@ def _plain_result(result: Dict[str, Any], history_rows: List[Dict[str, Any]]) ->
     for fix in fixes:
         out.append(f"<h3>{_e(fix.get('title'))}</h3><pre>{_e(fix.get('snippet'))}</pre>"
                    f"<p>{_e(fix.get('notes'))}</p><p>Needs: {_e(fix.get('requires'))}</p>")
+    if kx.get("post_quantum"):
+        out.append(f"<p>Quantum-safe: <a href=\"/r/{_e(d)}/proof\">its signed proof</a>, which anyone can check.</p>")
+    else:
+        out.append(f"<p>The exact change for the server or CDN that answers for {_e(d)}, with the vendor's own source: "
+                   f"<a href=\"/{_e(d)}#make-safe\">Make it safe</a>.</p>")
     out.append(f"<form method=\"get\" action=\"/plain/{_e(d)}\"><input type=\"hidden\" name=\"fresh\" value=\"1\">"
                "<button type=\"submit\">Re-check now</button></form>")
     if history_rows:
