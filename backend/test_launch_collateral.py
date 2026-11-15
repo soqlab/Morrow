@@ -98,6 +98,9 @@ def test_public_information_remains_accessible_with_production_auth(monkeypatch)
             assert response.status_code == 200, path
             assert "must-revalidate" in response.headers["cache-control"]
         assert client.get("/assets").status_code in {401, 403}
+        # robots.txt points crawlers at the sitemap; behind a login it was a 401 in production.
+        for path in ("/sitemap.xml", "/robots.txt", "/legal"):
+            assert client.get(path).status_code == 200, path
 
 
 def test_access_policy_matches_landing_route():
