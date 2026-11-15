@@ -47,6 +47,7 @@
   let passkeysOnly = false;
   let codesEnabled = false;
   let mailEnabled = true;
+  let soqlab = false;   // Sign in with SOQLAB is on: recovery can end in a SOQLAB passkey (/ui/soqlab-id.js)
   async function loadConfig() {
     try {
       const res = await fetch("/auth/config", { cache: "no-store", credentials: "same-origin" });
@@ -54,6 +55,7 @@
       passkeysOnly = !!(cfg && cfg.passkeys_only);
       codesEnabled = !!(cfg && cfg.recovery_codes_enabled);
       mailEnabled = !cfg || cfg.password_reset_enabled !== false;
+      soqlab = !!(cfg && cfg.soqlab_id_enabled) && !!window.MorrowSoqlab;
     } catch { passkeysOnly = false; }
   }
 
@@ -217,7 +219,36 @@
             <input id="recoverRevoke" type="checkbox" style="width:auto"> Also remove my other passkeys (a lost or stolen device)</label>
           <p class="invite-error" id="resetError" role="alert">${supported ? "" : "This browser can't create a passkey. Open the link in a current browser, or on your phone."}</p>
         </form>`,
-      actions: [{ label: "Create passkey", primary: true, run: recover }] });
+      actions: soqlab ? [{ label: "Create a SOQLAB passkey", primary: true, run: recoverSoqlab },
+        { label: "Create a Morrow passkey", run: recover }] : [{ label: "Create passkey", primary: true, run: recover }] });
+    if (soqlab) $("resetError").insertAdjacentHTML("beforebegin", para("A SOQLAB passkey is kept at id.soqlab.com and can sign you in to Q-Lab too, if you link it there. This recovery link only ever adds it to this Morrow account."));
+  }
+  async function recoverSoqlab() {
+    const error = $("resetError");
+    error.textContent = "";
+    const r = await MorrowSoqlab.start("recover", { token: recoverToken, revoke_other_passkeys: !!$("recoverRevoke").checked, return_to: "reset" },
+      { token: recoverToken });
+    if (r.ok) return;
+    if (r.status === 404 || r.status === 410) return linkUnusable({ ok: false, status: r.status, data: { detail: r.detail } });
+    error.textContent = r.detail || "Recovery didn't start. Try again.";
+  }
+  async function finishSoqlab(answer) {
+    if (answer.error) { askPasskey(); $("resetError").textContent = MorrowSoqlab.message(answer); return; }
+    const r = await MorrowSoqlab.finish(answer);
+    if (r.ok && r.data && r.data.access_token) {
+      store.del(RECOVER_KEY);
+      recoverToken = "";
+      try {
+        localStorage.setItem("morrow_token", r.data.access_token);
+        if (r.data.refresh_token) localStorage.setItem("morrow_refresh", r.data.refresh_token);
+      } catch { /* storage blocked: sign in with SOQLAB */ }
+      return state({ title: "You're back in.", tone: "ok",
+        lead: r.data.other_passkeys_removed ? "Your SOQLAB passkey is linked, and your Morrow passkeys were removed." : "Your SOQLAB passkey is linked. Sign in with SOQLAB from now on.",
+        actions: [{ label: "Open the console", primary: true, href: "/ui/" }] });
+    }
+    if (!recoverToken) return linkUnusable({ ok: false, status: r.status, data: { detail: r.detail } });
+    askPasskey();
+    $("resetError").textContent = r.detail || "Recovery didn't finish. Try again.";
   }
   function linkUnusable(r) {
     store.del(RECOVER_KEY);
@@ -298,5 +329,9 @@
     error.textContent = detail(r) || (r.status === 0 ? "We couldn't reach the server. Try again." : `The server answered ${r.status}.`);
   }
 
-  loadConfig().then(() => { setupToken ? askSetup() : recoverToken ? askPasskey() : token ? askPassword() : askEmail(); });
+  loadConfig().then(() => {
+    const answer = soqlab ? MorrowSoqlab.pending() : null;
+    if (answer) return finishSoqlab(answer);
+    setupToken ? askSetup() : recoverToken ? askPasskey() : token ? askPassword() : askEmail();
+  });
 })();

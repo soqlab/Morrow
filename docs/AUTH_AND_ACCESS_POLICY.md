@@ -142,6 +142,47 @@ identity provider; none of this changes that check.
 - `morrow_signups` and `morrow_org_owners`, like the other auth tables, have no tenant column and
   live in the main database, so they are not in the Postgres RLS plan.
 
+## Sign in with SOQLAB (one passkey for Morrow and Q-Lab)
+
+`services/soqlab_id.py`. Off unless `MORROW_SOQLAB_ID_ISSUER` (https://id.soqlab.com),
+`MORROW_SOQLAB_ID_CLIENT_ID`, `MORROW_SOQLAB_ID_CLIENT_SECRET` and `MORROW_SOQLAB_ID_LINK_KEY` (Morrow's
+EC P-256 private key, PEM, `
+` escapes allowed) are all set and `MORROW_PUBLIC_BASE_URL` is too.
+While off, every `/auth/soqlab/*` route answers 404 and `/auth/config` reports
+`soqlab_id_enabled: false`, so the console, `/signup` and `/reset-password` look exactly as before.
+The redirect URI to register at the service is `<MORROW_PUBLIC_BASE_URL>/auth/soqlab/callback`.
+
+- OpenID Connect code flow with PKCE S256, `client_secret_basic` at `/token`. The issuer comes only
+  from configuration; discovery, keys, `/token` and `/unlink` are fetched only from its own origin
+  (https, no redirects, 5 s, 64 KB), cached for an hour. ID tokens: ES256 only, `iss`, `aud`/`azp`,
+  `exp`, `iat`, `nonce`, `amr` containing `passkey`, and `link_ticket` (below). The redirect back must
+  carry `iss` (RFC 9207).
+- No cookies. `POST /auth/soqlab/start` stores a round trip (`morrow_soqlab_flows`: SHA-256 of
+  `state`, PKCE verifier, nonce, 10 minutes, single use) and answers with a random `flow` secret the
+  page keeps in sessionStorage. `GET /auth/soqlab/callback` sends the browser back to the page that
+  started (`/ui/`, `/signup` or `/reset-password`); that page posts `{code, state, iss, flow}` to
+  `POST /auth/soqlab/callback`, which claims the round trip once, exchanges the code and acts.
+- The service gives Morrow a pairwise `sub` (different per product; no name, no email).
+  `morrow_soqlab_links` maps it to a Morrow account; sign-in then issues Morrow's normal tokens
+  (`auth_issuer.start_session`), journaled with method `soqlab`. A `sub` with no link is refused.
+- Linking (`purpose: link`) needs a sign-in within `MORROW_PASSKEY_REAUTH_SECONDS` and the same
+  account's Bearer token on the way back. Morrow signs a link ticket (ES256 with the link key, 5
+  minutes, single-use `jti`, `sub` = the Morrow account id) and the browser goes to
+  `<issuer>/link?ticket=…`; the ID token that comes back must carry `link_ticket` = that `jti`.
+  A sign-in round trip whose ID token carries a `link_ticket` is refused.
+- Sign-up (`purpose: signup`, same rules and budgets as a passkey sign-up) is a link ticket for a
+  freshly allocated account id: the account, its organization and its recovery codes are created
+  when SOQLAB comes back. Recovery (`purpose: recover`, a recovery ticket from a recovery code or a
+  recovery link) links a new SOQLAB passkey to that account only, signs it out everywhere and can
+  remove its Morrow passkeys.
+- `GET /auth/soqlab/link` reports whether the account is linked (never the `sub`);
+  `DELETE /auth/soqlab/link` deletes the link, then asks the service to forget it (`POST /unlink`).
+  Unlinking is refused while SOQLAB is the account's only way in.
+- Morrow's own passkeys keep working ("Use my older Morrow passkey"). After a sign-in with one, the
+  console offers a SOQLAB passkey once per browser.
+- Neither table has a tenant column (a link belongs to an account), like `morrow_passkeys`, so
+  neither is in `ORG_SCOPED_TABLES`.
+
 ## The organization's owner: roles and removals
 
 Rules in `services/member_policy.py`, enforced on every route that changes a member's role or removes

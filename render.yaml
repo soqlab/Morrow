@@ -146,6 +146,18 @@ services:
       # MORROW_SCAN_REQUIRE_VERIFIED_DOMAINS=1. Budgets: MORROW_SIGNUP_PER_IP_PER_HOUR (3),
       # MORROW_SIGNUP_PER_IP_PER_DAY (10), MORROW_SIGNUP_GLOBAL_PER_HOUR (60),
       # MORROW_SIGNUP_GLOBAL_PER_DAY (500); 0 switches one off. New organizations get the caps below.
+      # Sign in with SOQLAB (services/soqlab_id.py): one passkey for Morrow and Q-Lab, held at
+      # id.soqlab.com. Off unless all four are set. Register this redirect URI at the service:
+      # <MORROW_PUBLIC_BASE_URL>/auth/soqlab/callback. LINK_KEY is Morrow's EC P-256 private key (PEM)
+      # from the service's new_client.py; the service keeps only its public half.
+      - key: MORROW_SOQLAB_ID_ISSUER
+        sync: false
+      - key: MORROW_SOQLAB_ID_CLIENT_ID
+        sync: false
+      - key: MORROW_SOQLAB_ID_CLIENT_SECRET
+        sync: false
+      - key: MORROW_SOQLAB_ID_LINK_KEY
+        sync: false
       - key: MORROW_PASSKEY_SIGNUP
         value: "1"
       - key: MORROW_SIGNUP_API_CALLS_PER_MIN

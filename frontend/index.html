@@ -1166,6 +1166,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 <link rel="stylesheet" href="/ui/console-instrument.css?v=20261113-still">
 <script src="/ui/oops.js?v=20261113-retire" defer></script>
 <script src="/ui/passkey.js?v=20261112-passkeys" defer></script>
+<script src="/ui/soqlab-id.js?v=20261115-soqlab" defer></script>
 </head>
 <body>
 <div class="supportBar" id="supportBar" role="region" aria-label="Vendor support session" hidden></div>
@@ -2739,6 +2740,9 @@ function authGateHtml() {
   const pk = !!c.passkeys_enabled && pw;
   const pkOk = pk && !!window.MorrowPasskey && MorrowPasskey.supported();
   const codes = pk && !!c.recovery_codes_enabled;
+  /* Sign in with SOQLAB (services/soqlab_id.py, only when the server turns it on): one passkey for
+     Morrow and Q-Lab, kept at id.soqlab.com. It comes first; this site's own passkeys still work. */
+  const sq = pk && !!c.soqlab_id_enabled && !!window.MorrowSoqlab;
   return `<div class="gate" id="gate">
     <div class="gateCard" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
       <div class="gateBrand">
@@ -2755,7 +2759,9 @@ function authGateHtml() {
       <div id="gateErr" role="alert" aria-live="assertive"></div>
 
       ${pk ? `<div class="col">
-        <button class="btn pri block" data-act="gatePasskey" type="button" style="height:42px" ${pkOk ? "" : "disabled"}>${I.lock}Sign in with a passkey</button>
+        ${sq ? `<button class="btn pri block" data-act="gateSoqlab" type="button" style="height:42px">${I.lock}Sign in with SOQLAB</button>
+        <span class="gsub" style="margin:0">One passkey for Morrow and Q-Lab, kept at id.soqlab.com.</span>` : ""}
+        <button class="btn ${sq ? "" : "pri "}block" data-act="gatePasskey" type="button" style="height:${sq ? 38 : 42}px" ${pkOk ? "" : "disabled"}>${I.lock}${sq ? "Use my older Morrow passkey" : "Sign in with a passkey"}</button>
         ${pkOk ? "" : `<span class="gsub" style="margin:0">This browser can't use passkeys. Open this page in a current browser, or on your phone.</span>`}
         ${c.signup_enabled ? `<a class="btn block" href="/signup" style="height:42px">${I.plus}Create an account</a>` : ""}
         <span style="display:flex;justify-content:space-between;gap:10px;font-size:12px;flex-wrap:wrap">
@@ -2767,7 +2773,8 @@ function authGateHtml() {
             <input class="inp mono" id="gCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="XXXX-XXXX-XXXX-XXXX"></div>
           <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink2)">
             <input id="gCodeRevoke" type="checkbox"> Also remove my other passkeys (a lost or stolen device)</label>
-          <button class="btn block" data-act="gateRecoveryCode" type="button" style="white-space:normal;height:auto;min-height:38px" ${pkOk ? "" : "disabled"}>Use recovery code</button>
+          ${sq ? `<button class="btn pri block" data-act="gateRecoverySoqlab" type="button" style="white-space:normal;height:auto;min-height:38px">Use code and create a SOQLAB passkey</button>` : ""}
+          <button class="btn block" data-act="gateRecoveryCode" type="button" style="white-space:normal;height:auto;min-height:38px" ${pkOk ? "" : "disabled"}>${sq ? "Use code and create a Morrow passkey" : "Use recovery code"}</button>
           <span class="gsub" style="margin:0">Each code works once. You'll create a new passkey on this device, and you'll be signed out everywhere else.${c.password_reset_enabled ? ` No code? <a href="/reset-password" style="color:var(--ink2)">Get a recovery link by email</a> (if your account allows it).` : " No code left? Ask an admin of your organization for a recovery link."}</span>
         </div>` : ""}
         <div class="col" id="gPwBox" hidden>
@@ -2824,7 +2831,8 @@ async function showAuthGate() {
   $("#gEmail")?.addEventListener("keydown", submit);
   $("#gPass")?.addEventListener("keydown", submit);
   $("#gCode")?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); ACTIONS.gateRecoveryCode(); } });
-  if (pk) { $("[data-act=gatePasskey]")?.focus(); startPasskeyAutofill(); }
+  if (pk) { ($("[data-act=gateSoqlab]") || $("[data-act=gatePasskey]"))?.focus(); startPasskeyAutofill(); }
+  if (S.soqlabNotice) { showLoginError("SOQLAB sign-in", S.soqlabNotice); S.soqlabNotice = ""; }
   else ($("#gEmail") || $("#gTok"))?.focus();
 }
 /* ---- passkeys ---- */
@@ -2851,6 +2859,7 @@ async function finishPasskeyLogin(challengeId, credential) {
   }
   stopPasskeyAutofill();
   applyLoginResult(r.data, "");
+  if (authCfg().soqlab_id_enabled) { try { sessionStorage.setItem("morrow_soqlab_offer", "1"); } catch { /* storage blocked */ } }
   if (gateOpen) await afterGateAuth();
   else { $("#overlay").innerHTML = ""; await afterAuthChange(); }
 }
@@ -2912,6 +2921,83 @@ ACTIONS.gateRecoveryCode = async () => {
   ok(`New passkey saved. You have ${left} recovery code${left === 1 ? "" : "s"} left${left < 4 ? ": make new ones under Sign-in & recovery" : ""}.`, "You're back in");
   if (gateOpen) await afterGateAuth(); else { $("#overlay").innerHTML = ""; await afterAuthChange(); }
 };
+/* ---- Sign in with SOQLAB (/ui/soqlab-id.js; services/soqlab_id.py) ---- */
+const soqlabText = (r, fallback) => String(r?.detail || r?.err || "").replace(/^\d{3} · /, "") || fallback;
+ACTIONS.gateSoqlab = async () => {
+  stopPasskeyAutofill();
+  const r = await MorrowSoqlab.start("login", { return_to: "console" }, { keep: { hash: location.hash } });
+  if (!r.ok) showLoginError("SOQLAB sign-in unavailable", soqlabText(r, "Try again in a minute, or use your Morrow passkey."));
+};
+/** A recovery code buys a recovery ticket; here it links a new SOQLAB passkey instead of a Morrow one. */
+ACTIONS.gateRecoverySoqlab = async () => {
+  stopPasskeyAutofill();
+  const code = $("#gCode")?.value.trim() || "";
+  if (!code) return showLoginError("Missing code", "Enter one of your recovery codes.");
+  const redeemed = await safe("/auth/recovery-codes/redeem", { method: "POST", body: { code } });
+  if (!redeemed.ok) {
+    if (redeemed.status === 429) return showLoginError("Too many attempts", "Wait a minute, then try again.");
+    return showLoginError("Code not accepted", soqlabText(redeemed, "That recovery code didn't work."));
+  }
+  const token = redeemed.data.recovery_token;
+  const r = await MorrowSoqlab.start("recover", { token, revoke_other_passkeys: !!$("#gCodeRevoke")?.checked, return_to: "console" }, { token });
+  if (!r.ok) showLoginError("Recovery didn't start", soqlabText(r, "Try again."));
+};
+ACTIONS.soqlabLink = async () => {
+  const box = $("#pkErr");
+  const r = await MorrowSoqlab.start("link", { return_to: "console" }, { bearer: S.token, keep: { hash: location.hash || "#overview", settings: true } });
+  if (r.ok) return;
+  const m = r.status === 401 ? "For your security, sign out and sign in again, then link SOQLAB within 10 minutes." : soqlabText(r, "Linking didn't start. Try again.");
+  if (box) box.innerHTML = `<div class="banner bad">${I.alert}<div><span class="bx">${H(m)}</span></div></div>`;
+  else err(m, "SOQLAB");
+};
+ACTIONS.soqlabUnlink = async () => {
+  if (!confirm("Unlink SOQLAB? Its passkey won't sign in to Morrow any more. Your Morrow passkeys keep working.")) return;
+  const r = await safe("/auth/soqlab/link", { method: "DELETE" });
+  if (!r.ok) return err(soqlabText(r, "SOQLAB wasn't unlinked."), "SOQLAB");
+  ok(r.data.forgotten_by_soqlab ? "Unlinked. SOQLAB has forgotten this link too." : "Unlinked from Morrow. To remove it at SOQLAB too, open id.soqlab.com.", "SOQLAB");
+  await ACTIONS.passkeys();
+};
+ACTIONS.soqlabCardDismiss = () => { $("#overlay").innerHTML = ""; };
+/** Coming back from id.soqlab.com: finish the round trip this tab started. Never throws. */
+async function handleSoqlabReturn() {
+  if (!window.MorrowSoqlab) return;
+  const answer = MorrowSoqlab.pending();
+  if (!answer) return;
+  if (answer.error) { S.soqlabNotice = MorrowSoqlab.message(answer); return; }
+  const r = await MorrowSoqlab.finish(answer, { bearer: S.token });
+  if (r.keep?.hash && /^#[A-Za-z0-9_=&.\/-]{1,200}$/.test(r.keep.hash)) history.replaceState(null, "", location.pathname + location.search + r.keep.hash);
+  if (!r.ok || !r.data) { S.soqlabNotice = soqlabText(r, "SOQLAB couldn't finish the sign-in. Try again."); if (S.token) toast(S.soqlabNotice, "bad", "SOQLAB"); return; }
+  if (r.data.access_token) {
+    applyLoginResult(r.data, "");
+    await loadAuth();
+    paintIdentity();
+    if (r.data.purpose === "recover") ok("You're back in, with a SOQLAB passkey.", "Account recovered");
+  } else if (r.data.linked) {
+    ok("Linked. Sign in with SOQLAB from now on; your Morrow passkeys keep working.", "SOQLAB");
+    if (r.keep?.settings) S.soqlabOpenSettings = true;
+  }
+}
+/** After a sign-in with this site's own passkey: offer SOQLAB once (per browser), never again after. */
+async function maybeOfferSoqlab() {
+  if (S.soqlabOpenSettings) { S.soqlabOpenSettings = false; return ACTIONS.passkeys(); }
+  let offer = false, seen = false;
+  try {
+    offer = sessionStorage.getItem("morrow_soqlab_offer") === "1";
+    sessionStorage.removeItem("morrow_soqlab_offer");
+    seen = localStorage.getItem("morrow_soqlab_card_seen") === "1";
+  } catch { return; }
+  if (!offer || seen || !authCfg().soqlab_id_enabled || !S.token || !window.MorrowSoqlab) return;
+  const st = await safe("/auth/soqlab/link");
+  if (!st.ok || st.data.linked) return;
+  try { localStorage.setItem("morrow_soqlab_card_seen", "1"); } catch { /* shown once anyway this session */ }
+  modal("One passkey for Morrow and Q-Lab", `<div class="col">
+    <p style="margin:0;line-height:1.6">You can sign in to Morrow with a SOQLAB passkey, and use the same one for Q-Lab if you choose to.
+      It's kept at id.soqlab.com. Each product gets a different ID for you, and neither sees the other's data.</p>
+    <p style="margin:0;line-height:1.6;color:var(--ink2)">Your Morrow passkeys keep working. You can unlink any time under Sign-in &amp; recovery.</p>
+    <div id="pkErr" role="alert"></div>
+  </div>`, `<button class="btn" data-act="soqlabCardDismiss" type="button">Not now</button>
+    <button class="btn pri" data-act="soqlabLink" type="button">${I.lock}Create a SOQLAB passkey</button>`);
+}
 /** After a password sign-in: the account must add a passkey. With MORROW_PASSKEYS_ONLY=1 there is no
     session yet, only an enrollment ticket; otherwise the session is already there. Either way the
     first passkey deletes the password. */
@@ -3010,6 +3096,7 @@ async function afterGateAuth() {
   paintIdentity();          // reflect the new session immediately, before the slower reloads
   ok("Signed in");
   await afterAuthChange();
+  await maybeOfferSoqlab();
 }
 function applyLoginResult(d, email) {
   S.token = d.access_token || ""; S.refresh = d.refresh_token || "";
@@ -3150,6 +3237,8 @@ ACTIONS.passkeys = async () => {
   if (!r.ok) return err(r.err, "Passkeys");
   const rc = authCfg().recovery_codes_enabled ? await safe("/auth/recovery-codes") : { ok: false };
   const rec = rc.ok ? rc.data : null;
+  const sqr = authCfg().soqlab_id_enabled ? await safe("/auth/soqlab/link") : { ok: false };
+  const sq = sqr.ok ? sqr.data : null;
   const list = r.data.passkeys || [];
   const when = (t) => t ? new Date(t * 1000).toLocaleString() : "never";
   modal("Sign-in & recovery", `<div class="col">
@@ -3161,6 +3250,16 @@ ACTIONS.passkeys = async () => {
       <button class="btn ghost" data-act="passkeyRename" data-id="${H(p.id)}" data-name="${H(p.name || "")}" type="button">Rename</button>
       <button class="btn ghost" data-act="passkeyRemove" data-id="${H(p.id)}" type="button" ${list.length < 2 ? "disabled title=\"Your last passkey can't be removed\"" : ""}>Remove</button>
     </div>`).join("") || `<p style="margin:0">No passkeys yet.</p>`}
+    ${sq ? `<div class="col" style="gap:6px;border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <b>SOQLAB passkey</b>
+      <span style="font-size:12.5px;line-height:1.6">${sq.linked
+        ? `Linked${sq.linked_at ? ` on ${H(new Date(sq.linked_at * 1000).toLocaleDateString())}` : ""}. You can sign in with SOQLAB, the same passkey you may use for Q-Lab. Morrow knows only a SOQLAB ID made for Morrow, nothing else.`
+        : "Not linked. Link one to sign in to Morrow and Q-Lab with the same passkey. It's kept at id.soqlab.com, and each product gets a different ID for you."}</span>
+      <div class="row" style="gap:8px;flex-wrap:wrap">${sq.linked
+        ? `<button class="btn" data-act="soqlabUnlink" type="button" ${sq.can_unlink ? "" : "disabled"}>Unlink</button>
+           ${sq.can_unlink ? "" : `<span style="font-size:11.5px;color:var(--ink3)">SOQLAB is your only way in: add a Morrow passkey before you unlink.</span>`}`
+        : `<button class="btn" data-act="soqlabLink" type="button">${I.lock}Create or use a SOQLAB passkey</button>`}</div>
+    </div>` : ""}
     <div id="pkErr" role="alert"></div>
     <p style="margin:0;font-size:12px;color:var(--ink2);line-height:1.6">To add a passkey on your phone or another computer: press <b>Add a passkey</b> and choose your phone when the browser offers it (it shows a QR code), or sign in on that device and add one there.</p>
     ${rec ? `<hr style="border:0;border-top:1px solid var(--line);margin:4px 0">
@@ -3687,6 +3786,7 @@ function boot() {
     if (SUPPORT.active && !(await supportBoot())) return;   // vendor support view: exchange the launch code first
     await loadAuth();
     paintIdentity();
+    await handleSoqlabReturn();   // back from id.soqlab.com (only when this tab started a round trip)
     try {   // a one-time message handed over by another page (e.g. /invite after accepting)
       const flash = JSON.parse(sessionStorage.getItem("pq_flash") || "null");
       sessionStorage.removeItem("pq_flash");
@@ -3707,6 +3807,7 @@ function boot() {
     if (!location.hash.slice(1)) { location.replace("/" + location.search); return; }
     await Promise.all([health(), loadOrgs(), loadNotices()]);
     go(location.hash.slice(1), { push: false });
+    await maybeOfferSoqlab();
   })();
   setInterval(() => { health(); loadNotices(); }, 60000);
 }
