@@ -7146,6 +7146,7 @@ VIEWS.remediation = async (host) => {
   R.forEach(x => { const k = x.status || "unknown"; byStatus[k] = (byStatus[k] || 0) + 1; });
 
   host.innerHTML = `
+    <div id="fireDrill"></div>
     <div class="g g5">
       ${kpi("Open remediations", NUM(R.filter(x => !/merged|closed|rejected/i.test(x.status || "")).length), { icon: I.wrench, tone: "var(--brand)", sub: `${NUM(R.length)} total tracked` })}
       ${kpi("Awaiting approval", NUM(R.filter(x => /pending|proposed|review/i.test(x.status || "")).length), { icon: I.inbox, tone: "var(--warn)" })}
@@ -7277,6 +7278,7 @@ VIEWS.remediation = async (host) => {
       ], rows(d, "feed", "events"), { max: "560px", empty: "No remediation activity recorded" }), { flush: true, lift: false }), "/remediation-feed")}
     </div>`;
 
+  if (window.fireDrillMount) fireDrillMount($("#fireDrill"));  /* fire-drill.js: the quantum fire drill */
   const sel = $("#cgTarget");
   if (sel) {
     const t = await safe("/pq-codegen/targets");
@@ -11240,6 +11242,8 @@ function autoTable(list) {
 </script>
 <link rel="stylesheet" href="/ui/gateway.css?v=20261113-instrument">
 <script src="/ui/gateway.js?v=20261113-instrument"></script>
+<link rel="stylesheet" href="/ui/fire-drill.css?v=20261115-drill">
+<script src="/ui/fire-drill.js?v=20261115-drill"></script>
 <link rel="stylesheet" href="/ui/data-control.css?v=20260925">
 <script src="/ui/data-control.js?v=20260925"></script>
 <script>document.addEventListener("DOMContentLoaded", boot);</script>
