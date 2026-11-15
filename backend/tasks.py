@@ -153,6 +153,14 @@ try:
             "args": (),
         }
 
+    # Quantum fire drills (services/fire_drill.py): runs the drills whose organization picked a
+    # monthly or quarterly cadence and are due. Off for every organization until an admin picks one.
+    _beat["fire-drill-due-hourly"] = {
+        "task": "morrow.fire_drill_due",
+        "schedule": 3600.0,
+        "args": (),
+    }
+
     # Optional: daily GitHub repo sync
     _gh_cred = _env_str("GITHUB_SYNC_CREDENTIAL_ID")
     if _gh_cred:
@@ -374,6 +382,18 @@ def vendor_recheck_task(max_lists: int | None = None) -> Dict[str, Any]:
         return vendor_check.recheck_due_and_wait(int(max_lists or _env_int("MORROW_VENDOR_RECHECK_MAX", 5)))
     except Exception as exc:
         capture_exception(exc, {"task": "morrow.vendor_recheck"})
+        raise
+
+
+@celery_app.task(name="morrow.fire_drill_due")
+def fire_drill_due_task() -> Dict[str, Any]:
+    """Run the scheduled quantum fire drills that are due (services/fire_drill.py). Always dry run."""
+    from services import fire_drill
+
+    try:
+        return fire_drill.run_due()
+    except Exception as exc:
+        capture_exception(exc, {"task": "morrow.fire_drill_due"})
         raise
 
 

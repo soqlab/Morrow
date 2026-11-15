@@ -11460,6 +11460,15 @@ _crypto_switch_router = create_crypto_switch_router(
 app.include_router(_crypto_switch_router)
 app.include_router(_crypto_switch_router, prefix="/v1")
 
+# Quantum fire drill: the kill switch planner in dry run against the real inventory, timed
+# (services/fire_drill.py). Drills are org-scoped; scheduled ones run from Celery beat (tasks.py).
+from routers.fire_drill import create_fire_drill_router  # noqa: E402
+from services import fire_drill as _fire_drill  # noqa: E402
+_fire_drill.POLICY_LOADER = lambda org_id: _load_org_policy(org_id)
+_fire_drill_router = create_fire_drill_router(_require_role)
+app.include_router(_fire_drill_router)
+app.include_router(_fire_drill_router, prefix="/v1")
+
 # Passive TLS discovery from proxy logs; routes carry their own /v1 paths (routers/passive_discovery.py).
 from routers.passive_discovery import create_passive_discovery_router  # noqa: E402
 app.include_router(create_passive_discovery_router(_require_role))
@@ -27466,6 +27475,7 @@ register_deferred_schema("tranco", _tranco_schema.init_tables)
 register_deferred_schema("code_hosts", _code_hosts_schema.init_tables)
 register_deferred_schema("migration_milestones", _migration_milestones_schema.init_tables)
 register_deferred_schema("crypto_switch", _crypto_switch_schema.init_tables)
+register_deferred_schema("fire_drill", _fire_drill.init_tables)
 register_deferred_schema("pq_rollout", _pq_rollout_schema.init_tables)
 
 # The rule-based answerer is a first-class provider ("builtin"), so "no AI configured"
