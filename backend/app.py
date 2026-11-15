@@ -11556,6 +11556,16 @@ app.include_router(create_public_grade_router(_PlatformAdminDeps(
 )))
 app.add_middleware(PublicApiCorsMiddleware)
 _register_platform_schema("public_grade", lambda *_: _public_grade.init_tables())
+# Make it safe (services/make_safe.py, routers/make_safe.py): the fix for the host's own stack, spaced
+# re-checks through the public grade above, and the signed quantum-safe proof at /r/{domain}/proof.
+# Public under /api/public and /r, which the auth gate already lets through; no tenant data.
+from routers.make_safe import create_make_safe_router  # noqa: E402
+from services import make_safe as _make_safe  # noqa: E402
+
+app.include_router(create_make_safe_router(_PlatformAdminDeps(
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+)))
+_register_platform_schema("make_safe", lambda *_: _make_safe.init_tables())
 # The instrument's public evidence, on the same router: the deploy transparency log (appended at
 # startup, below in _lifespan), the league's miss/run tables. No tenant column in any of them.
 from services import deploy_log as _deploy_log  # noqa: E402

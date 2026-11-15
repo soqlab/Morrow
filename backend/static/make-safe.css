@@ -1,0 +1,46 @@
+/* Make it safe: the panel on /<domain> and /estate/asset/<key> (instrument tokens), and the proof
+ * page at /r/<domain>/proof (registry tokens, each with a literal fallback). No ornament: the row
+ * that turns green is the only thing that moves, and not at all under prefers-reduced-motion. */
+
+/* ── the instrument panel ─────────────────────────────────────────────── */
+.ms-stack { margin: 0 0 10px; }
+.ms-stack b { font-weight: 600; }
+.ms-ev { margin: 4px 0 10px; padding-left: 18px; color: var(--muted, #9aa3ac); font-size: 13.5px; }
+.ms-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0; }
+.ms-row select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+.ms-row .i-fine { flex: 1 1 220px; min-width: 0; white-space: normal; }
+.ms-row label { color: var(--muted, #9aa3ac); font-size: 13.5px; }
+.ms-pre { position: relative; }
+.ms-pre pre { margin: 6px 0; padding: 12px; overflow-x: auto; max-width: 100%; border: 1px solid var(--line, rgba(232, 240, 248, .10));
+  background: var(--bg-2, #0b0d10); font-family: var(--mono, monospace); font-size: 13px; line-height: 1.5; white-space: pre; }
+.ms-meta { font-size: 13px; color: var(--dim, #7d868f); margin: 4px 0; }
+.ms-meta a { color: inherit; }
+.ms-src { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--dim, #7d868f); }
+.ms-src li { margin: 2px 0; overflow-wrap: anywhere; }
+.ms-conf { display: inline-block; padding: 0 6px; border: 1px solid var(--line-2, rgba(232, 240, 248, .2)); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.ms-conf[data-c="high"] { color: var(--ok, #3ee38f); }
+.ms-conf[data-c="medium"] { color: var(--warn, #ffb547); }
+.ms-conf[data-c="low"], .ms-conf[data-c="none"] { color: var(--muted, #9aa3ac); }
+.ms-light { display: flex; gap: 12px; align-items: center; padding: 12px; margin: 12px 0; border: 1px solid var(--line-2, rgba(232, 240, 248, .2));
+  border-left: 4px solid var(--bad, #ff7676); transition: border-color .4s ease; }
+.ms-light[data-state="live"] { border-left-color: var(--ok, #3ee38f); }
+.ms-light[data-state="waiting"], .ms-light[data-state="error"] { border-left-color: var(--warn, #ffb547); }
+.ms-light p { margin: 0; }
+.ms-light .ms-dot { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; background: var(--bad, #ff7676); }
+.ms-light[data-state="live"] .ms-dot { background: var(--ok, #3ee38f); }
+.ms-light[data-state="waiting"] .ms-dot, .ms-light[data-state="error"] .ms-dot { background: var(--warn, #ffb547); }
+.ms-steps { margin: 6px 0; padding-left: 20px; }
+.ms-steps li { margin: 3px 0; }
+details.ms-more { margin-top: 10px; }
+details.ms-more summary { cursor: pointer; color: var(--muted, #9aa3ac); }
+@media (prefers-reduced-motion: reduce) { .ms-light { transition: none; } }
+
+/* ── the proof page ───────────────────────────────────────────────────── */
+.registry-page .proof-status { font-size: clamp(22px, 5vw, 32px); font-weight: 600; margin: 6px 0 10px; }
+.registry-page .proof-status[data-state="safe"] { color: var(--reg-ok, #4ec07a); }
+.registry-page .proof-status[data-state="lapsed"] { color: var(--reg-bad, #ff6f6f); }
+.registry-page .verify-out { min-height: 1.4em; }
+.registry-page .verify-out[data-tone="ok"] { color: var(--reg-ok, #4ec07a); }
+.registry-page .verify-out[data-tone="bad"] { color: var(--reg-bad, #ff6f6f); }
+.registry-page pre.snippet { overflow-x: auto; max-width: 100%; padding: 10px; border: 1px solid var(--reg-line, #27303a); font-size: 13px; }
+.registry-page .proof-head code, .registry-page .panel code { overflow-wrap: anywhere; }

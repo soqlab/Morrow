@@ -5399,7 +5399,7 @@ function scanResultBlocks(d, diff, id) {
         { h: "HNDL", f: r => r.harvest_now_decrypt_later_risk ? pill(r.harvest_now_decrypt_later_risk) : "—" },
         { h: "Readable from", f: r => decryptCell(r.decrypt_window) },
         { h: "Safe?", f: r => /not_quantum_proof|not_safe/i.test(String(r.quantum_safe_claim || ""))
-            ? `<span class="pill bad">Not PQ-safe</span>`
+            ? `<span class="pill bad">Not PQ-safe</span>${/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(String(r.host || r.hostname || "")) ? ` <a class="sub" href="/${encodeURIComponent(String(r.host || r.hostname).toLowerCase())}#make-safe">Make it safe</a>` : ""}`
             : r.quantum_safe_claim ? `<span class="pill ok">${H(TITLE(r.quantum_safe_claim))}</span>` : "—" },
         { h: "", w: "1%", f: r => actBtn("Detail", "scanDetail", { cls: "btn xs ghost", data: { k: rTarget(r) } }) },
       ], list, { max: "560px" }) : emptyBox("This scan returned no results.", I.radar), { flush: true, lift: false })}
