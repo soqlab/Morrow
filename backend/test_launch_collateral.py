@@ -27,8 +27,11 @@ DOCUMENT_FILES = (
     "terms.html", "privacy.html", "dpa.html", "security.html", "support.html", "data-boundary.html",
     "check-terms.html", "check-acceptable-use.html", "check-privacy.html", "check-abuse.html",
     "pricing.html", "pilot.html", "airlock-deployment.html", "enterprise-admin.html",
-    "trust-passport-demo.html", "ai-trust.html",
+    "trust-passport-demo.html", "ai-trust.html", "legal.html",
 )
+
+#: Pages folded into the product. The files stay; the addresses answer 301 to the instrument.
+MOVED_TO_HOME = ("/pricing", "/pilot", "/trust-passport-demo")
 
 
 def test_public_launch_pages_are_served():
@@ -36,18 +39,13 @@ def test_public_launch_pages_are_served():
     routes = {
         "/enterprise-admin": "Enterprise Control Center",
         "/admin-page": "Enterprise Control Center",
-        # The passport page explains a real passport; it no longer presents itself as a demo.
-        "/trust-passport-demo": "Proof a buyer can actually review.",
         "/security": "minimum customer access",
         # No personal inbox is published until a company contact is confirmed.
         "/support": "How to reach us",
         "/privacy": "Privacy Policy",
         "/terms": "Terms of Service",
-        # The service is free, so the page that used to list editions now says there is nothing to
-        # pay and what that does and does not mean. The caveat is load-bearing: free with no SLA is
-        # only honest if the page says there is no SLA.
-        "/pricing": "Morrow is free",
-        "/pilot": "6-8 week",
+        # Every policy in one place, behind the footer's "Legal & trust" link.
+        "/legal": "Every policy, in one place.",
         "/data-boundary": "Platform traffic metadata",
         "/airlock-deployment": "Validate one collection",
         "/dpa": "Contract review required",
@@ -100,6 +98,9 @@ def test_public_information_remains_accessible_with_production_auth(monkeypatch)
             assert response.status_code == 200, path
             assert "must-revalidate" in response.headers["cache-control"]
         assert client.get("/assets").status_code in {401, 403}
+        # robots.txt points crawlers at the sitemap; behind a login it was a 401 in production.
+        for path in ("/sitemap.xml", "/robots.txt", "/legal"):
+            assert client.get(path).status_code == 200, path
 
 
 def test_access_policy_matches_landing_route():
@@ -188,6 +189,7 @@ def test_the_documents_wear_the_instrument_chrome_and_link_the_opt_out():
         assert "/ui/public.css" not in body, name
         footer = body[body.index('<footer class="i-foot">'):]
         assert 'href="/abuse"' in footer and 'href="/about-scanner"' in footer, name
+        assert 'href="/legal"' in footer, name
     for name in ("pricing.html", "instrument.html"):
         body = (static / name).read_text(encoding="utf-8")
         footer = body[body.index("<footer"):]
@@ -310,3 +312,121 @@ def test_robots_names_the_sitemap_with_an_absolute_url(monkeypatch):
         body = client.get("/robots.txt").text
     lines = [line for line in body.splitlines() if line.startswith("Sitemap:")]
     assert lines == ["Sitemap: https://airlock.test/sitemap.xml"], lines
+
+
+def test_folded_pages_answer_301_to_the_instrument():
+    """Morrow is free and the passport lives in the console, so these addresses land on / for good."""
+    import app as module
+
+    client = TestClient(app)
+    for path in MOVED_TO_HOME:
+        for method in ("GET", "HEAD"):
+            moved = client.request(method, path, follow_redirects=False)
+            assert moved.status_code == 301, (method, path, moved.status_code)
+            assert moved.headers["location"] == "/", (path, moved.headers["location"])
+        assert module._auth_public_path(path), path
+    # The files are kept, only unserved.
+    static = pathlib.Path(__file__).parent / "static"
+    for name in ("pricing.html", "pilot.html", "trust-passport-demo.html"):
+        assert (static / name).exists(), name
+
+
+def test_enterprise_admin_answers_but_asks_not_to_be_indexed(monkeypatch):
+    import re
+
+    client = TestClient(app)
+    for path in ("/enterprise-admin", "/admin-page"):
+        page = client.get(path)
+        assert page.status_code == 200, path
+        assert page.headers.get("x-robots-tag") == "noindex", path
+        assert '<meta name="robots" content="noindex">' in page.text, path
+
+    monkeypatch.setenv("MORROW_PUBLIC_BASE_URL", "https://airlock.test")
+    body = client.get("/sitemap.xml").text
+    paths = {loc.replace("https://airlock.test", "") for loc in re.findall(r"<loc>([^<]+)</loc>", body)}
+    for hidden in MOVED_TO_HOME + ("/enterprise-admin", "/admin-page", "/airlock-deployment", "/reset-password"):
+        assert hidden not in paths, hidden
+    assert "/legal" in paths
+    # Out of the sitemap is not gone: the deployment guide still answers.
+    assert client.get("/airlock-deployment").status_code == 200
+
+
+def test_legal_index_links_every_policy():
+    client = TestClient(app)
+    page = client.get("/legal")
+    assert page.status_code == 200
+    for path in ("/terms", "/privacy", "/dpa", "/data-boundary", "/security", "/support", "/trust",
+                 "/about-scanner", *CHECKER_DOCUMENTS):
+        assert f'href="{path}"' in page.text, path
+        assert client.get(path).status_code == 200, path
+    import app as module
+
+    assert module._auth_public_path("/legal")
+    assert module._csp_for("/legal") == module._CSP_STRICT_VALUE
+    # The instrument's own footer and every record page point at it too.
+    assert 'href="/legal"' in client.get("/").text
+    from services import registry_page
+
+    assert ("/legal", "Legal &amp; trust") in registry_page._FOOTER_LINKS
+
+
+def test_nothing_links_to_the_folded_pages_or_the_reset_page():
+    """Hidden means no link points there. /reset-password stays served for the recovery links an
+    admin hands over, but no page offers it."""
+    static = pathlib.Path(__file__).parent / "static"
+    for path in sorted(static.glob("*.html")) + sorted(static.glob("*.js")):
+        if path.name in ("pricing.html", "pilot.html", "trust-passport-demo.html", "reset-password.html",
+                         "reset-password.js", "passkey.js"):
+            continue
+        body = path.read_text(encoding="utf-8")
+        for stale in ('href="/pricing"', 'href="/pilot"', 'href="/trust-passport-demo"', 'href="/reset-password"'):
+            assert stale not in body, (path.name, stale)
+    assert TestClient(app).get("/reset-password").status_code == 200
+
+
+def test_console_enterprise_switch_and_why_it_matters():
+    """One Enterprise switch hides the enterprise views from the sidebar; Quantum Risk is a panel on
+    Overview. Every view stays registered, so a bookmark to any of them still opens."""
+    import re
+
+    console = (pathlib.Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+    nav = console[console.index("const NAV = ["):console.index("const VIEWS = {};")]
+    for view in ("data-control", "airlock", "gateway", "scanners", "operations", "governance", "board",
+                 "vendors", "g-airlock", "g-trust-passport", "g-admin-page"):
+        line = re.search(r'\{ id: "%s",[^\n]*' % re.escape(view), nav).group(0)
+        assert "ent: true" in line, view
+    for view in ("overview", "scans", "assets", "cbom", "signing", "remediation", "integrations", "admin",
+                 "api", "guide", "knowledge"):
+        line = re.search(r'\{ id: "%s",[^\n]*' % re.escape(view), nav).group(0)
+        assert "ent: true" not in line, view
+    assert '{ g: "Quantum Risk", ch: "league", fold: true, items: [' in nav
+    assert '{ g: "Enterprise Airlock"' not in nav and '{ g: "System"' not in nav
+    settings = nav[nav.index('{ g: "Settings"'):nav.index('{ g: "Help"')]
+    assert '"admin"' in settings and '"api"' in settings
+    assert 'role="switch"' in console and 'data-act="toggleEnterprise"' in console
+    assert 'LS.get("morrow_enterprise", "") === "1"' in console
+    for view in ("hndl", "qday", "graph", "canaries"):
+        assert f"VIEWS.{view} = async" in console, view
+        assert f'["{view}", I.' in console, view
+    assert 'sec("Why it matters"' in console
+
+
+def test_make_it_safe_is_the_one_action_on_home_and_the_console():
+    """Home is one domain input whose action is Make it safe; the console opens with the same. Both
+    land on the domain's record at /r/<domain>, whose primary action is Make it safe."""
+    static = pathlib.Path(__file__).parent / "static"
+    home = (static / "instrument.js").read_text(encoding="utf-8")
+    view = home[home.index("function viewHome()"):home.index("function homePublic()")]
+    assert '<form class="i-safe" id="home-form"' in view
+    assert ">Make it safe</button>" in view
+    assert 'location.href = "/r/" + d' in view
+    # The recognizer (algorithms, CVEs, commits) is the command bar now, not the hero.
+    assert "bindRecognizer" not in view
+    assert "make-safe.js" in (static / "instrument.html").read_text(encoding="utf-8")
+
+    console = (static / "index.html").read_text(encoding="utf-8")
+    overview = console[console.index("VIEWS.overview = async"):console.index("/* Live mission control.")]
+    hero = overview[overview.index("const hero = `"):]
+    assert hero.index('id="safeForm"') < hero.index('class="overviewHeading"'), "Make it safe comes first"
+    assert "Make it safe</button>" in hero
+    assert 'location.href = "/r/" + d' in overview

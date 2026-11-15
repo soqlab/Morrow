@@ -104,17 +104,33 @@ async function main() {
     assert.equal(running, 0, "something animates on its own after load");
     assert.ok(await page.locator("#i-build").innerText(), "the commit line is empty");
 
-    await page.fill("#home-q", "https://www.Example.com/path");
-    await page.locator('.i-opt[data-kind="domain"]').first().waitFor();
-    assert.match(await page.locator(".i-opt").first().innerText(), /example\.com/i);
-    await page.fill("#home-q", "kyber");
-    assert.equal(await page.locator(".i-opt").first().getAttribute("href"), "/algorithms/ml-kem");
-    await page.fill("#home-q", "CVE-2014-0160");
-    assert.equal(await page.locator(".i-opt").first().getAttribute("data-kind"), "cve");
-    await page.fill("#home-q", "deadbeef1");
-    assert.equal(await page.locator(".i-opt").first().getAttribute("data-kind"), "commit");
+    // Home is one domain input whose action is Make it safe; nonsense is refused in place.
+    assert.equal(await page.locator("#home-form .i-safe-go").innerText(), "Make it safe");
+    await page.fill("#home-q", "not a domain");
+    await page.locator("#home-form .i-safe-go").click();
+    assert.equal(await page.locator("#home-hint").getAttribute("data-tone"), "bad");
+    assert.equal(page.url(), `${base}/`);
+    await page.fill("#home-q", `https://${SMOKE_DOMAIN.toUpperCase()}/path`);
+    await page.keyboard.press("Enter");
+    await page.waitForURL(`${base}/r/${SMOKE_DOMAIN}`);
+    assert.equal(await page.locator(`.actions a.btn[href="/${SMOKE_DOMAIN}#make-safe"]`).textContent(), "Make it safe");
+    await page.goto(`${base}/`, { waitUntil: "networkidle" });
 
+    // Everything else is in the command bar.
+    await page.locator("body").click();
+    await page.keyboard.press("Control+k");
+    await page.locator("#pal-q").waitFor();
+    await page.fill("#pal-q", "https://www.Example.com/path");
+    await page.locator('#pal-l .i-opt[data-kind="domain"]').first().waitFor();
+    assert.match(await page.locator("#pal-l .i-opt").first().innerText(), /example\.com/i);
+    await page.fill("#pal-q", "kyber");
+    assert.equal(await page.locator("#pal-l .i-opt").first().getAttribute("href"), "/algorithms/ml-kem");
+    await page.fill("#pal-q", "CVE-2014-0160");
+    assert.equal(await page.locator("#pal-l .i-opt").first().getAttribute("data-kind"), "cve");
+    await page.fill("#pal-q", "deadbeef1");
+    assert.equal(await page.locator("#pal-l .i-opt").first().getAttribute("data-kind"), "commit");
     await page.keyboard.press("Escape");
+
     await page.locator("body").click();
     await page.keyboard.press("Control+k");
     await page.locator("#pal-q").waitFor();

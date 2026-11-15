@@ -66,34 +66,40 @@ async function assertVisibleText(page, selector, expected, label = selector) {
 // Every view in the console's navigation, with the heading each one must render. Kept in step with
 // the NAV array in backend/static/index.html -- a view added there without being added here is not
 // covered, and one renamed there fails this test loudly rather than silently going untested.
+// The sidebar as a new visitor sees it: the Enterprise switch off.
 const CONSOLE_VIEWS = [
   ["overview", "Overview"],
   ["scans", "TLS Scanner"],
   ["assets", "Asset Inventory"],
   ["cbom", "CBOM / SBOM"],
-  ["hndl", "HNDL Exposure"],
-  ["qday", "Q-Day Forecast"],
-  ["graph", "Blast Radius"],
-  ["canaries", "Canaries & QTISN"],
-  ["g-airlock", "Airlock Guide"],
-  ["g-trust-passport", "Passport Guide"],
-  // The Administrator Guide is operator-only: it is hidden unless the server accepts this tab's
-  // platform key, and this browser session carries none.
+  ["signing", "Signing"],
+  ["remediation", "Remediation"],
+  ["integrations", "Integrations"],
+  ["admin", "Administration"],
+  ["api", "API Explorer"],
+  ["guide", "Guide & Tutorial"],
+  ["knowledge", "Knowledge"],
+];
+// Listed once the Enterprise switch in Settings is on. The Administrator Guide is operator-only as
+// well: it is hidden unless the server accepts this tab's platform key, and this session carries none.
+const ENTERPRISE_VIEWS = [
   ["data-control", "Data Control"],
   ["airlock", "Quantum Airlock"],
   ["gateway", "Website Gateway"],
-  ["signing", "Signing"],
-  ["remediation", "Remediation"],
   ["scanners", "Deep Scanners"],
   ["operations", "Operations"],
   ["governance", "Governance"],
   ["board", "Board & ROI"],
   ["vendors", "Third Party"],
-  ["integrations", "Integrations"],
-  ["knowledge", "Knowledge"],
-  ["admin", "Administration"],
-  ["api", "API Explorer"],
-  ["guide", "Guide & Tutorial"],
+  ["g-airlock", "Airlock Guide"],
+  ["g-trust-passport", "Passport Guide"],
+];
+// Not in the sidebar: Overview's "Why it matters" panel opens each of these.
+const WHY_VIEWS = [
+  ["hndl", "HNDL Exposure"],
+  ["qday", "Q-Day Forecast"],
+  ["graph", "Blast Radius"],
+  ["canaries", "Canaries & QTISN"],
 ];
 
 // go() catches a render failure and substitutes this card, so a broken view still returns HTTP 200
@@ -141,9 +147,34 @@ async function testMainUi(page) {
     );
   }
 
-  for (const [id, heading] of CONSOLE_VIEWS) {
+  log("enterprise switch lists the enterprise views");
+  const enterpriseSwitch = page.locator('#nav .navSwitch[role="switch"]');
+  if ((await enterpriseSwitch.getAttribute("aria-checked")) !== "false") {
+    throw new Error("the Enterprise switch should start off");
+  }
+  await enterpriseSwitch.evaluate((el) => el.click());
+  await page.waitForFunction(() => document.querySelector("#nav .navSwitch")?.getAttribute("aria-checked") === "true");
+  const allCount = await page.locator("#nav .nav[data-go]").count();
+  if (allCount !== CONSOLE_VIEWS.length + ENTERPRISE_VIEWS.length) {
+    throw new Error(
+      `with the Enterprise switch on, navigation has ${allCount} entries, expected ` +
+      `${CONSOLE_VIEWS.length + ENTERPRISE_VIEWS.length}. Update ENTERPRISE_VIEWS in this script.`
+    );
+  }
+
+  for (const [id, heading] of [...CONSOLE_VIEWS, ...ENTERPRISE_VIEWS, ...WHY_VIEWS]) {
     log(`view: ${id}`);
-    await page.locator(`.nav[data-go="${id}"]`).evaluate((el) => el.click());
+    const inNav = !WHY_VIEWS.some(([why]) => why === id);
+    if (inNav) {
+      await page.locator(`.nav[data-go="${id}"]`).evaluate((el) => el.click());
+    } else {
+      // Reached the way a visitor reaches it: from Overview's "Why it matters" panel.
+      await page.locator('.nav[data-go="overview"]').evaluate((el) => el.click());
+      // wire() gives the button its handler once the view has rendered; wait for that, not the markup.
+      await page.waitForFunction((to) => document.querySelector(`.whyPanel [data-act="nav"][data-to="${to}"]`)?.__w === 1,
+        id, { timeout: viewTimeoutMs });
+      await page.locator(`.whyPanel [data-act="nav"][data-to="${id}"]`).evaluate((el) => el.click());
+    }
     // go() replaces #view with a skeleton, then awaits the view's render. Waiting on the heading
     // first ensures the route switched before the body is inspected.
     await page.waitForFunction(

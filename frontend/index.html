@@ -1167,7 +1167,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
 .supportEnded p { margin: 0 0 16px; color: var(--ink2); line-height: 1.55 }
 </style>
 <link rel="stylesheet" href="/ui/design.css?v=20260918-idle">
-<link rel="stylesheet" href="/ui/console.css?v=20261113-drawer">
+<link rel="stylesheet" href="/ui/console.css?v=20261115-focus">
 <link rel="stylesheet" href="/ui/oops.css?v=20261113-instrument">
 <link rel="stylesheet" href="/ui/console-instrument.css?v=20261113-still">
 <script src="/ui/oops.js?v=20261113-retire" defer></script>
@@ -1228,7 +1228,7 @@ body.supportMode [data-support-locked] { opacity: .45; cursor: not-allowed }
       </button>
       <button class="iconBtn" id="themeBtn" type="button" title="Toggle theme" aria-label="Toggle theme"></button>
     </header>
-    <div id="dataControlStrip" class="dc-strip" aria-live="polite"><strong>Data Control</strong><span>State not checked</span><a href="#data-control">Review boundary &amp; access</a></div>
+    <div id="dataControlStrip" class="dc-strip" aria-live="polite" hidden><strong>Data Control</strong><span>State not checked</span><a href="#data-control">Review boundary &amp; access</a></div>
     <div id="notices" class="notices" aria-live="polite" hidden></div>
     <main id="view" class="view" role="main" tabindex="-1"></main>
   </div>
@@ -1415,6 +1415,7 @@ const S = {
   actor:   LS.get("pq_actor", ""),
   role:    LS.get("morrow_role", ""),
   theme:   LS.get("morrow_theme", "dark"),
+  enterprise: LS.get("morrow_enterprise", "") === "1",   // the Enterprise switch in Settings
   route:   "",
   poll:    null,
   scan:    { id: LS.get("pq_scan", ""), data: null, results: null },
@@ -2088,14 +2089,39 @@ const NAV = [
     { id: "assets",     n: "Asset Inventory",  i: I.server,    d: "Cryptographic asset registry, owners, tags and collections" },
     { id: "cbom",       n: "CBOM / SBOM",      i: I.layers,    d: "CycloneDX cryptographic bill of materials" },
   ]},
-  { g: "Quantum Risk", ch: "league", items: [
+  /* Quantum Risk is folded into the "Why it matters" panel on Overview: not in the sidebar, each
+     view still opens from that panel and at its own address (/ui/#hndl and so on). */
+  { g: "Quantum Risk", ch: "league", fold: true, items: [
     { id: "hndl",       n: "HNDL Exposure",    i: I.hourglass, d: "Harvest-now-decrypt-later exposure and priority queue" },
     { id: "qday",       n: "Q-Day Forecast",   i: I.clock,     d: "CRQC trajectory, milestones and quantum intelligence" },
     { id: "graph",      n: "Blast Radius",     i: I.network,   d: "Security graph, certificate blast radius and CA contagion" },
     { id: "canaries",   n: "Canaries & QTISN", i: I.bird,      d: "Cryptographic canary tokens and threat-intel network" },
   ]},
-  { g: "Enterprise Airlock", ch: "trust", items: [
-    { id: "g-airlock", n: "Airlock Guide", i: I.lock, body: `
+  /* ent: an enterprise view. Hidden until the Enterprise switch in Settings is on (S.enterprise);
+     nothing is removed, and each one still opens at its own address. */
+  { g: "Act", ch: "conn", items: [
+    { id: "data-control", n: "Data Control", i: I.lock, ent: true, d: "AI permissions, data boundary, support access and signed processing receipts" },
+    { id: "airlock",    n: "Quantum Airlock",  i: I.lock,      ent: true, d: "Privacy wall, Trust Passports, proof packages and sovereign AI controls" },
+    { id: "gateway",    n: "Website Gateway", i: I.shield,    ent: true, d: "Domain ownership, compatibility, filtering policies and verified gateway observations" },
+    { id: "signing",    n: "Signing",          i: I.lock,      d: "Post-quantum signatures for your releases and pages: keys, signatures, revocations" },
+    { id: "remediation",n: "Remediation",      i: I.wrench,    d: "Fix queue, autopilot, playbooks and code generation" },
+    { id: "scanners",   n: "Deep Scanners",    i: I.bug,       ent: true, d: "SAST, secrets, dependencies, binary, mobile and IaC" },
+    { id: "operations", n: "Operations",       i: I.activity,  ent: true, d: "Observatory, drift, SLA, schedules and telemetry" },
+  ]},
+  { g: "Assure", ch: "atlas", items: [
+    { id: "governance", n: "Governance",       i: I.scale,     ent: true, d: "Policies, enforcement, compliance evidence and maturity" },
+    { id: "board",      n: "Board & ROI",      i: I.briefcase, ent: true, d: "Board risk weather, ROI modelling and actuarial models" },
+    { id: "vendors",    n: "Third Party",      i: I.truck,     ent: true, d: "Vendor assessments, scorecards and attestations" },
+  ]},
+  { g: "Settings", ch: "tools", items: [
+    { id: "integrations",n: "Integrations",    i: I.plug,      d: "GitHub, Cloudflare, Slack, Jira, webhooks and CI/CD gates" },
+    { id: "admin",      n: "Administration",   i: I.shield,    d: "Launch readiness, users, organizations, audit trail and platform control" },
+    { id: "api",        n: "API Explorer",     i: I.terminal,  d: "Browse the endpoint catalog or call any backend route directly" },
+  ]},
+  { g: "Help", ch: "ref", items: [
+    { id: "guide",      n: "Guide & Tutorial", i: I.book,      d: "What every screen does, how to use it, and a first-run walkthrough" },
+    { id: "knowledge",  n: "Knowledge",        i: I.book,      d: "Post-quantum knowledge base, provider capabilities and search" },
+    { id: "g-airlock", n: "Airlock Guide", i: I.lock, ent: true, body: `
       <p><b>What it is:</b> the minimum-access customer onboarding path. Airlock lets a customer run
       a reviewed collector inside their own boundary and send signed cryptographic evidence without
       default upload of source code, private keys, secrets, packet payloads or broad system data.</p>
@@ -2105,16 +2131,16 @@ const NAV = [
       <p><b>Outputs:</b> onboarding status, flight-recorder proof, privacy CBOM fingerprint,
       remediation proof package, firmware provenance proof, compliance ledger credential and Trust
       Passport share.</p>` },
-    { id: "g-trust-passport", n: "Passport Guide", i: I.file, body: `
+    { id: "g-trust-passport", n: "Passport Guide", i: I.file, ent: true, body: `
       <p><b>What it is:</b> the buyer-readable proof artifact. It summarizes what evidence was
       collected, whether signatures verified, which privacy boundary applied, what is ready, and
       what remains blocked.</p>
-      <p><b>How to produce one:</b> the public page <code>/trust-passport-demo</code> explains the contents; use
-      <b>Quantum Airlock</b> inside the console to generate a real passport and optional share token.</p>
+      <p><b>How to produce one:</b> use <b>Quantum Airlock</b> inside the console to generate a real
+      passport and optional share token.</p>
       <p><b>Rule:</b> only share a Trust Passport publicly when the evidence is approved by the
       customer or clearly marked as demo data.</p>` },
     // operator: shown only once the server accepts this tab's platform key.
-    { id: "g-admin-page", n: "Administrator Guide", i: I.shield, operator: true, body: `
+    { id: "g-admin-page", n: "Administrator Guide", i: I.shield, operator: true, ent: true, body: `
       <p>For vendor operators: the staff who run Morrow for customers. Customers never see this console or this guide.</p>
       <p>The operator console lives at <code>/vendor-admin/</code>. It is deliberately not linked from the public website. Your deployment team publishes its address behind your SSO or VPN gateway.</p>
       <p>What this guide does not claim: SSO was tested against a mocked identity provider and has not been run end to end against a real Okta, Entra ID or Google Workspace account. Section 21 lists what to configure and test before you rely on it.</p>
@@ -2279,29 +2305,6 @@ const NAV = [
       <ul><li>Fixed since the first edition: vault key rotation now covers alert channel targets; break-glass and support-session notifications are selectable kinds and auto-resolve in PagerDuty; Traffic Lens accepts SSO sessions; the console shows the vendor portal link to operators only; CipherLens answers without an AI key; customers see every page a support session requested; deleting or disabling a PagerDuty channel resolves the incidents it left open.</li></ul>
       </details>` },
   ]},
-  { g: "Act", ch: "conn", items: [
-    { id: "data-control", n: "Data Control", i: I.lock, d: "AI permissions, data boundary, support access and signed processing receipts" },
-    { id: "airlock",    n: "Quantum Airlock",  i: I.lock,      d: "Privacy wall, Trust Passports, proof packages and sovereign AI controls" },
-    { id: "gateway",    n: "Website Gateway", i: I.shield,    d: "Domain ownership, compatibility, filtering policies and verified gateway observations" },
-    { id: "signing",    n: "Signing",          i: I.lock,      d: "Post-quantum signatures for your releases and pages: keys, signatures, revocations" },
-    { id: "remediation",n: "Remediation",      i: I.wrench,    d: "Fix queue, autopilot, playbooks and code generation" },
-    { id: "scanners",   n: "Deep Scanners",    i: I.bug,       d: "SAST, secrets, dependencies, binary, mobile and IaC" },
-    { id: "operations", n: "Operations",       i: I.activity,  d: "Observatory, drift, SLA, schedules and telemetry" },
-  ]},
-  { g: "Assure", ch: "atlas", items: [
-    { id: "governance", n: "Governance",       i: I.scale,     d: "Policies, enforcement, compliance evidence and maturity" },
-    { id: "board",      n: "Board & ROI",      i: I.briefcase, d: "Board risk weather, ROI modelling and actuarial models" },
-    { id: "vendors",    n: "Third Party",      i: I.truck,     d: "Vendor assessments, scorecards and attestations" },
-  ]},
-  { g: "System", ch: "tools", items: [
-    { id: "integrations",n: "Integrations",    i: I.plug,      d: "GitHub, Cloudflare, Slack, Jira, webhooks and CI/CD gates" },
-    { id: "knowledge",  n: "Knowledge",        i: I.book,      d: "Post-quantum knowledge base, provider capabilities and search" },
-    { id: "admin",      n: "Administration",   i: I.shield,    d: "Launch readiness, users, organizations, audit trail and platform control" },
-    { id: "api",        n: "API Explorer",     i: I.terminal,  d: "Browse the endpoint catalog or call any backend route directly" },
-  ]},
-  { g: "Help", ch: "ref", items: [
-    { id: "guide",      n: "Guide & Tutorial", i: I.book,      d: "What every screen does, how to use it, and a first-run walkthrough" },
-  ]},
 ];
 const VIEWS = {};                                  // id ? async render(host)
 const FLAT = NAV.flatMap(g => g.items.map(x => ({ ...x, g: g.g, ch: g.ch })));
@@ -2312,7 +2315,6 @@ for (const item of FLAT.filter(x => x.body)) {
       ${card(item.n, `<div class="doc">${item.body}</div>`, { icon: item.i, sub: item.g })}
       ${card("Operational links", `<div class="stack">
         <a class="btn sm block" href="/launch">Launch page</a>
-        <a class="btn sm block" href="/trust-passport-demo">Trust Passport overview</a>
         <a class="btn sm block" href="/enterprise-admin">Enterprise Admin overview</a>
         ${S.operator ? `<a class="btn sm block" href="/vendor-admin/">Vendor Admin portal</a>` : ""}
       </div>`, { icon: I.link, sub: "Public and operator surfaces" })}
@@ -2333,14 +2335,35 @@ async function verifyOperator() {
   if (!S.operator && META[S.route]?.operator) go("overview");
   return S.operator;
 }
+/** Whether a view is listed in the sidebar and the command palette. Hidden views still open at
+ *  their own address: operator views need a verified key there too, the others do not. */
+const navShown = x => Boolean(x) && !x.fold && (!x.operator || S.operator) && (!x.ent || S.enterprise);
 function paintNav() {
   $("#nav").innerHTML = NAV.map(g => {
-    const items = g.items.filter(x => !x.operator || S.operator);
-    return items.length ? `<div class="navGroup" data-ch="${H(g.ch || "tools")}"><div class="navLabel">${H(g.g)}</div>
+    if (g.fold) return "";
+    const items = g.items.filter(navShown);
+    // The Enterprise switch lives in Settings, after the views it sits beside.
+    const sw = g.g === "Settings" ? `<button class="nav navSwitch" type="button" role="switch" aria-checked="${S.enterprise}"
+      data-act="toggleEnterprise" title="Airlock, Data Control, Gateway, Deep Scanners, Operations, Governance">${I.layers}<span>Enterprise views</span><i class="sw" aria-hidden="true"></i></button>` : "";
+    return items.length || sw ? `<div class="navGroup" data-ch="${H(g.ch || "tools")}"><div class="navLabel">${H(g.g)}</div>
     ${items.map(x => `<button class="nav" type="button" data-go="${x.id}" title="${H(x.n)}">${x.i}<span>${H(x.n)}</span>
-      <i class="cnt" id="cnt-${x.id}" hidden></i></button>`).join("")}</div>` : "";
+      <i class="cnt" id="cnt-${x.id}" hidden></i></button>`).join("")}${sw}</div>` : "";
   }).join("");
+  const strip = $("#dataControlStrip");
+  if (strip) strip.hidden = !S.enterprise;
   wire($("#nav"));
+  $$(".nav[data-go]").forEach(b => b.classList.toggle("on", b.dataset.go === S.route));
+}
+/* One switch for the enterprise views (Airlock, Data Control, Website Gateway, Deep Scanners,
+   Operations, Governance, Board & ROI, Third Party and their guides). Off by default; remembered
+   in this browser. It changes what is listed, never what is reachable. */
+function setEnterprise(on) {
+  S.enterprise = Boolean(on);
+  LS.set("morrow_enterprise", S.enterprise ? "1" : "");
+  paintNav();
+  if (S.enterprise && S.route !== "data-control") window.refreshDataControlStrip?.();
+  $(".navSwitch")?.focus();
+  ok(S.enterprise ? "Enterprise views shown" : "Enterprise views hidden");
 }
 function navBadge(id, text) {
   const el = $("#cnt-" + id);
@@ -2392,7 +2415,7 @@ async function go(id, { push = true } = {}) {
   // would leave another poller behind, each re-fetching ten endpoints forever.
   if (S.livePoll) { clearInterval(S.livePoll); S.livePoll = null; }
   S.route = id;
-  if (id !== "data-control") window.refreshDataControlStrip?.();
+  if (id !== "data-control" && S.enterprise) window.refreshDataControlStrip?.();
   const m = META[id];
   $("#vTitle").textContent = m.n;
   $("#vSub").textContent = m.d;
@@ -2555,6 +2578,7 @@ function wire(root) {
 ACTIONS.retry = retry;
 ACTIONS.cfg   = () => openConfig();
 ACTIONS.nav   = (b) => go(b.dataset.to);
+ACTIONS.toggleEnterprise = () => setEnterprise(!S.enterprise);
 
 /* ---------------------------------------------------------------- overlay host (drawer / modal) */
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])';
@@ -2765,8 +2789,7 @@ function authGateHtml() {
         ${pkOk ? "" : `<span class="gsub" style="margin:0">This browser can't use passkeys. Open this page in a current browser, or on your phone.</span>`}
         ${c.signup_enabled ? `<a class="btn block" href="/signup" style="height:42px">${I.plus}Create an account</a>` : ""}
         <span style="display:flex;justify-content:space-between;gap:10px;font-size:12px;flex-wrap:wrap">
-          ${codes ? `<a href="#" data-act="gateShowRecovery" style="color:var(--ink2)">Lost your passkey?</a>`
-            : c.password_reset_enabled ? `<a href="/reset-password" style="color:var(--ink2)">Lost your passkey?</a>` : "<span></span>"}
+          ${codes ? `<a href="#" data-act="gateShowRecovery" style="color:var(--ink2)">Lost your passkey?</a>` : "<span></span>"}
           <a href="#" data-act="gateShowPassword" style="color:var(--ink2)">${c.passkeys_only ? "Still have a password? Sign in once to add a passkey" : "Sign in with a password"}</a></span>
         ${codes ? `<div class="col" id="gCodeBox" hidden>
           <div class="field"><label for="gCode">Recovery code</label>
@@ -2774,7 +2797,7 @@ function authGateHtml() {
           <label style="display:flex;gap:8px;align-items:center;font-size:12px;color:var(--ink2)">
             <input id="gCodeRevoke" type="checkbox"> Also remove my other passkeys (a lost or stolen device)</label>
           <button class="btn block" data-act="gateRecoveryCode" type="button" style="white-space:normal;height:auto;min-height:38px" ${pkOk ? "" : "disabled"}>Use recovery code</button>
-          <span class="gsub" style="margin:0">Each code works once. You'll create a new passkey on this device, and you'll be signed out everywhere else.${c.password_reset_enabled ? ` No code? <a href="/reset-password" style="color:var(--ink2)">Get a recovery link by email</a> (if your account allows it).` : " No code left? Ask an admin of your organization for a recovery link."}</span>
+          <span class="gsub" style="margin:0">Each code works once. You'll create a new passkey on this device, and you'll be signed out everywhere else. No code left? Ask an admin of your organization for a recovery link.</span>
         </div>` : ""}
         <div class="col" id="gPwBox" hidden>
           <div class="field"><label for="gEmail">Email</label>
@@ -2789,7 +2812,6 @@ function authGateHtml() {
         <div class="field"><label for="gPass">Password</label>
           <input class="inp" id="gPass" type="password" autocomplete="current-password" placeholder="••••••••••"></div>
         <button class="btn pri block" data-act="gateLogin" type="button" style="height:38px">${I.lock}Sign in</button>
-        ${c.password_reset_enabled ? `<a class="forgotLink" href="/reset-password" style="font-size:12px;color:var(--ink2);align-self:flex-end">Forgot password?</a>` : ""}
       </div>` : `<div class="banner info">${I.info}<div><span class="bx">This server does not offer
         password sign-in. Use single sign-on or a token issued by your identity provider.</span></div></div>`}
 
@@ -3074,8 +3096,7 @@ function openLogin() {
           <input class="inp" id="lgEmail" type="email" data-autofocus autocomplete="username" placeholder="you@example.com"></div>
         <div class="field"><label for="lgPass">Password</label>
           <input class="inp" id="lgPass" type="password" autocomplete="current-password"></div>
-        <button class="btn pri block" data-act="loginPw" type="button">${I.lock}Sign in</button>
-        ${c.password_reset_enabled ? `<a href="/reset-password" style="font-size:12px;color:var(--ink2);align-self:flex-end">Forgot password?</a>` : ""}` : ""}
+        <button class="btn pri block" data-act="loginPw" type="button">${I.lock}Sign in</button>` : ""}
 
       ${saml ? `<button class="btn block" data-act="loginSaml" type="button">${I.shield}Continue with SAML single sign-on</button>` : ""}
       ${ext ? `<a class="btn block" href="${H(c.login_url)}">${I.link}Sign in with ${H(provider)}</a>` : ""}
@@ -3364,7 +3385,8 @@ const openConfig = openConn;
 
 /* ---------------------------------------------------------------- command palette */
 const CMDS = () => [
-  ...FLAT.filter(v => !v.operator || S.operator).map(v => ({ label: v.n, hint: v.g, icon: v.i, run: () => go(v.id) })),
+  ...FLAT.filter(navShown).map(v => ({ label: v.n, hint: v.g, icon: v.i, run: () => go(v.id) })),
+  { label: S.enterprise ? "Hide enterprise views" : "Show enterprise views", hint: "Settings", icon: I.layers, run: () => setEnterprise(!S.enterprise) },
   { label: "Toggle theme", hint: "Appearance", icon: I.sun, run: toggleTheme },
   { label: signedIn() ? "Identity & session" : "Sign in", hint: "Auth", icon: I.lock, run: openIdentityMenu },
   ...(signedIn() ? [{ label: "Sign out", hint: "Auth", icon: I.x, run: () => ACTIONS.logout({ classList: { add() {}, remove() {}, contains: () => false } }) }] : []),
@@ -3373,20 +3395,20 @@ const CMDS = () => [
   { label: "Open CipherLens", hint: "AI guidance", icon: I.zap, run: () => ACTIONS.openCopilot() },
   { label: "Executive story mode", hint: "Board narrative", icon: I.briefcase, run: () => ACTIONS.execStory() },
   { label: "Find go-live blockers", hint: "AI guidance", icon: I.alert, run: () => ACTIONS.openCopilot(null, "List the concrete blockers that stop this platform from going live today. Prioritize security, reliability, and deployment readiness.") },
-  { label: "Quantum Airlock", hint: "Moat", icon: I.lock, run: () => go("airlock") },
-  { label: "Trust Passport", hint: "Moat", icon: I.shield, run: () => go("airlock") },
-  { label: "Privacy-preserving CBOM", hint: "Moat", icon: I.layers, run: () => go("airlock") },
-  { label: "HNDL honeypot network", hint: "Strategic capability", icon: I.bird, run: () => go("canaries") },
+  { label: "Quantum Airlock", hint: "Moat", to: "airlock", icon: I.lock, run: () => go("airlock") },
+  { label: "Trust Passport", hint: "Moat", to: "airlock", icon: I.shield, run: () => go("airlock") },
+  { label: "Privacy-preserving CBOM", hint: "Moat", to: "airlock", icon: I.layers, run: () => go("airlock") },
+  { label: "HNDL honeypot network", hint: "Strategic capability", to: "canaries", icon: I.bird, run: () => go("canaries") },
   { label: "CAM/API transparent proxy", hint: "Strategic capability", icon: I.zap, run: () => go("integrations") },
   { label: "CI/CD quantum buzzer", hint: "Strategic capability", icon: I.bell, run: () => go("integrations") },
-  { label: "ZK firmware provenance", hint: "Strategic capability", icon: I.lock, run: () => go("scanners") },
-  { label: "Compliance ledger", hint: "Strategic capability", icon: I.scale, run: () => go("governance") },
+  { label: "ZK firmware provenance", hint: "Strategic capability", to: "scanners", icon: I.lock, run: () => go("scanners") },
+  { label: "Compliance ledger", hint: "Strategic capability", to: "governance", icon: I.scale, run: () => go("governance") },
   { label: "Refresh current view", hint: "System", icon: I.activity, run: retry },
   { label: "Check API health", hint: "System", icon: I.shield, run: async () => { await health(); ok("Health re-checked"); } },
   { label: "Start a new TLS scan", hint: "Action", icon: I.play, run: () => go("scans") },
   { label: "Export CBOM (CycloneDX)", hint: "Action", icon: I.dl, run: () => { location.href = S.base + "/cbom"; } },
   { label: "Download audit log CSV", hint: "Action", icon: I.dl, run: () => { location.href = S.base + "/audit/logs/export.csv"; } },
-];
+].filter(c => !c.to || navShown(META[c.to]));
 /* What a typed query means, before it is matched against view names: a domain opens its public
    grade, an algorithm its reference page, a CVE the NVD record, a hex string the commit check. */
 const CMD_ALGOS = { "ml-kem": "ml-kem", kyber: "ml-kem", "ml-dsa": "ml-dsa", dilithium: "ml-dsa", "slh-dsa": "slh-dsa",
@@ -3769,13 +3791,24 @@ VIEWS.overview = async (host) => {
   const nextLine = nothingYet ? "Scan a host you run to get the first reading: TLS version, key exchange and certificate, with what to change."
     : nextFix ? `Next fix: ${nextFix.asset_key || nextFix.host || nextFix.repository || "top of the queue"}${nextFix.priority_score != null ? ` (priority ${NUM(nextFix.priority_score)})` : ""}`
     : `${NUM(AS.length)} assets in inventory, ${NUM(SC.length)} recent scans.`;
+  /* Make it safe is the first thing on the console: a domain, then its record at /r/<domain>, whose
+     primary action is Make it safe (the fix for its own stack, a watched re-check, a signed proof). Pre-filled with the host
+     at the top of the fix queue when that is a plain hostname. */
+  const queued = safeDomain(String(nextFix?.host || nextFix?.asset_key || "").split(":")[0]);
   const hero = `<section class="consoleHero">
     <div class="overviewEyebrow"><span>Overview</span><span>Read at ${H(snapshot)}</span></div>
+    <form class="safeForm" id="safeForm" novalidate>
+      <label for="safeQ">Make a domain quantum-safe</label>
+      <div class="safeRow"><input class="inp mono" id="safeQ" type="text" inputmode="url" autocomplete="url" autocapitalize="none"
+        spellcheck="false" placeholder="your-domain.com" value="${H(queued || "")}" aria-describedby="safeNote">
+        <button class="btn pri" type="submit">${I.shield}Make it safe</button></div>
+      <span class="safeNote" id="safeNote" aria-live="polite">The exact change for what serves it, a re-check once it is live, and a signed proof.</span>
+    </form>
     <div class="overviewHeading"><h2>${H(reading)}</h2>
       <p>${H(nextLine)}</p>
       <div class="overviewActions">
-        ${actBtn("Start a TLS scan", "nav", { cls: "btn pri", icon: I.radar, data: { to: "scans" } })}
-        ${actBtn("Open Quantum Airlock", "nav", { cls: "btn", icon: I.lock, data: { to: "airlock" } })}
+        ${actBtn("Start a TLS scan", "nav", { cls: "btn", icon: I.radar, data: { to: "scans" } })}
+        ${S.enterprise ? actBtn("Open Quantum Airlock", "nav", { cls: "btn", icon: I.lock, data: { to: "airlock" } }) : ""}
       </div>
     </div>
   </section>`;
@@ -3865,7 +3898,7 @@ VIEWS.overview = async (host) => {
   /* --- subsystem runway: long-form rows instead of small square tiles --- */
   const tiles = exec.ok ? subsystemRunway(E, O) : errBox(exec.err, "/executive-dashboard");
 
-  host.innerHTML = advis + hero + kpiRow
+  host.innerHTML = advis + hero + kpiRow + whyItMatters(missionCtx)
     + sec("Your risk landscape", `<div class="warRoom" id="missionLive">${missionRiskMapCard(AS, RP, RM, FX, SC)}${evidenceTelemetryCard(missionCtx)}</div>`,
       `<span class="liveMeta" id="missionFreshness">Risk panels refresh every ${MISSION_LIVE_MS / 1000}s</span>`)
     + sec("Move the work forward", `<div class="warRoom">${nextBestActionsCard(FX, RM, RD)}${evidenceTimelineCard(SC, RM, RD)}</div>`)
@@ -3877,6 +3910,19 @@ VIEWS.overview = async (host) => {
     </div></details>`
     + `<details class="workspaceFold"><summary><span>Platform capabilities</span><small>Collectors, gateways, pipelines, and evidence</small></summary><div class="foldContent">${strategicCapabilityPanel(missionCtx)}</div></details>`
     + `<details class="workspaceFold"><summary><span>Operating runway</span><small>Regulation, monitoring, and maturity</small></summary><div class="foldContent">${tiles}</div></details>`;
+
+  $("#safeForm", host)?.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const field = $("#safeQ", host), note = $("#safeNote", host);
+    const d = safeDomain(field.value);
+    if (!d) {
+      note.dataset.tone = "bad";
+      note.textContent = field.value.trim() ? "That isn't a domain. Type one like example.com." : "Type a domain first, like example.com.";
+      field.focus();
+      return;
+    }
+    location.href = "/r/" + d;
+  });
 
   /* Live mission control.
 
@@ -4032,6 +4078,34 @@ async function startMissionLive(seed) {
     } finally { inFlight = false; }
   };
   S.livePoll = setInterval(tick, MISSION_LIVE_MS);
+}
+/** A hostname from what someone typed or pasted (a URL, a host:port), or "" when it is not one. */
+function safeDomain(raw) {
+  const host = String(raw || "").trim().toLowerCase().replace(/^[a-z][a-z0-9+.-]*:\/\//, "")
+    .split(/[/?#]/)[0].replace(/:\d+$/, "").replace(/\.$/, "").replace(/^\*\./, "");
+  return /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/.test(host) ? host : "";
+}
+/* Why it matters: the four Quantum Risk views folded into one panel. Each line is one reading from
+   data Overview already loaded, and a button to the view that explains it. A reading that is not
+   there says so; nothing is filled in. */
+function whyItMatters({ Q, HN, canaries }) {
+  const med = Q?.estimates?.median;
+  const modeled = HN && Number(HN.measured_asset_count ?? HN.asset_count) > 0;
+  const lines = [
+    ["hndl", I.hourglass, "Recorded today, readable later",
+      modeled ? `${USD(HN.total_exposure_usd)} of modelled exposure across ${NUM(HN.asset_count)} assets. A model, not a measurement.`
+        : "Nothing modelled yet. Scan a host you run to see what someone could record from it now.", "Exposure"],
+    ["qday", I.clock, "When it could be read",
+      med ? `The model's middle estimate is ${med}. A model, not a deadline.` : "This server has no estimate to show.", "Forecast"],
+    ["graph", I.network, "What breaks together",
+      "If one certificate authority or key falls, see everything that depends on it.", "Blast radius"],
+    ["canaries", I.bird, "Knowing if it is opened",
+      canaries.length ? `${NUM(canaries.length)} canary token${canaries.length === 1 ? "" : "s"} in place.`
+        : "No canary tokens yet. A canary tells you if recorded data is ever opened.", "Canaries"],
+  ];
+  return sec("Why it matters", `<div class="whyPanel">${lines.map(([id, icon, title, body, label]) =>
+    `<div class="whyRow">${icon}<div class="grow"><b>${H(title)}</b><span>${H(body)}</span></div>
+      ${actBtn(label, "nav", { cls: "btn xs", data: { to: id } })}</div>`).join("")}</div>`);
 }
 const heroStat = (label, value, sub) =>
   `<div class="heroStat"><small>${H(label)}</small><b>${H(String(value))}</b>

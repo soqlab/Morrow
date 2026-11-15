@@ -122,19 +122,23 @@
     { t: "Domains you watch, and what changed", h: "/watching", k: "watch watching alerts notifications push changes feed webhook", g: "Yours", ws: true },
     { t: "About the scanner: what connects to your server", h: "/about-scanner", k: "scanner user agent logs bot crawler opt out morrowpqcheck", g: "Public" }
   ];
-  var CONSOLE_PLACES = [["overview", "Overview", "posture summary"], ["scans", "TLS Scanner", "run scans, diff against a baseline"],
+  /* The console's sidebar, as places. Overview carries the quantum-risk readings ("Why it matters").
+     The enterprise views are listed only when the console's Enterprise switch is on in this browser
+     (localStorage morrow_enterprise, the same origin); every one still opens at its address. */
+  var CONSOLE_PLACES = [["overview", "Overview", "posture summary, why it matters"], ["scans", "TLS Scanner", "run scans, diff against a baseline"],
     ["assets", "Asset Inventory", "owners, tags, collections"], ["cbom", "CBOM / SBOM", "CycloneDX bill of materials"],
-    ["hndl", "HNDL Exposure", "harvest-now-decrypt-later queue"], ["qday", "Q-Day Forecast", "CRQC trajectory, milestones"],
-    ["graph", "Blast Radius", "certificate blast radius, CA contagion"], ["canaries", "Canaries & QTISN", "canary tokens, threat intel"],
-    ["data-control", "Data Control", "AI permissions, data boundary, receipts"], ["airlock", "Quantum Airlock", "privacy wall, trust passports"],
-    ["gateway", "Website Gateway", "domain ownership, filtering"], ["remediation", "Remediation", "fix queue, playbooks, code generation"],
-    ["scanners", "Deep Scanners", "SAST, secrets, dependencies, IaC"], ["operations", "Operations", "drift, SLA, schedules"],
-    ["governance", "Governance", "policies, compliance evidence"], ["board", "Board & ROI", "board risk, ROI models"],
-    ["vendors", "Third Party", "vendor assessments"], ["integrations", "Integrations", "GitHub, Slack, Jira, webhooks, CI"],
-    ["knowledge", "Knowledge", "knowledge base, provider capabilities"], ["admin", "Administration", "users, organizations, audit"],
-    ["api", "API Explorer", "every endpoint"], ["guide", "Guide & Tutorial", "what every screen does"],
-    ["g-airlock", "Airlock Guide", "deploying the collector"], ["g-trust-passport", "Passport Guide", "sharing proof"], ["g-admin-page", "Administrator Guide", "running the platform"]];
-  CONSOLE_PLACES.forEach(function (p) { PLACES.push({ t: p[1], h: "/ui/#" + p[0], k: p[0] + " " + p[2] + " console", g: "Console", hint: p[2] }); });
+    ["signing", "Signing", "post-quantum signatures for releases"], ["remediation", "Remediation", "fix queue, playbooks, code generation"],
+    ["integrations", "Integrations", "GitHub, Slack, Jira, webhooks, CI"], ["admin", "Administration", "settings: users, organizations, audit"],
+    ["api", "API Explorer", "settings: every endpoint"], ["guide", "Guide & Tutorial", "what every screen does"],
+    ["knowledge", "Knowledge", "knowledge base, provider capabilities"]];
+  var ENTERPRISE_PLACES = [["data-control", "Data Control", "AI permissions, data boundary, receipts"], ["airlock", "Quantum Airlock", "privacy wall, trust passports"],
+    ["gateway", "Website Gateway", "domain ownership, filtering"], ["scanners", "Deep Scanners", "SAST, secrets, dependencies, IaC"],
+    ["operations", "Operations", "drift, SLA, schedules"], ["governance", "Governance", "policies, compliance evidence"],
+    ["board", "Board & ROI", "board risk, ROI models"], ["vendors", "Third Party", "vendor assessments"],
+    ["g-airlock", "Airlock Guide", "deploying the collector"], ["g-trust-passport", "Passport Guide", "sharing proof"]];
+  var enterpriseOn = false;
+  try { enterpriseOn = localStorage.getItem("morrow_enterprise") === "1"; } catch (e) { enterpriseOn = false; }
+  (enterpriseOn ? CONSOLE_PLACES.concat(ENTERPRISE_PLACES) : CONSOLE_PLACES).forEach(function (p) { PLACES.push({ t: p[1], h: "/ui/#" + p[0], k: p[0] + " " + p[2] + " console", g: "Console", hint: p[2] }); });
 
   /* The signed-in workspace, if this browser has one: the console's own token, same origin. */
   var wsP = null;
@@ -505,16 +509,36 @@
       '<div class="i-opts" id="' + id + '-l" role="listbox"></div>';
   }
 
-  /* Home: the one input and a live reading. Signed in, the reading is your estate. */
+  /* Home: one domain input whose only action is Make it safe, and a live reading. It opens the
+     domain's permanent record at /r/<domain>, whose primary action is Make it safe (make-safe.js):
+     the fix for that host's own stack, a watched re-check, and a signed proof once it is live. Algorithms, CVEs, commits and pages are
+     still one Ctrl K away, but they are not the hero. Signed in, the reading is your estate. */
+  var HOME_HINT = "The exact change for your server, a re-check once it is live, and a signed proof. Anything else: Ctrl K.";
   function viewHome() {
     setView("grade", null);
-    say(byDepth({ plain: "Type a website's address to see whether traffic to it could be read by a future quantum computer, and how to fix it.",
-      standard: "Type a domain, an algorithm, a CVE or a commit. A domain gets its answer, its grade and the fix.",
-      expert: "Hostname → grade (rubric on /api/public); algorithm → reference; CVE → NVD; hex → commit check; “scan host” → your workspace." }));
-    main.innerHTML = inputBlock("home-q") + '<p class="i-fine" id="home-hint">The address works too: <code>' + esc(location.host) + '/example.com</code>.</p><div id="home-reading"></div>';
-    bindRecognizer($("#home-q"), $("#home-q-l"));
-    $("#home-q").addEventListener("input", function () { $("#home-hint").hidden = !!this.value; });
-    $("#home-q").focus();
+    say(byDepth({ plain: "Type your website's address. Morrow shows the one change that keeps its traffic safe from future quantum computers.",
+      standard: "Type your domain. Morrow grades it, names what serves it and shows the change that makes it quantum-safe.",
+      expert: "Hostname → live grade, terminating stack, the vendor-sourced change, a watched re-check and a signed proof. Ctrl K for algorithms, CVEs, commits." }));
+    main.innerHTML = '<form class="i-safe" id="home-form" novalidate>' +
+      '<label class="i-safe-l" for="home-q">Type your domain</label>' +
+      '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
+      '<input id="home-q" name="domain" type="text" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint"></div>' +
+      '<button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div>' +
+      '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p></form><div id="home-reading"></div>';
+    var input = $("#home-q"), hint = $("#home-hint");
+    input.addEventListener("input", function () { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; });
+    $("#home-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var d = asDomain(input.value);
+      if (!d) {
+        hint.setAttribute("data-tone", "bad");
+        hint.textContent = input.value.trim() ? "That isn't a domain. Type one like example.com." : "Type your domain first, like example.com.";
+        input.focus();
+        return;
+      }
+      location.href = "/r/" + d;
+    });
+    input.focus();
     workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
   }
   function homePublic() {
@@ -535,7 +559,7 @@
     estateHistory().then(function (H) {
       if (!H || !H.points.length) {
         say("Nothing in your workspace has been scanned yet. Type “scan” and one of your domains to take the first reading.");
-        $("#home-estate").innerHTML = '<p>Your estate is empty. Try <code>scan ' + esc(recent().filter(function (r) { return r.kind === "domain"; }).map(function (r) { return r.id; })[0] || "your-domain.com") + '</code> in the input above.</p>';
+        $("#home-estate").innerHTML = '<p>Your estate is empty. Press Ctrl K and type <code>scan ' + esc(recent().filter(function (r) { return r.kind === "domain"; }).map(function (r) { return r.id; })[0] || "your-domain.com") + '</code>.</p>';
         return;
       }
       say(estateSentence(H));
