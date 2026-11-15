@@ -1,6 +1,6 @@
 """The live safe badge: one line of HTML a domain's owner pastes on their own site.
 
-    <a href="https://morrow.soqlab.com/example.com"><img src="https://morrow.soqlab.com/api/public/safe-badge/example.com.svg"
+    <a href="https://morrow.soqlab.com/r/example.com/proof"><img src="https://morrow.soqlab.com/api/public/safe-badge/example.com.svg"
        alt="Morrow quantum-safety check for example.com" height="20" referrerpolicy="no-referrer"></a>
 
 It reads "Quantum-safe · verified 2026-11-15" while, and only while, all of this holds:
@@ -19,7 +19,8 @@ every public check (public_grade.grade_one: SSRF guard, opt-outs, timeouts, the 
 User-Agent) and the tick's own per-run limit. Serving the badge never contacts the domain: it
 reads stored data only, cached in memory for :data:`CACHE_SECONDS`.
 
-No cookies, no script, no fonts or images from anywhere else; the SVG is self-contained. The
+The badge links to the domain's signed quantum-safe proof (/r/<domain>/proof, services/make_safe.py),
+which shows the same record the badge reads. No cookies, no script, no fonts or images from anywhere else; the SVG is self-contained. The
 badge request is not written to the traffic monitor (app.py, ``_is_embed_path``).
 
 ``safe_badges`` is org-scoped (``org_id``) and in the Postgres RLS plan.
@@ -106,7 +107,7 @@ def base_url() -> str:
 
 def snippet(domain: str) -> str:
     base = base_url()
-    return (f'<a href="{base}/{domain}"><img src="{base}/api/public/safe-badge/{domain}.svg" '
+    return (f'<a href="{base}/r/{domain}/proof"><img src="{base}/api/public/safe-badge/{domain}.svg" '
             f'alt="Morrow quantum-safety check for {domain}" height="20" referrerpolicy="no-referrer"></a>')
 
 
@@ -245,7 +246,8 @@ def status(domain: Any, use_cache: bool = True) -> Dict[str, Any]:
     out = {"domain": name, "enabled": enabled, **evaluate(enabled, latest)}
     out["safe_since"] = _safe_since(name) if out["state"] == "safe" else None
     out["explanation"] = REASONS.get(out["reason"], "")
-    out["page"] = f"{base_url()}/{name}"
+    out["page"] = f"{base_url()}/r/{name}/proof"  # the signed quantum-safe proof (services/make_safe.py)
+    out["result_page"] = f"{base_url()}/{name}"
     with _cache_lock:
         if len(_cache) > 5000:
             _cache.clear()

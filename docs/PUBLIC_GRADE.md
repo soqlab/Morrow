@@ -552,7 +552,7 @@ app). `GET /api/public/claim/<domain>` says whether a domain is claimed and sinc
 The organization holding a claim can turn on a badge (`PUT /instrument/claims/<domain>/badge`, admin;
 `GET` shows the snippet, `DELETE` turns it off) and paste one line on its own site:
 
-    <a href="https://morrow.soqlab.com/<domain>"><img src="https://morrow.soqlab.com/api/public/safe-badge/<domain>.svg"
+    <a href="https://morrow.soqlab.com/r/<domain>/proof"><img src="https://morrow.soqlab.com/api/public/safe-badge/<domain>.svg"
        alt="Morrow quantum-safety check for <domain>" height="20" referrerpolicy="no-referrer"></a>
 
 `GET /api/public/safe-badge/<domain>.svg` reads "Quantum-safe | verified <date>" only while the badge
@@ -566,7 +566,8 @@ as soon as a new check is stored; `Cache-Control: public, max-age=3600`, `Cross-
 cross-origin`, no cookies, no script, nothing loaded from elsewhere. It skips the per-organization
 rate limit and the traffic monitor (`app._is_embed_path`). `GET /api/public/safe-badge/<domain>` gives
 the same answer as JSON with `safe_since`, and `/api/public/claim/<domain>` includes it, so the
-domain page the badge links to states the same thing. `safe_badges` is org-scoped and in the RLS plan.
+domain page states the same thing. The badge links to the signed quantum-safe proof, `/r/<domain>/proof`
+(Make it safe), built from the same stored checks. `safe_badges` is org-scoped and in the RLS plan.
 
 | Variable | Default | Meaning |
 |---|---|---|

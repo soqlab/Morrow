@@ -261,24 +261,27 @@ def _private_key(row: Dict[str, Any]):
     return key
 
 
-def sign(message: bytes, rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+def sign(message: bytes, rows: List[Dict[str, Any]], context: bytes = SIGNING_CONTEXT) -> List[Dict[str, str]]:
+    """Sign ``context + message`` with every key in rows. ``context`` keeps each kind of document apart:
+    a migration proof's signature can never be replayed as a quantum-safe proof's, or the reverse."""
     out = []
     for row in rows:
-        signature = _private_key(row).sign(SIGNING_CONTEXT + message)
+        signature = _private_key(row).sign(context + message)
         out.append({"kid": row["kid"], "alg": row["algorithm"], "signature": b64(signature)})
     return out
 
 
-def verify_signature(alg: str, public_b64: str, signature_b64: str, message: bytes) -> bool:
+def verify_signature(alg: str, public_b64: str, signature_b64: str, message: bytes,
+                     context: bytes = SIGNING_CONTEXT) -> bool:
     """Server-side mirror of the offline verifier's check (used by tests and the self-check)."""
     try:
         pub = base64.b64decode(public_b64)
         sig = base64.b64decode(signature_b64)
         if alg == ALG_ED25519:
-            Ed25519PublicKey.from_public_bytes(pub).verify(sig, SIGNING_CONTEXT + message)
+            Ed25519PublicKey.from_public_bytes(pub).verify(sig, context + message)
             return True
         if alg == ALG_MLDSA65 and MLDSA_AVAILABLE:
-            _mldsa.MLDSA65PublicKey.from_public_bytes(pub).verify(sig, SIGNING_CONTEXT + message)
+            _mldsa.MLDSA65PublicKey.from_public_bytes(pub).verify(sig, context + message)
             return True
     except Exception:
         return False

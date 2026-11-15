@@ -1,0 +1,317 @@
+{
+  "format": "morrow.make-safe-recipes/v1",
+  "about": "How to turn on hybrid post-quantum key exchange (X25519MLKEM768) for each stack that can serve a public HTTPS host. Every recipe was checked against the vendor's own documentation on the date in its sources. Nothing here is a guess: where the vendor documents no support, the recipe says so and gives the honest next step.",
+  "checked_on": "2026-11-15",
+  "recipes": {
+    "cloudflare": {
+      "name": "Cloudflare",
+      "kind": "cdn",
+      "support": "default_on",
+      "confidence": "high",
+      "summary": "Cloudflare offers X25519MLKEM768 to visitors on every proxied hostname over TLS 1.3. There is no switch to turn it on.",
+      "snippet_label": "Nothing to enable. If this host still negotiates a classical group, check these two settings",
+      "snippet": "# 1. DNS > Records: the record for this hostname must be Proxied (orange cloud), not DNS only.\n# 2. SSL/TLS > Edge Certificates > TLS 1.3 must be On. The same setting through the API:\ncurl -X PATCH \"https://api.cloudflare.com/client/v4/zones/$ZONE_ID/settings/tls_1_3\" \\\n  -H \"Authorization: Bearer $CF_API_TOKEN\" -H \"Content-Type: application/json\" \\\n  --data '{\"value\":\"on\"}'",
+      "requires": ["The hostname proxied through Cloudflare (orange cloud)", "TLS 1.3 on for the zone"],
+      "stays_classical_if": [
+        "the DNS record is DNS only (grey cloud), so visitors reach your own server, not Cloudflare",
+        "TLS 1.3 is switched off for the zone: Cloudflare offers post-quantum key agreement only over TLS 1.3",
+        "the visitor's own client has no post-quantum support"
+      ],
+      "origin_note": "Cloudflare to your origin: Automatic key exchange is on by default (SSL/TLS > Overview > Origin connection & post-quantum encryption). That leg is post-quantum only when your origin also offers X25519MLKEM768: see the nginx, Apache, HAProxy or Caddy recipe.",
+      "sources": [
+        {"title": "Cloudflare: Post-quantum cryptography", "url": "https://developers.cloudflare.com/ssl/post-quantum-cryptography/", "published": "2026-07-03", "checked": "2026-11-15",
+         "quote": "As of October 2022, all websites and APIs served through Cloudflare over TLS 1.3 support post-quantum hybrid key agreement."},
+        {"title": "Cloudflare: Post-quantum in Cloudflare products", "url": "https://developers.cloudflare.com/ssl/post-quantum-cryptography/pqc-cloudflare-products/", "published": "2026-10-15", "checked": "2026-11-15",
+         "quote": "Visitor key agreement: X25519MLKEM768, for any proxied hostname or HTTPS application behind Cloudflare."},
+        {"title": "Cloudflare: Post-quantum to origins", "url": "https://developers.cloudflare.com/ssl/post-quantum-cryptography/pqc-to-origin/", "published": "2026-08-03", "checked": "2026-11-15",
+         "quote": "Automatic key exchange is on for all existing zones and on by default for new zones."}
+      ]
+    },
+    "cloudfront": {
+      "name": "Amazon CloudFront",
+      "kind": "cdn",
+      "support": "default_on",
+      "confidence": "high",
+      "summary": "CloudFront offers hybrid post-quantum key establishment on every TLS security policy, automatically, for visitor connections over TLS 1.3.",
+      "snippet_label": "Nothing to enable. To confirm which distribution answers for this host",
+      "snippet": "aws cloudfront list-distributions \\\n  --query \"DistributionList.Items[].{Id:Id,Aliases:Aliases.Items,Policy:ViewerCertificate.MinimumProtocolVersion}\"",
+      "requires": ["The hostname served by a CloudFront distribution", "A visitor client using TLS 1.3"],
+      "stays_classical_if": [
+        "the hostname is not actually served by CloudFront (check the DNS record points at the distribution)",
+        "the visitor's client uses TLS 1.2: CloudFront supports quantum-safe key exchange only with TLS 1.3"
+      ],
+      "origin_note": "AWS documents no post-quantum setting for the CloudFront-to-origin leg.",
+      "sources": [
+        {"title": "AWS What's New: CloudFront post-quantum support", "url": "https://aws.amazon.com/about-aws/whats-new/2025/09/amazon-cloudfront-TLS-policy-post-quantum-support", "published": "2025-09-05", "checked": "2026-11-15",
+         "quote": "support for hybrid post-quantum key establishment across all existing Transport Layer Security (TLS) security policies"},
+        {"title": "CloudFront: Supported protocols and ciphers between viewers and CloudFront", "url": "https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/secure-connections-supported-viewer-protocols-ciphers.html", "published": "", "checked": "2026-11-15",
+         "quote": "Quantum-safe key exchanges are only supported with TLS 1.3."}
+      ]
+    },
+    "aws_elb": {
+      "name": "AWS Application or Network Load Balancer",
+      "kind": "cloud_lb",
+      "support": "opt_in",
+      "confidence": "high",
+      "summary": "Elastic Load Balancing offers hybrid post-quantum key exchange only on security policies with PQ in their name. The CLI and CloudFormation default (ELBSecurityPolicy-2016-08) is classical.",
+      "snippet_label": "Switch the HTTPS (ALB) or TLS (NLB) listener to a PQ security policy",
+      "snippet": "# Find the listener\naws elbv2 describe-listeners --load-balancer-arn <load-balancer-arn>\n# Move it to a policy with PQ in its name\naws elbv2 modify-listener --listener-arn <listener-arn> \\\n  --ssl-policy ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09",
+      "requires": ["A security policy whose name contains PQ, for example ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09"],
+      "stays_classical_if": [
+        "the listener still uses a policy without PQ in its name",
+        "the visitor's client does not support ML-KEM"
+      ],
+      "notes": "All secure listeners on one load balancer must use compatible policies, and AWS lists PQ and non-PQ policies as not compatible: move every HTTPS or TLS listener on the load balancer, following AWS's guide. The console's default for new listeners is already a PQ policy; the CLI, CloudFormation and CDK default is not.",
+      "sources": [
+        {"title": "ALB: Security policies", "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html", "published": "", "checked": "2026-11-15",
+         "quote": "Security policies with PQ in their names offer hybrid post-quantum key exchange ... support SecP256r1MLKEM768, SecP384r1MLKEM1024 and X25519MLKEM768."},
+        {"title": "NLB: Security policies", "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/network/describe-ssl-policies.html", "published": "", "checked": "2026-11-15",
+         "quote": "Security policies with PQ in their names offer hybrid post-quantum key exchange."},
+        {"title": "ALB: Update an HTTPS listener", "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/listener-update-certificates.html", "published": "", "checked": "2026-11-15",
+         "quote": "aws elbv2 modify-listener --listener-arn listener-arn --ssl-policy policy-name"}
+      ]
+    },
+    "aws_apigateway": {
+      "name": "Amazon API Gateway (REST API custom domain)",
+      "kind": "cloud_lb",
+      "support": "opt_in",
+      "confidence": "medium",
+      "summary": "API Gateway offers hybrid post-quantum key exchange on security policies with PQ in their name, for REST APIs on Regional or private custom domains only. Edge-optimized endpoints and HTTP or WebSocket APIs have no PQ policy.",
+      "snippet_label": "Move the custom domain to a PQ security policy (takes about 15 minutes)",
+      "snippet": "aws apigateway update-domain-name --domain-name <your-domain> \\\n  --patch-operations '[{\"op\":\"replace\",\"path\":\"/securityPolicy\",\"value\":\"SecurityPolicy_TLS13_1_2_PQ_2025_09\"},{\"op\":\"replace\",\"path\":\"/endpointAccessMode\",\"value\":\"BASIC\"}]'",
+      "requires": ["A REST API on a Regional or private custom domain", "A security policy whose name contains PQ"],
+      "stays_classical_if": [
+        "the API is edge-optimized, or is an HTTP or WebSocket API: AWS offers no PQ policy for these",
+        "the custom domain still uses TLS_1_0 or TLS_1_2"
+      ],
+      "notes": "AWS's page says hybrid key exchange without naming the group. A domain on these policies cannot use mutual TLS or have HTTP APIs mapped to it. AWS suggests the BASIC endpoint access mode first and STRICT once traffic checks out.",
+      "sources": [
+        {"title": "API Gateway: Supported security policies", "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-security-policies-list.html", "published": "", "checked": "2026-11-15",
+         "quote": "Policies that contain PQ in the title use Post-Quantum Cryptography (PQC) to implement hybrid key exchange algorithms."},
+        {"title": "API Gateway: Choose a security policy for a custom domain", "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-custom-domain-tls-version.html", "published": "", "checked": "2026-11-15",
+         "quote": "aws apigateway update-domain-name --domain-name example.com --patch-operations ..."}
+      ]
+    },
+    "azure_front_door": {
+      "name": "Azure Front Door",
+      "kind": "cdn",
+      "support": "default_on",
+      "confidence": "high",
+      "summary": "Azure Front Door (Standard and Premium) offers X25519MLKEM768 under its default Standard key exchange policy, over TLS 1.3. No action is needed unless the policy was changed.",
+      "snippet_label": "Nothing to enable. If this host still negotiates a classical group",
+      "snippet": "# In the Azure portal, open the Front Door profile and the custom domain for this host.\n# Set its TLS key exchange policy back to Standard (the default).\n# Enhanced has no X25519-based groups, and a Custom policy may leave the hybrid groups out.",
+      "requires": ["Azure Front Door Standard or Premium", "The Standard key exchange policy (the default)", "TLS 1.3"],
+      "stays_classical_if": [
+        "the key exchange policy is Enhanced, or Custom without the hybrid groups",
+        "the connection is TLS 1.2: hybrid methods require TLS 1.3",
+        "the visitor's client supports no hybrid group"
+      ],
+      "origin_note": "This covers the visitor-to-Front Door leg only, not Front Door to your origin.",
+      "sources": [
+        {"title": "Azure Front Door: TLS key exchange policy", "url": "https://learn.microsoft.com/en-us/azure/frontdoor/tls-key-exchange-policy", "published": "2026-11-03", "checked": "2026-11-15",
+         "quote": "Standard is the default key exchange policy for new and existing profiles."},
+        {"title": "Microsoft: Azure Front Door supports post-quantum resilient hybrid TLS 1.3", "url": "https://techcommunity.microsoft.com/blog/post-quantum-crypto-tech-blog/azure-front-door-now-supports-post-quantum-resilient-hybrid-tls-1-3/4571081", "published": "2026-11-06", "checked": "2026-11-15",
+         "quote": "TLS 1.3 hybrid PQC is enabled by default; no customer action is required."}
+      ]
+    },
+    "azure_app_gateway": {
+      "name": "Azure Application Gateway",
+      "kind": "cloud_lb",
+      "support": "not_documented",
+      "confidence": "high",
+      "summary": "Microsoft documents no post-quantum key exchange for Application Gateway: its TLS policies cover protocol versions and cipher suites only. There is no setting to copy.",
+      "snippet_label": "No vendor setting exists yet. The honest next step",
+      "snippet": "# Option 1: put Azure Front Door in front of the Application Gateway. Front Door's default\n#           Standard key exchange policy offers X25519MLKEM768 to visitors.\n# Option 2: ask Microsoft (support case) when Application Gateway will offer ML-KEM.",
+      "requires": [],
+      "stays_classical_if": ["visitors connect to Application Gateway directly"],
+      "sources": [
+        {"title": "Application Gateway: TLS policy overview", "url": "https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-ssl-policy-overview", "published": "2026-08-18", "checked": "2026-11-15",
+         "quote": "No mention of ML-KEM, post-quantum or key-exchange groups as of the date checked."}
+      ]
+    },
+    "google_lb": {
+      "name": "Google Cloud Load Balancing",
+      "kind": "cloud_lb",
+      "support": "opt_in",
+      "confidence": "medium",
+      "summary": "Google Cloud's external and internal Application Load Balancers and proxy Network Load Balancers offer X25519MLKEM768 through the post-quantum-key-exchange setting of an SSL policy. Google said it would begin enabling it by default in October 2026; setting ENABLED is the sure way.",
+      "snippet_label": "Turn it on in the SSL policy attached to the load balancer's target proxy",
+      "snippet": "# Already have an SSL policy on the target proxy (add --region REGION for a regional one):\ngcloud compute ssl-policies update SSL_POLICY_NAME --post-quantum-key-exchange ENABLED\n\n# No SSL policy yet: create one and attach it\ngcloud compute ssl-policies create SSL_POLICY_NAME --profile MODERN --min-tls-version 1.2 \\\n  --post-quantum-key-exchange ENABLED\ngcloud compute target-https-proxies update TARGET_HTTPS_PROXY_NAME --ssl-policy SSL_POLICY_NAME",
+      "requires": ["An external or internal Application Load Balancer, or a proxy Network Load Balancer", "An SSL policy with post-quantum-key-exchange ENABLED"],
+      "stays_classical_if": [
+        "the SSL policy is DEFERRED, or DEFAULT before Google's switch-over",
+        "the host is served by Google's front end without Cloud Load Balancing (for example a default Cloud Run or Firebase address): Google documents no setting there",
+        "the visitor's client lacks TLS 1.3 or X25519MLKEM768"
+      ],
+      "notes": "Detection by Google's front-end headers cannot tell Cloud Load Balancing from other Google-hosted services. This applies to client connections only, not to backends.",
+      "sources": [
+        {"title": "Google Cloud: Post-quantum TLS for load balancers", "url": "https://docs.cloud.google.com/load-balancing/docs/post-quantum-tls", "published": "", "checked": "2026-11-15",
+         "quote": "Google Cloud will begin enabling it by default in October 2026."},
+        {"title": "Google Cloud: Use SSL policies", "url": "https://docs.cloud.google.com/load-balancing/docs/use-ssl-policies", "published": "", "checked": "2026-11-15",
+         "quote": "gcloud compute ssl-policies update SSL_POLICY_NAME ... --post-quantum-key-exchange MODE"}
+      ]
+    },
+    "fastly": {
+      "name": "Fastly",
+      "kind": "cdn",
+      "support": "default_on",
+      "confidence": "medium",
+      "summary": "Fastly says customers on TLS 1.3 get post-quantum key exchange automatically, with no action needed. This comes from Fastly's announcement; its documentation does not yet describe it.",
+      "snippet_label": "Nothing to enable. If this host still negotiates a classical group",
+      "snippet": "# Fastly documents no setting to copy. Check that the service's TLS configuration allows TLS 1.3,\n# then ask Fastly support whether post-quantum key exchange is live for this hostname.",
+      "requires": ["TLS 1.3 on the Fastly TLS configuration"],
+      "stays_classical_if": ["the TLS configuration does not allow TLS 1.3", "the rollout does not yet cover this hostname: Fastly's announcement does not say when it finished"],
+      "sources": [
+        {"title": "Fastly: Future-proofing TLS encryption against quantum threats", "url": "https://www.fastly.com/blog/future-proofing-tls-encryption-against-quantum-threats", "published": "2025-04-02", "checked": "2026-11-15",
+         "quote": "TLS 1.3 customers will automatically benefit from post-quantum key exchange with no required action."}
+      ]
+    },
+    "akamai": {
+      "name": "Akamai",
+      "kind": "cdn",
+      "support": "default_on",
+      "confidence": "medium",
+      "summary": "Akamai's Post Quantum Cryptography (PQC) Client to Edge behavior is on by default for Enhanced TLS and Standard TLS hostnames, when the certificate has TLS 1.3 enabled.",
+      "snippet_label": "If this host still negotiates a classical group: the Property Manager behavior (rule tree JSON)",
+      "snippet": "{\n  \"name\": \"pqcClientToEdge\",\n  \"options\": { \"enabled\": true }\n}\n# Also check the certificate's deployment settings: TLS 1.3 must be enabled.",
+      "requires": ["The behavior Post Quantum Cryptography (PQC) Client to Edge on", "TLS 1.3 enabled on the certificate"],
+      "stays_classical_if": [
+        "the PQC Client to Edge behavior is set to Off in the property",
+        "TLS 1.3 is not enabled in the certificate's deployment settings"
+      ],
+      "origin_note": "Akamai to your origin: the behavior Post Quantum Cryptography (PQC) to Origin is off by default and needs a TLS 1.3 origin of type Your Origin with SNI on.",
+      "notes": "Akamai's own pages disagree on scope: the Terraform reference says Enhanced TLS hostnames only, the Property Manager page (2 Nov 2026) includes Standard TLS.",
+      "sources": [
+        {"title": "Akamai: PQC Client to Edge", "url": "https://techdocs.akamai.com/property-mgr/docs/pqc-client-to-edge", "published": "2026-11-02", "checked": "2026-11-15",
+         "quote": "is enabled by default for all Enhanced TLS and Standard TLS hostnames"},
+        {"title": "Akamai: PQC to Origin", "url": "https://techdocs.akamai.com/property-mgr/docs/pqc-origin", "published": "2026-11-02", "checked": "2026-11-15",
+         "quote": "is disabled by default."}
+      ]
+    },
+    "nginx": {
+      "name": "nginx",
+      "kind": "server",
+      "support": "opt_in",
+      "confidence": "high",
+      "summary": "nginx hands the key-exchange list to OpenSSL. With OpenSSL 3.5 or newer, X25519MLKEM768 is in OpenSSL's default list, so nginx's default (ssl_ecdh_curve auto) already offers it; an explicit list without it, or an older OpenSSL, is the usual cause.",
+      "snippet_label": "In the http { } or server { } block that terminates TLS",
+      "snippet": "# 1. nginx must be linked against OpenSSL 3.5 or newer:\nnginx -V 2>&1 | grep -i openssl\n# 2. Offer the hybrid group first:\nssl_protocols TLSv1.2 TLSv1.3;\nssl_ecdh_curve X25519MLKEM768:X25519:prime256v1:secp384r1;\n# 3. Test, then reload:\nnginx -t && nginx -s reload",
+      "requires": ["nginx 1.11.0 or newer (curve lists)", "OpenSSL 3.5.0 or newer"],
+      "stays_classical_if": [
+        "nginx is linked against OpenSSL older than 3.5: the group name is then rejected and nginx will not start, so check nginx -V first",
+        "another server block or an included file sets ssl_ecdh_curve without X25519MLKEM768"
+      ],
+      "sources": [
+        {"title": "nginx: ngx_http_ssl_module, ssl_ecdh_curve", "url": "https://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_ecdh_curve", "published": "", "checked": "2026-11-15",
+         "quote": "The special value auto (1.11.0) instructs nginx to use a list built into the OpenSSL library"},
+        {"title": "OpenSSL 3.5.0 NEWS", "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md", "published": "2025-04-08", "checked": "2026-11-15",
+         "quote": "The default TLS supported groups list has been changed to include and prefer hybrid PQC KEM groups."}
+      ]
+    },
+    "apache": {
+      "name": "Apache httpd",
+      "kind": "server",
+      "support": "opt_in",
+      "confidence": "high",
+      "summary": "mod_ssl passes the Groups command straight to OpenSSL. With OpenSSL 3.5 or newer, X25519MLKEM768 is in the default list; set it explicitly if your configuration names its own groups.",
+      "snippet_label": "In the global mod_ssl configuration or the <VirtualHost *:443>",
+      "snippet": "# mod_ssl normally uses the system OpenSSL; it must be 3.5 or newer:\n#   openssl version\nSSLProtocol -all +TLSv1.2 +TLSv1.3\nSSLOpenSSLConfCmd Groups X25519MLKEM768:X25519:prime256v1:secp384r1\n# Test, then reload:\n#   apachectl configtest && apachectl graceful",
+      "requires": ["Apache httpd 2.4.8 or newer (SSLOpenSSLConfCmd)", "mod_ssl linked against OpenSSL 3.5.0 or newer"],
+      "stays_classical_if": ["mod_ssl is linked against OpenSSL older than 3.5", "another SSLOpenSSLConfCmd Groups or Curves line overrides this one"],
+      "sources": [
+        {"title": "Apache httpd: mod_ssl, SSLOpenSSLConfCmd", "url": "https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslopensslconfcmd", "published": "", "checked": "2026-11-15",
+         "quote": "Available in httpd 2.4.8 and later, if using OpenSSL 1.0.2 or later"},
+        {"title": "OpenSSL 3.5: SSL_CONF_cmd, Groups", "url": "https://docs.openssl.org/3.5/man3/SSL_CONF_cmd/", "published": "", "checked": "2026-11-15",
+         "quote": "Groups: This sets the supported groups. ... Curves: This is a synonym for the \"Groups\" command."},
+        {"title": "OpenSSL 3.5: SSL_CTX_set1_curves", "url": "https://docs.openssl.org/3.5/man3/SSL_CTX_set1_curves/", "published": "", "checked": "2026-11-15",
+         "quote": "The DEFAULT list selects X25519MLKEM768 as one of the predicted keyshares."}
+      ]
+    },
+    "haproxy": {
+      "name": "HAProxy",
+      "kind": "server",
+      "support": "opt_in",
+      "confidence": "medium",
+      "summary": "HAProxy passes its curve list to the TLS library it was built with. HAProxy Technologies says Enterprise 3.2+ and Community 3.3+ support hybrid post-quantum key exchange natively in their AWS-LC builds; a build linked against OpenSSL 3.5 or newer can offer it too.",
+      "snippet_label": "In the global section (or the curves option on each bind line)",
+      "snippet": "# Check the TLS library first (AWS-LC, or OpenSSL 3.5+):\n#   haproxy -vv | grep -i -e openssl -e aws-lc\nglobal\n    ssl-default-bind-options ssl-min-ver TLSv1.2\n    ssl-default-bind-curves X25519MLKEM768:X25519:P-256:P-384\n# Test, then reload:\n#   haproxy -c -f /etc/haproxy/haproxy.cfg",
+      "requires": ["HAProxy 2.2 or newer (ssl-default-bind-curves)", "A TLS library with ML-KEM: AWS-LC, or OpenSSL 3.5.0 or newer"],
+      "stays_classical_if": ["the binary is linked against a TLS library without ML-KEM", "a bind line sets its own curves without X25519MLKEM768"],
+      "sources": [
+        {"title": "HAProxy: How to enable post-quantum cryptography", "url": "https://www.haproxy.com/blog/how-to-enable-post-quantum-cryptography-and-tls-termination-with-haproxy", "published": "2026-07-07", "checked": "2026-11-15",
+         "quote": "HAProxy Enterprise 3.2+ and HAProxy Community 3.3+ support hybrid post-quantum cryptography natively"},
+        {"title": "HAProxy 3.2 configuration manual: curves", "url": "https://docs.haproxy.org/3.2/configuration.html", "published": "", "checked": "2026-11-15",
+         "quote": "It sets the string describing the list of elliptic curves algorithms (\"curve suite\") that are negotiated during the SSL/TLS handshake with ECDHE."}
+      ]
+    },
+    "caddy": {
+      "name": "Caddy",
+      "kind": "server",
+      "support": "default_on",
+      "confidence": "high",
+      "summary": "Caddy 2.10 and newer (built with Go 1.24+) offer x25519mlkem768 by default. The fix is to upgrade Caddy and remove any curves override.",
+      "snippet_label": "Upgrade to Caddy 2.10+, then delete any curves line. The explicit form, if you must set one",
+      "snippet": "caddy version   # must be v2.10.0 or newer\n\nexample.com {\n\ttls {\n\t\tcurves x25519mlkem768 x25519 secp256r1\n\t}\n}",
+      "requires": ["Caddy 2.10.0 or newer (built with Go 1.24 or newer)"],
+      "stays_classical_if": ["Caddy is older than 2.10", "a tls block sets curves without x25519mlkem768"],
+      "sources": [
+        {"title": "Caddy v2.10.0 release notes", "url": "https://github.com/caddyserver/caddy/releases/tag/v2.10.0", "published": "2025-04-18", "checked": "2026-11-15",
+         "quote": "Caddy now supports the standardized x25519mlkem768 cryptographic group by default."},
+        {"title": "Caddyfile: tls directive", "url": "https://caddyserver.com/docs/caddyfile/directives/tls", "published": "", "checked": "2026-11-15",
+         "quote": "It is recommended to not change the defaults"}
+      ]
+    },
+    "traefik": {
+      "name": "Traefik",
+      "kind": "server",
+      "support": "default_on",
+      "confidence": "medium",
+      "summary": "Traefik 3.5 and newer are built with Go 1.24, whose TLS default includes X25519MLKEM768. Upgrade, and if you set curvePreferences, put X25519MLKEM768 first.",
+      "snippet_label": "Dynamic configuration (file provider). Leave curvePreferences unset, or",
+      "snippet": "tls:\n  options:\n    default:\n      curvePreferences:\n        - X25519MLKEM768\n        - X25519\n        - CurveP256",
+      "requires": ["Traefik 3.5.0 or newer (Go 1.24)"],
+      "stays_classical_if": ["Traefik is older than 3.5", "curvePreferences is set without X25519MLKEM768", "GODEBUG=tlsmlkem=0 is set in the environment"],
+      "notes": "Traefik's documentation does not list X25519MLKEM768; the value is in Traefik's source from v3.5.0. TLS options cannot be set through label or tag based providers.",
+      "sources": [
+        {"title": "Go crypto/tls (1.24): Config.CurvePreferences", "url": "https://pkg.go.dev/crypto/tls@go1.24.0#Config", "published": "", "checked": "2026-11-15",
+         "quote": "From Go 1.24, the default includes the X25519MLKEM768 hybrid post-quantum key exchange."},
+        {"title": "Traefik: TLS options", "url": "https://doc.traefik.io/traefik/reference/routing-configuration/http/tls/tls-options/", "published": "", "checked": "2026-11-15",
+         "quote": "TLS options are not supported by label or tag-based providers."}
+      ]
+    },
+    "iis": {
+      "name": "IIS (Windows Schannel)",
+      "kind": "server",
+      "support": "opt_in",
+      "confidence": "medium",
+      "summary": "Windows Schannel offers hybrid ML-KEM on Windows Server 2025 and Windows 11 24H2 or later with a current update, but it is off by default. Windows Server 2022 and earlier have no ML-KEM in Schannel.",
+      "snippet_label": "Elevated PowerShell on the server, then restart",
+      "snippet": "Enable-TlsEccCurve -Name \"X25519_MLKEM768\" -Position 0\nGet-TlsEccCurve   # X25519_MLKEM768 should be listed first\nRestart-Computer",
+      "requires": ["Windows Server 2025 (or Windows 11 24H2+) with a current cumulative update: Microsoft lists the minimum builds", "TLS 1.3"],
+      "stays_classical_if": [
+        "the server runs Windows Server 2022 or earlier: put a post-quantum capable proxy or CDN in front of IIS",
+        "a Group Policy ECC Curve Order overrides the local setting",
+        "legacy FIPS mode is on: the hybrid groups are not available there"
+      ],
+      "notes": "Microsoft's pages disagree on the exact minimum build and update, so check your build against Microsoft's list before relying on it.",
+      "sources": [
+        {"title": "Microsoft: ASP.NET Kestrel and Schannel GA with TLS 1.3 post-quantum cryptography", "url": "https://techcommunity.microsoft.com/blog/post-quantum-crypto-tech-blog/asp-net-kestrel-and-schannel-ga-with-tls-1-3-post-quantum-cryptography/4536649", "published": "2026-07-14", "checked": "2026-11-15",
+         "quote": "the PQC groups are not enabled by default"},
+        {"title": "Microsoft Learn: TLS supported groups in Windows 11 24H2 and later", "url": "https://learn.microsoft.com/en-us/windows/win32/secauthn/tls-supported-groups-in-windows-11-24h2-and-later", "published": "2026-10-20", "checked": "2026-11-15",
+         "quote": "These groups are disabled by default, and must be enabled using one of the configuration methods linked at the end of this article."}
+      ]
+    },
+    "unknown": {
+      "name": "Not identified",
+      "kind": "unknown",
+      "support": "unknown",
+      "confidence": "low",
+      "summary": "Morrow could not tell what terminates TLS for this host, so it will not guess a setting. Pick your stack below if you know it.",
+      "snippet_label": "The honest next steps",
+      "snippet": "# 1. Find what terminates TLS for this host: your web server, load balancer or CDN.\n# 2. If it is a managed service, ask the provider whether it offers X25519MLKEM768 and how to turn it on.\n# 3. If it offers none, put a post-quantum capable proxy or CDN in front of it\n#    (for example nginx or HAProxy with OpenSSL 3.5+, Caddy 2.10+, or a CDN that offers it by default).",
+      "requires": [],
+      "stays_classical_if": [],
+      "sources": []
+    }
+  }
+}

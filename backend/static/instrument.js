@@ -623,7 +623,7 @@
         var rq = results.length ? riskFromResults(results) : null;
         $("#sc-body").innerHTML = (rq ? riskHtml() : "") + panel("", "Results", '<div class="i-table-wrap"><table class="i-table"><tbody>' + results.map(function (r, i) {
           var w = r.decrypt_window || {};
-          return "<tr><td>" + gradeChip(grades[i]) + '</td><td><a href="/estate/asset/' + enc(rTarget(r)) + '">' + esc(rTarget(r)) + "</a></td><td>" + endpointStatus(r) + "</td><td><a href=\"/" + esc(hostOf(rTarget(r))) + '">the fix</a></td></tr>';
+          return "<tr><td>" + gradeChip(grades[i]) + '</td><td><a href="/estate/asset/' + enc(rTarget(r)) + '">' + esc(rTarget(r)) + "</a></td><td>" + endpointStatus(r) + "</td><td><a href=\"/" + esc(hostOf(rTarget(r))) + '#make-safe">' + (grades[i] && ORDER[grades[i]] > 0 ? "make it safe" : "its proof") + "</a></td></tr>";
         }).join("") + "</tbody></table></div>" + '<p class="i-fine">Finished ' + esc(stamp(s.created_at)) + '. <a href="/estate">Your estate through time</a>.</p>', { ch: "grade" });
         if (rq) bindRisk(rq);
         if (last === "running") { flash($("#say")); flash($("#sc-body")); }
@@ -646,14 +646,20 @@
       var r = hist[hist.length - 1].r, w = r.decrypt_window || {}, g = scanGrade(r), host = hostOf(key);
       say(key + ": " + (w.status === "at_risk" ? "traffic recorded today could be read from about " + w.readable_from + "–" + w.readable_by + "." : w.status === "protected" ? "protected against future quantum decryption." : "its key exchange was not observed.") +
         (g && ORDER[g] > 0 ? " The exact configuration change is on its grade page." : ""));
-      var what = '<div class="i-answer"><div class="grade" data-g="' + esc(g || "") + '">' + esc(g || "-") + '</div><div><p>' + esc(r.pq_recommendation || r.quantum_safe_claim_explanation || "") + '</p><div class="i-row"><a class="i-btn solid" href="/' + esc(host) + '">The fix for this server</a><button type="button" class="i-btn" id="as-scan">Re-scan</button></div></div></div>';
+      var what = '<div class="i-answer"><div class="grade" data-g="' + esc(g || "") + '">' + esc(g || "-") + '</div><div><p>' + esc(r.pq_recommendation || r.quantum_safe_claim_explanation || "") + '</p><div class="i-row"><a class="i-btn solid" href="/' + esc(host) + '#make-safe">' + (g && ORDER[g] > 0 ? "Make it safe" : "Its live grade and proof") + '</a><button type="button" class="i-btn" id="as-scan">Re-scan</button></div></div></div>';
       var evidence = '<dl class="readouts">' + reading("Key exchange", esc(r.key_exchange || "not observed"), w.status === "protected" ? "v-ok" : "v-warn") + reading("Protocol", esc(r.tls_version || "-")) +
         reading("Certificate", esc((r.key_type || "-") + " " + (r.key_detail || "")) + "<br><small>expires " + esc(day(r.not_after)) + "</small>") + reading("Signature", esc(r.sig_algorithm || r.signature_algorithm || "-")) + "</dl>" +
         (w.basis ? '<p class="i-fine">' + esc(w.basis) + (w.source_url ? ' <a href="' + esc(w.source_url) + '" rel="noopener">source</a>' : "") + "</p>" : "") + (w.notes || []).map(function (n) { return '<p class="i-fine">' + esc(n) + "</p>"; }).join("");
       var times = '<div class="i-table-wrap"><table class="i-table"><tbody>' + hist.slice().reverse().map(function (h) { return "<tr><td>" + gradeChip(scanGrade(h.r)) + '</td><td class="mono">' + esc(stamp(h.at)) + '</td><td class="mono">' + esc(h.r.key_exchange || "-") + '</td><td><a href="/estate/scan/' + enc(h.scan) + '">scan</a></td></tr>'; }).join("") + "</tbody></table></div>";
-      $("#as-body").innerHTML = riskHtml() + panel("", "What to do", what, { ch: "tools" }) + (depth === "plain" ? "" : panel("", "Its history", times, { ch: "league" })) + (depth === "expert" ? panel("", "Evidence", evidence, { ch: "conn" }) : "");
+      var kit = window.MorrowSafe && g && ORDER[g] > 0 && asDomain(host) ? window.MorrowSafe : null;
+      $("#as-body").innerHTML = riskHtml() + panel("", "What to do", what, { ch: "tools" }) + (kit ? panel("", "Make it safe", kit.html(), { ch: "tools", id: "make-safe" }) : "") +
+        (depth === "plain" ? "" : panel("", "Its history", times, { ch: "league" })) + (depth === "expert" ? panel("", "Evidence", evidence, { ch: "conn" }) : "");
       $("#as-scan").onclick = function () { startScan(host); };
       bindRisk(riskFromResults([r]));
+      // The public grade of the same host drives the fix, the watch and the proof, as on /<host>.
+      if (kit) getJSON("/api/public/grade/" + enc(host), { cache: "default" })
+        .then(function (pr) { kit.mount($("#ms-box"), host, pr, {}); })
+        .catch(function (e) { var b = $("#ms-box"); if (b) b.innerHTML = '<p class="i-status" data-tone="bad">' + esc(e.message) + "</p>"; });
     });
   }
 
@@ -963,6 +969,7 @@
       q.data = $("#risk-data", box).value; q.jur = $("#risk-jur", box).value;
       LS.set("morrow_data", q.data); LS.set("morrow_jur", q.jur);
       setParam("data", q.data); setParam("jur", q.jur);
+      setParam("keep", null);  // the harvest clock follows the picked kind of data, not an older figure
       paint();
       if (onPick) onPick();
     }
@@ -1093,8 +1100,11 @@
           return '<div class="fix"><p><b>' + esc(f.title) + '</b> <button type="button" class="i-btn" data-copy="' + k + '">Copy</button></p><pre>' + esc(f.snippet) + "</pre>" +
             (depth === "expert" && f.notes ? '<p class="i-fine">' + esc(f.notes) + "</p>" : "") + '<p class="i-fine">Needs: ' + esc(f.requires) + "</p></div>";
         }).join(""));
-      var what = panel("", "What to do", fixHtml + '<div class="i-row"><button type="button" class="i-btn solid" id="d-recheck">Re-check now</button>' +
-        (depth === "plain" ? "" : '<span class="i-fine">After the change, re-check: Morrow opens fresh connections instead of using the stored result.</span>') + "</div>", { ch: "tools" });
+      // Make it safe (make-safe.js): the fix for this host's own stack, the watch and the proof. The
+      // server-picked fixes above stay as the fallback when that script is not there.
+      var safeKit = window.MorrowSafe;
+      var what = panel("", safeKit ? "Make it safe" : "What to do", (safeKit ? safeKit.html() : fixHtml) + '<div class="i-row"><button type="button" class="i-btn' + (safeKit ? "" : " solid") + '" id="d-recheck">Re-check now</button>' +
+        (depth === "plain" ? "" : '<span class="i-fine">' + (safeKit ? "A plain re-check of the grade, without the watch." : "After the change, re-check: Morrow opens fresh connections instead of using the stored result.") + "</span>") + "</div>", { ch: "tools", id: "make-safe" });
       var gradeBlock = depth === "plain" ? "" : panel("", "Grade", '<div class="i-answer"><div class="grade" id="d-grade" data-g="' + esc(r.grade) + '" aria-label="Grade ' + esc(r.grade) + '">' + esc(r.grade) + '</div><ul class="i-muted">' +
         (r.reasons || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
         (ex.recorded_traffic_at_risk && ex.decrypt_year_low ? '<p class="i-fine">Recorded today, readable from about ' + esc(ex.decrypt_year_low) + "–" + esc(ex.decrypt_year_high) + ': <a href="' + esc(ex.source_url) + '" rel="noopener">source</a>.</p>' : ""), { ch: "grade" });
@@ -1116,6 +1126,8 @@
       var outside = panel("", "Who else is exposing you", '<div id="tp-body"></div>', { ch: "atlas", id: "tp" });
       $("#d-body").innerHTML = riskHtml() + gradeBlock + '<div id="hv-wrap"></div>' + what + '<div id="w-wrap"></div>' + outside + evidence;
       paintTp();
+      if (safeKit) safeKit.mount($("#ms-box"), d, latest || r, { onLive: function () { load(false); } });
+      if (location.hash === "#make-safe" && !render.scrolled) { render.scrolled = true; var ms = $("#make-safe"); if (ms) ms.scrollIntoView({ block: "start" }); }
       if (window.MorrowWatch) window.MorrowWatch.domain(d, latest || r);
       function harvest() {
         Promise.all([basis(), shelfLife()]).then(function (got) {

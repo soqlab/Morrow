@@ -395,8 +395,14 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
             f'The current record is at <a href="{esc(base)}/r/{esc(domain)}">/r/{esc(domain)}</a>.</p>')
 
     # The one control on the page, and it is a link: the record stays complete with no JavaScript.
+    # Make it safe is the primary action: the exact change for this host's stack, then a watched
+    # re-check and a signed proof (services/make_safe.py). A post-quantum host links its proof.
+    pq = posture in (_check.POSTURE_MORROW_READY, _check.POSTURE_HYBRID)
+    # The proof is issued from the live grade, so both buttons go to the grade's Make it safe panel.
+    primary = f'<a class="btn" href="/{esc(domain)}#make-safe">{"Its quantum-safe proof" if pq else "Make it safe"}</a> '
     parts.append(
-        f'    <p class="actions"><a class="btn" href="/{esc(domain)}">See its live grade</a> '
+        f'    <p class="actions">{primary}'
+        f'<a href="/{esc(domain)}">See its live grade</a> '
         f'<a href="/r/{esc(domain)}/export.json">Download JSON</a> '
         f'<a href="/r/{esc(domain)}/cbom.json">Download CBOM</a></p>')
     parts.append("  </section>")
@@ -515,8 +521,8 @@ def render_missing(domain: str, origin: str) -> str:
         f"    <h1>{esc(domain)}</h1>",
         '    <p class="lede">There is no record for this domain: nobody has run the free check '
         "on it yet.</p>",
-        f'    <p class="actions"><a class="btn" href="/{esc(domain)}">'
-        "See its live grade</a></p>",
+        f'    <p class="actions"><a class="btn" href="/{esc(domain)}#make-safe">Make it safe</a> '
+        f'<a href="/{esc(domain)}">See its live grade</a></p>',
         '    <p class="fine">Running it contacts this endpoint once on port 443, the way a '
         'browser does. The <a href="/public-check/acceptable-use">acceptable-use policy</a> '
         "applies: check hosts you own, a supplier you are assessing, or a domain you are "

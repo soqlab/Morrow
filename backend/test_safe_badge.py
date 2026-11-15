@@ -89,7 +89,7 @@ def test_only_the_claimant_turns_it_on(dns):
         safe_badge.enable(OTHER, "bob", "acme.example")
     view = safe_badge.enable(ORG, "alice", "acme.example")
     assert view["enabled"] is True
-    assert view["snippet"] == ('<a href="https://morrow.example/acme.example"><img src="https://morrow.example/api/public/safe-badge/'
+    assert view["snippet"] == ('<a href="https://morrow.example/r/acme.example/proof"><img src="https://morrow.example/api/public/safe-badge/'
                                'acme.example.svg" alt="Morrow quantum-safety check for acme.example" height="20" '
                                'referrerpolicy="no-referrer"></a>')
     assert safe_badge.active_domains() == ["acme.example"]
@@ -245,7 +245,7 @@ def test_the_routes(monkeypatch, dns):
         assert "set-cookie" not in {k.lower() for k in img.headers}
         assert "/api/public/safe-badge/route.example.svg" not in events  # not in the traffic monitor
         st = client.get("/api/public/safe-badge/route.example").json()
-        assert st["state"] == "safe" and st["page"] == "https://morrow.example/route.example" and "org" not in str(st)
+        assert st["state"] == "safe" and st["page"] == "https://morrow.example/r/route.example/proof" and "org" not in str(st)
         claim = client.get("/api/public/claim/route.example").json()
         assert claim["badge"]["state"] == "safe" and ORG not in str(claim)
         assert "quantum check" in client.get("/api/public/safe-badge/other.example.svg").text

@@ -81,7 +81,7 @@
     var how = "Morrow re-checks " + d + " every day with the same check as this page. The badge says \u201cQuantum-safe\u201d only while Morrow's newest check, at most " +
       (b.fresh_hours || 48) + " hours old, found a post-quantum key exchange. Otherwise it quietly shows \u201cMorrow \u00b7 quantum check\u201d and claims nothing. The image sets no cookies, runs no script and loads nothing else.";
     if (!b.enabled) {
-      return html + "<p>" + esc("Show visitors that " + d + " is quantum-safe, verified by Morrow and re-checked daily. You paste one line of HTML on your site; it links to this page.") + "</p>" +
+      return html + "<p>" + esc("Show visitors that " + d + " is quantum-safe, verified by Morrow and re-checked daily. You paste one line of HTML on your site; it links to " + d + "'s signed quantum-safe proof on Morrow.") + "</p>" +
         '<p class="i-fine">' + esc(how) + '</p><div class="i-row"><button type="button" class="i-btn solid" id="w-badge-on">Turn on the badge</button></div>';
     }
     var now = st.state === "safe"
