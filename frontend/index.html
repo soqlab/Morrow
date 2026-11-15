@@ -3785,8 +3785,8 @@ VIEWS.overview = async (host) => {
   const nextLine = nothingYet ? "Scan a host you run to get the first reading: TLS version, key exchange and certificate, with what to change."
     : nextFix ? `Next fix: ${nextFix.asset_key || nextFix.host || nextFix.repository || "top of the queue"}${nextFix.priority_score != null ? ` (priority ${NUM(nextFix.priority_score)})` : ""}`
     : `${NUM(AS.length)} assets in inventory, ${NUM(SC.length)} recent scans.`;
-  /* Make it safe is the first thing on the console: a domain, then its page at the Make it safe
-     panel (the fix for its own stack, a watched re-check, a signed proof). Pre-filled with the host
+  /* Make it safe is the first thing on the console: a domain, then its record at /r/<domain>, whose
+     primary action is Make it safe (the fix for its own stack, a watched re-check, a signed proof). Pre-filled with the host
      at the top of the fix queue when that is a plain hostname. */
   const queued = safeDomain(String(nextFix?.host || nextFix?.asset_key || "").split(":")[0]);
   const hero = `<section class="consoleHero">
@@ -3915,7 +3915,7 @@ VIEWS.overview = async (host) => {
       field.focus();
       return;
     }
-    location.href = "/" + d + "#make-safe";
+    location.href = "/r/" + d;
   });
 
   /* Live mission control.

@@ -510,8 +510,8 @@
   }
 
   /* Home: one domain input whose only action is Make it safe, and a live reading. It opens the
-     domain's page at its Make it safe panel (make-safe.js): the fix for that host's own stack, a
-     watched re-check, and a signed proof once it is live. Algorithms, CVEs, commits and pages are
+     domain's permanent record at /r/<domain>, whose primary action is Make it safe (make-safe.js):
+     the fix for that host's own stack, a watched re-check, and a signed proof once it is live. Algorithms, CVEs, commits and pages are
      still one Ctrl K away, but they are not the hero. Signed in, the reading is your estate. */
   var HOME_HINT = "The exact change for your server, a re-check once it is live, and a signed proof. Anything else: Ctrl K.";
   function viewHome() {
@@ -536,7 +536,7 @@
         input.focus();
         return;
       }
-      location.href = "/" + d + "#make-safe";
+      location.href = "/r/" + d;
     });
     input.focus();
     workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });

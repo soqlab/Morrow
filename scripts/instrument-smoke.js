@@ -112,7 +112,8 @@ async function main() {
     assert.equal(page.url(), `${base}/`);
     await page.fill("#home-q", `https://${SMOKE_DOMAIN.toUpperCase()}/path`);
     await page.keyboard.press("Enter");
-    await page.waitForURL(`${base}/${SMOKE_DOMAIN}#make-safe`);
+    await page.waitForURL(`${base}/r/${SMOKE_DOMAIN}`);
+    assert.equal(await page.locator(`.actions a.btn[href="/${SMOKE_DOMAIN}#make-safe"]`).innerText(), "Make it safe");
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
 
     // Everything else is in the command bar.

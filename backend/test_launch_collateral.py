@@ -410,13 +410,13 @@ def test_console_enterprise_switch_and_why_it_matters():
 
 def test_make_it_safe_is_the_one_action_on_home_and_the_console():
     """Home is one domain input whose action is Make it safe; the console opens with the same. Both
-    land on the domain's page at its Make it safe panel (make-safe.js)."""
+    land on the domain's record at /r/<domain>, whose primary action is Make it safe."""
     static = pathlib.Path(__file__).parent / "static"
     home = (static / "instrument.js").read_text(encoding="utf-8")
     view = home[home.index("function viewHome()"):home.index("function homePublic()")]
     assert '<form class="i-safe" id="home-form"' in view
     assert ">Make it safe</button>" in view
-    assert 'location.href = "/" + d + "#make-safe"' in view
+    assert 'location.href = "/r/" + d' in view
     # The recognizer (algorithms, CVEs, commits) is the command bar now, not the hero.
     assert "bindRecognizer" not in view
     assert "make-safe.js" in (static / "instrument.html").read_text(encoding="utf-8")
@@ -426,4 +426,4 @@ def test_make_it_safe_is_the_one_action_on_home_and_the_console():
     hero = overview[overview.index("const hero = `"):]
     assert hero.index('id="safeForm"') < hero.index('class="overviewHeading"'), "Make it safe comes first"
     assert "Make it safe</button>" in hero
-    assert 'location.href = "/" + d + "#make-safe"' in overview
+    assert 'location.href = "/r/" + d' in overview
