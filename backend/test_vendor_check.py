@@ -2,6 +2,7 @@
 revoked), CSV, the answer sentence and notes, rate limits, saved lists and their routes. No network."""
 
 import json
+import re
 import os
 import time
 
@@ -207,8 +208,10 @@ def test_notes_link_to_the_vendor_page_and_use_measured_words(fake_check):
     assert "negotiates x25519, a classical key exchange only" in notes["crm.example"]
     assert "RSA key exchange, which has no forward secrecy" in notes["payroll.example"]
     text = json.dumps(report).lower()
+    # Random ids and tokens (hex / urlsafe) can contain these letters by chance, so only
+    # match a banned word where a word starts, not inside an identifier.
     for word in vendor_check.BANNED_WORDS:
-        assert word not in text, word
+        assert not re.search(r"(?<![a-z0-9_-])" + word, text), word
     assert "sends nothing" in report["sends_nothing"].lower()
 
 
