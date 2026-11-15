@@ -12,6 +12,8 @@
 # ...except the vendored Shelf-Life catalogue, which is code data, not a local database.
 !backend/data/shelf-life
 !backend/data/shelf-life/**
+# ...and the Make it safe recipes (services/make_safe.py), sourced vendor data the service reads.
+!backend/data/make_safe_recipes.json
 **/.venv
 **/venv
 **/__pycache__
