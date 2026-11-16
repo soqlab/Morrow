@@ -53,7 +53,8 @@
     else g.appendChild(el("circle", { cx: x, cy: y, r: 5.5, "class": c }));
   }
   function chart(box, o) {
-    var W = 640, H = 280, L = 62, R = 14, T = 14, B = 34;
+    // Drawn at the width it is shown at (320-640 units), so its text stays legible on a phone.
+    var W = Math.max(320, Math.min(640, Math.round(box.clientWidth || 640))), H = W < 480 ? 240 : 280, L = W < 480 ? 46 : 62, R = 14, T = 14, B = 34;
     var x0 = o.x[0], x1 = o.x[1], e0 = o.y[0], e1 = o.y[1];
     function X(t) { return L + (t - x0) / (x1 - x0) * (W - L - R); }
     function Y(v) { return T + (1 - (Math.log10(v) - e0) / (e1 - e0)) * (H - T - B); }
@@ -66,7 +67,8 @@
       axis.appendChild(el("line", { x1: L, x2: W - R, y1: y, y2: y, "class": "tb-grid" }));
       axis.appendChild(el("text", { x: L - 8, y: y + 4, "text-anchor": "end" }, e >= 9 ? Math.pow(10, e - 9) + "bn" : e >= 6 ? Math.pow(10, e - 6) + "m" : e >= 3 ? Math.pow(10, e - 3) + "k" : String(Math.pow(10, e))));
     }
-    for (var t = Math.ceil(x0); t <= x1; t += o.xStep) {
+    var step = W < 480 ? o.xStep * 2 : o.xStep;
+    for (var t = Math.ceil(x0); t <= x1; t += step) {
       axis.appendChild(el("line", { x1: X(t), x2: X(t), y1: H - B, y2: H - B + 4, "class": "tb-tick" }));
       axis.appendChild(el("text", { x: X(t), y: H - B + 18, "text-anchor": "middle" }, String(t)));
     }
@@ -203,7 +205,7 @@
       '<div class="i-table-wrap"><table class="i-table" id="tb-s-table"><caption class="sr-only">Expert surveys by edition</caption><thead><tr><th scope="col">Survey</th><th scope="col">Experts</th><th scope="col">Within 10 years</th><th scope="col">Within 15 years</th><th scope="col">Source</th></tr></thead><tbody>' +
       V.slice().reverse().map(function (e) {
         function h(y) { var x = (e.horizons || []).filter(function (k) { return k.years === y; })[0]; return !x ? "not stated" : x.high != null ? x.low + "–" + x.high + "%" : "at least " + x.low + "%"; }
-        return "<tr><td>" + esc(e.survey_year) + "</td><td>" + esc(e.experts) + "</td><td>" + h(10) + "</td><td>" + h(15) + "</td><td>" + src(e) + " (" + esc(when(e.date_published)) + ")</td></tr>";
+        return "<tr><td>" + esc(e.survey_year) + "</td><td>" + esc(e.experts) + "</td><td>" + h(10) + "</td><td>" + h(15) + "</td><td>" + '<a href="' + esc(e.source_url) + '" rel="noopener">Report</a>, ' + esc(when(e.date_published)) + "</td></tr>";
       }).join("") + '</tbody></table></div><p class="i-fine">Ranges run from a cautious to a generous reading of the experts’ answers. The question changed slightly between editions; compare with care.</p>', { ch: "atlas", id: "surveys" });
 
     var unv = b.unverified.length ? "<p>Listed but not used: Morrow could not verify these against their primary source, so they are not charted and do not affect any estimate.</p><ul>" +
