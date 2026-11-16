@@ -69,6 +69,18 @@
       <p>Read the <a href="/public-check/privacy">privacy notice for the free checker</a>, and the <a href="/abuse">abuse and opt-out page</a> if you operate a domain and do not want it checked. The <a href="/about-scanner">scanner identity page</a> identifies the traffic for an operator who found it in their logs.</p>
     </section>
 
+    <section class="doc-section" id="paste">
+      <h2>What You Paste On The Home Page</h2>
+      <p>The home page input also reads a certificate, a server or SSH configuration file, a CycloneDX CBOM, a repository link or a traffic capture (.pcap). What happens to it:</p>
+      <ul>
+        <li>It is sent to Morrow's own server, read in memory and discarded when the answer is sent. It is not written to a database, a file or a log, and it is not used for anything else. Nothing is kept even when you are signed in.</li>
+        <li>Morrow connects to nothing because of it: no host, address or repository named in it is contacted. A repository link is answered without fetching the repository.</li>
+        <li>A private key is refused before anything reads it, and the page tells you to treat that key as exposed. In your browser, a pasted private key is recognised and cleared without being sent at all.</li>
+        <li>As for every request, Morrow's traffic monitor records your address, the path, the status code, how long it took and your browser's user agent; never the content. Your address is also counted, as a salted hash, against the same per-minute limit as the public grade.</li>
+        <li>The answer repeats only what it was asked about: the TLS settings, algorithm names and certificate fields it read. Other lines of a configuration file are never shown back.</li>
+      </ul>
+    </section>
+
     <section class="doc-section" id="safe-badge">
       <h2>The Safe Badge On Other Sites</h2>
       <p>The owner of a domain they have claimed in Morrow by DNS can paste Morrow's quantum-safe badge on their own site. When someone visits that site, their browser loads the badge image from Morrow. What that request leaves behind:</p>

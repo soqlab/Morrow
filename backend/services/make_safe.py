@@ -141,6 +141,18 @@ def recipe(stack: str) -> Dict[str, Any]:
     return out
 
 
+def config_recipe(stack: str) -> Optional[Dict[str, Any]]:
+    """A recipe for a pasted configuration that is not a public HTTPS stack (OpenSSH, openssl.cnf,
+    Java), from the same file; None when there is none."""
+    table = recipes().get("config_recipes") or {}
+    if stack not in table:
+        return None
+    out = copy.deepcopy(table[stack])
+    out["id"] = stack
+    out["checked_on"] = recipes().get("checked_on")
+    return out
+
+
 def stack_menu() -> List[Dict[str, str]]:
     """Every stack a person can pick when detection is wrong or missing."""
     table = recipes()["recipes"]

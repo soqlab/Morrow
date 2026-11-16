@@ -1,0 +1,51 @@
+/* Paste anything (paste.js): the home input as a textarea that grows, the drop zone, and the answer.
+ * Instrument tokens only (instrument.css), so both themes follow. Nothing moves on its own: the drop
+ * zone outline answers a drag, and nothing animates under prefers-reduced-motion. */
+.i-field textarea { flex: 1; min-width: 0; min-height: 48px; padding: 13px 0; border: 0; background: transparent; color: var(--text);
+  font: 16px/1.4 var(--mono); outline: none; resize: none; overflow: hidden; white-space: pre; overflow-wrap: normal; }
+.i-field textarea.pa-multi { overflow: auto; white-space: pre; font-size: 13px; max-height: 15em; }
+.i-field textarea::placeholder { color: var(--dim); }
+.i-field textarea:focus-visible { outline: none; }
+.i-field:has(textarea.pa-multi) { align-items: flex-start; }
+.i-field:has(textarea.pa-multi) .p { padding-top: 12px; }
+.i-safe.pa-drop .i-field { border-color: var(--accent); border-style: dashed; background: var(--bg-3); }
+.pa-also { margin: 8px 0 0; }
+.pa-pick { display: inline; min-height: 0; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-decoration: underline;
+  text-underline-offset: 2px; cursor: pointer; }
+.pa-pick:hover { color: var(--text); }
+.pa-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pa-wrap { margin: 18px 0 0; }
+.pa-wrap:empty { display: none; }
+.pa-wrap > .ch { margin: 0 0 16px; }
+.pa-out { border-left: 3px solid var(--warn); }
+.pa-out[data-tone="ok"] { border-left-color: var(--ok); }
+.pa-out[data-tone="bad"] { border-left-color: var(--bad); }
+.pa-what { margin: 0 0 6px; font-weight: 600; font-size: 17px; overflow-wrap: anywhere; }
+.pa-what:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pa-head { margin: 0 0 12px; overflow-wrap: anywhere; }
+.pa-head[data-tone="bad"] { color: var(--bad); }
+.pa-head[data-tone="ok"] { color: var(--ok); }
+.pa-h { font: 500 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.pa-list { margin: 4px 0 10px; padding-left: 18px; }
+.pa-list li { margin: 3px 0; overflow-wrap: anywhere; }
+.pa-notes { color: var(--dim); font-size: 13px; }
+.pa-dl { display: grid; grid-template-columns: minmax(7em, max-content) 1fr; gap: 4px 14px; margin: 6px 0 10px; }
+.pa-dl dt { color: var(--muted); font: 13px var(--mono); }
+.pa-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.pa-item { margin: 0 0 12px; padding: 0 0 0 10px; border-left: 2px solid var(--line-2); }
+.pa-item[data-tone="bad"] { border-left-color: var(--bad); }
+.pa-item[data-tone="ok"] { border-left-color: var(--ok); }
+.pa-item-h { margin: 0 0 4px; overflow-wrap: anywhere; }
+.pa-table td { overflow-wrap: anywhere; }
+.pa-tone { font: 13px var(--mono); }
+.pa-tone[data-tone="ok"] { color: var(--ok); }
+.pa-tone[data-tone="bad"] { color: var(--bad); }
+.pa-tone[data-tone="warn"] { color: var(--warn); }
+.pa-privacy { margin: 10px 0 0; }
+.pa-next .i-btn { white-space: normal; text-align: left; }
+@media (max-width: 560px) {
+  .pa-dl { grid-template-columns: 1fr; gap: 0 0; }
+  .pa-dl dd { margin: 0 0 6px; }
+  .pa-next .i-btn { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) { .pa-wrap * { transition: none !important; animation: none !important; } }

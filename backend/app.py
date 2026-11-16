@@ -2637,6 +2637,7 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/about-scanner", "purpose": "the MorrowPQCheck user agent: what the grade, outside-service and watch checks send, how often, and the opt-out"},
             {"path": "/threat", "purpose": "the quantum threat board: cited evidence of how close a quantum computer that breaks RSA is, and why Morrow says the year it does"},
             {"path": "/api/public/threat", "purpose": "the threat board's reviewed dataset, its estimate and its sources; /threat.atom lists its editions"},
+            {"path": "/api/public/paste", "purpose": "paste anything: reads a certificate, a server or SSH configuration, a CycloneDX CBOM, a repository link or a .pcap in memory and answers; stores and fetches nothing; rate limited per IP"},
             {"path": "/api/public/claim/{domain}", "purpose": "whether a domain's owner claimed it by DNS, since when, and their public reply; never who"},
             {"path": "/api/public/watch-feed/{token}.atom", "purpose": "a person's private feed of changes on the domains they watch; the random token is the credential"},
             {"path": "/auth/login", "purpose": "credential exchange"},
@@ -27659,6 +27660,14 @@ app.include_router(create_vendor_console_router(_PlatformAdminDeps(
     actor_id=lambda request: str(_actor_from_request(request).get("actor_id") or ""),
     audit=lambda request, action, resource_type, resource_id, details: _audit_event(
         request, action=action, resource_type=resource_type, resource_id=resource_id, details=details),
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+)))
+
+# Paste anything (services/paste_anything.py, routers/paste.py): the home input also reads a certificate, a
+# server or SSH configuration, a CBOM, a repository link or a capture. In memory only; nothing is stored or fetched.
+from routers.paste import create_paste_router  # noqa: E402
+
+app.include_router(create_paste_router(_PlatformAdminDeps(
     client_ip=lambda request: _client_ip_for_monitoring(request),
 )))
 

@@ -523,8 +523,11 @@
   /* Home: one domain input whose only action is Make it safe, and a live reading. It opens the
      domain's permanent record at /r/<domain>, whose primary action is Make it safe (make-safe.js):
      the fix for that host's own stack, a watched re-check, and a signed proof once it is live. Algorithms, CVEs, commits and pages are
-     still one Ctrl K away, but they are not the hero. Signed in, the reading is your estate. */
+     still one Ctrl K away, but they are not the hero. Signed in, the reading is your estate.
+     The same input also takes a pasted or dropped certificate, configuration file, CBOM, repository
+     link or capture (paste.js, services/paste_anything.py); the answer appears under it. */
   var HOME_HINT = "The exact change for your server, a re-check once it is live, and a signed proof. Anything else: Ctrl K.";
+  var PASTE_HINT = "Or paste or drop a certificate, a server or SSH config file, a CBOM, a repo link or a .pcap.";
   function viewHome() {
     setView("grade", null);
     say(byDepth({ plain: "Type your website's address. Morrow shows the one change that keeps its traffic safe from future quantum computers.",
@@ -533,19 +536,24 @@
     main.innerHTML = '<form class="i-safe" id="home-form" novalidate>' +
       '<label class="i-safe-l" for="home-q">Type your domain</label>' +
       '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
-      '<input id="home-q" name="domain" type="text" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint"></div>' +
+      '<textarea id="home-q" name="domain" rows="1" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint home-also"></textarea></div>' +
       '<button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div>' +
+      '<p class="i-fine pa-also" id="home-also">' + esc(PASTE_HINT) + ' <button type="button" class="pa-pick" id="home-pick">Choose a file</button>' +
+      '<input type="file" id="home-file" class="sr-only" tabindex="-1" aria-hidden="true"></p>' +
       '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p>' +
       // The space is held by an invisible copy of the longest sentence, so the line arriving moves nothing.
-      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p></form><div id="home-reading"></div>';
+      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div>';
     var input = $("#home-q"), hint = $("#home-hint");
     input.addEventListener("input", function () { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; });
+    var paste = window.MorrowPaste;
+    if (paste) paste.attach({ form: $("#home-form"), input: input, hint: hint, out: $("#paste-out") });
     $("#home-form").addEventListener("submit", function (e) {
       e.preventDefault();
+      if (paste && paste.wants(input.value)) { paste.read(input.value); return; }
       var d = asDomain(input.value);
       if (!d) {
         hint.setAttribute("data-tone", "bad");
-        hint.textContent = input.value.trim() ? "That isn't a domain. Type one like example.com." : "Type your domain first, like example.com.";
+        hint.textContent = input.value.trim() ? "That isn't a domain, a certificate or a config file Morrow knows. Type a domain like example.com, or paste the whole file." : "Type your domain first, like example.com.";
         input.focus();
         return;
       }
