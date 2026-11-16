@@ -180,6 +180,16 @@ def create_public_check_router(deps: Any) -> APIRouter:
             return None
         return RedirectResponse(f"/r/{host}{suffix}", status_code=301)
 
+    def _latest_grade(host: str) -> Optional[Dict[str, Any]]:
+        """The newest quick-grade row, which is stored apart from the full check's record."""
+        try:
+            from services import public_grade as _grade
+
+            rows = _grade.history_all(host, 1)
+        except Exception:
+            return None
+        return rows[0] if rows else None
+
     @router.get("/r/{domain}", include_in_schema=False)
     def registry_record(request: Request, domain: str) -> Response:
         try:
@@ -204,7 +214,7 @@ def create_public_check_router(deps: Any) -> APIRouter:
         if entry is None:
             # 404, and noindex inside the page: /r/{anything} is unbounded crawl space, and a
             # crawler offered 200s for arbitrary strings will mine the namespace indefinitely.
-            return HTMLResponse(_registry.render_missing(host, _origin(request)),
+            return HTMLResponse(_registry.render_missing(host, _origin(request), _latest_grade(host)),
                                 status_code=404,
                                 headers={"Cache-Control": "public, max-age=60",
                                          **_NOINDEX_HEADER})

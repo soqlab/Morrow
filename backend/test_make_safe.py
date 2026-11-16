@@ -471,6 +471,18 @@ def test_the_image_keeps_the_recipes_file():
     assert "!backend/data/make_safe_recipes.json" in lines[lines.index("**/data/"):]
 
 
+def test_a_graded_domain_without_a_full_record_says_so_and_links_its_proof(client):
+    store(True, 0)
+    page = client.get("/r/example.com")
+    assert page.status_code == 404
+    assert "nobody has run the free check on it yet" not in page.text
+    assert "graded (A, post-quantum key exchange, last on 2026-11-15)" in page.text
+    assert 'href="/r/example.com/proof"' in page.text
+    never = client.get("/r/never-graded.example")
+    assert never.status_code == 404 and "nobody has run the free check on it yet" in never.text
+    assert "/proof" not in never.text
+
+
 def test_a_domain_without_a_record_also_leads_to_make_it_safe():
     from services import registry_page
 

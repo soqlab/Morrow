@@ -513,8 +513,32 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
     return "\n".join(p for p in parts if p)
 
 
-def render_missing(domain: str, origin: str) -> str:
-    """For a domain with no record. Returned with 404 and noindex, never as a blank record."""
+def _graded_lines(domain: str, graded: Optional[Dict[str, Any]]) -> List[str]:
+    """What the page says when the quick grade has seen the domain but the full check has not.
+
+    The grade (live grade, badge, Make it safe, the signed proof) and the full free check keep
+    separate records, so a domain can have a proof and no full record. Saying "nobody has checked
+    it" next to a link from its own proof would read as a contradiction.
+    """
+    if not graded:
+        return ['    <p class="lede">There is no record for this domain: nobody has run the free check '
+                "on it yet.</p>"]
+    day = str(graded.get("scanned_at") or "")[:10]
+    grade = esc(graded.get("grade") or "?")
+    kex = "post-quantum" if graded.get("post_quantum") else "classical"
+    lines = [f'    <p class="lede">Its connection has been graded ({grade}, {kex} key exchange, '
+             f"last on {esc(day)}), but nobody has run the full free check yet, so there is no "
+             "full record.</p>"]
+    if graded.get("post_quantum"):
+        lines.append(f'    <p><a href="/r/{esc(domain)}/proof">See its signed quantum-safe proof</a></p>')
+    return lines
+
+
+def render_missing(domain: str, origin: str, graded: Optional[Dict[str, Any]] = None) -> str:
+    """For a domain with no record. Returned with 404 and noindex, never as a blank record.
+
+    graded is the latest quick-grade row for the domain, if there is one.
+    """
     base = origin.rstrip("/")
     title = f"No record yet for {domain} | Morrow"
     description = (f"{domain} has not been checked by the public post-quantum readiness "
@@ -525,8 +549,7 @@ def render_missing(domain: str, origin: str) -> str:
         '  <section class="record-head accent-none" id="record">',
         '    <p class="eyebrow">Public post-quantum record</p>',
         f"    <h1>{esc(domain)}</h1>",
-        '    <p class="lede">There is no record for this domain: nobody has run the free check '
-        "on it yet.</p>",
+        *_graded_lines(domain, graded),
         f'    <p class="actions"><a class="btn" href="/{esc(domain)}#make-safe">Make it safe</a> '
         f'<a href="/{esc(domain)}">See its live grade</a></p>',
         '    <p class="fine">Running it contacts this endpoint once on port 443, the way a '
