@@ -170,10 +170,11 @@ def test_deadline_is_mosca_on_the_harvest_clock_with_its_range():
     # Personal data (assumed) must stay private for decades: the deadline has passed.
     c = bs.build("", FACTS[:1], [], [], [], [], now=NOW)
     d = c["deadline"]
-    assert d["status"] == "overdue" and c["headline"]["value"] == "Now" and d["secret_until"] == 2026 + d["years"]
-    assert c["headline"]["range"] == f"a quantum computer could read it from {low} to {likely}"
+    assert d["status"] == "overdue" and c["headline"]["value"] == "Overdue" and d["secret_until"] == 2026 + d["years"]
+    assert c["headline"]["range"] == f"overdue since {d['since']}; a quantum computer could read it from {low} to {likely}"
+    assert d["since"] == likely - d["years"] and c["headline"]["time_to_safe"] is None
     # Passwords and keys (20 years, chosen): by year, the three states.
-    for year, status, value in ((2010, "ahead", str(low - 20)), (2016, "due", "Now"), (2026, "overdue", "Now")):
+    for year, status, value in ((2010, "ahead", str(low - 20)), (2016, "due", "Now"), (2026, "overdue", "Overdue")):
         c = bs.build("", FACTS[:1], [], [], [], [], data="auth", now=datetime(year, 6, 1, tzinfo=timezone.utc))
         assert (c["deadline"]["status"], c["headline"]["value"]) == (status, value)
         assert c["deadline"]["years"] == 20 and c["deadline"]["basis"]["assumed"] is False
@@ -206,8 +207,10 @@ def test_fire_drills_are_the_trend_without_two_months_of_scans_and_are_labelled_
     assert [p["value"] for p in t["points"]] == [24, 9]
     assert "2026-11-01: about 9 days (estimate 4 to 31)" in t["text"]
     assert any(s == "Trend: Morrow fire drills, 2026-08-01 to 2026-11-01, estimates" for s in c["sources"])
+    assert c["headline"]["time_to_safe"] == "Time to make it safe: about 9 days (fire drill estimate, 2026-11-01)"
     check_pptx(bs.render_pptx(c))
     check_pdf(bs.render_pdf(c))
+    assert "Time to make it safe: about 9 days" in pptx_parts(bs.render_pptx(c))["ppt/slides/slide1.xml"].decode("utf-8")
 
 
 def test_both_formats_carry_the_content_and_the_chart_has_a_text_alternative():
@@ -215,7 +218,7 @@ def test_both_formats_carry_the_content_and_the_chart_has_a_text_alternative():
     pptx = bs.render_pptx(c)
     parts = check_pptx(pptx)
     text = pptx_text(pptx)
-    for needle in ("Must be quantum-safe by", "Now", c["risk"]["sentence"], "Enable TLS 1.3 on the termination layer",
+    for needle in ("Must be quantum-safe by", "Overdue", c["risk"]["sentence"], "Enable TLS 1.3 on the termination layer",
                    "Sources:", "Quantum Threat Timeline Report 2025", "Nov 2026", "50%", "Acme <Ltd> & \"Co\""):
         assert needle in text, needle
     slide = ET.fromstring(parts["ppt/slides/slide1.xml"])
@@ -229,7 +232,7 @@ def test_both_formats_carry_the_content_and_the_chart_has_a_text_alternative():
     pdf = bs.render_pdf(c)
     check_pdf(pdf)
     words = re.sub(r"\s+", " ", pdf_text(pdf))
-    for needle in ("Must be quantum-safe by", "Now", "pay.acme.example", "Enable TLS 1.3 on the termination layer",
+    for needle in ("Must be quantum-safe by", "Overdue", "pay.acme.example", "Enable TLS 1.3 on the termination layer",
                    "Sources:", "Quantum Threat Timeline Report 2025", "50%", "Nov 2026", "Nov 2026: 50% (1 of 2)."):
         assert needle in words, needle
     with pytest.raises(ValueError):

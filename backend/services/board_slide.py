@@ -176,7 +176,8 @@ def _deadline(risk: Optional[Dict[str, Any]], assets: List[Dict[str, Any]], data
                              "over them from now on can't be read later with a quantum computer."})
         return out
     if by_likely <= year:
-        out.update({"status": "overdue", "value": "Now", "range": f"a quantum computer could read it from {low} to {likely}",
+        out.update({"status": "overdue", "value": "Overdue", "since": by_likely,
+                    "range": f"overdue since {by_likely}; a quantum computer could read it from {low} to {likely}",
                     "label": f"Data sent today must stay private until {year + years}, long after a quantum computer "
                              f"could read it. Every day on a classical key exchange adds to what can be read later."})
     elif by_low <= year:
@@ -226,6 +227,18 @@ def _share_series(history: List[Dict[str, Any]], now: datetime) -> List[Dict[str
         points.append({"label": start.strftime("%b %Y"), "value": round(100.0 * safe / len(known)),
                        "safe": safe, "of": len(known), "as_of": (cut - timedelta(seconds=1)).strftime("%Y-%m-%d")})
     return points
+
+
+def _time_to_safe(drills: List[Dict[str, Any]]) -> Optional[str]:
+    """The newest fire drill's estimate of how long switching would take, or None without one."""
+    timed = [d for d in drills if d.get("time_to_safe_days") is not None]
+    if not timed:
+        return None
+    d = max(timed, key=lambda d: str(d.get("created_at") or ""))
+    days = int(d["time_to_safe_days"])
+    when = _day(d.get("created_at"))
+    return (f"Time to make it safe: about {days} day{'s' if days != 1 else ''} "
+            f"(fire drill estimate{', ' + when if when else ''})")
 
 
 def _trend(history: List[Dict[str, Any]], drills: List[Dict[str, Any]], now: datetime) -> Dict[str, Any]:
@@ -358,7 +371,8 @@ def build(org_name: str, facts: Sequence[Dict[str, Any]], assets: Sequence[Dict[
         "title": "Quantum risk",
         "headline": {"label": "Must be quantum-safe by", "value": deadline["value"], "range": deadline.get("range"),
                      "is_estimate": deadline["status"] not in ("met", "not_measured"), "status": deadline["status"],
-                     "detail": deadline["label"]},
+                     "detail": deadline["label"],
+                     "time_to_safe": _time_to_safe(drills) if deadline["status"] != "met" else None},
         "risk": {"sentence": sentence, "state": (risk or {}).get("state"), "measured": bool(total),
                  "assumption": (risk or {}).get("assumption")},
         "endpoints": {"total": total, **counts, "statement": stat},
@@ -523,6 +537,8 @@ def _slide_xml(c: Dict[str, Any]) -> str:
     lines = []
     if hl.get("range"):
         lines.append([{"text": f"Estimate: {hl['range']}", "size": 16, "bold": True, "color": INK, "space_after": 6}])
+    if hl.get("time_to_safe"):
+        lines.append([{"text": hl["time_to_safe"], "size": 14, "bold": True, "color": INK, "space_after": 6}])
     lines.append([{"text": hl["detail"], "size": 13, "color": INK2, "space_after": 8}])
     lines.append([{"text": c["endpoints"]["statement"] + ".", "size": 13, "color": INK2}])
     s.text("Deadline detail", (MARGIN, 3.5, LEFT_W, 2.8), lines)
@@ -728,6 +744,8 @@ def render_pdf(content: Dict[str, Any]) -> bytes:
     y = 3.5
     if hl.get("range"):
         y += para(f"Estimate: {hl['range']}", (MARGIN, y, LEFT_W, 0.4), 16, True) + 0.08
+    if hl.get("time_to_safe"):
+        y += para(hl["time_to_safe"], (MARGIN, y, LEFT_W, 0.4), 14, True) + 0.08
     y += para(hl["detail"], (MARGIN, y, LEFT_W, 1.6), 13, False, INK2) + 0.1
     para(content["endpoints"]["statement"] + ".", (MARGIN, y, LEFT_W, 0.6), 13, False, INK2)
 
