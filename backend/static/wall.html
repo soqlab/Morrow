@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark light">
+  <title>Morrow wall</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/wall.css?v=20261116-wall">
+  <script src="/ui/wall.js?v=20261116-wall" defer></script>
+</head>
+<body>
+  <main class="wall" id="wall" data-state="loading">
+    <p class="wall-sentence" id="wallSentence" aria-live="polite">Connecting to Morrow…</p>
+    <div class="wall-number" id="wallNumber" hidden>
+      <span class="wall-value" id="wallValue"></span>
+      <span class="wall-label" id="wallLabel"></span>
+      <span class="wall-detail" id="wallDetail"></span>
+    </div>
+  </main>
+  <footer class="wall-foot" id="wallFoot" aria-live="polite"><span id="wallUpdated"></span><span id="wallAge"></span></footer>
+  <noscript><p class="wall-sentence">This screen needs JavaScript to show your Morrow wall.</p></noscript>
+</body>
+</html>
