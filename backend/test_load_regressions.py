@@ -1062,6 +1062,9 @@ class TestAuditQueue(unittest.TestCase):
         def boom(**_kw):
             raise RuntimeError("database is gone")
 
+        # This test flushes by hand. Without this, the background writer that submit() starts
+        # can write an entry before the failure is installed (seen on slow Windows runners).
+        self.queue._ensure_writer = lambda: None
         for n in range(3):
             self.queue.submit("org-a", self._entry(n))
         db_module.append_audit_log = boom
