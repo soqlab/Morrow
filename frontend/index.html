@@ -9832,7 +9832,7 @@ VIEWS.admin = async (host) => {
     <div class="row" style="margin:16px 0">
       <div class="tabs" data-tabs="ad">
         ${[["ready", "Launch readiness"], ["ident", "Users & access"], ["orgs", "Organizations"], ["invites", "Invitations"],
-           ["audit", "Audit trail"], ["support", "Support access"], ["plat", "Platform"], ["health", "Health"], ["data", "Data & isolation"]]
+           ["audit", "Audit trail"], ["support", "Support access"], ["wall", "Display links"], ["plat", "Platform"], ["health", "Health"], ["data", "Data & isolation"]]
           .map(([k, l], i) => `<button class="tab ${i ? "" : "on"}" data-key="${k}">${l}</button>`).join("")}
       </div>
     </div>
@@ -10024,9 +10024,14 @@ VIEWS.admin = async (host) => {
 
     <div data-pane="ad" data-key="support" hidden>
       <div id="supportAccessPane">${skel(3, 30)}</div>
+    </div>
+
+    <div data-pane="ad" data-key="wall" hidden>
+      <div id="wallLinks"></div>
     </div>`;
   ACTIONS.invLoad();
   ACTIONS.supportAccessLoad();
+  if (window.wallLinksMount) wallLinksMount($("#wallLinks"));  /* wall-links.js: display links for wall mode */
   navBadge("admin", (S.warns || []).length || "");
 };
 /* ---- Vendor support access: the customer's own control over "view as customer", and its history. ---- */
@@ -11419,6 +11424,7 @@ function autoTable(list) {
 <script src="/ui/gateway.js?v=20261113-instrument"></script>
 <link rel="stylesheet" href="/ui/fire-drill.css?v=20261115-drill">
 <script src="/ui/fire-drill.js?v=20261115-drill"></script>
+<script src="/ui/wall-links.js?v=20261116-wall"></script>
 <link rel="stylesheet" href="/ui/data-control.css?v=20260925">
 <script src="/ui/data-control.js?v=20260925"></script>
 <script>document.addEventListener("DOMContentLoaded", boot);</script>

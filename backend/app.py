@@ -699,6 +699,7 @@ from services.auth_issuer import (
 from services import platform_operators as _platform_operators
 from services import session_revocation as _session_revocation
 from services import api_keys as _api_keys
+from services import mcp_access as _mcp_access
 from services import route_paths as _route_paths  # one canonical path for every route guard
 from services import platform_access as _platform_access
 from services import support_sessions as _support_sessions  # vendor support read-only "view as customer"
@@ -1805,13 +1806,24 @@ def _csp_for(path: str) -> str:
         return _CSP_VALUE.replace(" http://127.0.0.1:* http://localhost:*", "")
     return _CSP_VALUE
 
+_WALL_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; "
+             "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+
+
+def _is_wall_path(path: str) -> bool:
+    return path in ("/wall", "/api/public/wall") or path.startswith("/ui/wall.")
+
+
 @app.middleware("http")
 async def _security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path or ""
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # The wall page and its data carry a display link's token in the fragment and a header; no-referrer
+    # keeps even the page's own address out of any request it makes (services/display_links.py).
+    response.headers["Referrer-Policy"] = ("no-referrer" if _is_wall_path(path)
+                                           else "strict-origin-when-cross-origin")
     response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
     response.headers["X-API-Version"] = "1"
@@ -2345,6 +2357,9 @@ def _auth_public_path(path: str) -> bool:
         # Domain team sign-in: the page, the link request (same answer either way) and the link
         # preview (services/team_join.py).
         "/join",
+        # Wall mode: the page itself holds no data; its display link is the credential for
+        # /api/public/wall (services/display_links.py).
+        "/wall",
         "/auth/team-join/request",
         "/auth/team-join/preview",
         # Console banner source. Anonymous callers only see notices addressed to everyone.
@@ -3230,6 +3245,11 @@ async def set_request_auth_context(request: Request, call_next):
     # that is unknown, revoked, expired, out of scope, or aimed at platform/admin routes fails loudly
     # instead of falling back to header identity. The key's organization is authoritative.
     bearer = _jwt_token_from_auth_header(request.headers.get("authorization", ""))
+    # AI assistants over MCP (X-Client: mcp/<tool>): a read-only organization key, GET only, journaled,
+    # and only where MORROW_MCP_ENABLED=1 (off on the hosted service). See services/mcp_access.py.
+    mcp_tool = _mcp_access.tool_name(request.headers.get("x-client", ""))
+    if mcp_tool is not None:
+        return await _mcp_access.handle(request, call_next, bearer, mcp_tool)
     # Vendor support "view as customer" tokens: verified and policed in ONE place, in every auth mode,
     # before any other credential handling (read-only, allow-listed, org-bound, revocable, journaled).
     if _support_sessions.looks_like_support_token(bearer):
@@ -11463,6 +11483,12 @@ _fire_drill.POLICY_LOADER = lambda org_id: _load_org_policy(org_id)
 _fire_drill_router = create_fire_drill_router(_require_role)
 app.include_router(_fire_drill_router)
 app.include_router(_fire_drill_router, prefix="/v1")
+
+# Wall mode: one sentence and one number on an office screen, opened by a display link
+# (services/display_links.py). The screen's token reads GET /api/public/wall and nothing else.
+from routers.display_links import create_display_links_router  # noqa: E402
+from services import display_links as _display_links  # noqa: E402
+app.include_router(create_display_links_router(_require_role))
 
 # Passive TLS discovery from proxy logs; routes carry their own /v1 paths (routers/passive_discovery.py).
 from routers.passive_discovery import create_passive_discovery_router  # noqa: E402
@@ -26518,6 +26544,20 @@ def _team_join_error(exc: "_team_join.JoinError") -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
+@app.get("/wall", include_in_schema=False)
+def public_wall_page():
+    """Wall mode (services/display_links.py): the page reads its display link from the URL fragment and
+    sends it only to /api/public/wall. Nothing from another origin, nothing indexed, no Referer."""
+    from fastapi.responses import FileResponse
+
+    path = os.path.join(BASE_DIR, "static", "wall.html")
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="wall.html not found")
+    return FileResponse(path, media_type="text/html; charset=utf-8",
+                        headers={"Cache-Control": "no-store, must-revalidate", "X-Robots-Tag": "noindex, nofollow",
+                                 "Content-Security-Policy": _WALL_CSP})
+
+
 @app.get("/join", include_in_schema=False)
 def public_team_join_page():
     from fastapi.responses import FileResponse
@@ -27471,6 +27511,7 @@ register_deferred_schema("code_hosts", _code_hosts_schema.init_tables)
 register_deferred_schema("migration_milestones", _migration_milestones_schema.init_tables)
 register_deferred_schema("crypto_switch", _crypto_switch_schema.init_tables)
 register_deferred_schema("fire_drill", _fire_drill.init_tables)
+register_deferred_schema("display_links", _display_links.init_tables)
 register_deferred_schema("pq_rollout", _pq_rollout_schema.init_tables)
 
 # The rule-based answerer is a first-class provider ("builtin"), so "no AI configured"

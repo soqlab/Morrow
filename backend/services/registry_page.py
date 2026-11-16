@@ -42,6 +42,9 @@ _STYLES = (
     "/ui/registry.css?v=20261004",
 )
 
+#: "Your connection, right now", after the footer so its arrival moves nothing on the page.
+_CONN_SCRIPT = "/ui/conn-line.js?v=20261116"
+
 #: The record's own links in the top strip. The old marketing navigation is gone; this goes to the
 #: instrument's one input, which is where a visitor checks another domain.
 _NAV = (
@@ -189,6 +192,9 @@ def _head(title: str, description: str, canonical: str, *,
         tags.append('<meta name="robots" content="noindex, follow">')
     for href in _STYLES:
         tags.append(f'<link rel="stylesheet" href="{href}">')
+    # Fills #conn-line with this browser's own key exchange (Cloudflare's /cdn-cgi/trace); empty
+    # where that path does not exist. A file on this origin, so the strict CSP allows it.
+    tags.append(f'<script src="{_CONN_SCRIPT}" defer></script>')
     if json_ld is not None:
         # A data block, not a script: CSP does not execute it, and the crawlers it is for read the
         # HTML without enforcing CSP. json.dumps escapes "<" as < via ensure_ascii, so this
@@ -222,6 +228,7 @@ def _chrome_close() -> str:
         "    <span>Morrow / Public registry</span>\n"
         f"    <nav>{links}</nav>\n"
         "  </footer>\n"
+        '  <p class="conn-line" id="conn-line"></p>\n'
         "</main>\n</body>\n</html>\n"
     )
 
