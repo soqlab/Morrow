@@ -110,6 +110,9 @@ ORG_SCOPED_TABLES: List[str] = [
     # Quantum fire drills (services/fire_drill.py): each drill's result and the organization's cadence.
     "fire_drills",
     "fire_drill_schedules",
+    # Wall mode display links (services/display_links.py): hashed screen tokens. The token lookup runs
+    # in a named platform scope; the wall then reads as the link's organization only.
+    "display_links",
 ]
 
 #: The column that carries the tenant, per table. Anything absent here uses ``organization_id``.
@@ -150,6 +153,7 @@ TENANT_COLUMNS: Dict[str, str] = {
     "safe_badges": "org_id",
     "fire_drills": "org_id",
     "fire_drill_schedules": "org_id",
+    "display_links": "org_id",
 }
 
 #: Every column name that means "this row belongs to that tenant".
