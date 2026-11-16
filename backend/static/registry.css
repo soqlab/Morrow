@@ -279,6 +279,9 @@
 
 .registry-page .limits h2 { margin-top: 0; }
 .registry-page .fine-print p { color: var(--reg-ink-3); font-size: 13.5px; }
+/* Your connection, right now (static/conn-line.js); empty, it takes no space. */
+.registry-page .conn-line { margin: 12px 0 0; font-family: var(--mono, Consolas, ui-monospace, monospace); font-size: 12px; color: var(--reg-ink-3); }
+.registry-page .conn-line:empty { display: none; }
 
 @media (max-width: 620px) {
   .registry-page .record-head { padding: 20px 18px; }
