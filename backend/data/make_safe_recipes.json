@@ -313,5 +313,52 @@
       "stays_classical_if": [],
       "sources": []
     }
+  },
+  "config_recipes_about": "Recipes for configuration files that are not a public HTTPS stack (pasted on the home page): OpenSSH, the OpenSSL configuration file and Java. Same rules as the recipes above: every claim names the vendor source and the date it was checked.",
+  "config_recipes": {
+    "openssh": {
+      "name": "OpenSSH (sshd_config / ssh_config)",
+      "kind": "server",
+      "support": "default_on",
+      "confidence": "high",
+      "summary": "OpenSSH 10.0 and newer use the hybrid mlkem768x25519-sha256 key agreement by default; 9.9 offers it. A KexAlgorithms line that leaves it (and sntrup761x25519-sha512@openssh.com, the hybrid default since 9.0) out turns the post-quantum key exchange off.",
+      "snippet_label": "In /etc/ssh/sshd_config (and ssh_config on clients)",
+      "snippet": "# 1. Check the version: OpenSSH 9.9 or newer has mlkem768x25519-sha256\nssh -V\n# 2. Put the hybrid methods first (or delete the KexAlgorithms line to use the default):\nKexAlgorithms mlkem768x25519-sha256,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org\n# 3. Test, then reload:\nsshd -t && systemctl reload sshd",
+      "requires": ["OpenSSH 9.9 or newer (mlkem768x25519-sha256); 10.0 or newer uses it by default"],
+      "stays_classical_if": ["a KexAlgorithms line lists only classical methods (curve25519, ecdh-sha2-*, diffie-hellman-*)", "the client is older than OpenSSH 9.0 and supports no hybrid method"],
+      "sources": [
+        {"title": "OpenSSH 10.0 release notes", "url": "https://www.openssh.org/txt/release-10.0", "published": "2025-04-09", "checked": "2026-11-16", "quote": "the hybrid post-quantum algorithm mlkem768x25519-sha256 is now used by default for key agreement."},
+        {"title": "OpenSSH 9.9 release notes", "url": "https://www.openssh.org/txt/release-9.9", "published": "2024-09-19", "checked": "2026-11-16", "quote": "This algorithm \"mlkem768x25519-sha256\" is available by default."}
+      ]
+    },
+    "openssl_cnf": {
+      "name": "OpenSSL configuration file (openssl.cnf)",
+      "kind": "server",
+      "support": "opt_in",
+      "confidence": "high",
+      "summary": "The system_default section sets the TLS defaults for every program that loads the OpenSSL configuration. With OpenSSL 3.5 or newer the built-in group list already prefers X25519MLKEM768; a Groups or Curves line without it, or an older OpenSSL, keeps the key exchange classical.",
+      "snippet_label": "In the section that openssl_conf -> ssl_conf -> system_default points to",
+      "snippet": "# OpenSSL must be 3.5 or newer:\n#   openssl version\nopenssl_conf = openssl_init\n\n[openssl_init]\nssl_conf = ssl_sect\n\n[ssl_sect]\nsystem_default = system_default_sect\n\n[system_default_sect]\nMinProtocol = TLSv1.2\nGroups = X25519MLKEM768:X25519:P-256:P-384",
+      "requires": ["OpenSSL 3.5.0 or newer"],
+      "stays_classical_if": ["the program sets its own group list and ignores the system default", "OpenSSL is older than 3.5: the group name is then rejected"],
+      "sources": [
+        {"title": "OpenSSL 3.5 SSL_CONF_cmd: Groups", "url": "https://docs.openssl.org/3.5/man3/SSL_CONF_cmd/", "published": "", "checked": "2026-11-16", "quote": "This sets the supported groups. For clients, the groups are sent using the supported groups extension. For servers, it is used to determine which group to use."},
+        {"title": "OpenSSL 3.5.0 NEWS", "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md", "published": "2025-04-08", "checked": "2026-11-15", "quote": "The default TLS supported groups list has been changed to include and prefer hybrid PQC KEM groups."}
+      ]
+    },
+    "java": {
+      "name": "Java (java.security, JSSE)",
+      "kind": "server",
+      "support": "default_on",
+      "confidence": "high",
+      "summary": "JDK 27 and newer put X25519MLKEM768 first in the TLS 1.3 named groups by default (JEP 527). Older JDKs have no hybrid TLS group, so the fix there is an upgrade. A jdk.tls.namedGroups setting without X25519MLKEM768 turns it off.",
+      "snippet_label": "JDK 27 or newer; the system property only if you set your own list",
+      "snippet": "# 1. Check the runtime: JDK 27 or newer\njava -version\n# 2. If you set a named-groups list, put the hybrid group first:\n-Djdk.tls.namedGroups=X25519MLKEM768,x25519,secp256r1,secp384r1\n# 3. TLS 1.3 must stay enabled: do not list TLSv1.3 in jdk.tls.disabledAlgorithms",
+      "requires": ["JDK 27 or newer (JEP 527)", "TLS 1.3"],
+      "stays_classical_if": ["jdk.tls.namedGroups or SSLParameters.setNamedGroups lists only classical groups", "the runtime is older than JDK 27"],
+      "sources": [
+        {"title": "JEP 527: Post-Quantum Hybrid Key Exchange for TLS 1.3", "url": "https://openjdk.org/jeps/527", "published": "", "checked": "2026-11-16", "quote": "By default, the JDK\u2019s TLS 1.3 implementation will place the X25519MLKEM768 hybrid scheme at the front of that list, making it the most preferred."}
+      ]
+    }
   }
 }

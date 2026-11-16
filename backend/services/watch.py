@@ -1028,7 +1028,9 @@ def about_scanner(example_host: str = "example.com") -> Dict[str, Any]:
         ],
         "never": ["any port but 443", "a private, loopback, link-local or this server's own address (checked once, then "
                   "the connection is pinned to that address)", "anything past your homepage: no crawl, no login, no form "
-                  "posts, no vulnerability probes", "email: Morrow never writes to anyone about a check"],
+                  "posts, no vulnerability probes", "email: Morrow never writes to anyone about a check",
+                  "a connection because of something pasted on the home page: a certificate, configuration file, CBOM, "
+                  "repository link or capture is read on Morrow's own server, in memory, and nothing it names is contacted"],
         "your_result": f"{base}/{example_host}",
         "opt_out": {"page": f"{base}/abuse", "contact": abuse,
                     "how": "Ask once and the domain and every name under it are refused before DNS is even looked up. "

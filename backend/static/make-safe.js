@@ -165,5 +165,6 @@
       });
   }
 
-  window.MorrowSafe = { html: html, mount: mount };
+  // recipe(rc): one recipe as HTML, for the home page's pasted configuration files (paste.js).
+  window.MorrowSafe = { html: html, mount: mount, recipe: recipeHtml };
 })();
