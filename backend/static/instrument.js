@@ -314,13 +314,22 @@
     });
     return "This server's edge did not report which key exchange your connection used, so Morrow cannot show it here.";
   }
+  /* The one line under the home domain box. Same sentence as static/conn-line.js on /r/<domain>.
+     Only kex= is read from the trace; its ip= line is never shown, kept or sent. */
+  var CONN_SIZER = "You're connected to Morrow with X25519MLKEM768 — classical. Try a current Chrome, Edge, Firefox or Safari.";
+  function connLine(c) {
+    if (!c || c.status === "unknown" || !/^[A-Za-z0-9_-]{1,40}$/.test(c.kex || "")) return "";
+    return c.status === "pq" ? "You're connected to Morrow with " + c.kex + " — quantum-safe key exchange."
+      : "You're connected to Morrow with " + c.kex + " — classical. Try a current Chrome, Edge, Firefox or Safari.";
+  }
   function paintConnStrip() {
     var strip = $("#i-conn"); if (!strip) return;
     Promise.all([connection(), basis()]).then(function (r) {
       var c = r[0], b = r[1];
       // Shown only where the edge in front of this server reports the key exchange (the hosted
       // service does; a self-hosted copy or local development may not): no "not reported" panel.
-      if (c.status === "unknown") { strip.hidden = true; return; }
+      // Home says it in one line under the domain box instead (connLine).
+      if (c.status === "unknown" || !segs[0]) { strip.hidden = true; return; }
       strip.hidden = false;
       var label = c.status === "pq" ? "post-quantum" : "classical";
       strip.innerHTML = '<div class="i-conn-in"><span>Your connection to Morrow</span>' +
@@ -526,7 +535,9 @@
       '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
       '<input id="home-q" name="domain" type="text" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint"></div>' +
       '<button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div>' +
-      '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p></form><div id="home-reading"></div>';
+      '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p>' +
+      // The space is held by an invisible copy of the longest sentence, so the line arriving moves nothing.
+      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p></form><div id="home-reading"></div>';
     var input = $("#home-q"), hint = $("#home-hint");
     input.addEventListener("input", function () { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; });
     $("#home-form").addEventListener("submit", function (e) {
@@ -541,6 +552,7 @@
       location.href = "/r/" + d;
     });
     input.focus();
+    connection().then(function (c) { var t = $("#home-conn"); if (t) t.textContent = connLine(c); });
     workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
   }
   function homePublic() {
