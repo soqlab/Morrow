@@ -333,6 +333,10 @@ svg.tl.mini { width: 96px; height: 22px; }
 .i-safe-row .i-field { flex: 1; min-width: 0; }
 .i-safe-go { flex: none; justify-content: center; min-height: 50px; padding: 0 20px; font-size: 15px; cursor: pointer; }
 .i-safe #home-hint[data-tone="bad"] { color: var(--bad, #c0392b); }
+/* Your connection, right now: one line under the domain box; the invisible sizer reserves its height. */
+.i-safe .i-you { display: grid; margin: 4px 0 0; }
+.i-safe .i-you > span { grid-area: 1 / 1; }
+.i-safe .i-you-size { visibility: hidden; }
 @media (max-width: 520px) {
   .i-safe-row { flex-direction: column; }
   .i-safe-go { width: 100%; min-height: 48px; }

@@ -431,3 +431,21 @@ def test_strict_csp_covers_the_registry_but_not_lookalike_paths():
     assert app_module._csp_for("/r/example.test") == app_module._CSP_STRICT_VALUE
     for path in ("/robots.txt", "/repositories", "/remediations"):
         assert app_module._csp_for(path) != app_module._CSP_STRICT_VALUE, path
+
+
+def test_record_page_names_this_browsers_key_exchange_from_a_file_on_this_origin(client, registry):
+    """Your connection, right now: one external script (strict CSP) fills a line after the footer."""
+    registry.store_result("example.test", _result("example.test"))
+    body = client.get("/r/example.test").text
+    head, _, rest = body.partition("</head>")
+    assert '<script src="/ui/conn-line.js?v=' in head and " defer></script>" in head
+    assert '<p class="conn-line" id="conn-line"></p>' in rest.split("</footer>", 1)[1]
+
+    js = client.get("/ui/conn-line.js")
+    assert js.status_code == 200
+    src = js.text
+    # Same-origin only, and the trace's ip= line is never read: only kex= is matched.
+    assert 'fetch("/cdn-cgi/trace"' in src and "credentials: \"omit\"" in src
+    assert "ip=" not in src and "localStorage" not in src and "sendBeacon" not in src
+    assert "/^kex=([A-Za-z0-9_-]{1,40})$/m" in src
+    assert "quantum-safe key exchange." in src and "Try a current Chrome, Edge, Firefox or Safari." in src
