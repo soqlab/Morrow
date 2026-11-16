@@ -4210,8 +4210,34 @@ function whyItMatters({ TB, HN, canaries }) {
   ];
   return sec("Why it matters", `<div class="whyPanel">${lines.map(([id, icon, title, body, label]) =>
     `<div class="whyRow">${icon}<div class="grow"><b>${H(title)}</b><span>${H(body)}</span></div>
-      ${actBtn(label, "nav", { cls: "btn xs", data: { to: id } })}</div>`).join("")}</div>`);
+      ${actBtn(label, "nav", { cls: "btn xs", data: { to: id } })}</div>`).join("")}</div>`, boardSlideBtns());
 }
+/* Board slide in one click (services/board_slide.py): one 16:9 slide for a board pack with the risk
+   sentence, the deadline, the trend and the next actions, every figure with its source and date.
+   PowerPoint (editable text) or PDF. The kind of data picked for the risk sentence goes with it.
+   A support view cannot download exports, so it shows no button. */
+const boardSlideBtns = () => SUPPORT.active ? "" : `<span class="row tight boardSlide">
+  <button class="btn xs" type="button" data-act="boardSlide" data-fmt="pptx" aria-label="Download the board slide as PowerPoint">${I.dl}Board slide</button>
+  <button class="btn xs ghost" type="button" data-act="boardSlide" data-fmt="pdf" aria-label="Download the board slide as PDF">PDF</button></span>`;
+ACTIONS.boardSlide = async (b) => {
+  const fmt = b?.dataset?.fmt === "pdf" ? "pdf" : "pptx";
+  const q = [["data", LS.get("morrow_data", "")], ["jur", LS.get("morrow_jur", "")]]
+    .filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&");
+  const path = `/board-slide/export.${fmt}${q ? `?${q}` : ""}`;
+  let res = await rawFetch(path, { method: "GET", timeout: 60000 });
+  if (res.status === 401 && !SUPPORT.active && await refreshAccess()) res = await rawFetch(path, { method: "GET", timeout: 60000 });
+  if (!res.ok) {
+    const d = await res.json().catch(() => null);
+    throw new Error(`${res.status} · ${d?.detail || "Morrow could not make the board slide just now."}`);
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") || "")?.[1] || `board-slide.${fmt}`;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  ok(`Board slide saved as ${name}`);
+};
 const heroStat = (label, value, sub) =>
   `<div class="heroStat"><small>${H(label)}</small><b>${H(String(value))}</b>
    <div style="font-size:11px;color:var(--ink3);margin-top:2px">${H(sub)}</div></div>`;
@@ -8616,11 +8642,12 @@ VIEWS.board = async (host) => {
         sub: "Not available: no other organization's posture is held, so no percentile or sector average exists" })}
     </div>
 
-    <div class="row" style="margin:16px 0">
+    <div class="row" style="margin:16px 0;flex-wrap:wrap;gap:10px">
       <div class="tabs" data-tabs="bd">
         ${[["score", "Risk score"], ["roi", "ROI model"], ["bench", "Peer benchmark"], ["act", "Actuarial"], ["report", "Board pack"]]
           .map(([k, l], i) => `<button class="tab ${i ? "" : "on"}" data-key="${k}">${l}</button>`).join("")}
       </div>
+      <span style="flex:1"></span>${boardSlideBtns()}
     </div>
 
     <div data-pane="bd" data-key="score">
