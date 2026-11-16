@@ -4,3 +4,5 @@
 backend/fuzz/corpus/** -text
 # The vendored Shelf-Life catalogue is checked against its SHA-256 at load: keep its bytes exact.
 backend/data/shelf-life/** -text
+# The threat board's dataset is checked against its pinned SHA-256 at load: keep its bytes exact too.
+backend/data/threat-board/** -text

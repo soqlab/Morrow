@@ -238,6 +238,15 @@ async function main() {
     assert.match(await page.locator("#say").innerText(), /MorrowPQCheck/);
     assert.equal(await page.locator("#as-optout").getAttribute("href"), "/abuse");
 
+    // The quantum threat board: one headline, both charts drawn from the dataset, the deadlines.
+    await page.goto(`${base}/threat`, { waitUntil: "networkidle" });
+    await page.locator("#tb-h1").waitFor({ timeout: 15000 });
+    assert.match(await page.locator("#tb-h1").innerText(), /more likely than not by about 20\d\d, and quite possible by about 20\d\d\./);
+    assert.ok(await page.locator("#tb-m-chart svg .tb-mk").count() >= 5, "the machines chart has no marks");
+    assert.ok(await page.locator("#tb-a-chart svg .tb-mk").count() >= 3, "the attack-cost chart has no marks");
+    assert.ok(await page.locator("#deadlines .tb-yr").count() >= 4, "the deadlines timeline is empty");
+    assert.match(await page.locator("#why").innerText(), /Morrow says about 20\d\d/);
+
     // Vendor check: the button answers as the list is typed; a report answers first, worst first,
     // with a note the buyer sends themselves.
     await page.goto(`${base}/vendors`, { waitUntil: "networkidle" });
@@ -271,7 +280,7 @@ async function main() {
     await routeDomain(small);
     await routeReports(small);
     for (const path of ["/", "/league", "/algorithms", "/trust", "/atlas", "/watching", "/about-scanner", `/${SMOKE_DOMAIN}?depth=expert`, `/${SMOKE_DOMAIN}?depth=expert&data=legal&jur=DE`, `/${SMOKE_DOMAIN}?depth=standard&data=health&jur=AU`,
-      "/vendors", `/vendors/r/${SMOKE_TOKEN}?depth=expert`, "/changes", "/report/finance?depth=expert"]) {
+      "/vendors", `/vendors/r/${SMOKE_TOKEN}?depth=expert`, "/changes", "/report/finance?depth=expert", "/threat", "/threat?depth=expert"]) {
       await small.goto(`${base}${path}`, { waitUntil: "networkidle" });
       const wide = await small.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(wide <= 1, `${path} overflows a 360px screen by ${wide}px`);
@@ -289,7 +298,7 @@ async function main() {
 
     assert.deepEqual(foreign, [], "the instrument contacted another origin");
     assert.deepEqual(errors, [], "JavaScript errors");
-    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, the risk sentence and its data picker, harvest clock dials, the Shelf-Life picker, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, trust readout, plain without JS, 360px layout.");
+    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, the risk sentence and its data picker, harvest clock dials, the Shelf-Life picker, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, the threat board, trust readout, plain without JS, 360px layout.");
   } finally {
     await browser.close();
   }

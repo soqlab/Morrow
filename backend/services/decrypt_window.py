@@ -5,12 +5,13 @@ instrument pages all ask the same question about a connection: if someone record
 which year could they read it back? The years and their source live here, once, so a scan result
 and a public grade can never quote different dates for the same handshake.
 
-The dates are not invented here. The Global Risk Institute's Quantum Threat Timeline Report 2025
-(Mosca and Piani, evolutionQ; published 9 March 2026; 26 experts surveyed in 2025) puts the chance
-of a quantum computer able to break RSA-2048 within 24 hours at 28-49% within 10 years ("quite
-possible") and 51-70% ("likely") within 15 years. Counted from the 2025 survey that is 2035 to
-2040. Update both numbers, the basis text and public_grade.RUBRIC_VERSION together when a new
-edition is published.
+The dates are not invented here, and not written here either: they come from the expert-survey
+entry of the quantum threat board's dataset (services/threat_board.py,
+data/threat-board/threat-board.json, shown at /threat). Today that is the Global Risk Institute's
+Quantum Threat Timeline Report 2025 (Mosca and Piani, evolutionQ; published 9 March 2026; 26
+experts surveyed in 2025): 28-49% within 10 years ("quite possible") and 51-70% ("likely") within
+15 years that a quantum computer breaks RSA-2048 within 24 hours, i.e. 2035 to 2040. A new edition
+is an edit of that file, reviewed in git; bump public_grade.RUBRIC_VERSION when the years move.
 
 What the answer depends on is the key exchange, nothing else. A recorded session is decrypted by
 recovering its session key, and that key comes from the key exchange. The certificate signature
@@ -22,14 +23,33 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-DECRYPT_YEAR_LOW = 2035
-DECRYPT_YEAR_HIGH = 2040
-EXPOSURE_SOURCE_URL = "https://globalriskinstitute.org/publication/quantum-threat-timeline-report-2025b/"
-EXPOSURE_SOURCE_LABEL = "Global Risk Institute, Quantum Threat Timeline Report 2025"
+from services import threat_board as _threat_board
+
+#: Used only if the threat board's dataset is missing or fails its checksum (logged by
+#: threat_board): the values of the edition this code was written against, never newer ones.
+_FALLBACK_ESTIMATE = {
+    "low": 2035, "likely": 2040, "high": 2045, "low_probability": "28-49%", "likely_probability": "51-70%",
+    "low_label": "quite possible", "likely_label": "likely", "survey_year": 2025,
+    "source_url": "https://globalriskinstitute.org/publication/quantum-threat-timeline-report-2025b/",
+    "source_label": "Global Risk Institute, Quantum Threat Timeline Report 2025",
+    "outer_bound_note": "Morrow's own outer bound for the harvest clock's dial, not a survey answer.",
+}
+_dataset_estimate = _threat_board.expert_estimate()
+#: True when the years below were read from the threat board's dataset (the normal case).
+ESTIMATE_FROM_DATASET = _dataset_estimate is not None
+_EST = _dataset_estimate or _FALLBACK_ESTIMATE
+
+DECRYPT_YEAR_LOW = int(_EST["low"])
+DECRYPT_YEAR_HIGH = int(_EST["likely"])
+EXPOSURE_SOURCE_URL = _EST["source_url"]
+EXPOSURE_SOURCE_LABEL = _EST["source_label"]
+#: Where the evidence behind these years is shown, with every source.
+THREAT_BOARD_URL = _threat_board.PAGE_PATH
 EXPOSURE_BASIS = (
-    "Global Risk Institute, Quantum Threat Timeline Report 2025 (Mosca and Piani, published March "
-    "2026): experts put the chance of a quantum computer that can break RSA-2048 in 24 hours at "
-    "28-49% within 10 years and 51-70% within 15 years of the 2025 survey, i.e. about 2035 to 2040. "
+    f"{EXPOSURE_SOURCE_LABEL}: experts put the chance of a quantum computer that can break RSA-2048 in "
+    f"24 hours at {_EST['low_probability']} within {DECRYPT_YEAR_LOW - _EST['survey_year']} years and "
+    f"{_EST['likely_probability']} within {DECRYPT_YEAR_HIGH - _EST['survey_year']} years of the "
+    f"{_EST['survey_year']} survey, i.e. about {DECRYPT_YEAR_LOW} to {DECRYPT_YEAR_HIGH}. "
     "Traffic recorded today with classical key exchange could be decrypted from then on."
 )
 PQ_BASIS = (
@@ -114,16 +134,17 @@ def secret_outlives(lifetime_years: Optional[int], now: Optional[datetime] = Non
 
 
 #: The range the harvest clock lets a person pick the quantum year from. ``low`` and ``likely`` are
-#: the survey's two answers above (10 and 15 years from the 2025 survey). The survey names no
-#: single upper date, so ``high`` is Morrow's own outer bound for the dial, and is labelled so.
+#: the survey's two answers above (from the threat board's dataset). The survey names no single
+#: upper date, so ``high`` is Morrow's own outer bound for the dial, and is labelled so.
 CRQC_ESTIMATE = {
     "low": DECRYPT_YEAR_LOW,
     "likely": DECRYPT_YEAR_HIGH,
-    "high": DECRYPT_YEAR_HIGH + 5,
-    "low_label": "quite possible: experts give it 28-49% by then",
-    "likely_label": "likely: experts give it 51-70% by then",
+    "high": int(_EST["high"]),
+    "low_label": f"{_EST['low_label'] or 'quite possible'}: experts give it {_EST['low_probability']} by then",
+    "likely_label": f"{_EST['likely_label'] or 'likely'}: experts give it {_EST['likely_probability']} by then",
     "high_label": "a cautious outer bound Morrow uses for the dial, not a survey answer",
     "is_estimate": True,
+    "board_url": THREAT_BOARD_URL,
 }
 #: How long a secret can be asked to last, in years: the longest value in the Shelf-Life catalogue
 #: (services/shelf_life.YEARS_MAX; genetic and US health records reach 130).
@@ -200,4 +221,6 @@ def basis() -> Dict[str, Any]:
         "pq_basis": PQ_BASIS,
         "pq_source_url": PQ_SOURCE_URL,
         "crqc_estimate": dict(CRQC_ESTIMATE),
+        "board_url": THREAT_BOARD_URL,
+        "from_dataset": ESTIMATE_FROM_DATASET,
     }

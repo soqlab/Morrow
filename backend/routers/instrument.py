@@ -12,6 +12,7 @@
   GET /trust                 which commit runs here, checked against the signed manifest and deploy log
   GET /watching              the domains you watch and what changed on them (signed in)
   GET /about-scanner         what Morrow's checker connects to, how often, and how to opt out
+  GET /threat                the quantum threat board: cited evidence behind Morrow's quantum year
   GET /plain[...]            the same answers as plain HTML: no script, no stylesheet
 
 Every page view above is the same static file (static/instrument.html); the views read the
@@ -41,7 +42,7 @@ CSP = ("default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action
 CSP_PLAIN = CSP.replace("script-src 'self'", "script-src 'none'")
 
 VIEW_PREFIXES = ("/league", "/atlas", "/algorithms", "/trust", "/estate", "/vendors", "/changes", "/report",
-                 "/watching", "/about-scanner")
+                 "/watching", "/about-scanner", "/threat")
 _DOMAIN_RE = re.compile(r"^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$")
 #: Last labels that are file extensions, not top-level domains: /wp-login.php is a probe, not a site.
 #: (.zip and .mov are real TLDs and stay allowed.)
@@ -209,6 +210,7 @@ def create_instrument_router(deps: Any) -> APIRouter:
     @router.api_route("/trust", methods=["GET", "HEAD"])
     @router.api_route("/watching", methods=["GET", "HEAD"])
     @router.api_route("/about-scanner", methods=["GET", "HEAD"])
+    @router.api_route("/threat", methods=["GET", "HEAD"])
     def instrument_view():
         return _view()
 

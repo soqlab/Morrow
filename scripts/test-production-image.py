@@ -40,7 +40,8 @@ try:
         assert time.monotonic() < deadline, "API startup timed out"
         time.sleep(0.2)
     checked = []
-    for path in ("/health", "/status", "/ui/ai-trust.html"):
+    # /api/public/threat answers 503 unless the threat board's dataset made it into the image intact.
+    for path in ("/health", "/status", "/ui/ai-trust.html", "/api/public/threat"):
         with opener.open(base + path, timeout=20) as response:
             assert response.status == 200, path
             body = response.read(2_000_001)
@@ -52,6 +53,8 @@ try:
                 assert json.loads(body)["status"] == "ok"
             elif path == "/status":
                 assert isinstance(json.loads(body), dict)
+            elif path == "/api/public/threat":
+                assert json.loads(body)["estimate"]["low"] >= 2026, "threat board dataset missing from the image"
             else:
                 assert b"Your data is not" in body
             checked.append(path)

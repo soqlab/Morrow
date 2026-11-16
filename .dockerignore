@@ -14,6 +14,9 @@
 !backend/data/shelf-life/**
 # ...and the Make it safe recipes (services/make_safe.py), sourced vendor data the service reads.
 !backend/data/make_safe_recipes.json
+# ...and the quantum threat board's reviewed dataset (services/threat_board.py), which Morrow's quantum year is read from.
+!backend/data/threat-board
+!backend/data/threat-board/**
 **/.venv
 **/venv
 **/__pycache__

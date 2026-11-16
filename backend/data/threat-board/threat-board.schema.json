@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://morrow.soqlab.com/api/public/threat/schema",
+  "title": "Morrow quantum threat board dataset",
+  "type": "object",
+  "required": ["title", "version", "date", "editors", "policy", "estimate", "changes", "entries"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "title": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "date": {"$ref": "#/$defs/day"},
+    "editors": {"type": "string", "minLength": 1},
+    "license": {"type": "string"},
+    "policy": {"type": "string", "minLength": 1},
+    "estimate": {
+      "type": "object",
+      "required": ["survey", "low_horizon_years", "likely_horizon_years", "outer_bound_years"],
+      "properties": {
+        "survey": {"type": "string"},
+        "low_horizon_years": {"type": "integer", "minimum": 1, "maximum": 50},
+        "likely_horizon_years": {"type": "integer", "minimum": 1, "maximum": 50},
+        "outer_bound_years": {"type": "integer", "minimum": 0, "maximum": 30},
+        "outer_bound_note": {"type": "string"}
+      }
+    },
+    "changes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["version", "date", "summary"],
+        "properties": {
+          "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "date": {"$ref": "#/$defs/day"},
+          "summary": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "entries": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/entry"}}
+  },
+  "$defs": {
+    "day": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+    "published": {"type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}(-[0-9]{2})?$"},
+    "count": {"type": ["integer", "null"], "minimum": 0},
+    "entry": {
+      "type": "object",
+      "required": ["id", "section", "title", "org", "date_published", "date_checked", "source_url", "source_title",
+                   "quote", "claim", "verified"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,80}$"},
+        "section": {"enum": ["machines", "attack_cost", "deadlines", "surveys"]},
+        "title": {"type": "string", "minLength": 1},
+        "org": {"type": "string", "minLength": 1},
+        "date_published": {"$ref": "#/$defs/published"},
+        "date_checked": {"$ref": "#/$defs/day"},
+        "source_url": {"type": "string", "pattern": "^https://[^\\s]+$"},
+        "source_title": {"type": "string", "minLength": 1},
+        "quote": {"type": ["string", "null"]},
+        "claim": {"enum": ["peer_reviewed", "preprint", "vendor_claim", "roadmap", "official", "survey"]},
+        "verified": {"type": "boolean"},
+        "note": {"type": "string"},
+        "physical_qubits": {"$ref": "#/$defs/count"},
+        "logical_qubits": {"$ref": "#/$defs/count"},
+        "counts": {"enum": ["gate_based", "atoms_trapped"]},
+        "error_correction": {"enum": ["none", "detected", "corrected", "unclear", null]},
+        "below_threshold": {"type": "boolean"},
+        "chart": {"type": "boolean"},
+        "facts": {"type": "object"},
+        "target": {"enum": ["RSA-2048", "ECC-256"]},
+        "physical_bound": {"enum": ["about", "fewer than", null]},
+        "runtime": {"type": ["string", "null"]},
+        "assumptions": {"type": ["string", "null"]},
+        "qubit_kind": {"enum": ["surface_code", "neutral_atom", "qldpc", "cat"]},
+        "jurisdiction": {"type": "string"},
+        "deadline": {"type": "string", "pattern": "^[0-9]{4}(-[0-9]{2}(-[0-9]{2})?)?$"},
+        "what": {"type": "string"},
+        "status": {"enum": ["final", "draft", "guidance"]},
+        "survey_year": {"type": "integer"},
+        "experts": {"type": "integer", "minimum": 1},
+        "question": {"type": "string"},
+        "horizons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["years", "low", "high"],
+            "properties": {
+              "years": {"type": "integer", "minimum": 1},
+              "low": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+              "high": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+              "label": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -120,7 +120,8 @@
     { t: "Plain version, no scripts", h: "/plain", k: "plain text accessible screen reader no javascript", g: "Public" },
     { t: "Your estate through time", h: "/estate", k: "estate history scans time progress map atlas my", g: "Yours", ws: true },
     { t: "Domains you watch, and what changed", h: "/watching", k: "watch watching alerts notifications push changes feed webhook", g: "Yours", ws: true },
-    { t: "About the scanner: what connects to your server", h: "/about-scanner", k: "scanner user agent logs bot crawler opt out morrowpqcheck", g: "Public" }
+    { t: "About the scanner: what connects to your server", h: "/about-scanner", k: "scanner user agent logs bot crawler opt out morrowpqcheck", g: "Public" },
+    { t: "Quantum threat board: how close is Q-Day, with sources", h: "/threat", k: "threat board q-day qday forecast crqc quantum computer when year estimate qubits deadlines nist cnsa evidence", g: "Public" }
   ];
   /* The console's sidebar, as places. Overview carries the quantum-risk readings ("Why it matters").
      The enterprise views are listed only when the console's Enterprise switch is on in this browser
@@ -495,6 +496,7 @@
     if (s0 === "report") return segs[1] ? viewReport(segs[1].toLowerCase()) : viewReports();
     if (s0 === "watching" && window.MorrowWatch) return window.MorrowWatch.watching();
     if (s0 === "about-scanner" && window.MorrowWatch) return window.MorrowWatch.aboutScanner();
+    if (s0 === "threat" && window.MorrowThreat) return window.MorrowThreat.view();
     if (s0 === "estate") return segs[1] === "scan" && segs[2] ? viewScan(segs[2]) : segs[1] === "asset" && segs[2] ? viewAsset(segs.slice(2).join("/")) : viewEstate();
     var d = asDomain(s0);
     if (d && segs.length === 1) return viewDomain(d);
@@ -919,6 +921,7 @@
     $("#hv-src", box).innerHTML = (pq ? "Read from this check's key exchange, " + esc(kx.group || "") + ". " : tls ? "Read from this check's key exchange, " + esc(kx.group || "not observed, so treated as classical") + ". " : "") +
       "The quantum year is an estimate, not a fact: " + esc(est.low) + " (low) to " + esc(est.likely) + " (likely) are from the " +
       '<a href="' + esc(sourceUrl) + '" rel="noopener">Global Risk Institute expert survey</a>; ' + esc(est.high) + " (high) is Morrow's outer bound." +
+      (est.board_url ? ' <a href="' + esc(est.board_url) + '#why">The evidence behind these years</a>.' : "") +
       (cat ? ' How long data must stay private: <a href="' + esc(cat.attribution.source_url) + '" rel="noopener">Shelf-Life v' + esc(edition) + "</a> by " + esc(cat.attribution.author) + ' (<a href="' + esc(cat.attribution.licence_url) + '" rel="noopener">' + esc(cat.attribution.licence) + "</a>), unchanged; not legal advice." : "") +
       " Your choices stay in the address and on this device.";
     paint();
@@ -960,6 +963,15 @@
     var fixable = k.fixable != null ? k.fixable : r.settings_to_fix ? r.settings_to_fix.length : state === "safe" ? 0 : (r.fixes || []).length ? 1 : 0;
     return { host: d, state: state, fixable: fixable, observed: state === "at_risk" && (r.key_exchange || {}).observed === false ? "0" : "1" };
   }
+  /* The sentence, with its "about <year>" linked to the threat board, which shows why that year. */
+  function riskSay(el, text, est) {
+    var key = "about " + est.low, i = est.board_url && est.low ? text.indexOf(key) : -1;
+    if (i < 0) { el.textContent = text; return; }
+    var a = document.createElement("a");
+    a.href = est.board_url + "#why"; a.textContent = key; a.title = "Why Morrow says " + key + ": the evidence";
+    el.textContent = "";
+    el.appendChild(document.createTextNode(text.slice(0, i))); el.appendChild(a); el.appendChild(document.createTextNode(text.slice(i + key.length)));
+  }
   function bindRisk(q, onPick) {
     var box = $("#risk"); if (!box) return;
     var built = false, seq = 0;
@@ -968,10 +980,11 @@
       var mine = ++seq;
       getJSON(riskQuery(q)).then(function (r) {
         if (mine !== seq || !document.body.contains(box)) return;
-        $("#risk-say", box).textContent = r.sentence;
-        var d = r.data, c = r.choices || {}, as = $("#risk-as", box);
         var est = r.estimate || {};
-        var why = esc(r.assumption) + ' The quantum year is an estimate from the <a href="' + esc(est.source_url || "") + '" rel="noopener">Global Risk Institute expert survey</a>, not a date.';
+        riskSay($("#risk-say", box), r.sentence, est);
+        var d = r.data, c = r.choices || {}, as = $("#risk-as", box);
+        var why = esc(r.assumption) + ' The quantum year is an estimate from the <a href="' + esc(est.source_url || "") + '" rel="noopener">Global Risk Institute expert survey</a>, not a date' +
+          (est.board_url ? ': <a href="' + esc(est.board_url) + '#why">why Morrow says about ' + esc(est.low) + "</a>, with the evidence." : ".");
         if (!d || !(c.categories || []).length) { as.innerHTML = '<p class="i-fine">' + why + "</p>"; return; }
         if (!built) {
           as.innerHTML = '<div class="risk-pick"><label for="risk-data" id="risk-lbl"></label><select id="risk-data" class="i-btn">' +

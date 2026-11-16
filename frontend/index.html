@@ -2094,7 +2094,7 @@ const NAV = [
      view still opens from that panel and at its own address (/ui/#hndl and so on). */
   { g: "Quantum Risk", ch: "league", fold: true, items: [
     { id: "hndl",       n: "HNDL Exposure",    i: I.hourglass, d: "Harvest-now-decrypt-later exposure and priority queue" },
-    { id: "qday",       n: "Q-Day Forecast",   i: I.clock,     d: "CRQC trajectory, milestones and quantum intelligence" },
+    { id: "qday",       n: "Quantum threat board", i: I.clock, d: "How close Q-Day is, with every source: opens /threat" },
     { id: "graph",      n: "Blast Radius",     i: I.network,   d: "Security graph, certificate blast radius and CA contagion" },
     { id: "canaries",   n: "Canaries & QTISN", i: I.bird,      d: "Cryptographic canary tokens and threat-intel network" },
   ]},
@@ -3847,11 +3847,12 @@ function boot() {
    VIEW: OVERVIEW — executive posture
    ========================================================================== */
 VIEWS.overview = async (host) => {
-  const [exec, qday, weather, kpis, obs, agility, velocity, hndl, board, assets, repos, rem, fix, scans, canaries, gate, mobileStats, zkProofs, reg, compliance] = await all([
+  const [exec, qday, weather, kpis, obs, agility, velocity, hndl, board, assets, repos, rem, fix, scans, canaries, gate, mobileStats, zkProofs, reg, compliance, threat] = await all([
     "/executive-dashboard", "/qday/countdown", "/board-risk/weather", "/telemetry/kpis",
     "/observatory/dashboard", "/crypto-agility", "/migration-velocity", "/hndl/dashboard", "/board-risk",
     "/assets", "/repositories", "/remediations", "/fix-next", "/scans?limit=12",
     "/hndl-canaries", "/cicd-gate/scans", "/mobile-iot/stats", "/zk-compliance/proofs", "/regulatory/frameworks", "/compliance-mapping",
+    "/api/public/threat",
   ]);
   const readiness = S.platKey ? await safe("/platform/readiness") : { ok: false, data: null };
   const E = exec.ok ? exec.data : {};
@@ -3875,7 +3876,7 @@ VIEWS.overview = async (host) => {
   const ZK = zkProofs.ok ? rows(zkProofs.data, "proofs") : [];
   const RG = reg.ok ? rows(reg.data, "frameworks") : [];
   const CM = compliance.ok ? rows(compliance.data, "mappings", "controls") : [];
-  const missionCtx = { E, Q, W, K, O, A, V, HN, B, assets: AS, repos: RP, rems: RM, fixes: FX, scans: SC, readiness: RD, canaries: CN, cicdScans: CI, mobileStats: MS, zkProofs: ZK, regulatory: RG, compliance: CM };
+  const missionCtx = { TB: threat.ok ? threat.data : null, E, Q, W, K, O, A, V, HN, B, assets: AS, repos: RP, rems: RM, fixes: FX, scans: SC, readiness: RD, canaries: CN, cicdScans: CI, mobileStats: MS, zkProofs: ZK, regulatory: RG, compliance: CM };
   S.lastMissionContext = missionCtx;
   missionCtx.sources = { assets: assets.ok, remediations: rem.ok, cicd: gate.ok };
 
@@ -4189,15 +4190,18 @@ function safeDomain(raw) {
 /* Why it matters: the four Quantum Risk views folded into one panel. Each line is one reading from
    data Overview already loaded, and a button to the view that explains it. A reading that is not
    there says so; nothing is filled in. */
-function whyItMatters({ Q, HN, canaries }) {
-  const med = Q?.estimates?.median;
+function whyItMatters({ TB, HN, canaries }) {
+  // The quantum year is the threat board's (services/threat_board.py): the cited expert survey the
+  // risk sentence and the harvest clock use too, not a model of this console's own.
+  const est = TB?.estimate;
   const modeled = HN && Number(HN.measured_asset_count ?? HN.asset_count) > 0;
   const lines = [
     ["hndl", I.hourglass, "Recorded today, readable later",
       modeled ? `${USD(HN.total_exposure_usd)} of modelled exposure across ${NUM(HN.asset_count)} assets. A model, not a measurement.`
         : "Nothing modelled yet. Scan a host you run to see what someone could record from it now.", "Exposure"],
     ["qday", I.clock, "When it could be read",
-      med ? `The model's middle estimate is ${med}. A model, not a deadline.` : "This server has no estimate to show.", "Forecast"],
+      est ? `${TB.headline.sentence} Recorded traffic is dated from about ${est.low}. An estimate, with its sources.`
+        : "The threat board could not be read just now.", "Evidence"],
     ["graph", I.network, "What breaks together",
       "If one certificate authority or key falls, see everything that depends on it.", "Blast radius"],
     ["canaries", I.bird, "Knowing if it is opened",
@@ -6451,102 +6455,15 @@ ACTIONS.hcNew = async () => {
 };
 
 /* ==========================================================================
-   VIEW: Q-DAY — forecast, milestones, intelligence
+   VIEW: Q-DAY — moved. The quantum threat board at /threat (services/threat_board.py) is the one
+   place for how close Q-Day is: the machines, the attack cost, the deadlines, every source. The old
+   address /ui/#qday forwards there.
    ========================================================================== */
 VIEWS.qday = async (host) => {
-  const [cd, fc, ms, actors, feed, sim] = await all([
-    "/qday/countdown", "/qday-forecast", "/qday-forecast/milestones",
-    "/qday-forecast/threat-actors", "/q-intel/feed", "/quantum-sim/graph",
-  ]);
-  const CD = cd.ok ? cd.data : null;
-  const F = fc.ok ? fc.data : null;
-  const nowY = new Date().getFullYear();
-
-  host.innerHTML = `${viewLead("Quantum Risk / Q-Day Forecast", "When a relevant quantum computer becomes credible.",
-    "CRQC trajectory, published milestones, and the quantum intelligence behind each estimate.")}
-    <div class="g g4">
-      ${kpi("Optimistic", CD?.estimates?.optimistic ?? "—", { icon: I.zap, tone: "var(--bad)",
-        sub: CD ? `${NUM(Math.floor((CD.countdown_seconds?.optimistic || 0) / 86400))} days` : "" })}
-      ${kpi("Median", CD?.estimates?.median ?? "—", { icon: I.clock, tone: "var(--warn)",
-        sub: CD ? `${NUM(Math.floor((CD.countdown_seconds?.median || 0) / 86400))} days` : "" })}
-      ${kpi("Conservative", CD?.estimates?.conservative ?? "—", { icon: I.shield, tone: "var(--ok)",
-        sub: CD ? `${NUM(Math.floor((CD.countdown_seconds?.conservative || 0) / 86400))} days` : "" })}
-      ${kpi("CRQC blended", F?.crqc_trajectory?.estimated_crqc_year ?? "—", { icon: I.atom, tone: "var(--brand2)",
-        sub: F ? `${NUM(F.crqc_trajectory.blended_estimate_years, 1)} years · ${H(F.crqc_trajectory.confidence)} confidence` : "" })}
-    </div>
-
-    ${sec("Probability distribution", bind(fc, (d) => {
-      const dist = (d.distribution || []).map(x => ({ k: x.year, v: x.cumulative_pct }));
-      return card("Cumulative probability of CRQC by year", areaChart(dist, { color: "var(--brand2)", yFmt: v => PCT(v), label: "CRQC probability" }), {
-        icon: I.chart,
-        sub: `Physical path ${NUM(d.crqc_trajectory?.physical_path_years, 1)}y · logical path ${NUM(d.crqc_trajectory?.logical_path_years, 1)}y · blended ${NUM(d.crqc_trajectory?.blended_estimate_years, 1)}y`,
-        act: `${basisBadge(d)}<span class="pill ${TONE(d.crqc_trajectory?.confidence)}">${H(TITLE(d.crqc_trajectory?.confidence || ""))} confidence</span>`,
-      });
-    }, "/qday-forecast"))}
-
-    <div class="g g-3-2">
-      ${bind(cd, (d) => card("Migration milestones", `<div class="tl">${(d.milestones || []).map(m => {
-        // Status says what the date is (a published rule, a passed or current target, or a model year), never "done".
-        const st = String(m.status || "").toLowerCase();
-        const cls = st === "published" || st === "target_date_passed" ? "done" : st === "target_year_current" || m.year === nowY ? "now" : "next";
-        const tag = { published: "published", target_date_passed: "target date passed", target_year_current: "this year", model_projection: "model" }[st] || "";
-        return `<div class="tli ${cls}"><div class="ty">${H(m.year)}${tag ? ` <small>${H(tag)}</small>` : ""}</div>
-          <div class="te">${H(m.event)}${m.source ? `<span class="sub">${H(m.source)}</span>` : ""}</div></div>`;
-      }).join("")}</div>`, { icon: I.flag, sub: "CNSA 2.0, NSM-10 and NIST IR 8547 target dates", act: basisBadge(d) }), "/qday/countdown")}
-      ${bind(actors, (d) => {
-        const list = rows(d, "threat_actors", "actors");
-        // The endpoint returns actor/strategy/attribution/known_targets; this panel
-        // used to read name/description, so every row rendered blank.
-        const named = list.filter(a => String(a.actor || a.name || a.id || "").trim());
-        // Actor intelligence is only shown when the source provides it; unsourced attribution is not.
-        if (!named.length) return card("Threat actors", `<div class="empty">${I.target}<b>Not provided</b>
-          <p>${H(d?.model_basis?.summary || "This workspace does not include attributed threat-actor intelligence.")}</p></div>`,
-          { icon: I.target, act: basisBadge(d) });
-        return card("Threat actors", named.length ? `<div class="stack">${named.map(a => {
-          const targets = Array.isArray(a.known_targets) ? a.known_targets : [];
-          const line = [a.strategy, a.attribution].filter(Boolean).join(" · ");
-          const tone = a.risk_to_your_data || a.capability || a.tier;
-          return `<div class="actorRow">
-            <div class="grow"><b>${H(a.actor || a.name || a.id)}</b>
-            ${line ? `<span class="actorLine">${H(line)}</span>` : ""}
-            ${targets.length ? `<span class="actorTargets">${H(targets.slice(0, 3).join(" / "))}</span>` : ""}
-            ${a.q_day_timeline_belief ? `<span class="actorBelief">${H(String(a.q_day_timeline_belief).slice(0, 120))}</span>` : ""}</div>
-            ${tone ? pill(tone) : ""}</div>`;
-        }).join("")}</div>`
-          : autoKV(d), { icon: I.target, sub: `${NUM(named.length)} actors with plausible harvest capability` });
-      }, "/qday-forecast/threat-actors")}
-    </div>
-
-    ${sec("Quantum intelligence feed", bind(feed, (d) => {
-      const list = rows(d, "milestones", "events");
-      return card("Hardware milestones", table([
-        { h: "Date", f: x => `<b class="m">${H(String(x.date || "").slice(0, 10))}</b>${x.is_seed ? `<span class="sub" title="Published milestone shipped with the platform; add your own with Ingest milestone">reference</span>` : ""}` },
-        { h: "Org", f: x => `<b>${H(x.org || "—")}</b><span class="sub">${H(x.system || "")}</span>` },
-        { h: "Qubits", num: true, f: x => NUM(x.qubit_count) },
-        { h: "Logical eq.", num: true, f: x => NUM(x.logical_qubits_eq, 1) },
-        { h: "Error rate", num: true, f: x => x.error_rate != null ? Number(x.error_rate).toExponential(1) : "—" },
-        { h: "Significance", f: x => pill(x.significance) },
-        { h: "Headline", f: x => `<span style="font-size:11.5px">${H(String(x.headline || "").slice(0, 110))}</span>${x.source_url ? ` <a href="${H(x.source_url)}" target="_blank" rel="noopener noreferrer">source</a>` : ""}` },
-      ], list, { max: "440px", empty: "No intelligence records ingested" }), {
-        icon: I.atom, flush: true,
-        sub: `${NUM(list.length)} tracked milestones${d.seed_count ? ` · ${NUM(d.seed_count)} published reference` : ""}`,
-        act: `${basisBadge(d)}${actBtn("Ingest milestone", "qiNew", { cls: "btn sm", icon: I.plus })}`,
-      });
-    }, "/q-intel/feed"))}
-
-    ${sec("Simulation", `<div class="g g2">
-      ${bind(sim, (d) => card("Quantum attack simulation graph", forceGraph(rows(d, "nodes"), d.edges || [], { h: 330 }), {
-        icon: I.flask, sub: "Modelled attack surface under quantum capability",
-        act: actBtn("Detonate", "detonate", { cls: "btn sm danger", icon: I.zap }) }), "/quantum-sim/graph")}
-      ${card("Red team — Q-Day event", `
-        <p style="font-size:12.5px;color:var(--ink2);line-height:1.55;margin:0 0 14px">
-          Simulate a Q-Day break against your live inventory to see which assets fail first, what the blast radius is,
-          and how long remediation would take at current velocity.</p>
-        <div class="row">${actBtn("Run Q-Day simulation", "redTeam", { cls: "btn sm pri", icon: I.play })}
-        ${actBtn("Emergency response plan", "emergency", { cls: "btn sm" })}</div>
-        <div id="rtOut" style="margin-top:14px"></div>`, { icon: I.fire, sub: "Adversary emulation" })}
-    </div>`)}`;
-  navBadge("qday", "");
+  host.innerHTML = `${viewLead("Quantum Risk / Quantum threat board", "How close Q-Day is, with every source.",
+    "This screen moved to the quantum threat board.")}
+    <p>Opening <a href="/threat">the quantum threat board</a>&hellip;</p>`;
+  location.replace("/threat");
 };
 ACTIONS.qiNew = () => modal("Ingest a quantum milestone", `<div class="col">
   ${[["date", "2026-01-15"], ["org", "IBM"], ["system", "Condor"], ["qubit_count", "1121"], ["headline", "Milestone description"], ["source_url", "https://…"]]
@@ -10708,8 +10625,8 @@ const GUIDE = [
       put in a budget request.</p>
       <p><b>How the model works:</b> exposure = data value × P(broken by Q-Day) × criticality
       multiplier × harvest-window factor. Press <b>Why</b> on any row to see the exact arithmetic for
-      that asset — no black box. The Q-Day year used here comes from the same quantum model as the
-      Q-Day Forecast screen, so the two screens agree.</p>
+      that asset — no black box. The Q-Day year used here comes from the console's own quantum model;
+      the expert estimate Morrow quotes elsewhere, with its sources, is on the quantum threat board.</p>
       <p><b>What you see:</b></p>
       <ul>
         <li><b>Risk tiers</b>: a ring showing how many assets are critical, high, medium or low.</li>
@@ -10734,24 +10651,17 @@ const GUIDE = [
       exposure.</p>
       <p><b>If it says nothing:</b> add data-lifetime and criticality metadata in Asset Inventory —
       the model has nothing to work with otherwise.</p>` },
-    { id: "g-qday", n: "Q-Day Forecast", i: I.clock, body: `
-      <p><b>What it is:</b> when cryptographically relevant quantum computing becomes plausible, and
-      the evidence behind that estimate.</p>
-      <p><b>What it shows:</b> optimistic / median / conservative estimates and a blended CRQC year, a
-      cumulative probability curve, migration milestones (CNSA 2.0, NSM-10 and NIST IR 8547 target
-      dates), a <b>Threat actors</b> panel, a feed of quantum hardware milestones with sources, and a
-      simulation area (<b>Run Q-Day simulation</b>, <b>Emergency response plan</b>).</p>
-      <p><b>Where the numbers come from:</b> every Q-Day year in the console comes from one quantum
-      model, so this screen, HNDL Exposure and the Overview agree. Panels carry a <b>Model</b> or
-      <b>Reference data</b> badge; hover it for the date, sources and assumptions. Milestones are tagged
-      <b>published</b>, <b>target date passed</b>, <b>this year</b> or <b>model</b>, so a projection is
-      never shown as a done deal. Milestones that ship with the platform are marked <b>reference</b>;
-      add your own with <b>Ingest milestone</b>.</p>
-      <p><b>Threat actors:</b> the panel only lists actors when the data source provides sourced
-      intelligence. Otherwise it says <b>Not provided</b>; the console does not invent attribution.</p>
-      <p><b>How to use it:</b> use the <em>conservative</em> date for planning and the
-      <em>optimistic</em> one for risk. Compare your migration deadline against the regulatory
-      milestones — those are contractual, not speculative.</p>` },
+    { id: "g-qday", n: "Quantum threat board", i: I.clock, body: `
+      <p><b>What it is:</b> the public page at <a href="/threat">/threat</a> that shows how close a
+      quantum computer able to break RSA is, and why Morrow says the year it does. It replaced the
+      Q-Day Forecast screen; the old address forwards there.</p>
+      <p><b>What it shows:</b> one headline estimate from a cited expert survey, then three sections:
+      the machines (physical and logical qubits over time), the attack cost (published estimates of
+      what breaking RSA-2048 and 256-bit elliptic curves would take) and the deadlines governments
+      have set. Every number links its primary source and quote; vendor figures are labelled as claims.</p>
+      <p><b>Where the numbers come from:</b> one reviewed, versioned dataset in git. Nothing is scraped;
+      the estimate changes only when that file is edited. The risk sentence, the harvest clock and the
+      public grade read their year from it.</p>` },
     { id: "g-graph", n: "Blast Radius", i: I.network, body: `
       <p><b>What it is:</b> the relationship map. Cryptographic risk is rarely isolated — one
       certificate authority can underpin hundreds of services.</p>

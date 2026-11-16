@@ -2056,6 +2056,7 @@ _SITEMAP_PAGES = (
     ("/public-check/privacy", "0.4", "yearly"),
     ("/abuse", "0.5", "yearly"),
     ("/about-scanner", "0.5", "monthly"),
+    ("/threat", "0.6", "monthly"),
     ("/terms", "0.3", "yearly"),
     ("/privacy", "0.3", "yearly"),
     ("/dpa", "0.3", "yearly"),
@@ -2620,6 +2621,8 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/abuse", "purpose": "abuse reports and the never-check-my-domain opt-out"},
             {"path": "/scanner", "purpose": "the old scanner identity page; redirects to /about-scanner"},
             {"path": "/about-scanner", "purpose": "the MorrowPQCheck user agent: what the grade, outside-service and watch checks send, how often, and the opt-out"},
+            {"path": "/threat", "purpose": "the quantum threat board: cited evidence of how close a quantum computer that breaks RSA is, and why Morrow says the year it does"},
+            {"path": "/api/public/threat", "purpose": "the threat board's reviewed dataset, its estimate and its sources; /threat.atom lists its editions"},
             {"path": "/api/public/claim/{domain}", "purpose": "whether a domain's owner claimed it by DNS, since when, and their public reply; never who"},
             {"path": "/api/public/watch-feed/{token}.atom", "purpose": "a person's private feed of changes on the domains they watch; the random token is the credential"},
             {"path": "/auth/login", "purpose": "credential exchange"},
@@ -11598,6 +11601,11 @@ app.include_router(create_public_grade_router(_PlatformAdminDeps(
 )))
 app.add_middleware(PublicApiCorsMiddleware)
 _register_platform_schema("public_grade", lambda *_: _public_grade.init_tables())
+# The quantum threat board's data (routers/threat_board.py): the reviewed, cited dataset behind
+# Morrow's quantum-year estimate; read-only, contacts nothing. The page is /threat (routers/instrument.py).
+from routers.threat_board import create_threat_board_router  # noqa: E402
+
+app.include_router(create_threat_board_router())
 # Make it safe (services/make_safe.py, routers/make_safe.py): the fix for the host's own stack, spaced
 # re-checks through the public grade above, and the signed quantum-safe proof at /r/{domain}/proof.
 # Public under /api/public and /r, which the auth gate already lets through; no tenant data.

@@ -1,0 +1,53 @@
+/* /threat, the quantum threat board (instrument-threat.js). Tokens from instrument.css.
+   Two series colours, checked for colour-blind separation and contrast in both themes; every
+   series also has its own shape, so colour is never the only cue. */
+.ins { --tb-s1: #c4871a; --tb-s2: #8a6cec; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .ins { --tb-s1: #7a5a00; --tb-s2: #6a3fb0; } }
+:root[data-theme="light"] .ins { --tb-s1: #7a5a00; --tb-s2: #6a3fb0; }
+
+.tb-head { margin: 4px 0 20px; max-width: 62rem; }
+.tb-head h1 { font-size: clamp(22px, 3.4vw, 34px); line-height: 1.2; font-weight: 600; margin: 0 0 8px; letter-spacing: -.01em; }
+.tb-sub { color: var(--muted); margin: 0; }
+.tb-lede { margin: 0 0 12px; max-width: 70ch; }
+.tb-quote { margin: 12px 0; padding: 4px 0 4px 14px; border-left: 2px solid var(--line-2); color: var(--text); }
+.tb-quote p { margin: 0 0 6px; }
+.tb-quote footer { color: var(--muted); font-size: 13px; }
+
+.tb-chart { margin: 8px 0 4px; }
+.tb-svg { display: block; width: 100%; height: auto; max-height: 340px; overflow: visible; }
+.tb-axis text { fill: var(--dim); font: 11px var(--mono); }
+.tb-grid { stroke: var(--line); stroke-width: 1; }
+.tb-base, .tb-tick { stroke: var(--line-2); stroke-width: 1; }
+.tb-now { stroke: var(--line-2); stroke-width: 1; stroke-dasharray: 3 3; }
+.tb-mk { stroke: var(--bg-2); stroke-width: 2; }
+.tb-mk.tb-s1 { fill: var(--tb-s1); }
+.tb-mk.tb-s2 { fill: var(--tb-s2); }
+.tb-mk.tb-hollow { fill: var(--bg-2); stroke-width: 2; }
+.tb-mk.tb-hollow.tb-s1 { stroke: var(--tb-s1); }
+.tb-mk.tb-hollow.tb-s2 { stroke: var(--tb-s2); }
+.tb-bound { fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.tb-bound.tb-s1 { stroke: var(--tb-s1); }
+.tb-bound.tb-s2 { stroke: var(--tb-s2); }
+.tb-pt:hover .tb-mk { stroke: var(--text); }
+
+.tb-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 4px; padding: 0; font-size: 13px; color: var(--muted); }
+.tb-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.tb-legend svg { flex: none; overflow: visible; }
+
+.tb-data { margin-top: 8px; }
+.tb-data summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 6px 0; }
+.tb-data summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tb-data .i-table td { font-size: 13px; }
+
+.tb-tag { display: inline-block; font: 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); border: 1px solid var(--line-2); padding: 1px 5px; margin-top: 3px; }
+.tb-tag[data-claim="vendor_claim"], .tb-tag[data-claim="roadmap"], .tb-tag[data-claim="preprint"] { color: var(--warn); border-color: currentColor; }
+.tb-tag[data-claim="stale"] { color: var(--bad); border-color: currentColor; }
+
+.tb-tl { list-style: none; margin: 0; padding: 0; }
+.tb-yr { display: grid; grid-template-columns: 4.2rem minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.tb-yr:first-child { border-top: 0; }
+.tb-y { font: 600 15px var(--mono); color: var(--ch); }
+.tb-yr ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tb-past { color: var(--muted); }
+@media (max-width: 520px) { .tb-yr { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+@media (forced-colors: active) { .tb-mk, .tb-bound { forced-color-adjust: none; } }

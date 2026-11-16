@@ -94,10 +94,10 @@ const ENTERPRISE_VIEWS = [
   ["g-airlock", "Airlock Guide"],
   ["g-trust-passport", "Passport Guide"],
 ];
-// Not in the sidebar: Overview's "Why it matters" panel opens each of these.
+// Not in the sidebar: Overview's "Why it matters" panel opens each of these. Its "When it could be
+// read" line (qday) leaves the console for the quantum threat board at /threat, checked below.
 const WHY_VIEWS = [
   ["hndl", "HNDL Exposure"],
-  ["qday", "Q-Day Forecast"],
   ["graph", "Blast Radius"],
   ["canaries", "Canaries & QTISN"],
 ];
@@ -200,6 +200,11 @@ async function testMainUi(page) {
       throw new Error(`view '${id}' rendered its failure card instead of content`);
     }
   }
+
+  log("the old Q-Day Forecast address forwards to the quantum threat board");
+  await page.goto(`${baseUrl}/ui/#qday`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await page.waitForURL(/\/threat$/, { timeout: viewTimeoutMs });
+  await page.locator("#tb-h1").waitFor({ timeout: viewTimeoutMs });
 
   log("deep link restores a view");
   await page.goto(`${baseUrl}/ui/#governance`, { waitUntil: "domcontentloaded", timeout: 30000 });
