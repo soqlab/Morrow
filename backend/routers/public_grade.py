@@ -1,6 +1,7 @@
 """The public quantum-readiness grade API, for soqlab.com and for terminals.
 
-  GET /api/public/grade/{domain}          the graded result (JSON); ?fresh=1 re-checks
+  GET /api/public/grade/{domain}          the graded result (JSON); ?fresh=1 re-checks; ?stored=1 only
+                                          reads the newest stored result (404 if none), never checks
   GET /api/public/grade/{domain}.txt      the same, as ~15 plain lines for curl
   GET /api/public/badge/{domain}.svg      a shields-style "quantum-ready | A" badge
   GET /api/public/stats                   aggregate counts only
@@ -87,13 +88,30 @@ def create_public_grade_router(deps: Any) -> APIRouter:
                                  headers={"Cache-Control": "no-store" if _truthy(fresh) else _RESULT_CACHE})
 
     @router.get("/grade/{domain}")
-    async def public_grade_json(request: Request, domain: str, fresh: str = ""):
+    async def public_grade_json(request: Request, domain: str, fresh: str = "", stored: str = ""):
         try:
-            result = await run_in_threadpool(_grade.check, domain, _ip(request), _truthy(fresh))
+            if _truthy(stored):
+                result = await run_in_threadpool(_stored, domain)
+            else:
+                result = await run_in_threadpool(_grade.check, domain, _ip(request), _truthy(fresh))
         except _grade.GradeError as exc:
             return JSONResponse(exc.as_dict(), status_code=exc.status_code, headers=_error_headers(exc))
         result = _with_risk(result)
         return JSONResponse(result, headers={"Cache-Control": "no-store" if _truthy(fresh) else _RESULT_CACHE})
+
+    def _stored(domain: str) -> Any:
+        """?stored=1: the newest stored result, however old, and never a new check (an assistant over
+        MCP reads with this; services/mcp_access.py)."""
+        from services import public_check
+
+        host = _grade.normalize(domain)
+        covered = public_check.opted_out(host)
+        if covered:
+            raise _grade.GradeError(403, "refused_optout", f"{covered} has asked not to be checked by this service.")
+        result = _grade.latest(host)
+        if result is None:
+            raise _grade.GradeError(404, "not_graded", f"Morrow has no grade stored for {host} yet. Open /{host} to check it.")
+        return result
 
     def _with_risk(result: Any) -> Any:
         """The one-sentence risk (default kind of data) next to the grade; the grade stands without it."""
