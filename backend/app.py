@@ -11484,6 +11484,18 @@ _fire_drill_router = create_fire_drill_router(_require_role)
 app.include_router(_fire_drill_router)
 app.include_router(_fire_drill_router, prefix="/v1")
 
+# Board slide in one click: one 16:9 slide (PPTX, PDF) from the risk sentence, the harvest-clock
+# deadline, the most honest trend and the fix queue (services/board_slide.py). Members download it.
+from routers.board_slide import create_board_slide_router  # noqa: E402
+from services import board_slide as _board_slide  # noqa: E402
+_board_slide.ORG_NAME = lambda org_id: (lambda n: "" if n == "Unknown Organization" else n)(
+    str(_report_organization_record(org_id).get("name") or "").strip())
+_board_slide.FIX_NEXT = lambda: list(api_fix_next(scan_id=None, limit=10, min_severity=None, owner=None, team=None,
+                                                  environment=None, criticality=None, tag=None).get("items") or [])
+_board_slide_router = create_board_slide_router(_require_role)
+app.include_router(_board_slide_router)
+app.include_router(_board_slide_router, prefix="/v1")
+
 # Wall mode: one sentence and one number on an office screen, opened by a display link
 # (services/display_links.py). The screen's token reads GET /api/public/wall and nothing else.
 from routers.display_links import create_display_links_router  # noqa: E402
