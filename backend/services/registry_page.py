@@ -45,8 +45,8 @@ _STYLES = (
 #: "Your connection, right now", after the footer so its arrival moves nothing on the page.
 _CONN_SCRIPT = "/ui/conn-line.js?v=20261116"
 #: Done, on a record that is not quantum-safe (services/make_safe_done.py).
-DONE_STYLE = "/ui/make-safe-done.css?v=20261118"
-DONE_SCRIPT = "/ui/make-safe-done.js?v=20261118"
+DONE_STYLE = "/ui/make-safe-done.css?v=20261118b"
+DONE_SCRIPT = "/ui/make-safe-done.js?v=20261118b"
 
 #: The record's own links in the top strip. The old marketing navigation is gone; this goes to the
 #: instrument's one input, which is where a visitor checks another domain.

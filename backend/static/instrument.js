@@ -495,6 +495,7 @@
   var segs = location.pathname.replace(/\/+$/, "").split("/").filter(Boolean).map(decodeURIComponent);
   function route() {
     var s0 = segs[0] || "";
+    var sayEl = $("#say"); if (sayEl) sayEl.classList.remove("i-say-head");
     if (!s0) return viewHome();
     if (s0 === "league") return viewLeague();
     if (s0 === "atlas") return workspace().then(function (w) { location.replace(w ? "/estate" : "/league"); });
@@ -528,23 +529,43 @@
      link or capture (paste.js, services/paste_anything.py); the answer appears under it. */
   var HOME_HINT = "The exact change for your server, a re-check once it is live, and a signed proof. Anything else: Ctrl K.";
   var PASTE_HINT = "Or paste or drop a certificate, a server or SSH config file, a CBOM, a repo link or a .pcap.";
+  /* The hook for anything that adds to a Make it safe action (a "Done" button, say): the container
+     it renders in (#home-make-safe on the home page, #gd-make-safe on guided mode's answer) is
+     announced once with a "morrow:make-safe-action" event, detail { source, domain, container }. */
+  function makeSafeRendered(container, detail) {
+    if (!container) return;
+    var d = { source: detail.source, domain: detail.domain || null, container: container };
+    try { document.dispatchEvent(new CustomEvent("morrow:make-safe-action", { detail: d })); } catch (e) { /* old browser: no hook */ }
+  }
   function viewHome() {
+    // Guided mode (instrument-guided.js): three questions and one answer, when this visitor chose it.
+    var guided = window.MorrowGuided;
+    if (guided && guided.on()) { guided.start(main); return; }
     setView("grade", null);
-    say(byDepth({ plain: "Type your website's address. Morrow shows the one change that keeps its traffic safe from future quantum computers.",
-      standard: "Type your domain. Morrow grades it, names what serves it and shows the change that makes it quantum-safe.",
-      expert: "Hostname → live grade, terminating stack, the vendor-sourced change, a watched re-check and a signed proof. Ctrl K for algorithms, CVEs, commits." }));
+    // Home's line is a plain headline, not a quotation (instrument-board.css: .i-say-head).
+    var sayEl = $("#say"); if (sayEl) sayEl.classList.add("i-say-head");
+    say(byDepth({ plain: "Type your website’s address. See if it’s safe from future quantum computers. Make it safe.",
+      standard: "Type your domain. See if it’s quantum-safe. Make it safe.",
+      expert: "Type a hostname. See its live grade and the exact change. Make it safe." }));
     main.innerHTML = '<form class="i-safe" id="home-form" novalidate>' +
-      '<label class="i-safe-l" for="home-q">Type your domain</label>' +
+      '<div class="i-safe-top"><label class="i-safe-l" for="home-q">Type your domain</label>' + (guided ? guided.switchHtml(false) : "") + "</div>" +
       '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
       '<textarea id="home-q" name="domain" rows="1" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint home-also"></textarea></div>' +
-      '<button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div>' +
+      // #home-make-safe: where the home page's Make it safe action renders (see makeSafeRendered).
+      '<div class="i-safe-act" id="home-make-safe"><button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div></div>' +
       '<p class="i-fine pa-also" id="home-also">' + esc(PASTE_HINT) + ' <button type="button" class="pa-pick" id="home-pick">Choose a file</button>' +
       '<input type="file" id="home-file" class="sr-only" tabindex="-1" aria-hidden="true"></p>' +
       '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p>' +
       // The space is held by an invisible copy of the longest sentence, so the line arriving moves nothing.
-      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div>';
+      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p><p class="i-fine i-back" id="home-back" aria-live="polite" hidden></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div><div id="home-board"></div>';
     var input = $("#home-q"), hint = $("#home-hint");
-    input.addEventListener("input", function () { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; });
+    if (guided) guided.bindSwitch($("#home-form"));
+    // As you type: a domain that will work is answered at once, encouragingly; nothing scolds mid-word.
+    input.addEventListener("input", function () {
+      var d = asDomain(input.value);
+      if (d && !(paste && paste.wants(input.value))) { hint.setAttribute("data-tone", "ok"); hint.textContent = "Ready: press Enter or Make it safe to check " + d + " now."; }
+      else { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; }
+    });
     var paste = window.MorrowPaste;
     if (paste) paste.attach({ form: $("#home-form"), input: input, hint: hint, out: $("#paste-out") });
     $("#home-form").addEventListener("submit", function (e) {
@@ -557,23 +578,16 @@
         input.focus();
         return;
       }
+      remember("domain", d, d);
       location.href = "/r/" + d;
     });
+    makeSafeRendered($("#home-make-safe"), { source: "home", domain: null });
     input.focus();
     connection().then(function (c) { var t = $("#home-conn"); if (t) t.textContent = connLine(c); });
-    workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
-  }
-  function homePublic() {
-    var box = $("#home-reading");
-    box.innerHTML = '<div class="ch-grid"><div class="span-12">' + panel("", "Checked on this server", '<dl class="readouts" id="home-stats"></dl><p class="i-fine" id="home-stats-n"></p>', { ch: "league" }) + "</div>" +
-      '<div class="span-12">' + panel("", "By sector", '<div id="home-sectors" class="i-muted">Reading&hellip;</div>', { ch: "league", right: '<a href="/league">trend over time</a>' }) + "</div></div>";
-    getJSON("/api/public/stats").then(function (s) {
-      $("#home-stats").innerHTML = reading("Checks, 7 days", num(s.public_checks_7d)) + reading("Domains checked", num(s.domains_checked)) +
-        reading("Post-quantum, 7 days", pct(s.pq_share_7d), "v-ok");
-      $("#home-stats-n").textContent = depth === "expert" ? "From this server's stored results at " + stamp(s.generated_at) + ", rubric " + s.rubric_version + "." : "";
-    }).catch(function (e) { $("#home-stats").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
-    getJSON("/api/public/league").then(function (L) { $("#home-sectors").innerHTML = sectorRows(L.sectors || [], false); paintBars(); })
-      .catch(function (e) { $("#home-sectors").textContent = e.message; });
+    // The live board is public: it is painted for everyone, signed in or not, from /api/public only
+    // (instrument-board.js). Signed in, your estate is shown above it as well.
+    if (window.MorrowBoard) { window.MorrowBoard.mount($("#home-board")); window.MorrowBoard.welcomeBack($("#home-back")); }
+    workspace().then(function (w) { if (w) homeSignedIn(); });
   }
   function homeSignedIn() {
     var box = $("#home-reading");
@@ -1879,6 +1893,7 @@
   /* What instrument-watch.js (watch mode, claims, /about-scanner) builds its views with. */
   window.MorrowIns = { $: $, $$: $$, esc: esc, enc: enc, getJSON: getJSON, panel: panel, reading: reading, say: say, setView: setView,
     status: status, stamp: stamp, day: day, ago: ago, copy: copy, flash: flash, byDepth: byDepth, depth: function () { return depth; },
+    param: param, setParam: setParam, asDomain: asDomain, gradeChip: gradeChip, makeSafeRendered: makeSafeRendered, remember: remember,
     token: token, workspace: workspace, main: main };
 
   /* ── start ─────────────────────────────────────────────────────────────── */

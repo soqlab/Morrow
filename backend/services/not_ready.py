@@ -21,12 +21,15 @@ Corrections: anyone can ask for a correction (domain, reason, contact). Requests
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import threading
+import time
 import unicodedata
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from db_feature_store import feature_conn
@@ -173,6 +176,119 @@ def entries(sector: str = "") -> Dict[str, Any]:
         "sectors": sorted({(e["sector"], e["sector_name"]) for e in out}, key=lambda x: x[1]),
         "methodology": methodology(meta),
     }
+
+
+PAGE_CACHE_SECONDS = 300.0
+PAGE_MAX = 500
+_page_cache: Dict[str, Any] = {}
+
+
+def _page_version() -> str:
+    """What the computed list depends on: the store, the stored checks, the Tranco list, the sectors.
+    Any new or removed check changes it, so a cached list is never older than the newest grade."""
+    from services import league, public_grade, tranco
+
+    public_grade.init_tables()
+    with feature_conn() as conn:
+        row = conn.execute("SELECT COUNT(*) AS n, MAX(id) AS m FROM public_grade_checks").fetchone()
+    spec = json.dumps(league.load_spec(), sort_keys=True, default=str)
+    return "|".join([os.getenv("MORROW_FEATURE_STORE_BACKEND", ""), os.getenv("MORROW_SCANNER_DB", ""),
+                     os.getenv("DATABASE_URL", "")[:12], str(row["n"]), str(row["m"]),
+                     json.dumps(tranco.meta(), sort_keys=True, default=str), hashlib.sha256(spec.encode()).hexdigest()])
+
+
+def _build_named() -> Dict[str, Any]:
+    """Every Tranco site's newest grade, in one pass, split at B: below B (this list) and A or B (the
+    front page's "checked this week: quantum-safe"). Each keeps its Tranco position, so the front page
+    can show the best-known sites first; the position is popularity, never a judgement of the site."""
+    from services import decrypt_window, league, public_check, public_grade, tranco
+
+    spec = league.load_spec()
+    classifier = league.Classifier(spec)
+    names = {s["id"]: s["name"] for s in spec["sectors"]}
+    names[league.UNCLASSIFIED] = "Other popular sites"
+    optouts = league._optout_entries()
+    below: List[Dict[str, Any]] = []
+    ready: List[Dict[str, Any]] = []
+    for position, d in enumerate(tranco.domains()):
+        if league._covered(d, optouts) or public_check.opted_out(d):
+            continue
+        latest = public_grade.latest(d)
+        if not latest or latest.get("grade") not in public_grade.GRADES:
+            continue
+        sid = classifier.classify(d)
+        kx = latest.get("key_exchange") or {}
+        row = {"domain": d, "sector": sid, "sector_name": names.get(sid, sid), "grade": latest.get("grade"),
+               "checked_at": latest.get("scanned_at"), "key_exchange": kx.get("group") or None, "_position": position}
+        if latest.get("grade") in READY:
+            row["post_quantum"] = bool(kx.get("post_quantum"))
+            ready.append(row)
+        else:
+            ex = latest.get("exposure") or {}
+            row.update({"statement": statement(latest), "decrypt_year_low": ex.get("decrypt_year_low"),
+                        "decrypt_year_high": ex.get("decrypt_year_high"),
+                        "source_url": ex.get("source_url") or decrypt_window.EXPOSURE_SOURCE_URL})
+            below.append(row)
+    for rows in (below, ready):
+        rows.sort(key=lambda e: (e["sector_name"], e["domain"]))
+    return {"not_ready": below, "ready": ready, "methodology": methodology(tranco.meta())}
+
+
+def page(sector: str = "", q: str = "", order: str = "name", limit: int = 0, kind: str = "not_ready",
+         days: int = 0) -> Dict[str, Any]:
+    """A slice for the front page: one sector, a domain search, by name, newest check or best-known first.
+
+    ``kind`` is ``not_ready`` (this list) or ``ready`` (well-known sites whose newest check is A or B).
+    ``order``: ``name``; ``checked`` (newest check first); ``popular`` (Tranco position first: the
+    best-known sites, a popularity order, never a ranking by grade). ``days`` keeps checks from the last
+    N days. The pass over every Tranco site is kept until a check is stored or PAGE_CACHE_SECONDS pass;
+    opt-outs and owners' replies are applied fresh on every call, so an opted-out domain disappears at
+    once. ``count`` is the whole list for the sector (and days), ``matched`` the entries matching ``q``.
+    """
+    from services import league, public_grade
+
+    sector = str(sector or "").strip().lower()[:40]
+    needle = str(q or "").strip().lower()[:80]
+    order = order if order in ("checked", "popular") else "name"
+    kind = "ready" if kind == "ready" else "not_ready"
+    limit = max(0, min(PAGE_MAX, int(limit or 0)))
+    days = max(0, min(400, int(days or 0)))
+    version = _page_version()
+    hit = _page_cache.get("all")
+    if not hit or hit[1] != version or time.monotonic() - hit[0] > PAGE_CACHE_SECONDS:
+        hit = (time.monotonic(), version, _build_named())
+        _page_cache["all"] = hit
+    full = hit[2]
+    optouts = league._optout_entries()
+    replies = _replies() if kind == "not_ready" else {}
+    rows = [e for e in full[kind] if not league._covered(e["domain"], optouts)]
+    if days:
+        since = public_grade.iso(public_grade.now_utc() - timedelta(days=days))
+        rows = [e for e in rows if str(e.get("checked_at") or "") >= since]
+    in_sector = [e for e in rows if not sector or e["sector"] == sector]
+    matched = [e for e in in_sector if needle in e["domain"]] if needle else in_sector
+    if order == "checked":
+        matched = sorted(sorted(matched, key=lambda e: e["domain"]), key=lambda e: str(e.get("checked_at") or ""), reverse=True)
+    elif order == "popular":
+        matched = sorted(matched, key=lambda e: e["_position"])
+    shown = matched[:limit] if limit else matched
+    out_rows = []
+    for e in shown:
+        row = {k: v for k, v in e.items() if not k.startswith("_")}
+        if kind == "not_ready":
+            row["reply"] = replies.get(e["domain"])
+        out_rows.append(row)
+    return {
+        "title": "Not yet post-quantum" if kind == "not_ready" else "Quantum-safe, well-known sites",
+        "kind": kind, "entries": out_rows, "count": len(in_sector),
+        "matched": len(matched), "sector": sector or None, "query": needle or None, "order": order, "days": days or None,
+        "sectors": sorted({(e["sector"], e["sector_name"]) for e in rows}, key=lambda x: x[1]),
+        "methodology": full["methodology"],
+    }
+
+
+def clear_cache() -> None:
+    _page_cache.clear()
 
 
 def methodology(meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

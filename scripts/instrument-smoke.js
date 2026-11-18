@@ -98,10 +98,18 @@ async function main() {
 
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
     await page.locator("#home-q").waitFor();
-    // Signed out it shows public counts; with a workspace (CI runs without sign-in) it reads the estate.
-    await page.waitForFunction(() => document.querySelector("#home-stats .reading, #home-stats .i-empty, #home-estate p, #home-estate .scrub") !== null, null, { timeout: 30000 });
-    const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running").length);
-    assert.equal(running, 0, "something animates on its own after load");
+    // The live board is public and painted for everyone; with a workspace the estate is shown above it.
+    await page.waitForFunction(() => {
+      const busy = document.querySelectorAll("#board [aria-busy=true]").length;
+      const big = document.querySelector("#fb-big");
+      return !busy && big && (big.textContent.trim() !== "" || document.querySelector("#fb-h.fb-h-off"));
+    }, null, { timeout: 30000 });
+    for (const href of ["/league", "/report", "/changes", "/threat", "/vendors", "/abuse"]) {
+      assert.ok(await page.locator(`#board a[href="${href}"]`).count(), `the board does not link ${href}`);
+    }
+    // Bars grow in and a fresh change is marked once when the data lands; nothing may keep moving.
+    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 6000 })
+      .catch(() => { throw new Error("something animates on its own after load"); });
     assert.ok(await page.locator("#i-build").innerText(), "the commit line is empty");
 
     // Home is one domain input whose action is Make it safe; nonsense is refused in place.
@@ -115,6 +123,19 @@ async function main() {
     await page.waitForURL(`${base}/r/${SMOKE_DOMAIN}`);
     assert.equal(await page.locator(`.actions a.btn[href="/${SMOKE_DOMAIN}#make-safe"]`).textContent(), "Make it safe");
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
+
+    // Guided mode: a switch beside the domain box, off by default; /?guided=1 starts it, /?guided=0 ends it.
+    assert.equal(await page.locator('#home-form .gd-switch [data-guided="0"]').getAttribute("aria-pressed"), "true");
+    await page.goto(`${base}/?guided=1`, { waitUntil: "networkidle" });
+    await page.locator("#gd-domain").waitFor();
+    assert.equal(await page.locator("#home-form").count(), 0, "guided mode still shows the browse view");
+    await page.fill("#gd-domain", SMOKE_DOMAIN);
+    await page.keyboard.press("Enter");
+    await page.locator('[data-role="supplier"]').waitFor();
+    await page.locator("#gd-back").click();
+    assert.equal(await page.locator("#gd-domain").inputValue(), SMOKE_DOMAIN);
+    await page.goto(`${base}/?guided=0`, { waitUntil: "networkidle" });
+    await page.locator("#home-q").waitFor();
 
     // Everything else is in the command bar.
     await page.locator("body").click();

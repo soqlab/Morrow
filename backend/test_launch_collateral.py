@@ -416,7 +416,7 @@ def test_make_it_safe_is_the_one_action_on_home_and_the_console():
     land on the domain's record at /r/<domain>, whose primary action is Make it safe."""
     static = pathlib.Path(__file__).parent / "static"
     home = (static / "instrument.js").read_text(encoding="utf-8")
-    view = home[home.index("function viewHome()"):home.index("function homePublic()")]
+    view = home[home.index("function viewHome()"):home.index("function homeSignedIn()")]
     assert '<form class="i-safe" id="home-form"' in view
     assert ">Make it safe</button>" in view
     assert 'location.href = "/r/" + d' in view

@@ -18,6 +18,8 @@
   GET /api/public/deploys                 the hash-chained deploy log (services/deploy_log.py)
   GET /api/public/manifest                signed hashes of every /ui/ file (services/page_manifest.py)
   GET /api/public/league                  the sector league table (services/league.py)
+  GET /api/public/guided/{domain}         guided mode's one answer (services/guided.py): ?role=&data=&jur=
+  GET /api/public/checked-safe            well-known sites whose newest check is A or B (services/not_ready.page)
 
 Unauthenticated by design (listed in app._auth_public_path) and never unguarded: validation, the
 SSRF guard, the opt-out list, per-IP / per-domain / global budgets, the concurrency cap and the
@@ -224,11 +226,24 @@ def create_public_grade_router(deps: Any) -> APIRouter:
         body = await run_in_threadpool(not_ready.atom, base, sector[:40])
         return Response(body, media_type="application/atom+xml; charset=utf-8", headers={"Cache-Control": "public, max-age=300"})
 
+    # With q, order or limit (the front page's board): a slice, by name or newest check, never ranked.
     @router.get("/not-ready")
-    async def public_not_ready(sector: str = ""):
+    async def public_not_ready(sector: str = "", q: str = "", order: str = "", limit: int = 0):
         from services import not_ready
 
-        body = await run_in_threadpool(not_ready.entries, sector[:40])
+        if q or order or limit:
+            body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit)
+        else:
+            body = await run_in_threadpool(not_ready.entries, sector[:40])
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
+
+    # The front page's other column: well-known (Tranco) sites whose newest check is A or B, from the
+    # same pass and the same rules (opt-outs never shown; by name, newest check or best-known first).
+    @router.get("/checked-safe")
+    async def public_checked_safe(sector: str = "", q: str = "", order: str = "", limit: int = 0, days: int = 0):
+        from services import not_ready
+
+        body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit, "ready", days)
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
 
     @router.post("/corrections")
@@ -264,6 +279,22 @@ def create_public_grade_router(deps: Any) -> APIRouter:
 
         body = await run_in_threadpool(pq_ready.public_list, "joined" if order == "joined" else "name")
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
+
+    # Guided mode (services/guided.py): the answer for one domain, who is asking and what it carries,
+    # read from the public grade's stored check. The page runs the check first (/grade/{domain}),
+    # under that route's budgets and opt-out; this route never checks anything itself.
+    @router.get("/guided/{domain}")
+    async def public_guided(request: Request, domain: str, role: str = "", data: str = "", jur: str = ""):
+        from services import guided
+        from services.public_config import public_base_url
+
+        base = (public_base_url() or str(request.base_url)).rstrip("/")
+        try:
+            body = await run_in_threadpool(guided.answer, domain[:260], role[:20], data[:60], jur[:8], base)
+        except guided.GuidedError as exc:
+            return JSONResponse({"error": exc.code, "detail": exc.detail}, status_code=exc.status_code,
+                                headers={"Cache-Control": "no-store"})
+        return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
     @router.get("/basis")
     async def public_basis():
