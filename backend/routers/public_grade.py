@@ -19,6 +19,7 @@
   GET /api/public/manifest                signed hashes of every /ui/ file (services/page_manifest.py)
   GET /api/public/league                  the sector league table (services/league.py)
   GET /api/public/guided/{domain}         guided mode's one answer (services/guided.py): ?role=&data=&jur=
+  GET /api/public/checked-safe            well-known sites whose newest check is A or B (services/not_ready.page)
 
 Unauthenticated by design (listed in app._auth_public_path) and never unguarded: validation, the
 SSRF guard, the opt-out list, per-IP / per-domain / global budgets, the concurrency cap and the
@@ -234,6 +235,15 @@ def create_public_grade_router(deps: Any) -> APIRouter:
             body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit)
         else:
             body = await run_in_threadpool(not_ready.entries, sector[:40])
+        return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
+
+    # The front page's other column: well-known (Tranco) sites whose newest check is A or B, from the
+    # same pass and the same rules (opt-outs never shown; by name, newest check or best-known first).
+    @router.get("/checked-safe")
+    async def public_checked_safe(sector: str = "", q: str = "", order: str = "", limit: int = 0, days: int = 0):
+        from services import not_ready
+
+        body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit, "ready", days)
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
 
     @router.post("/corrections")
