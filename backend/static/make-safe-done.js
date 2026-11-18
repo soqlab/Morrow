@@ -104,7 +104,7 @@
     this.plan = opts.plan || null; this.token = ""; this.tokenTimer = null; this.timer = null;
     this.preview = null; this.change = recall("morrow.done.change." + this.d);
     if (this.change && Date.parse(this.change.undo_until) < Date.now()) { this.change = null; store("morrow.done.change." + this.d, null); }
-    box.classList.add("dn-host");
+    box.classList.add("dn-host", "dn-ui");
   }
 
   Done.prototype.load = function () {
@@ -126,7 +126,7 @@
           '<div class="dn-copy"><p class="dn-lede">' + esc(oc.why) + '</p>' +
             '<p class="dn-fine">One change at ' + esc(oc.name) + ', shown to you before it is made. Undo for ' + esc(oc.undo_window_hours || 24) + ' hours.</p></div>' +
         '</div>' +
-        '<div class="dn-actions"><button type="button" class="dn-btn dn-go" data-act="open">Make it safe: done</button>' +
+        '<div class="dn-actions"><button type="button" class="dn-btn dn-go" data-act="open">Done: make it quantum-safe</button>' +
           '<span class="dn-fine">Needs a ' + esc(oc.name) + ' API token, used once and not kept.</span></div>' +
         this.soundToggle() +
       '</div>';
@@ -163,7 +163,7 @@
   Done.prototype.sheet = function () {
     if (this.dlg && document.body.contains(this.dlg)) return this.dlg;
     var dlg = document.createElement("dialog");
-    dlg.className = "dn-sheet"; dlg.setAttribute("aria-labelledby", "dn-sheet-h");
+    dlg.className = "dn-sheet dn-ui"; dlg.setAttribute("aria-labelledby", "dn-sheet-h");
     document.body.appendChild(dlg);
     var self = this;
     dlg.addEventListener("cancel", function () { self.forget(); });

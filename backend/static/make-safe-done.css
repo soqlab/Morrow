@@ -16,6 +16,7 @@
   --dn-bad: var(--g-f, var(--reg-bad, #ff7676));
   --dn-warn: var(--g-d, var(--reg-warn, #ffb547));
   --dn-solid-ink: var(--on-solid, #000);
+  --dn-accent: var(--accent, var(--blue, #a6ecff));
   --dn-mono: var(--mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
   --dn-ease: cubic-bezier(.2, .8, .2, 1);
   --dn-spring: cubic-bezier(.3, 1.4, .5, 1);
@@ -36,7 +37,9 @@
 .dn-face { display: grid; justify-items: center; gap: 10px; }
 .dn-grade { position: relative; display: grid; place-items: center; width: 84px; height: 84px; overflow: hidden;
   border: 1px solid var(--dn-line); font: 500 48px/1 var(--dn-mono); font-variant-numeric: tabular-nums;
-  color: var(--dn-gc, var(--dn-ink)); transition: border-color .3s var(--dn-ease), color .3s var(--dn-ease); }
+  color: var(--dn-gc, var(--dn-ink));
+  transition: border-color .3s var(--dn-ease), color .3s var(--dn-ease), width .34s var(--dn-ease), height .34s var(--dn-ease),
+    font-size .34s var(--dn-ease), background-color .34s var(--dn-ease); }
 .dn-grade[data-g="A"] { --dn-gc: var(--g-a, #3ee38f); } .dn-grade[data-g="B"] { --dn-gc: var(--g-b, #9be35a); }
 .dn-grade[data-g="C"] { --dn-gc: var(--g-c, #ffd36b); } .dn-grade[data-g="D"] { --dn-gc: var(--g-d, #ffb547); }
 .dn-grade[data-g="E"] { --dn-gc: var(--g-e, #ff9364); } .dn-grade[data-g="F"] { --dn-gc: var(--g-f, #ff7676); }
@@ -44,10 +47,15 @@
 .dn-g-new { transform: translateY(70%); opacity: 0; }
 .dn-grade.is-flipped .dn-g-old { transform: translateY(-70%); opacity: 0; }
 .dn-grade.is-flipped .dn-g-new { transform: none; opacity: 1; }
-.dn-grade.is-flipped { border-color: var(--dn-ok); animation: dn-settle .42s var(--dn-spring) .12s both; }
-@keyframes dn-settle { 0% { transform: scale(1); } 45% { transform: scale(1.06); } 100% { transform: scale(1); } }
+.dn-grade.is-flipped { border-color: var(--dn-ok); animation: dn-settle .42s var(--dn-spring) .14s both; }
+@keyframes dn-settle { 0% { transform: scale(1); } 45% { transform: scale(1.05); } 100% { transform: scale(1); } }
+/* The payoff: the grade is the hero. It grows into a large green A on a faint green ground while the
+ * lock closes, then "Quantum-safe." lands. 0-340 ms grow and morph, 140-560 ms settle; nothing after. */
+.dn[data-state="safe"] .dn-grade { width: 136px; height: 136px; font-size: 88px; border-width: 2px;
+  background-color: rgba(62, 227, 143, .08); background-color: color-mix(in srgb, var(--dn-ok) 10%, transparent); }
+.dn[data-state="safe"] .dn-lock { width: 34px; height: 34px; }
 
-.dn-lock { width: 26px; height: 26px; color: var(--dn-bad); transition: color .3s var(--dn-ease); }
+.dn-lock { width: 26px; height: 26px; color: var(--dn-bad); transition: color .3s var(--dn-ease), width .3s var(--dn-ease), height .3s var(--dn-ease); }
 .dn-lock .dn-shackle { transform: translate(3px, -3px) rotate(14deg); transform-origin: 16.5px 11px; transform-box: view-box;
   transition: transform .3s var(--dn-spring); }
 .dn[data-state="safe"] .dn-lock { color: var(--dn-ok); }
@@ -56,20 +64,24 @@
 /* ── buttons ────────────────────────────────────────────────────────── */
 .dn-actions { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 18px; }
 .dn-actions .dn-fine { flex: 1 1 220px; min-width: 0; }
-.dn-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px;
+.dn-ui .dn-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px;
   border: 1px solid var(--dn-line); border-radius: 0; background: transparent; color: var(--dn-ink);
   font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1.1; text-decoration: none; cursor: pointer; transition: background-color .15s var(--dn-ease), transform .15s var(--dn-ease), border-color .15s; }
-.dn-btn:hover { border-color: var(--dn-ink); }
-.dn-btn:active { transform: translateY(1px) scale(.985); }
+.dn-ui .dn-btn:hover { border-color: var(--dn-ink); }
+.dn-ui .dn-btn:active { transform: translateY(1px) scale(.985); }
 .dn-final:focus, .dn-h:focus, .dn-lede:focus { outline: none; }
-.dn-btn:focus-visible, .dn-link:focus-visible, .dn-input:focus-visible, .dn-snippet:focus-visible {
+.dn-ui .dn-btn:focus-visible, .dn-ui .dn-link:focus-visible, .dn-input:focus-visible, .dn-snippet:focus-visible {
   outline: 2px solid var(--accent, var(--reg-blue, #a6ecff)); outline-offset: 3px; }
-.dn-go { background: var(--dn-ink); color: var(--dn-bg); border-color: var(--dn-ink); font-weight: 600; }
-.dn-go:hover { background: var(--dn-ok); border-color: var(--dn-ok); color: var(--dn-solid-ink); }
-.dn-offer + .dn-actions .dn-go { min-height: 52px; padding: 0 26px; font-size: 16px; letter-spacing: .01em; }
-.dn-warn { border-color: var(--dn-bad); color: var(--dn-bad); }
-.dn-btn[disabled] { opacity: .6; cursor: progress; }
-.dn-link { padding: 0; border: 0; background: none; color: var(--dn-muted); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.dn-ui .dn-go { background: var(--dn-accent); color: var(--dn-solid-ink); border-color: var(--dn-accent); font-weight: 600; }
+.dn-ui .dn-go:hover { border-color: var(--dn-accent); background: color-mix(in srgb, var(--dn-accent) 86%, var(--dn-ink)); }
+.dn-ui .dn-go:active { background: color-mix(in srgb, var(--dn-accent) 78%, #000); transform: translateY(2px); }
+.dn-offer + .dn-actions .dn-go { min-height: 56px; padding: 0 28px; font-size: 17px; font-weight: 700; letter-spacing: .005em; }
+.dn-offer + .dn-actions .dn-go::after { content: ""; width: 9px; height: 9px; margin-left: 4px; border: solid currentColor;
+  border-width: 2px 2px 0 0; transform: rotate(45deg); transition: transform .15s var(--dn-ease); }
+.dn-offer + .dn-actions .dn-go:hover::after { transform: translateX(3px) rotate(45deg); }
+.dn-ui .dn-warn { border-color: var(--dn-bad); color: var(--dn-bad); }
+.dn-ui .dn-btn[disabled] { opacity: .6; cursor: progress; }
+.dn-ui .dn-link { padding: 0; border: 0; background: none; color: var(--dn-muted); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .dn-sound { margin-top: 14px; }
 
 /* ── the steps ──────────────────────────────────────────────────────── */
@@ -100,7 +112,9 @@ li[data-state="fail"] .dn-tick { background: var(--dn-bad); border-color: var(--
 .dn-steps li[data-s="check"][data-state="idle"] .dn-readout { display: none; }
 
 .dn-final { font-size: 16px; }
-.dn[data-state="safe"] .dn-final { font-size: clamp(26px, 5vw, 34px); font-weight: 600; letter-spacing: -.01em; color: var(--dn-ok); animation: dn-in .32s var(--dn-ease); }
+.dn[data-state="safe"] .dn-final { display: inline-block; font-size: clamp(30px, 6vw, 44px); font-weight: 700; letter-spacing: -.015em; line-height: 1.1;
+  color: var(--dn-ok); transform-origin: 0 60%; animation: dn-land .42s var(--dn-spring) .14s both; }
+@keyframes dn-land { 0% { transform: scale(.92); opacity: 0; } 60% { transform: scale(1.03); opacity: 1; } 100% { transform: scale(1); } }
 .dn[data-state="safe"] li[data-s="safe"] { opacity: 1; }
 
 /* ── the proof card ─────────────────────────────────────────────────── */
@@ -125,6 +139,7 @@ dialog.dn-sheet[open] { animation: dn-rise .28s var(--dn-ease, ease); }
 .dn-sheet { --dn-ink: var(--text, var(--ink, #eef1f4)); --dn-muted: var(--muted, var(--ink-2, #9aa3ac)); --dn-dim: var(--dim, var(--ink-3, #7d868f));
   --dn-line: var(--line-2, #394554); --dn-hair: var(--line, rgba(232, 240, 248, .1)); --dn-bg: var(--bg-2, var(--panel, #0d1115));
   --dn-bg-3: var(--bg-3, #12151a); --dn-ok: var(--g-a, #3ee38f); --dn-bad: var(--g-f, #ff7676); --dn-solid-ink: var(--on-solid, #000);
+  --dn-accent: var(--accent, var(--blue, #a6ecff));
   --dn-mono: var(--mono, ui-monospace, Consolas, monospace); --dn-ease: cubic-bezier(.2, .8, .2, 1); --dn-spring: cubic-bezier(.3, 1.4, .5, 1);
   font-family: var(--sans, system-ui, sans-serif); }
 .dn-form { display: grid; gap: 12px; padding: 24px; }
@@ -153,6 +168,7 @@ dialog.dn-sheet[open] { animation: dn-rise .28s var(--dn-ease, ease); }
   .dn-offer, .dn-run { grid-template-columns: 1fr; gap: 14px; }
   .dn-face { grid-auto-flow: column; justify-content: start; align-items: center; justify-items: start; gap: 14px; }
   .dn-grade { width: 64px; height: 64px; font-size: 36px; }
+  .dn[data-state="safe"] .dn-grade { width: 104px; height: 104px; font-size: 68px; }
   .dn-offer + .dn-actions .dn-go { width: 100%; }
   .dn-proof { padding: 16px; }
   .dn-proof .dn-actions .dn-btn { flex: 1 1 calc(50% - 7px); padding: 0 10px; }
