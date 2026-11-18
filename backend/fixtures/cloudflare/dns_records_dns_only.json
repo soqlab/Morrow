@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "372e67954025e0ba6aaa6d586b9e0b59",
+      "zone_id": "023e105f4ecef8ad9ca31a8372d0c353",
+      "zone_name": "example.com",
+      "name": "www.example.com",
+      "type": "A",
+      "content": "192.0.2.10",
+      "proxiable": true,
+      "proxied": false,
+      "ttl": 3600,
+      "settings": {},
+      "meta": {},
+      "comment": null,
+      "tags": [],
+      "created_on": "2026-01-10T09:00:00.000000Z",
+      "modified_on": "2026-11-01T09:00:00.000000Z"
+    },
+    {
+      "id": "9a7806061c88ada191ed06f989cc3dac",
+      "zone_id": "023e105f4ecef8ad9ca31a8372d0c353",
+      "zone_name": "example.com",
+      "name": "www.example.com",
+      "type": "AAAA",
+      "content": "2001:db8::10",
+      "proxiable": true,
+      "proxied": false,
+      "ttl": 3600,
+      "settings": {},
+      "meta": {},
+      "comment": null,
+      "tags": [],
+      "created_on": "2026-01-10T09:00:00.000000Z",
+      "modified_on": "2026-11-01T09:00:00.000000Z"
+    }
+  ],
+  "result_info": {
+    "page": 1,
+    "per_page": 100,
+    "count": 2,
+    "total_count": 2
+  }
+}

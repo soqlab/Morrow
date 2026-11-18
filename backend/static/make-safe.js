@@ -109,19 +109,36 @@
     var others = (S.r && S.r.fixes || []).filter(function (f) { return f.id !== "certificate-renew"; });
     var more = others.length && depth !== "plain" ? '<details class="ms-more"><summary>The full hardening change (old TLS versions and ciphers too)</summary>' + others.map(function (f) { return '<div class="fix"><p><b>' + esc(f.title) + "</b></p><pre>" + esc(f.snippet) + '</pre><p class="i-fine">Needs: ' + esc(f.requires) + "</p></div>"; }).join("") + "</details>" : "";
     var cert = (p.other_fixes || []).map(function (f) { return '<p class="ms-meta">Also: ' + esc(f.title) + ". " + esc(f.notes || "") + "</p>"; }).join("");
-    box.innerHTML = light() + '<p class="ms-stack">' + who + "</p>" + ev + alt + recipeHtml(rc) + origin + act + pick + cert + more +
+    // Done (make-safe-done.js): where the DNS provider documents a one-change fix, it comes first and
+    // the recipe below stays for doing it by hand.
+    var oneClick = p.one_click && window.MorrowDone && !(w && w.status === "live");
+    box.innerHTML = light() + (oneClick ? '<div id="ms-oneclick" class="ms-oneclick"></div><p class="ms-meta ms-byhand">Or make the change yourself:</p>' : "") +
+      '<p class="ms-stack">' + who + "</p>" + ev + alt + recipeHtml(rc) + origin + act + pick + cert + more +
       (S.msg ? '<p class="i-status" data-tone="' + esc(S.tone || "") + '">' + esc(S.msg) + "</p>" : "");
+    if (oneClick) window.MorrowDone.mount(box.querySelector("#ms-oneclick"), { domain: p.domain, plan: p, onLive: S.opts.onLive });
     var c = box.querySelector("#ms-copy");
     if (c) c.addEventListener("click", function () { I().copy(rc.snippet, c); S.copied = true; var b = box.querySelector("#ms-done"); if (b) b.classList.add("solid"); });
     var done = box.querySelector("#ms-done");
-    if (done) done.addEventListener("click", function () { recheck(true); });
+    if (done) done.addEventListener("click", function () {
+      // With Done's sequence available, a change made by hand ends in the same "Quantum-safe." moment:
+      // the same spaced re-check, shown step by step, then the signed proof.
+      if (window.MorrowDone && !watching) {
+        if (S.timer) clearTimeout(S.timer);
+        S.handedOff = true;
+        var seq = document.createElement("div"); seq.className = "ms-seq";
+        done.parentNode.replaceWith(seq);
+        window.MorrowDone.watch(seq, { domain: p.domain, grade: p.grade, kx: p.key_exchange, onLive: S.opts.onLive });
+        return;
+      }
+      recheck(true);
+    });
     var sel = box.querySelector("#ms-stack");
     if (sel) sel.addEventListener("change", function () { S.plan = null; box.innerHTML = light() + '<p class="i-status">Reading the recipe…</p>'; loadPlan(sel.value); });
   }
 
   function schedule(seconds) {
     if (S.timer) clearTimeout(S.timer);
-    var w = S.watch; if (!w || !w.auto || w.status === "live") return;
+    var w = S.watch; if (!w || !w.auto || w.status === "live" || S.handedOff) return;
     var d = S.d;
     S.timer = setTimeout(function () {
       if (S.d !== d || !document.body.contains(S.box)) return;

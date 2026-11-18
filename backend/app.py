@@ -11649,6 +11649,9 @@ app.include_router(create_make_safe_router(_PlatformAdminDeps(
     client_ip=lambda request: _client_ip_for_monitoring(request),
 )))
 _register_platform_schema("make_safe", lambda *_: _make_safe.init_tables())
+from services import make_safe_done as _make_safe_done  # noqa: E402
+
+_register_platform_schema("make_safe_done", lambda *_: _make_safe_done.init_tables())
 # The instrument's public evidence, on the same router: the deploy transparency log (appended at
 # startup, below in _lifespan), the league's miss/run tables. No tenant column in any of them.
 from services import deploy_log as _deploy_log  # noqa: E402

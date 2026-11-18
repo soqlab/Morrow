@@ -356,7 +356,29 @@ def _dns_lookup(host: str) -> Dict[str, List[str]]:
             addresses.extend(third_party._dns(host, rtype))
         except Exception:
             pass
-    return {"cname": chain, "addresses": addresses[:16]}
+    ns, ns_zone = _nameservers(host, third_party._dns)
+    return {"cname": chain, "addresses": addresses[:16], "ns": ns, "ns_zone": ns_zone}
+
+
+def _nameservers(host: str, dns: Callable[[str, str], List[str]]) -> Tuple[List[str], str]:
+    """The nameservers of the zone that holds host: NS of host, then of each parent, first answer wins.
+
+    A hostname whose zone is on Cloudflare DNS but is "DNS only" (grey cloud) shows no Cloudflare
+    header, CNAME or address -- its nameservers are the one public sign, and the one that makes the
+    Done button possible (services/make_safe_done.py).
+    """
+    labels = host.split(".")
+    for i in range(0, max(1, len(labels) - 1)):
+        name = ".".join(labels[i:])
+        try:
+            got = [n for n in dns(name, "NS") if n]
+        except Exception:
+            got = []
+        if got:
+            return sorted(set(got))[:8], name
+        if i >= 4:
+            break
+    return [], ""
 
 
 def detect(host: str, result: Optional[Dict[str, Any]] = None,
@@ -374,7 +396,8 @@ def detect(host: str, result: Optional[Dict[str, Any]] = None,
                + from_addresses(dns.get("addresses") or [])
                + from_issuer((result.get("certificate") or {}).get("issuer")))
     out = combine(signals)
-    out["dns"] = {"cname": list(dns.get("cname") or []), "addresses": list(dns.get("addresses") or [])}
+    out["dns"] = {"cname": list(dns.get("cname") or []), "addresses": list(dns.get("addresses") or []),
+                  "ns": list(dns.get("ns") or []), "ns_zone": str(dns.get("ns_zone") or "")}
     if use_cache and lookup is None:
         with _detect_lock:
             if len(_detect_cache) > 2048:
@@ -419,6 +442,10 @@ def plan(host: str, result: Dict[str, Any], chosen: str = "",
     }
     if detected.get("origin_server") and stack == detected["stack"]:
         out["origin_recipe"] = recipe(detected["origin_server"])
+    # Done: one confirmed change at the DNS provider, where the provider documents one that does it.
+    from services import make_safe_done
+
+    out["one_click"] = make_safe_done.offer(host, detected, safe)
     return out
 
 

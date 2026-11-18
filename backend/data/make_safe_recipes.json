@@ -18,6 +18,27 @@
         "the visitor's own client has no post-quantum support"
       ],
       "origin_note": "Cloudflare to your origin: Automatic key exchange is on by default (SSL/TLS > Overview > Origin connection & post-quantum encryption). That leg is post-quantum only when your origin also offers X25519MLKEM768: see the nginx, Apache, HAProxy or Caddy recipe.",
+      "one_click": {
+        "about": "Done: for a hostname whose DNS is on Cloudflare but whose record is DNS only (grey cloud), the one change is the record's proxy status, from DNS only to Proxied. For a proxied hostname that still negotiates a classical group, it is the zone's TLS 1.3 setting, from Off to On. Morrow makes the change through Cloudflare's API v4 with a token the person pastes for that one action and does not keep.",
+        "token_permissions": ["Zone > Zone > Read", "Zone > DNS > Edit"],
+        "token_permissions_for_tls_1_3": ["Zone > Zone > Read", "Zone > DNS > Edit", "Zone > Zone Settings > Edit"],
+        "calls": [
+          "GET /client/v4/zones?name=<zone>",
+          "GET /client/v4/zones/<zone_id>/dns_records?name.exact=<host>",
+          "GET /client/v4/zones/<zone_id>/settings/tls_1_3",
+          "PATCH /client/v4/zones/<zone_id>/dns_records/<record_id> {\"proxied\": true}",
+          "PATCH /client/v4/zones/<zone_id>/settings/tls_1_3 {\"value\": \"on\"}"
+        ],
+        "sources": [
+          {"title": "Cloudflare: Proxy status", "url": "https://developers.cloudflare.com/dns/proxy-status/", "published": "2026-04-21", "checked": "2026-11-18", "quote": "Cloudflare responds with your server's actual IP address and does not route HTTP/HTTPS traffic through its network."},
+          {"title": "Cloudflare: Post-quantum cryptography", "url": "https://developers.cloudflare.com/ssl/post-quantum-cryptography/", "published": "2026-07-03", "checked": "2026-11-18", "quote": "Cloudflare post-quantum key agreements are only supported in protocols based on TLS 1.3 (including HTTP/3)."},
+          {"title": "Cloudflare: TLS 1.3", "url": "https://developers.cloudflare.com/ssl/edge-certificates/additional-options/tls-13/", "published": "2026-08-14", "checked": "2026-11-18", "quote": "send a PATCH request with tls_1_3 as the setting name in the URI path"},
+          {"title": "Cloudflare API: Update DNS record", "url": "https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/edit/", "published": "", "checked": "2026-11-18", "quote": "PATCH /zones/{zone_id}/dns_records/{dns_record_id} ... proxied: Whether the record is receiving the performance and security benefits of Cloudflare."},
+          {"title": "Cloudflare API: List DNS records", "url": "https://developers.cloudflare.com/api/resources/dns/subresources/records/methods/list/", "published": "", "checked": "2026-11-18", "quote": "name.exact: Exact value of the DNS record name."},
+          {"title": "Cloudflare API: List zones", "url": "https://developers.cloudflare.com/api/resources/zones/methods/list/", "published": "", "checked": "2026-11-18", "quote": "GET /zones ... Zone Read"},
+          {"title": "Cloudflare: API token template URLs", "url": "https://developers.cloudflare.com/fundamentals/api/how-to/account-owned-token-template/", "published": "", "checked": "2026-11-18", "quote": "User token template URLs open the token creation form at the user profile level (/profile/api-tokens)."}
+        ]
+      },
       "sources": [
         {"title": "Cloudflare: Post-quantum cryptography", "url": "https://developers.cloudflare.com/ssl/post-quantum-cryptography/", "published": "2026-07-03", "checked": "2026-11-15",
          "quote": "As of October 2022, all websites and APIs served through Cloudflare over TLS 1.3 support post-quantum hybrid key agreement."},

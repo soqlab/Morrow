@@ -44,6 +44,9 @@ _STYLES = (
 
 #: "Your connection, right now", after the footer so its arrival moves nothing on the page.
 _CONN_SCRIPT = "/ui/conn-line.js?v=20261116"
+#: Done, on a record that is not quantum-safe (services/make_safe_done.py).
+DONE_STYLE = "/ui/make-safe-done.css?v=20261118"
+DONE_SCRIPT = "/ui/make-safe-done.js?v=20261118"
 
 #: The record's own links in the top strip. The old marketing navigation is gone; this goes to the
 #: instrument's one input, which is where a visitor checks another domain.
@@ -412,6 +415,9 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
         f'<a href="/r/{esc(domain)}/export.json">Download JSON</a> '
         f'<a href="/r/{esc(domain)}/cbom.json">Download CBOM</a></p>')
     parts.append("  </section>")
+    if not pq and not is_historical:
+        parts[0] = _with_done(parts[0])
+        parts.append(_done_mount(domain))
 
     # ── What was measured
     parts.append('  <section class="panel"><h2>What was measured</h2>')
@@ -513,6 +519,19 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
     return "\n".join(p for p in parts if p)
 
 
+def _with_done(head: str) -> str:
+    return head.replace("</head>", f'<link rel="stylesheet" href="{DONE_STYLE}">\n'
+                        f'<script src="{DONE_SCRIPT}" defer></script>\n</head>')
+
+
+def _done_mount(domain: str) -> str:
+    """Done (static/make-safe-done.js): where the host's DNS provider documents a one-change fix
+    (Cloudflare: proxy the record), the page offers it here. The script reads the plan and fills
+    this mount; with no one-click fix, or without JavaScript, it stays empty and hidden."""
+    return (f'  <section class="panel done-mount" id="done" data-morrow-done="{esc(domain)}" hidden '
+            'aria-label="Make it safe: done"></section>')
+
+
 def _graded_lines(domain: str, graded: Optional[Dict[str, Any]]) -> List[str]:
     """What the page says when the quick grade has seen the domain but the full check has not.
 
@@ -543,8 +562,10 @@ def render_missing(domain: str, origin: str, graded: Optional[Dict[str, Any]] = 
     title = f"No record yet for {domain} | Morrow"
     description = (f"{domain} has not been checked by the public post-quantum readiness "
                    "checker, so there is no record to show.")
+    done = bool(graded) and not graded.get("post_quantum")
+    head = _head(title, description, f"{base}/r/{domain}", noindex=True)
     return "\n".join([
-        _head(title, description, f"{base}/r/{domain}", noindex=True),
+        _with_done(head) if done else head,
         _chrome_open(),
         '  <section class="record-head accent-none" id="record">',
         '    <p class="eyebrow">Public post-quantum record</p>',
@@ -557,6 +578,7 @@ def render_missing(domain: str, origin: str, graded: Optional[Dict[str, Any]] = 
         "applies: check hosts you own, a supplier you are assessing, or a domain you are "
         "researching in good faith.</p>",
         "  </section>",
+        *([_done_mount(domain)] if done else []),
         _chrome_close(),
     ])
 

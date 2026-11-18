@@ -1,0 +1,25 @@
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "1d5fdc9e88c8a8c4518b068cd94331fe",
+      "name": "another.org",
+      "status": "active",
+      "paused": false,
+      "type": "full",
+      "name_servers": [
+        "ada.ns.cloudflare.com",
+        "bob.ns.cloudflare.com"
+      ],
+      "account": {
+        "id": "01a7362d577a6c3019a474fd6f485823",
+        "name": "Example account"
+      },
+      "plan": {
+        "name": "Free Website"
+      }
+    }
+  ]
+}
