@@ -18,6 +18,7 @@
   GET /api/public/deploys                 the hash-chained deploy log (services/deploy_log.py)
   GET /api/public/manifest                signed hashes of every /ui/ file (services/page_manifest.py)
   GET /api/public/league                  the sector league table (services/league.py)
+  GET /api/public/guided/{domain}         guided mode's one answer (services/guided.py): ?role=&data=&jur=
 
 Unauthenticated by design (listed in app._auth_public_path) and never unguarded: validation, the
 SSRF guard, the opt-out list, per-IP / per-domain / global budgets, the concurrency cap and the
@@ -268,6 +269,22 @@ def create_public_grade_router(deps: Any) -> APIRouter:
 
         body = await run_in_threadpool(pq_ready.public_list, "joined" if order == "joined" else "name")
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
+
+    # Guided mode (services/guided.py): the answer for one domain, who is asking and what it carries,
+    # read from the public grade's stored check. The page runs the check first (/grade/{domain}),
+    # under that route's budgets and opt-out; this route never checks anything itself.
+    @router.get("/guided/{domain}")
+    async def public_guided(request: Request, domain: str, role: str = "", data: str = "", jur: str = ""):
+        from services import guided
+        from services.public_config import public_base_url
+
+        base = (public_base_url() or str(request.base_url)).rstrip("/")
+        try:
+            body = await run_in_threadpool(guided.answer, domain[:260], role[:20], data[:60], jur[:8], base)
+        except guided.GuidedError as exc:
+            return JSONResponse({"error": exc.code, "detail": exc.detail}, status_code=exc.status_code,
+                                headers={"Cache-Control": "no-store"})
+        return JSONResponse(body, headers={"Cache-Control": "no-store"})
 
     @router.get("/basis")
     async def public_basis():

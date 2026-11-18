@@ -124,6 +124,19 @@ async function main() {
     assert.equal(await page.locator(`.actions a.btn[href="/${SMOKE_DOMAIN}#make-safe"]`).textContent(), "Make it safe");
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
 
+    // Guided mode: a switch beside the domain box, off by default; /?guided=1 starts it, /?guided=0 ends it.
+    assert.equal(await page.locator('#home-form .gd-switch [data-guided="0"]').getAttribute("aria-pressed"), "true");
+    await page.goto(`${base}/?guided=1`, { waitUntil: "networkidle" });
+    await page.locator("#gd-domain").waitFor();
+    assert.equal(await page.locator("#home-form").count(), 0, "guided mode still shows the browse view");
+    await page.fill("#gd-domain", SMOKE_DOMAIN);
+    await page.keyboard.press("Enter");
+    await page.locator('[data-role="supplier"]').waitFor();
+    await page.locator("#gd-back").click();
+    assert.equal(await page.locator("#gd-domain").inputValue(), SMOKE_DOMAIN);
+    await page.goto(`${base}/?guided=0`, { waitUntil: "networkidle" });
+    await page.locator("#home-q").waitFor();
+
     // Everything else is in the command bar.
     await page.locator("body").click();
     await page.keyboard.press("Control+k");

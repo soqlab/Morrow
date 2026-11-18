@@ -537,12 +537,15 @@
     try { document.dispatchEvent(new CustomEvent("morrow:make-safe-action", { detail: d })); } catch (e) { /* old browser: no hook */ }
   }
   function viewHome() {
+    // Guided mode (instrument-guided.js): three questions and one answer, when this visitor chose it.
+    var guided = window.MorrowGuided;
+    if (guided && guided.on()) { guided.start(main); return; }
     setView("grade", null);
     say(byDepth({ plain: "Type your website's address. Morrow shows the one change that keeps its traffic safe from future quantum computers.",
       standard: "Type your domain. Morrow grades it, names what serves it and shows the change that makes it quantum-safe.",
       expert: "Hostname → live grade, terminating stack, the vendor-sourced change, a watched re-check and a signed proof. Ctrl K for algorithms, CVEs, commits." }));
     main.innerHTML = '<form class="i-safe" id="home-form" novalidate>' +
-      '<label class="i-safe-l" for="home-q">Type your domain</label>' +
+      '<div class="i-safe-top"><label class="i-safe-l" for="home-q">Type your domain</label>' + (guided ? guided.switchHtml(false) : "") + "</div>" +
       '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
       '<textarea id="home-q" name="domain" rows="1" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint home-also"></textarea></div>' +
       // #home-make-safe: where the home page's Make it safe action renders (see makeSafeRendered).
@@ -553,6 +556,7 @@
       // The space is held by an invisible copy of the longest sentence, so the line arriving moves nothing.
       '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p><p class="i-fine i-back" id="home-back" aria-live="polite" hidden></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div><div id="home-board"></div>';
     var input = $("#home-q"), hint = $("#home-hint");
+    if (guided) guided.bindSwitch($("#home-form"));
     // As you type: a domain that will work is answered at once, encouragingly; nothing scolds mid-word.
     input.addEventListener("input", function () {
       var d = asDomain(input.value);
