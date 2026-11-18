@@ -116,5 +116,5 @@ def answer(domain: str, role: str = "", data: str = "", jur: str = "", base_url:
         "key_exchange": (result.get("key_exchange") or {}).get("group") or None,
         "sentence": risk["sentence"], "assumption": risk.get("assumption"), "estimate": risk.get("estimate"),
         "data": risk.get("data"), "deadline": deadline, "action": action, "record": record,
-        "choices": {"roles": list(ROLES), "data": [{"short": s, "label": l, "hint": h} for s, l, h in DATA_CHOICES]},
+        "choices": {"roles": list(ROLES), "data": [{"short": s, "label": label, "hint": h} for s, label, h in DATA_CHOICES]},
     }
