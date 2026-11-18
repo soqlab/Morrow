@@ -101,3 +101,12 @@ regexes = [
     '''^-----BEGIN PRIVATE KEY-----AAA-----END PRIVATE KEY-----''',
     '''^-----BEGIN RSA PRIVATE KEY-----\\nMIIBOgIBAAJBAK\\n-----END RSA PRIVATE KEY-----''',
 ]
+
+[[allowlists]]
+description = """Made-up Cloudflare API token in the Done tests (test_make_safe_done.py): the fake Cloudflare API \
+accepts only this value, and the tests prove it never reaches a response, a log line or the database. It was \
+never issued by Cloudflare."""
+targetRules = ["generic-api-key", "cloudflare-api-key"]
+condition = "AND"
+paths = ['''^backend/test_make_safe_done\.py$''']
+regexes = ['''^Tq8rZ1x9VbN4mK2pLw7sYd3fHj6gQe5cRt0uIo-_$''']
