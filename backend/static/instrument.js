@@ -528,6 +528,14 @@
      link or capture (paste.js, services/paste_anything.py); the answer appears under it. */
   var HOME_HINT = "The exact change for your server, a re-check once it is live, and a signed proof. Anything else: Ctrl K.";
   var PASTE_HINT = "Or paste or drop a certificate, a server or SSH config file, a CBOM, a repo link or a .pcap.";
+  /* The hook for anything that adds to a Make it safe action (a "Done" button, say): the container
+     it renders in (#home-make-safe on the home page, #gd-make-safe on guided mode's answer) is
+     announced once with a "morrow:make-safe-action" event, detail { source, domain, container }. */
+  function makeSafeRendered(container, detail) {
+    if (!container) return;
+    var d = { source: detail.source, domain: detail.domain || null, container: container };
+    try { document.dispatchEvent(new CustomEvent("morrow:make-safe-action", { detail: d })); } catch (e) { /* old browser: no hook */ }
+  }
   function viewHome() {
     setView("grade", null);
     say(byDepth({ plain: "Type your website's address. Morrow shows the one change that keeps its traffic safe from future quantum computers.",
@@ -537,14 +545,20 @@
       '<label class="i-safe-l" for="home-q">Type your domain</label>' +
       '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
       '<textarea id="home-q" name="domain" rows="1" autocomplete="url" autocapitalize="none" spellcheck="false" inputmode="url" placeholder="your-domain.com" aria-describedby="home-hint home-also"></textarea></div>' +
-      '<button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div>' +
+      // #home-make-safe: where the home page's Make it safe action renders (see makeSafeRendered).
+      '<div class="i-safe-act" id="home-make-safe"><button type="submit" class="i-btn solid i-safe-go">Make it safe</button></div></div>' +
       '<p class="i-fine pa-also" id="home-also">' + esc(PASTE_HINT) + ' <button type="button" class="pa-pick" id="home-pick">Choose a file</button>' +
       '<input type="file" id="home-file" class="sr-only" tabindex="-1" aria-hidden="true"></p>' +
       '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p>' +
       // The space is held by an invisible copy of the longest sentence, so the line arriving moves nothing.
-      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div><div id="home-board"></div>';
+      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p><p class="i-fine i-back" id="home-back" aria-live="polite" hidden></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div><div id="home-board"></div>';
     var input = $("#home-q"), hint = $("#home-hint");
-    input.addEventListener("input", function () { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; });
+    // As you type: a domain that will work is answered at once, encouragingly; nothing scolds mid-word.
+    input.addEventListener("input", function () {
+      var d = asDomain(input.value);
+      if (d && !(paste && paste.wants(input.value))) { hint.setAttribute("data-tone", "ok"); hint.textContent = "Ready: press Enter or Make it safe to check " + d + " now."; }
+      else { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; }
+    });
     var paste = window.MorrowPaste;
     if (paste) paste.attach({ form: $("#home-form"), input: input, hint: hint, out: $("#paste-out") });
     $("#home-form").addEventListener("submit", function (e) {
@@ -557,13 +571,15 @@
         input.focus();
         return;
       }
+      remember("domain", d, d);
       location.href = "/r/" + d;
     });
+    makeSafeRendered($("#home-make-safe"), { source: "home", domain: null });
     input.focus();
     connection().then(function (c) { var t = $("#home-conn"); if (t) t.textContent = connLine(c); });
     // The live board is public: it is painted for everyone, signed in or not, from /api/public only
     // (instrument-board.js). Signed in, your estate is shown above it as well.
-    if (window.MorrowBoard) window.MorrowBoard.mount($("#home-board"));
+    if (window.MorrowBoard) { window.MorrowBoard.mount($("#home-board")); window.MorrowBoard.welcomeBack($("#home-back")); }
     workspace().then(function (w) { if (w) homeSignedIn(); });
   }
   function homeSignedIn() {
@@ -1870,7 +1886,7 @@
   /* What instrument-watch.js (watch mode, claims, /about-scanner) builds its views with. */
   window.MorrowIns = { $: $, $$: $$, esc: esc, enc: enc, getJSON: getJSON, panel: panel, reading: reading, say: say, setView: setView,
     status: status, stamp: stamp, day: day, ago: ago, copy: copy, flash: flash, byDepth: byDepth, depth: function () { return depth; },
-    param: param, setParam: setParam, asDomain: asDomain, gradeChip: gradeChip,
+    param: param, setParam: setParam, asDomain: asDomain, gradeChip: gradeChip, makeSafeRendered: makeSafeRendered, remember: remember,
     token: token, workspace: workspace, main: main };
 
   /* ── start ─────────────────────────────────────────────────────────────── */

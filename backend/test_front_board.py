@@ -23,7 +23,7 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 BOARD_APIS = (
     "/api/public/stats",
     "/api/public/league",
-    "/api/public/changes?kind=ready&limit=100",
+    "/api/public/changes?limit=100",
     "/api/public/pq-ready",
     "/api/public/not-ready?order=checked&limit=6",
     "/api/public/not-ready?order=checked&limit=6&sector=finance",
@@ -166,7 +166,7 @@ def test_the_board_reads_only_public_apis_and_needs_no_account():
         assert path.startswith("/api/public/"), path
     assert "workspace(" not in js and "token" not in js and "Authorization" not in js and "/instrument/" not in js
     assert "sign in" not in js.lower()
-    for api in ("/api/public/stats", "/api/public/league", "/api/public/changes?kind=ready", "/api/public/pq-ready", "/api/public/not-ready?order=checked"):
+    for api in ("/api/public/stats", "/api/public/league", "/api/public/changes?limit=100", "/api/public/pq-ready", "/api/public/not-ready?order=checked"):
         assert api in js, api
 
 
@@ -211,4 +211,20 @@ def test_the_board_and_its_page_carry_nothing_inline():
     assert not re.search(r"""(?:fetch|getJSON|load)\(\s*["'`](?:https?:)?//""", js)
     css = _read("instrument-board.css")
     assert "@import" not in css and "url(" not in css
-    assert "animation" not in css                                       # nothing moves on its own
+    assert "infinite" not in css                                        # nothing moves on its own for ever
+    assert "prefers-reduced-motion" in css
+
+
+def test_the_board_gives_a_reason_to_come_back_from_real_data_only():
+    js = _read("instrument-board.js")
+    assert "Since your last visit" in js and "morrow_board_visit" in js and "new since your last visit" in js
+    assert '"/api/public/history/" + enc(d) + "?limit=2"' in js            # stored checks only, never a new check
+    assert "is still " in js and "moved from " in js
+    assert js.count("try {") >= 4                                              # every storage access can fail quietly
+    assert "prefers-reduced-motion" in js and "IntersectionObserver" in js
+
+
+def test_the_home_page_leaves_a_hook_where_make_it_safe_renders():
+    js = _read("instrument.js")
+    assert 'id="home-make-safe"' in js and "morrow:make-safe-action" in js
+    assert 'makeSafeRendered($("#home-make-safe"), { source: "home"' in js

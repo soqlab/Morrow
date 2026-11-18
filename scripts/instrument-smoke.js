@@ -107,8 +107,9 @@ async function main() {
     for (const href of ["/league", "/report", "/changes", "/threat", "/vendors", "/abuse"]) {
       assert.ok(await page.locator(`#board a[href="${href}"]`).count(), `the board does not link ${href}`);
     }
-    const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running").length);
-    assert.equal(running, 0, "something animates on its own after load");
+    // Bars grow in and a fresh change is marked once when the data lands; nothing may keep moving.
+    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 6000 })
+      .catch(() => { throw new Error("something animates on its own after load"); });
     assert.ok(await page.locator("#i-build").innerText(), "the commit line is empty");
 
     // Home is one domain input whose action is Make it safe; nonsense is refused in place.

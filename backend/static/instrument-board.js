@@ -13,6 +13,11 @@
  *   - Sector figures are averages; the APIs already leave out every opted-out domain.
  * Same origin only; no inline script or style (bar widths are set through the CSSOM, as the
  * league page does).
+ *
+ * How it feels, from real data only: the headline counts up once per tab, "counted ... ago" keeps
+ * time, bars grow in when they scroll into view, a row that changed since this visitor's last visit
+ * is marked once ("new since your last visit"), and the visitor's last checked domain is shown with
+ * its newest stored grade. Under prefers-reduced-motion every number and bar is simply there.
  */
 (function () {
   "use strict";
@@ -44,7 +49,35 @@
     });
   }
 
-  var S = { sector: "", q: "", league: null, ups: null, ready: null, timer: 0, seq: 0, box: null };
+  var S = { sector: "", q: "", league: null, ups: null, ready: null, timer: 0, seq: 0, box: null, tick: 0, since: null };
+  var REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  /* A number arriving: counted up once per tab with a short ease; straight to the value otherwise. */
+  function countUp(el, to, dec, tail) {
+    var fmt = function (v) { return v.toFixed(dec) + (tail || ""); };
+    var seen = false;
+    try { seen = sessionStorage.getItem("morrow_board_counted") === "1"; sessionStorage.setItem("morrow_board_counted", "1"); } catch (e) { seen = false; }
+    if (REDUCED || seen || !window.requestAnimationFrame) { el.innerHTML = fmt(to); return; }
+    var t0 = null, D = 650;
+    (function step(t) {
+      if (t0 == null) t0 = t;
+      var k = Math.min(1, (t - t0) / D), e = 1 - Math.pow(1 - k, 3);
+      el.innerHTML = fmt(to * e);
+      if (k < 1) requestAnimationFrame(step);
+    })(performance.now());
+  }
+
+  /* Since this visitor's last visit: the previous visit's time, kept on this device only. A new
+     visit starts after 30 minutes away, so reloading does not reset it. */
+  function lastVisit() {
+    var now = Date.now(), v = null;
+    try { v = JSON.parse(localStorage.getItem("morrow_board_visit") || "null"); } catch (e) { v = null; }
+    if (!v || typeof v.cur !== "number") v = { last: null, cur: now };
+    else if (now - v.cur > 30 * 60000) v = { last: v.cur, cur: now };
+    else v.cur = now;
+    try { localStorage.setItem("morrow_board_visit", JSON.stringify(v)); } catch (e) { /* private mode */ }
+    return v.last;
+  }
 
   function skeletonRows(n) {
     var out = "";
@@ -68,9 +101,10 @@
       '<div class="fb-top">' +
         '<div class="fb-head">' +
           '<p class="fb-eye"><span class="fb-dot" aria-hidden="true"></span>Live board &middot; who is quantum-safe</p>' +
-          '<h2 class="fb-h" id="fb-h"><span class="fb-big" id="fb-big"><span class="fb-sk fb-sk-num"></span></span>' +
+          '<h2 class="fb-h" id="fb-h"><span class="sr-only" id="fb-big-sr"></span><span class="fb-big" id="fb-big"><span class="fb-sk fb-sk-num"></span></span>' +
           '<span class="fb-say" id="fb-say"><span class="fb-sk fb-sk-line"></span><span class="fb-sk fb-sk-line short"></span></span></h2>' +
           '<p class="fb-meta" id="fb-meta"></p>' +
+          '<p class="fb-since" id="fb-since" hidden></p>' +
         "</div>" +
         '<div class="fb-dist" id="fb-dist" aria-busy="true"><p class="fb-k">Grades this week, A to F</p><span class="bar fb-bar"></span><ol class="fb-legend" id="fb-legend"></ol></div>' +
       "</div>" +
@@ -100,14 +134,16 @@
   function paintStats(s) {
     var by = I().byDepth;
     var total = s.public_checks_7d;
-    $("#fb-big").innerHTML = total ? pct1(s.pq_share_7d) + '<small>%</small>' : "&ndash;";
+    var big = $("#fb-big");
+    if (total) { big.setAttribute("aria-hidden", "true"); $("#fb-big-sr").textContent = pct1(s.pq_share_7d) + "% "; countUp(big, Math.round((s.pq_share_7d || 0) * 1000) / 10, 1, "<small>%</small>"); }
+    else big.innerHTML = "&ndash;";
     $("#fb-say").textContent = !total ? "No public checks have been made on this server in the last 7 days yet." : by({
       plain: "of the " + num(total) + " website checks this week found a quantum-safe connection.",
       standard: "of this week’s " + num(total) + " checks found a quantum-safe key exchange.",
       expert: "of " + num(total) + " checks in 7 days negotiated a post-quantum hybrid key exchange (rubric " + (s.rubric_version || "-") + ")."
     });
     $("#fb-meta").innerHTML = '<span class="fb-tick">' + esc(num(s.domains_checked)) + " different sites checked in all</span>" +
-      '<span class="fb-tick">counted <time datetime="' + esc(s.generated_at || "") + '">' + esc(I().ago(s.generated_at) || "just now") + "</time></span>" +
+      '<span class="fb-tick">counted <time id="fb-ago" datetime="' + esc(s.generated_at || "") + '">' + esc(I().ago(s.generated_at) || "just now") + "</time></span>" +
       '<a class="fb-tick" href="/report">method</a>';
     var g = s.grades_7d || {}, sum = 0;
     ["A", "B", "C", "D", "E", "F"].forEach(function (k) { sum += g[k] || 0; });
@@ -123,11 +159,22 @@
       '<p class="fb-key"><span><b>A, B</b> post-quantum key exchange</span><span><b>C to F</b> classical, or a certificate or protocol to fix</span></p>';
     dist.removeAttribute("aria-busy");
     widths(dist);
+    clearInterval(S.tick);
+    S.tick = setInterval(function () { var t = $("#fb-ago"); if (!t) { clearInterval(S.tick); return; } t.textContent = I().ago(s.generated_at) || "just now"; }, 30000);
   }
+  /* Bars take their measured width when they scroll into view; the CSS eases them in. */
   function widths(root) {
-    Array.prototype.forEach.call(root.querySelectorAll("[data-w]"), function (el) {
-      el.style.width = (Math.max(0, Math.min(1, Number(el.getAttribute("data-w")))) * 100).toFixed(2) + "%";
-    });
+    var set = function (el) { el.style.width = (Math.max(0, Math.min(1, Number(el.getAttribute("data-w")))) * 100).toFixed(2) + "%"; };
+    var els = Array.prototype.slice.call(root.querySelectorAll("[data-w]"));
+    if (REDUCED || !window.IntersectionObserver) { els.forEach(set); return; }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        Array.prototype.forEach.call(en.target.querySelectorAll("[data-w]"), set);
+        io.unobserve(en.target);
+      });
+    }, { threshold: 0.2 });
+    io.observe(root);
   }
 
   /* ── the sector board ── */
@@ -158,8 +205,9 @@
         '<span class="fb-s-name">' + esc(s.name) + "</span>" +
         '<span class="fb-s-pct">' + pct1(s.pq_share) + "<small>%</small></span>" +
         '<span class="fb-s-bar" aria-hidden="true"><i data-w="' + (s.pq_share || 0) + '"></i></span>' +
-        '<span class="fb-s-foot"><span class="fb-s-tr" data-dir="' + (tw.dir || "") + '" aria-hidden="true">' + spark(s.trend) + esc(tw.t) + "</span>" +
+        '<span class="fb-s-low"><span class="fb-s-foot"><span class="fb-s-tr" data-dir="' + (tw.dir || "") + '" aria-hidden="true">' + spark(s.trend) + esc(tw.t) + "</span>" +
         '<span class="fb-s-n" aria-hidden="true">' + num(s.graded) + " sites</span></span>" +
+        '<span class="fb-s-alt" aria-hidden="true">' + ["A", "B", "C", "D", "E", "F"].map(function (k) { var n = (s.grades || {})[k] || 0; return '<span class="fb-s-g" data-g="' + k + '"><b>' + k + "</b>" + n + "</span>"; }).join("") + "</span></span>" +
         '<span class="sr-only">: ' + pct1(s.pq_share) + " percent of " + num(s.graded) + " graded sites use a quantum-safe key exchange, " + esc(tw.sr) + ". Show this sector&rsquo;s sites below.</span>" +
         '</button><a class="fb-s-r" href="/report/' + enc(s.id) + '">Report<span class="sr-only"> on ' + esc(s.name) + "</span> &rarr;</a></li>";
     }).join("");
@@ -197,24 +245,43 @@
     $("#" + id).innerHTML = '<li class="fb-empty">' + esc(what) + " could not be read just now" + (e && e.status ? " (HTTP " + e.status + ")" : "") + ". The domain box above still works.</li>";
     setCount(id, ""); done(id);
   }
-  function item(href, g, prev, domain, words, extra) {
-    return '<li class="fb-row"><a class="fb-item" href="' + href + '">' +
+  /* One named row. ``more`` is revealed on hover or focus; ``isNew`` marks a change since the last visit. */
+  function item(href, g, prev, domain, words, extra, more, isNew) {
+    return '<li class="fb-row' + (isNew ? " fb-fresh" : "") + '"><a class="fb-item" href="' + href + '">' +
       '<span class="fb-g">' + (prev ? chip(prev) + '<span class="fb-to" aria-label="to">&rarr;</span>' : "") + chip(g) + "</span>" +
-      '<span class="fb-d">' + esc(domain) + "</span>" +
-      '<span class="fb-w">' + words + "</span></a>" + (extra || "") + "</li>";
+      '<span class="fb-d">' + esc(domain) + (isNew ? ' <span class="fb-new">new since your last visit</span>' : "") + "</span>" +
+      '<span class="fb-w">' + words + "</span>" + (more ? '<span class="fb-x">' + more + ' <span aria-hidden="true">&rarr;</span></span>' : "") + "</a>" + (extra || "") + "</li>";
   }
   function replyHtml(r) {
     return r ? '<p class="fb-reply"><span class="fb-k">Owner&rsquo;s reply, ' + esc(when(r.at)) + "</span> &ldquo;" + esc(r.text) + "&rdquo;</p>" : "";
   }
 
+  function fresh(e) { return S.since && Date.parse(e.at) > S.since; }
+  function sinceLine() {
+    var el = $("#fb-since"); if (!el || !S.ups || !S.since) return;
+    var ev = S.ups.events || [], up = 0, down = 0;
+    ev.forEach(function (e) {
+      if (!fresh(e)) return;
+      if (e.kind === "ready" || e.kind === "listed") up++; else if (e.kind === "not_ready") down++;
+      else if (e.kind === "sector") { up += e.became_ready || 0; down += e.dropped || 0; }
+    });
+    var on = when(new Date(S.since).toISOString());
+    el.innerHTML = '<span class="fb-since-k">Since your last visit, ' + esc(on) + "</span> " + (up || down
+      ? (up ? '<b class="fb-up">' + num(up) + " site" + (up === 1 ? "" : "s") + " became quantum-safe</b>" : "") + (up && down ? ", " : "") +
+        (down ? num(down) + " moved below B" : "") + '. <a href="/changes">What changed</a>'
+      : "Nothing on these lists crossed B. The weekly re-checks keep running.");
+    el.hidden = false;
+  }
   function paintUps() {
     if (!S.ups) return;
+    sinceLine();
     var all = (S.ups.events || []).filter(function (e) { return e.kind === "ready" && e.named && e.domain; });
     var rows = all.filter(matches);
     setCount("fb-up", rows.length ? num(rows.length) + (rows.length > SAMPLE ? " · newest " + SAMPLE : "") : "");
     $("#fb-up").innerHTML = rows.length ? rows.slice(0, SAMPLE).map(function (e) {
       var kx = e.group ? "post-quantum key exchange (" + esc(e.group) + ")" : "graded " + esc(e.grade);
-      return item("/r/" + enc(e.domain), e.grade, e.previous_grade, e.domain, "Measured " + esc(when(e.at)) + ": " + kx, replyHtml(e.reply));
+      return item("/r/" + enc(e.domain), e.grade, e.previous_grade, e.domain, "Measured " + esc(when(e.at)) + ": " + kx, replyHtml(e.reply),
+        esc(e.sector_name || "") + " &middot; open its record", fresh(e));
     }).join("") : '<li class="fb-empty">' + (S.q || S.sector
       ? "No site" + (S.sector ? " in " + esc(sectorName(S.sector)) : "") + (S.q ? " matching &ldquo;" + esc(S.q) + "&rdquo;" : "") + " has moved up to A or B recently."
       : "No well-known site has moved up to A or B yet. When a weekly re-check finds one that switched to a post-quantum key exchange, it appears here first.") + "</li>";
@@ -226,7 +293,8 @@
     var rows = (S.ready.entries || []).filter(matches);
     setCount("fb-ready", rows.length ? num(rows.length) + " listed" : "");
     $("#fb-ready").innerHTML = rows.length ? rows.slice(0, SAMPLE).map(function (e) {
-      return item("/r/" + enc(e.domain), e.grade, null, e.domain, "Owner verified &middot; measured " + esc(when(e.checked_at)) + " &middot; listed since " + esc(when(e.joined_at)));
+      return item("/r/" + enc(e.domain), e.grade, null, e.domain, "Owner verified &middot; measured " + esc(when(e.checked_at)) + " &middot; listed since " + esc(when(e.joined_at)), "",
+        esc(e.sector_name || "") + " &middot; open its record");
     }).join("") : (S.ready.entries || []).length
       ? '<li class="fb-empty">No verified site' + (S.sector ? " in " + esc(sectorName(S.sector)) : "") + (S.q ? " matches &ldquo;" + esc(S.q) + "&rdquo;" : "") + ".</li>"
       : '<li class="fb-cta"><p><b>No organisation has listed itself yet.</b> Own a domain that grades A or B? Check it in the box above, choose <i>Claim it</i> on its record, and list it here once it is verified.</p>' +
@@ -254,7 +322,8 @@
       list.sort(function (a, b) { return String(b.checked_at || "").localeCompare(String(a.checked_at || "")) || String(a.domain).localeCompare(String(b.domain)); });
       setCount("fb-not", S.q ? num(matched) + " match" + (matched === 1 ? "" : "es") : num(total) + " sites");
       $("#fb-not").innerHTML = list.length ? list.slice(0, SAMPLE).map(function (e) {
-        return item("/r/" + enc(e.domain), e.grade, null, e.domain, notWords(e), replyHtml(e.reply));
+        return item("/r/" + enc(e.domain), e.grade, null, e.domain, notWords(e), replyHtml(e.reply),
+          esc(e.sector_name || "") + (e.decrypt_year_low ? " &middot; recorded traffic readable from about " + esc(e.decrypt_year_low) : "") + " &middot; open its record");
       }).join("") : '<li class="fb-empty">' + (S.q ? "No listed site matches &ldquo;" + esc(S.q) + "&rdquo;" + (S.sector ? " in " + esc(sectorName(S.sector)) : "") + "."
         : "No site from the popular-sites list is below B on this server" + (S.sector ? " in " + esc(sectorName(S.sector)) : "") + ".") + "</li>";
       var m = N.methodology || {}, w = m.decrypt_window || {};
@@ -282,6 +351,7 @@
   function mount(box) {
     if (!box) return;
     S.box = box;
+    if (S.since === null) S.since = lastVisit() || 0;
     S.sector = (I().param && I().param("sector")) || "";
     if (!/^[a-z0-9-]{1,40}$/.test(S.sector)) S.sector = "";
     box.innerHTML = frame();
@@ -306,12 +376,30 @@
         var b = $("#fb-sec"); b.removeAttribute("aria-busy");
         b.innerHTML = '<li class="fb-empty">The sector averages could not be read just now' + (e && e.status ? " (HTTP " + e.status + ")" : "") + '. <a href="/league">Open the league</a>.</li>';
       });
-      load("/api/public/changes?kind=ready&limit=100").then(function (C) { S.ups = C; paintUps(); }).catch(function (e) { unavailable("fb-up", "The change feed", e); });
+      load("/api/public/changes?limit=100").then(function (C) { S.ups = C; paintUps(); }).catch(function (e) { unavailable("fb-up", "The change feed", e); });
       load("/api/public/pq-ready").then(function (Q) { S.ready = Q; paintReady(); }).catch(function (e) { unavailable("fb-ready", "The verified list", e); });
       paintNot();
     };
     if (window.requestAnimationFrame) requestAnimationFrame(function () { setTimeout(go, 0); }); else setTimeout(go, 0);
   }
 
-  window.MorrowBoard = { mount: mount };
+  /* "yourdomain.com is still B": the last domain this visitor checked here (on this device), with
+     its two newest stored checks. Read-only: /api/public/history never runs a check. */
+  function welcomeBack(el) {
+    if (!el) return;
+    var d = "";
+    try { var r = JSON.parse(localStorage.getItem("morrow_recent") || "[]").filter(function (x) { return x && x.kind === "domain"; })[0]; d = r && I().asDomain(r.id) || ""; } catch (e) { d = ""; }
+    if (!d) return;
+    I().getJSON("/api/public/history/" + enc(d) + "?limit=2", { timeout: 15000 }).then(function (h) {
+      if (!h || !h.length || !h[0].grade) return;
+      var now = h[0], before = h[1];
+      var moved = before && before.grade && before.grade !== now.grade;
+      el.innerHTML = '<a href="/r/' + enc(d) + '"><b>' + esc(d) + "</b> " + (moved ? "moved from " + esc(before.grade) + " to " + esc(now.grade) : "is still " + esc(now.grade)) +
+        " (checked " + esc(when(now.scanned_at)) + "): " + (moved ? "see what changed" : "see its record") + " &rarr;</a>";
+      el.setAttribute("data-g", now.grade);
+      el.hidden = false;
+    }).catch(function () { /* nothing to say */ });
+  }
+
+  window.MorrowBoard = { mount: mount, welcomeBack: welcomeBack };
 })();
