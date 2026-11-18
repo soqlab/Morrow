@@ -28,6 +28,9 @@ BOARD_APIS = (
     "/api/public/not-ready?order=checked&limit=6",
     "/api/public/not-ready?order=checked&limit=6&sector=finance",
     "/api/public/not-ready?order=checked&limit=6&q=bank",
+    "/api/public/not-ready?order=popular&limit=6&sector=finance",
+    "/api/public/checked-safe?order=popular&days=8&limit=6",
+    "/api/public/checked-safe?order=popular&days=8&limit=6&sector=finance&q=zeb",
 )
 
 
@@ -166,7 +169,10 @@ def test_the_board_reads_only_public_apis_and_needs_no_account():
         assert path.startswith("/api/public/"), path
     assert "workspace(" not in js and "token" not in js and "Authorization" not in js and "/instrument/" not in js
     assert "sign in" not in js.lower()
-    for api in ("/api/public/stats", "/api/public/league", "/api/public/changes?limit=100", "/api/public/pq-ready", "/api/public/not-ready?order=checked"):
+    for path in re.findall(r"""getJSON\(\s*["']([^"']+)""", js):
+        assert path.startswith("/api/public/"), path
+    for api in ("/api/public/stats", "/api/public/league", "/api/public/changes?limit=100", "/api/public/pq-ready",
+                "/api/public/not-ready?order=popular", "/api/public/checked-safe?order=popular&days=8"):
         assert api in js, api
 
 
@@ -186,7 +192,7 @@ def test_the_board_links_every_public_list_and_each_record():
                  'href="/vendors"', 'href="/abuse"', 'href="/about-scanner"', 'href="/league#nr-correct"'):
         assert href in js, href
     assert 'href="/report/' + "' + enc(s.id)" in js
-    assert js.count('item("/r/" + enc(e.domain)') == 3                # every named row opens its permanent record
+    assert js.count('item("/r/" + enc(e.domain)') == 4                # every named row opens its permanent record
     for label in ("League", "Sector reports", "What changed", "Threat board", "Check your vendors",
                   "Just became quantum-safe", "Verified ready", "Not yet post-quantum", "See all "):
         assert label in js, label
@@ -194,7 +200,7 @@ def test_the_board_links_every_public_list_and_each_record():
 
 def test_the_board_never_ranks_or_labels_anyone():
     text = _read("instrument-board.js").lower()
-    for word in not_ready.BANNED_WORDS + ("worst", "best", "leaderboard", "hall of", "laggard", "top 10", "ranked #", "rank "):
+    for word in not_ready.BANNED_WORDS + ("worst", "best grade", "best-graded", "safest", "leaderboard", "hall of", "laggard", "top 10", "ranked #", "rank "):
         assert not re.search(r"\b" + re.escape(word), text), word
     assert "not a ranking" in text and "measured " in text
     assert ".sort(" in text
@@ -228,3 +234,38 @@ def test_the_home_page_leaves_a_hook_where_make_it_safe_renders():
     js = _read("instrument.js")
     assert 'id="home-make-safe"' in js and "morrow:make-safe-action" in js
     assert 'makeSafeRendered($("#home-make-safe"), { source: "home"' in js
+
+
+def test_the_safe_column_is_well_known_sites_graded_a_or_b_best_known_first():
+    _seed()
+    tranco.store(["zebra.example", "bank.example", "loans.example", "shop.example", "alpha.example"], "TEST2")
+    _grade_it("alpha.example", "B", "2026-11-14T00:00:00Z")
+    body = not_ready.page(kind="ready", order="popular")
+    assert [e["domain"] for e in body["entries"]] == ["zebra.example", "alpha.example"]       # Tranco order, not grade
+    assert body["kind"] == "ready" and body["count"] == 2 and "reply" not in body["entries"][0]
+    assert all("_position" not in e for e in body["entries"])
+    below = not_ready.page(order="popular")
+    assert [e["domain"] for e in below["entries"]] == ["bank.example", "loans.example", "shop.example"]
+
+
+def test_the_safe_column_keeps_to_recent_checks_and_the_opt_out(monkeypatch):
+    _seed()
+    from services import public_grade
+    monkeypatch.setattr(public_grade, "now_utc", lambda: __import__("datetime").datetime(2026, 11, 18, tzinfo=__import__("datetime").timezone.utc))
+    assert [e["domain"] for e in not_ready.page(kind="ready", days=8)["entries"]] == ["zebra.example"]
+    assert not_ready.page(kind="ready", days=2)["entries"] == []
+    monkeypatch.setenv("MORROW_PUBLIC_CHECK_OPTOUT_DOMAINS", "zebra.example")
+    assert not_ready.page(kind="ready")["entries"] == []
+
+
+def test_the_board_opens_on_a_sector_picked_here_and_reads_live_only_while_visible():
+    js = _read("instrument-board.js")
+    assert "Math.random()" in js and "picked for this visit" in js and "Another sector" in js
+    assert 'I().setParam("sector", id && !auto ? id : null)' in js                   # only a chosen sector goes in the URL
+    assert "document.hidden" in js and "visibilitychange" in js and "POLL_MS = 25000" in js
+    assert '"/api/public/stats", { cache: "no-store"' in js
+    assert "just now" in js and "fb-roll" in js
+    css = _read("instrument-board.css")
+    assert "infinite" not in css
+    reduced = css[css.rindex("@media (prefers-reduced-motion: reduce)"):]
+    assert "animation: none" in reduced and "transition: none" in reduced

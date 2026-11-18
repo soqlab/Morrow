@@ -495,6 +495,7 @@
   var segs = location.pathname.replace(/\/+$/, "").split("/").filter(Boolean).map(decodeURIComponent);
   function route() {
     var s0 = segs[0] || "";
+    var sayEl = $("#say"); if (sayEl) sayEl.classList.remove("i-say-head");
     if (!s0) return viewHome();
     if (s0 === "league") return viewLeague();
     if (s0 === "atlas") return workspace().then(function (w) { location.replace(w ? "/estate" : "/league"); });
@@ -538,9 +539,11 @@
   }
   function viewHome() {
     setView("grade", null);
-    say(byDepth({ plain: "Type your website's address. Morrow shows the one change that keeps its traffic safe from future quantum computers.",
-      standard: "Type your domain. Morrow grades it, names what serves it and shows the change that makes it quantum-safe.",
-      expert: "Hostname → live grade, terminating stack, the vendor-sourced change, a watched re-check and a signed proof. Ctrl K for algorithms, CVEs, commits." }));
+    // Home's line is a plain headline, not a quotation (instrument-board.css: .i-say-head).
+    var sayEl = $("#say"); if (sayEl) sayEl.classList.add("i-say-head");
+    say(byDepth({ plain: "Type your website’s address. See if it’s safe from future quantum computers. Make it safe.",
+      standard: "Type your domain. See if it’s quantum-safe. Make it safe.",
+      expert: "Type a hostname. See its live grade and the exact change. Make it safe." }));
     main.innerHTML = '<form class="i-safe" id="home-form" novalidate>' +
       '<label class="i-safe-l" for="home-q">Type your domain</label>' +
       '<div class="i-safe-row"><div class="i-field"><span class="p" aria-hidden="true">&rsaquo;</span>' +
