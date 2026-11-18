@@ -188,3 +188,4 @@ dialog.dn-sheet[open] { animation: dn-rise .28s var(--dn-ease, ease); }
   .dn-readout[data-probing]::after { content: "probing"; color: var(--dn-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 }
 .done-mount[hidden] { display: none; }
+.done-mount.done-guided:not([hidden]), .done-mount.done-home:not([hidden]) { margin-top: 20px; padding: 20px; border: 1px solid var(--line, rgba(232, 240, 248, .1)); background: var(--bg-2, #0b0d10); }

@@ -539,6 +539,18 @@
       mount(el, { domain: el.getAttribute("data-morrow-done") });
     });
   }
+  // The instrument announces each Make it safe action it renders ("morrow:make-safe-action", detail
+  // { source, domain, container }: #home-make-safe on the home page, #gd-make-safe on guided mode's
+  // answer). Where the domain is known, Done is offered right under that action; it stays hidden when
+  // the plan has no one-click fix. The home page's action has no domain yet: it opens /r/<domain>,
+  // which offers Done itself.
+  document.addEventListener("morrow:make-safe-action", function (ev) {
+    var d = ev && ev.detail; if (!d || !d.domain || !d.container || !d.container.parentNode) return;
+    var next = d.container.nextElementSibling;
+    var box = next && next.classList.contains("done-mount") ? next : document.createElement("div");
+    if (box !== next) { box.className = "done-mount done-" + String(d.source || "page").replace(/[^a-z-]/g, ""); box.hidden = true; d.container.parentNode.insertBefore(box, d.container.nextSibling); }
+    mount(box, { domain: d.domain });
+  });
   window.addEventListener("pagehide", function () { mounts.forEach(function (m) { m.forget(); }); });
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", auto); else auto();
   window.MorrowDone = { mount: mount, watch: watch };
