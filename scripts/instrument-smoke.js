@@ -98,8 +98,15 @@ async function main() {
 
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
     await page.locator("#home-q").waitFor();
-    // Signed out it shows public counts; with a workspace (CI runs without sign-in) it reads the estate.
-    await page.waitForFunction(() => document.querySelector("#home-stats .reading, #home-stats .i-empty, #home-estate p, #home-estate .scrub") !== null, null, { timeout: 30000 });
+    // The live board is public and painted for everyone; with a workspace the estate is shown above it.
+    await page.waitForFunction(() => {
+      const busy = document.querySelectorAll("#board [aria-busy=true]").length;
+      const big = document.querySelector("#fb-big");
+      return !busy && big && (big.textContent.trim() !== "" || document.querySelector("#fb-h.fb-h-off"));
+    }, null, { timeout: 30000 });
+    for (const href of ["/league", "/report", "/changes", "/threat", "/vendors", "/abuse"]) {
+      assert.ok(await page.locator(`#board a[href="${href}"]`).count(), `the board does not link ${href}`);
+    }
     const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === "running").length);
     assert.equal(running, 0, "something animates on its own after load");
     assert.ok(await page.locator("#i-build").innerText(), "the commit line is empty");

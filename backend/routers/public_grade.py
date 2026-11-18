@@ -224,11 +224,15 @@ def create_public_grade_router(deps: Any) -> APIRouter:
         body = await run_in_threadpool(not_ready.atom, base, sector[:40])
         return Response(body, media_type="application/atom+xml; charset=utf-8", headers={"Cache-Control": "public, max-age=300"})
 
+    # With q, order or limit (the front page's board): a slice, by name or newest check, never ranked.
     @router.get("/not-ready")
-    async def public_not_ready(sector: str = ""):
+    async def public_not_ready(sector: str = "", q: str = "", order: str = "", limit: int = 0):
         from services import not_ready
 
-        body = await run_in_threadpool(not_ready.entries, sector[:40])
+        if q or order or limit:
+            body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit)
+        else:
+            body = await run_in_threadpool(not_ready.entries, sector[:40])
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
 
     @router.post("/corrections")

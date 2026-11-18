@@ -21,9 +21,12 @@ Corrections: anyone can ask for a correction (domain, reason, contact). Requests
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import threading
+import time
 import unicodedata
 import uuid
 from datetime import datetime, timezone
@@ -173,6 +176,64 @@ def entries(sector: str = "") -> Dict[str, Any]:
         "sectors": sorted({(e["sector"], e["sector_name"]) for e in out}, key=lambda x: x[1]),
         "methodology": methodology(meta),
     }
+
+
+PAGE_CACHE_SECONDS = 300.0
+PAGE_MAX = 500
+_page_cache: Dict[str, Any] = {}
+
+
+def _page_version() -> str:
+    """What the computed list depends on: the store, the stored checks, the Tranco list, the sectors.
+    Any new or removed check changes it, so a cached list is never older than the newest grade."""
+    from services import league, public_grade, tranco
+
+    public_grade.init_tables()
+    with feature_conn() as conn:
+        row = conn.execute("SELECT COUNT(*) AS n, MAX(id) AS m FROM public_grade_checks").fetchone()
+    spec = json.dumps(league.load_spec(), sort_keys=True, default=str)
+    return "|".join([os.getenv("MORROW_FEATURE_STORE_BACKEND", ""), os.getenv("MORROW_SCANNER_DB", ""),
+                     os.getenv("DATABASE_URL", "")[:12], str(row["n"]), str(row["m"]),
+                     json.dumps(tranco.meta(), sort_keys=True, default=str), hashlib.sha256(spec.encode()).hexdigest()])
+
+
+def page(sector: str = "", q: str = "", order: str = "name", limit: int = 0) -> Dict[str, Any]:
+    """A slice of the list for the front page: one sector, a domain search, by name or by newest check.
+
+    The graded list is computed once per change in the stored checks (it reads every Tranco site) and
+    kept for PAGE_CACHE_SECONDS; opt-outs and owners' replies are applied fresh on every call, so an
+    opted-out domain disappears at once. ``count`` is the whole list for the sector, ``matched`` the
+    entries matching ``q``. Order is by name or by date checked, never a ranking.
+    """
+    from services import league
+
+    sector = str(sector or "").strip().lower()[:40]
+    needle = str(q or "").strip().lower()[:80]
+    order = "checked" if order == "checked" else "name"
+    limit = max(0, min(PAGE_MAX, int(limit or 0)))
+    version = _page_version()
+    hit = _page_cache.get("all")
+    if not hit or hit[1] != version or time.monotonic() - hit[0] > PAGE_CACHE_SECONDS:
+        hit = (time.monotonic(), version, entries(""))
+        _page_cache["all"] = hit
+    full = hit[2]
+    optouts = league._optout_entries()
+    replies = _replies()
+    rows = [dict(e, reply=replies.get(e["domain"])) for e in full["entries"] if not league._covered(e["domain"], optouts)]
+    in_sector = [e for e in rows if not sector or e["sector"] == sector]
+    matched = [e for e in in_sector if needle in e["domain"]] if needle else in_sector
+    if order == "checked":
+        matched = sorted(sorted(matched, key=lambda e: e["domain"]), key=lambda e: str(e.get("checked_at") or ""), reverse=True)
+    return {
+        "title": full["title"], "entries": matched[:limit] if limit else matched, "count": len(in_sector),
+        "matched": len(matched), "sector": sector or None, "query": needle or None, "order": order,
+        "sectors": sorted({(e["sector"], e["sector_name"]) for e in rows}, key=lambda x: x[1]),
+        "methodology": full["methodology"],
+    }
+
+
+def clear_cache() -> None:
+    _page_cache.clear()
 
 
 def methodology(meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

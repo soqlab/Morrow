@@ -542,7 +542,7 @@
       '<input type="file" id="home-file" class="sr-only" tabindex="-1" aria-hidden="true"></p>' +
       '<p class="i-fine" id="home-hint" aria-live="polite">' + esc(HOME_HINT) + '</p>' +
       // The space is held by an invisible copy of the longest sentence, so the line arriving moves nothing.
-      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div>';
+      '<p class="i-fine i-you"><span class="i-you-size" aria-hidden="true">' + esc(CONN_SIZER) + '</span><span id="home-conn"></span></p></form><div id="paste-out" class="pa-wrap"></div><div id="home-reading"></div><div id="home-board"></div>';
     var input = $("#home-q"), hint = $("#home-hint");
     input.addEventListener("input", function () { hint.removeAttribute("data-tone"); hint.textContent = HOME_HINT; });
     var paste = window.MorrowPaste;
@@ -561,19 +561,10 @@
     });
     input.focus();
     connection().then(function (c) { var t = $("#home-conn"); if (t) t.textContent = connLine(c); });
-    workspace().then(function (w) { return w ? homeSignedIn() : homePublic(); });
-  }
-  function homePublic() {
-    var box = $("#home-reading");
-    box.innerHTML = '<div class="ch-grid"><div class="span-12">' + panel("", "Checked on this server", '<dl class="readouts" id="home-stats"></dl><p class="i-fine" id="home-stats-n"></p>', { ch: "league" }) + "</div>" +
-      '<div class="span-12">' + panel("", "By sector", '<div id="home-sectors" class="i-muted">Reading&hellip;</div>', { ch: "league", right: '<a href="/league">trend over time</a>' }) + "</div></div>";
-    getJSON("/api/public/stats").then(function (s) {
-      $("#home-stats").innerHTML = reading("Checks, 7 days", num(s.public_checks_7d)) + reading("Domains checked", num(s.domains_checked)) +
-        reading("Post-quantum, 7 days", pct(s.pq_share_7d), "v-ok");
-      $("#home-stats-n").textContent = depth === "expert" ? "From this server's stored results at " + stamp(s.generated_at) + ", rubric " + s.rubric_version + "." : "";
-    }).catch(function (e) { $("#home-stats").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
-    getJSON("/api/public/league").then(function (L) { $("#home-sectors").innerHTML = sectorRows(L.sectors || [], false); paintBars(); })
-      .catch(function (e) { $("#home-sectors").textContent = e.message; });
+    // The live board is public: it is painted for everyone, signed in or not, from /api/public only
+    // (instrument-board.js). Signed in, your estate is shown above it as well.
+    if (window.MorrowBoard) window.MorrowBoard.mount($("#home-board"));
+    workspace().then(function (w) { if (w) homeSignedIn(); });
   }
   function homeSignedIn() {
     var box = $("#home-reading");
@@ -1879,6 +1870,7 @@
   /* What instrument-watch.js (watch mode, claims, /about-scanner) builds its views with. */
   window.MorrowIns = { $: $, $$: $$, esc: esc, enc: enc, getJSON: getJSON, panel: panel, reading: reading, say: say, setView: setView,
     status: status, stamp: stamp, day: day, ago: ago, copy: copy, flash: flash, byDepth: byDepth, depth: function () { return depth; },
+    param: param, setParam: setParam, asDomain: asDomain, gradeChip: gradeChip,
     token: token, workspace: workspace, main: main };
 
   /* ── start ─────────────────────────────────────────────────────────────── */
