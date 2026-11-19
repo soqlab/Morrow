@@ -72,9 +72,11 @@ def test_the_apps_own_dotted_routes_are_not_domain_views(client, monkeypatch):
     assert not instrument.is_public_path("/cbom.csv", application.app)
     assert client.get("/cbom.csv").status_code == 401
     assert "instrument.js" not in client.get("/robots.txt").text
-    # Not domains, so not public: the auth gate answers them like any unknown path.
+    # Not domains, so not public, and no route answers them: the gate says not found, not sign in.
     assert not instrument.is_public_path("/wp-login.php", application.app)
-    assert client.get("/wp-login.php").status_code == 401
+    r = client.get("/wp-login.php")
+    assert r.status_code == 404
+    assert "instrument.js" not in r.text
 
 
 def test_an_unknown_path_is_still_not_found(client):
