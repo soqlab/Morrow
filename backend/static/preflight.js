@@ -202,8 +202,8 @@
       });
       say.textContent = "Sending the hellos to " + domain + ". A hello that gets no answer takes a few seconds to give up on.";
       getJSON("/api/public/preflight/" + enc(domain)).then(function (result) {
-        say.textContent = result.cached ? "Reusing the run from " + ago(result.checked_at) + "." : "Measured. Replaying the times.";
-        show(result, !reduced() && !result.cached);
+        say.textContent = result.cached ? "Reusing the run from " + ago(result.checked_at) + ": one run per domain every few minutes. Replaying its times." : "Measured. Replaying the times.";
+        show(result, !reduced());
       }).catch(function (err) {
         root.setAttribute("data-state", "error");
         LANES.forEach(function (l) { var el = laneEl(root, l.id); if (el) el.querySelector(".pf-res").textContent = "Not sent"; });

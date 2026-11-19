@@ -7,6 +7,7 @@
  * runs once when the person presses the button, and nothing moves under prefers-reduced-motion.
  */
 .pf { display: grid; gap: 16px; min-width: 0; }
+#preflight { scroll-margin-top: 84px; }
 .pf-lede { margin: 0; max-width: 66ch; color: var(--muted); font-size: var(--fs-md, 17px); line-height: 1.5; }
 .pf-lede b { color: var(--text); font-weight: 650; }
 
@@ -65,9 +66,9 @@
 .pf-inside { font-weight: 650; }
 
 @media (max-width: 640px) {
-  .pf-lane { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name out" "track track"; gap: 10px 12px; padding: 12px 14px; }
+  .pf-lane { grid-template-columns: minmax(0, 1fr); grid-template-areas: "name" "track" "out"; gap: 8px; padding: 12px 14px; }
   .pf-name { grid-area: name; }
-  .pf-out { grid-area: out; align-self: start; max-width: 46vw; }
+  .pf-out { grid-area: out; text-align: left; }
   .pf-track { grid-area: track; }
   .pf-verdict { padding: 16px; }
 }

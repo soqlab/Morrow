@@ -406,15 +406,15 @@ def attempt(address: str, host: str, port: int, kind: str, timeout: Optional[flo
                 except OSError:
                     pass
                 half = len(data) // 2
+                out["segments_sent"] = 1 + math.ceil((len(data) - half) / mss)
+                out["segments_basis"] = f"written in two parts {int(SPLIT_PAUSE * 1000)} ms apart; MSS {mss} ({basis})"
                 sock.sendall(data[:half])
                 sleep(SPLIT_PAUSE)
                 sock.sendall(data[half:])
-                out["segments_sent"] = 1 + math.ceil((len(data) - half) / mss)
-                out["segments_basis"] = f"written in two parts {int(SPLIT_PAUSE * 1000)} ms apart; MSS {mss} ({basis})"
             else:
-                sock.sendall(data)
                 out["segments_sent"] = max(1, math.ceil(len(data) / mss))
                 out["segments_basis"] = f"one write; MSS {mss} ({basis})"
+                sock.sendall(data)
             sent_at = sent["at"] = clock()
             got = _read_server_hello(sock, sent_at + budget, clock)
             elapsed = int(round((clock() - sent_at) * 1000))
