@@ -112,8 +112,10 @@
     // Done (make-safe-done.js): where the DNS provider documents a one-change fix, it comes first and
     // the recipe below stays for doing it by hand. No onLive here: the page's refresh would replace
     // the panel mid-sequence, and Done's own card already shows the new grade and the proof.
-    var oneClick = p.one_click && window.MorrowDone && !(w && w.status === "live");
-    box.innerHTML = light() + (oneClick ? '<div id="ms-oneclick" class="ms-oneclick"></div><p class="ms-meta ms-byhand">Or make the change yourself:</p>' : "") +
+    // With no one-click fix, the same mount offers Morrow Shield (plan.shield): one command plus DNS.
+    var oneClick = (p.one_click || p.shield) && window.MorrowDone && !(w && w.status === "live");
+    var byHand = p.one_click ? "Or make the change yourself:" : "Or change the server that answers for " + esc(p.domain) + " now:";
+    box.innerHTML = light() + (oneClick ? '<div id="ms-oneclick" class="ms-oneclick"></div><p class="ms-meta ms-byhand">' + byHand + "</p>" : "") +
       '<p class="ms-stack">' + who + "</p>" + ev + alt + recipeHtml(rc) + origin + act + pick + cert + more +
       (S.msg ? '<p class="i-status" data-tone="' + esc(S.tone || "") + '">' + esc(S.msg) + "</p>" : "");
     if (oneClick) window.MorrowDone.mount(box.querySelector("#ms-oneclick"), { domain: p.domain, plan: p });

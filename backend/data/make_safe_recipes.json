@@ -381,5 +381,73 @@
         {"title": "JEP 527: Post-Quantum Hybrid Key Exchange for TLS 1.3", "url": "https://openjdk.org/jeps/527", "published": "", "checked": "2026-11-16", "quote": "By default, the JDK\u2019s TLS 1.3 implementation will place the X25519MLKEM768 hybrid scheme at the front of that list, making it the most preferred."}
       ]
     }
+  },
+  "shield": {
+    "name": "Morrow Shield",
+    "kind": "front_door",
+    "about": "For a host that is not quantum-safe and has no one-change fix at its DNS provider: Morrow Shield, a small open-source front door (shield/ in Morrow's repository), answers HTTPS for the host with X25519MLKEM768 and passes every request on to the site unchanged. It is one command on a server the owner runs plus a DNS change, never one click. Offered only where Morrow sees no CDN or cloud load balancer in front of the host: behind one of those, that edge's own setting is the fix.",
+    "summary": "Run one command on a server you control, point DNS for the host at it, and visitors get X25519MLKEM768. Your site stays where it is; Shield passes every request on to it.",
+    "image": "ghcr.io/soqlab/morrow-shield:0.1",
+    "readme_url": "https://github.com/soqlab/Morrow/blob/main/shield/README.md",
+    "command": [
+      "docker run -d --name morrow-shield --restart unless-stopped \\",
+      "  -p 443:8443 -p 80:8080 --read-only --cap-drop ALL \\",
+      "  --add-host host.docker.internal:host-gateway -v morrow-shield:/data \\",
+      "  -e SHIELD_DOMAINS={domain} \\",
+      "  -e SHIELD_UPSTREAM=http://host.docker.internal:8080 \\",
+      "  {image}"
+    ],
+    "verify_command": "docker exec morrow-shield shield check {domain}",
+    "requires": [
+      "A server where you can run Docker, reachable from the internet",
+      "Ports 80 and 443 on that server free for Shield and open to the internet: the certificate authority checks them before it issues",
+      "DNS for {domain} pointing at that server: its A record, and AAAA if you use IPv6",
+      "Your site reachable from that server: change SHIELD_UPSTREAM to its address (http://host.docker.internal:8080 is port 8080 on the same machine)"
+    ],
+    "limits": [
+      "One command plus a DNS change, not one click: Morrow cannot run it for you.",
+      "It protects the leg from the visitor to Shield. Shield to your site is plain HTTP unless SHIELD_UPSTREAM is https://, so keep that leg on the same machine or a private network.",
+      "The certificate stays classical (RSA or ECDSA): public certificate authorities and browsers do not use post-quantum certificates yet. What changes is the key exchange, which is what protects recorded traffic.",
+      "Visitors whose software has no post-quantum support still connect, classically.",
+      "No CDN, cache, WAF or DDoS protection, and one instance: if the server running Shield goes down, so does the site.",
+      "Automatic certificates need each hostname listed (no wildcards). For a wildcard or an internal CA, give Shield your own certificate with SHIELD_CERT and SHIELD_KEY."
+    ],
+    "sources": [
+      {
+        "title": "Go 1.24 release notes: crypto/tls",
+        "url": "https://go.dev/doc/go1.24",
+        "published": "2025-02-11",
+        "checked": "2026-11-19",
+        "quote": "The new post-quantum X25519MLKEM768 key exchange mechanism is now supported and is enabled by default when Config.CurvePreferences is nil."
+      },
+      {
+        "title": "Go 1.26 release notes: crypto/tls",
+        "url": "https://go.dev/doc/go1.26",
+        "published": "",
+        "checked": "2026-11-19",
+        "quote": "The hybrid SecP256r1MLKEM768 and SecP384r1MLKEM1024 post-quantum key exchanges are now enabled by default."
+      },
+      {
+        "title": "Go crypto/tls: Config.CurvePreferences",
+        "url": "https://pkg.go.dev/crypto/tls#Config",
+        "published": "",
+        "checked": "2026-11-19",
+        "quote": "From Go 1.24, the default includes the X25519MLKEM768 hybrid post-quantum key exchange."
+      },
+      {
+        "title": "golang.org/x/crypto/acme/autocert",
+        "url": "https://pkg.go.dev/golang.org/x/crypto/acme/autocert",
+        "published": "",
+        "checked": "2026-11-19",
+        "quote": "Package autocert provides automatic access to certificates from Let's Encrypt and any other ACME-based CA."
+      },
+      {
+        "title": "Let's Encrypt: Challenge Types",
+        "url": "https://letsencrypt.org/docs/challenge-types/",
+        "published": "",
+        "checked": "2026-11-19",
+        "quote": "The HTTP-01 challenge can only be done on port 80."
+      }
+    ]
   }
 }

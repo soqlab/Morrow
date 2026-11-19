@@ -60,10 +60,10 @@ regexes = ['''^p95_latency_ms$''']
 
 [[allowlists]]
 description = """The sample Sec-WebSocket-Key nonce from RFC 6455 section 1.3 ("the sample nonce"), used \
-by the gateway's WebSocket upgrade test."""
+by the WebSocket upgrade tests of the gateway and of Morrow Shield (shield/)."""
 targetRules = ["generic-api-key"]
 condition = "AND"
-paths = ['''^(gateway/)?main_test\.go$''']
+paths = ['''^((gateway|shield)/)?main_test\.go$''']
 regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''']
 
 [[allowlists]]
