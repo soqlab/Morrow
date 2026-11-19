@@ -607,8 +607,8 @@ def measured(host: str, port: int, address: str, checked_at: str, vantage: str =
         "at": checked_at,
         "target": f"{address}:{port}",
         "wording": (f"Measured from {where}, at {checked_at}, against {host} ({address}) on port {port}: "
-                    f"{sent or 'up to six'} ClientHellos, each on its own connection, closed after the server's first "
-                    "answer."),
+                    + (f"{sent} ClientHello{'' if sent == 1 else 's'}, each on its own connection, closed after the "
+                       "server's first answer." if sent else "no ClientHello could be sent: nothing accepted a connection.")),
         "covers": f"The public path from the internet to {host}'s public address, and the server that answers there.",
         "does_not_cover": [
             "Networks inside your company: proxies, firewalls and VPNs your own staff go through. Run the inside test.",
@@ -630,7 +630,7 @@ def build_result(host: str, port: int, address: str, outcome: Dict[str, Any], ch
         "verdict": outcome["verdict"],
         "handshakes": outcome["handshakes"],
         "measured": measured(host, port, address, checked_at, vantage,
-                             sum(int(h.get("attempts") or 1) for h in outcome["handshakes"])),
+                             sum(int(h.get("attempts") or 1) for h in outcome["handshakes"] if h.get("error") != "connect")),
         "inside_test": dict(INSIDE_TEST),
         "not_tested": list(NOT_TESTED),
         "sources": [dict(s) for s in SOURCES],

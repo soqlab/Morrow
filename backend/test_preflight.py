@@ -204,6 +204,14 @@ def test_a_failure_that_passes_on_the_repeat_is_not_a_path_problem_but_is_noted(
     assert any("second try" in n for n in out["verdict"]["notes"])
 
 
+def test_the_wording_says_when_nothing_could_be_sent():
+    dead = dict(completed=False, error="connect")
+    outcome = {"verdict": _pf.verdict(shot("classical", **dead), shot("pq", **dead)),
+               "handshakes": [shot("classical", **dead), shot("pq", **dead)]}
+    wording = _pf.build_result("h.example", 443, "198.51.100.7", outcome, "2026-11-19T10:00:00Z")["measured"]["wording"]
+    assert wording.endswith("no ClientHello could be sent: nothing accepted a connection.")
+
+
 def test_no_repeat_when_even_the_classical_hello_failed():
     down = shot("classical", completed=False, error="connect")
     fn, calls = scripted({"classical": [down], "pq": [shot("pq", completed=False, error="connect")],

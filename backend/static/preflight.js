@@ -84,7 +84,7 @@
   function laneEl(box, id) { return box.querySelector('.pf-lane[data-id="' + id + '"]'); }
 
   function laneText(h) {
-    var size = num(h.hello_bytes) + " bytes, " + (h.segments_sent || 1) + (h.segments_sent === 1 ? " segment" : " segments");
+    var size = num(h.hello_bytes) + " bytes, " + (h.segments_sent == null ? "not sent" : h.segments_sent + (h.segments_sent === 1 ? " segment" : " segments"));
     if (h.completed) return { mark: "ok", res: ms(h.ms) + (h.group ? " · " + h.group : ""), size: size,
       say: "answered in " + ms(h.ms) + (h.group ? ", chose " + h.group : "") };
     var label = ERRORS[h.error] || "Failed";
