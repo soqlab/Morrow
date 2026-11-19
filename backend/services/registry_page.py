@@ -30,37 +30,26 @@ import json
 from typing import Any, Dict, Iterable, List, Optional, Tuple  # noqa: F401
 
 from services import public_check as _check
+from services import site_chrome as _chrome
 
-#: The chrome every public document on this site shares, so a record page does not look like it
-#: came from somewhere else. Deliberately without fabric.js/motion.js: a record is read, not
-#: animated, and this page's whole point is to be fast and complete on first paint.
-# Only two sheets. static/check.css once rendered black text on a black ground because its token
-# names collided with another sheet's; the fix that lasts is to load the one sheet that defines the
-# page shell and then one sheet of our own, with a literal fallback on every token we read.
+#: The chrome every public page on this site shares (services/site_chrome.py), so a record page does
+#: not look like it came from somewhere else: the instrument's tokens and the front page's header and
+#: footer, in both themes. registry.css is this page's own sheet, on those tokens. The one script,
+#: static/feel.js, only adds to a page that is already complete: the theme switch, numbers and rows
+#: that arrive, a "Copied" answer and what changed since your last visit. Without it nothing is lost.
 _STYLES = (
-    "/ui/public.css?v=7",
-    "/ui/registry.css?v=20261004",
+    "/ui/registry.css?v=20261118-feel",
 )
+
+#: Bumped whenever the page's markup changes, and part of the record's ETag (routers/public_check.py):
+#: a browser holding the old page must not be answered 304 and keep it.
+PAGE_VERSION = "2026-11-18-feel"
 
 #: "Your connection, right now", after the footer so its arrival moves nothing on the page.
 _CONN_SCRIPT = "/ui/conn-line.js?v=20261116"
 #: Done, on a record that is not quantum-safe (services/make_safe_done.py).
 DONE_STYLE = "/ui/make-safe-done.css?v=20261118b"
 DONE_SCRIPT = "/ui/make-safe-done.js?v=20261118b"
-
-#: The record's own links in the top strip. The old marketing navigation is gone; this goes to the
-#: instrument's one input, which is where a visitor checks another domain.
-_NAV = (
-    ("/", "Check a domain"),
-)
-
-#: The checker's terms, privacy and acceptable-use pages are one click further, on /legal.
-_FOOTER_LINKS = (
-    ("/legal", "Legal &amp; trust"),
-    ("/abuse", "Abuse &amp; opt-out"),
-    ("/about-scanner", "What connects to your server"),
-    ("/support", "Support"),
-)
 
 #: posture -> (badge fill, page accent class). Green for both post-quantum outcomes, amber for
 #: classical, grey for the two cases where nothing was established.
@@ -193,6 +182,7 @@ def _head(title: str, description: str, canonical: str, *,
         # /r/{anything} is unbounded crawl space: any string is a URL. A page with no record must
         # never be indexable, or a crawler will mine the namespace forever.
         tags.append('<meta name="robots" content="noindex, follow">')
+    tags.append(_chrome.head_assets().rstrip("\n"))
     for href in _STYLES:
         tags.append(f'<link rel="stylesheet" href="{href}">')
     # Fills #conn-line with this browser's own key exchange (Cloudflare's /cdn-cgi/trace); empty
@@ -210,29 +200,21 @@ def _head(title: str, description: str, canonical: str, *,
 
 
 def _chrome_open() -> str:
-    nav = "".join(f'<a href="{href}">{label}</a>' for href, label in _NAV)
     return (
-        '<body class="public-document registry-page">\n'
-        '<a class="skip-link" href="#record">Skip to the record</a>\n'
-        '<main class="doc-shell">\n'
-        '  <header class="topbar">\n'
-        '    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>'
-        "<span>Morrow</span></a>\n"
-        f'    <nav class="nav" aria-label="Morrow">{nav}'
-        '<a class="nav-cta" href="/ui/">Sign in &#8599;</a></nav>\n'
-        "  </header>\n"
+        '<body class="ins registry-page">\n'
+        '<a class="skip" href="#record">Skip to the record</a>\n'
+        + _chrome.HEADER +
+        '<main class="i-main rec" id="main">\n'
     )
 
 
 def _chrome_close() -> str:
-    links = " / ".join(f'<a href="{href}">{label}</a>' for href, label in _FOOTER_LINKS)
+    # The connection line stays after the footer: its arrival must move nothing on the page.
     return (
-        '  <footer>\n'
-        "    <span>Morrow / Public registry</span>\n"
-        f"    <nav>{links}</nav>\n"
-        "  </footer>\n"
-        '  <p class="conn-line" id="conn-line"></p>\n'
-        "</main>\n</body>\n</html>\n"
+        "</main>\n"
+        + _chrome.FOOTER +
+        '<p class="conn-line" id="conn-line"></p>\n'
+        "</body>\n</html>\n"
     )
 
 
@@ -377,12 +359,17 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
     description = (str(verdict.get("headline") or "") + ". "
                    + str(verdict.get("explanation") or ""))[:300]
 
+    # What this browser compares on its next visit (static/feel.js): the current observation, never
+    # a past one, and the posture it showed. Kept in the visitor's own browser; nothing is sent.
+    seen = "" if is_historical else _seen_attrs(
+        domain, f"obs:{entry.get('observation_id') or ''}:{entry.get('observations') or ''}",
+        _check.POSTURE_LABEL.get(posture, "unknown"))
     parts: List[str] = [
         _head(title, description, canonical,
               noindex=is_historical,
               json_ld=None if is_historical else _json_ld(domain, canonical, entry)),
         _chrome_open(),
-        f'  <section class="record-head accent-{esc(accent)}" id="record">',
+        f'  <section class="record-head accent-{esc(accent)}" id="record"{seen}>',
         '    <p class="eyebrow">Public post-quantum record</p>',
         f"    <h1>{esc(domain)}</h1>",
         f'    <p class="posture-line"><span class="pill pill-{esc(accent)}">'
@@ -394,7 +381,7 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
         f"      <dt>Observed</dt><dd>{esc(shown.get('observed_at') or '')}</dd>",
         f"      <dt>Last confirmed</dt><dd>{esc(shown.get('last_seen_at') or '')}</dd>",
         f"      <dt>First recorded</dt><dd>{esc(entry.get('first_seen_at') or '')}</dd>",
-        f"      <dt>Observations</dt><dd>{esc(entry.get('observations') or 1)}</dd>",
+        f"      <dt>Observations</dt><dd data-count>{esc(entry.get('observations') or 1)}</dd>",
         "    </dl>",
     ]
 
@@ -413,8 +400,13 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
         f'    <p class="actions">{primary}'
         f'<a href="/{esc(domain)}">See its live grade</a> '
         f'<a href="/r/{esc(domain)}/export.json">Download JSON</a> '
-        f'<a href="/r/{esc(domain)}/cbom.json">Download CBOM</a></p>')
+        f'<a href="/r/{esc(domain)}/cbom.json">Download CBOM</a> '
+        f'<button type="button" class="btn btn-quiet" data-copy-text="{esc(canonical)}" hidden>Copy link</button></p>')
+    if not is_historical:
+        parts.append(_SINCE)
     parts.append("  </section>")
+    if not is_historical:
+        parts.append(_watch_strip(domain))
     if not pq and not is_historical:
         parts[0] = _with_done(parts[0])
         parts.append(_done_mount(domain))
@@ -499,7 +491,9 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
         f'width="{badge_size(posture)[0]}" height="{badge_size(posture)[1]}"></p>'
         "<p>Paste this into a README. It renders the current posture, not this snapshot, and it "
         "is served from stored data -- showing the badge never starts a check.</p>"
-        f"<pre><code>{esc(snippet)}</code></pre></section>")
+        f'<pre><code id="badge-md">{esc(snippet)}</code></pre>'
+        '<p class="copy-row"><button type="button" class="btn" data-copy-from="badge-md" hidden>Copy Markdown</button></p>'
+        "</section>")
 
     # ── Limits, honestly
     limits = _list_block("What this does not tell you", result.get("limits") or [])
@@ -517,6 +511,28 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
         "you</a>.</p></section>")
     parts.append(_chrome_close())
     return "\n".join(p for p in parts if p)
+
+
+#: Filled by static/feel.js from what this browser saw last time; empty and hidden otherwise.
+_SINCE = '    <p class="feel-since" id="feel-since" role="status" hidden></p>'
+
+
+def _seen_attrs(domain: str, value: str, label: str) -> str:
+    return (f' data-seen-key="{esc(domain)}" data-seen-value="{esc(value)}"'
+            f' data-seen-label="{esc(label)}"')
+
+
+def _watch_strip(domain: str) -> str:
+    """A reason to come back: the instrument's own watch (instrument-watch.js), one click away.
+
+    The wording is the watch panel's own. The link opens the domain's page at its Watch panel,
+    which starts the watch for a signed-in visitor and offers the free passkey account otherwise.
+    """
+    d = esc(domain)
+    return (f'  <section class="watch-strip" aria-label="Watch {d}">'
+            f'<p><b>Get told when {d} changes: watch it.</b> Morrow re-checks it every day and tells you by '
+            "browser notification, webhook or a private feed. The account is free: one passkey, no email.</p>"
+            f'<a class="btn" href="/{d}#watch">Watch this domain</a></section>')
 
 
 def _with_done(head: str) -> str:
@@ -564,10 +580,14 @@ def render_missing(domain: str, origin: str, graded: Optional[Dict[str, Any]] = 
                    "checker, so there is no record to show.")
     done = bool(graded) and not graded.get("post_quantum")
     head = _head(title, description, f"{base}/r/{domain}", noindex=True)
+    seen = ""
+    if graded:
+        grade = str(graded.get("grade") or "?")
+        seen = _seen_attrs(domain, f"grade:{grade}:{graded.get('scanned_at') or ''}", f"grade {grade}")
     return "\n".join([
         _with_done(head) if done else head,
         _chrome_open(),
-        '  <section class="record-head accent-none" id="record">',
+        f'  <section class="record-head accent-none" id="record"{seen}>',
         '    <p class="eyebrow">Public post-quantum record</p>',
         f"    <h1>{esc(domain)}</h1>",
         *_graded_lines(domain, graded),
@@ -577,7 +597,9 @@ def render_missing(domain: str, origin: str, graded: Optional[Dict[str, Any]] = 
         'browser does. The <a href="/public-check/acceptable-use">acceptable-use policy</a> '
         "applies: check hosts you own, a supplier you are assessing, or a domain you are "
         "researching in good faith.</p>",
+        *([_SINCE] if graded else []),
         "  </section>",
+        *([_watch_strip(domain)] if graded else []),
         *([_done_mount(domain)] if done else []),
         _chrome_close(),
     ])

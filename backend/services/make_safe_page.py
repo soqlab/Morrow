@@ -14,8 +14,8 @@ from typing import Any, Dict
 from services import registry_page as _registry
 from services.registry_page import esc
 
-_STYLE = "/ui/make-safe.css?v=20261115"
-_SCRIPTS = ("/ui/vendor/morrow-pq-verify.js", "/ui/make-safe-proof.js?v=20261115")
+_STYLE = "/ui/make-safe.css?v=20261118-feel"
+_SCRIPTS = ("/ui/vendor/morrow-pq-verify.js", "/ui/make-safe-proof.js?v=20261118-feel")
 
 
 def _day(value: Any) -> str:
@@ -44,6 +44,21 @@ def _owner_line(owner: Dict[str, Any]) -> str:
     return "Not claimed by its owner on Morrow"
 
 
+def _seal(safe: bool, doc: Dict[str, Any], sigs: Any) -> str:
+    """The proof's seal: the same facts as the lines beside it, set as one block that lands once
+    when the page opens (feel.css). Once the visitor's browser has checked both signatures,
+    make-safe-proof.js marks it verified."""
+    algs = " + ".join(esc(s.get("alg")) for s in (sigs or [])) or "unsigned"
+    if safe:
+        k, v, kx = "Quantum-safe since", _day(doc.get("safe_since")), doc.get("key_exchange") or "-"
+    else:
+        k, v, kx = "Classical again from", _day(doc.get("lapsed_at")), doc.get("lapsed_key_exchange") or "a classical key exchange"
+    return (f'    <div class="seal" data-state="{"safe" if safe else "lapsed"}">'
+            f'<span class="seal-k">{esc(k)}</span><span class="seal-v">{esc(v)}</span>'
+            f'<span class="seal-x">{esc(kx)}</span><span class="seal-s">Signed: {algs}</span>'
+            '<span class="seal-ok" id="seal-ok"></span></div>')
+
+
 def render_proof(envelope: Dict[str, Any], origin: str) -> str:
     doc = envelope.get("document") or {}
     domain = str(doc.get("domain") or "")
@@ -57,6 +72,9 @@ def render_proof(envelope: Dict[str, Any], origin: str) -> str:
         _registry._chrome_open(),
         f'  <section class="record-head accent-{"ok" if safe else "warn"} proof-head" id="record" data-proof="/r/{esc(domain)}/proof.json">',
         '    <p class="eyebrow">Signed proof</p>',
+        '    <div class="proof-top">',
+        _seal(safe, doc, sigs),
+        '    <div class="proof-say">',
         f"    <h1>{esc(domain)}</h1>",
     ]
     if safe:
@@ -64,6 +82,7 @@ def render_proof(envelope: Dict[str, Any], origin: str) -> str:
     else:
         parts.append('    <p class="proof-status" data-state="lapsed">No longer quantum-safe</p>')
     parts.append(f'    <p class="lede">{esc(doc.get("statement"))}</p>')
+    parts.append("    </div></div>")
     if not safe:
         parts.append(f'    <p class="notice">Since {esc(_when(doc.get("lapsed_at")))} this host negotiates '
                      f'{esc(doc.get("lapsed_key_exchange") or "a classical key exchange")}. The fix for its stack is '
@@ -72,7 +91,8 @@ def render_proof(envelope: Dict[str, Any], origin: str) -> str:
         f'    <p class="actions"><a class="btn" href="/{esc(domain)}#make-safe">'
         f'{"See it live" if safe else "Make it safe again"}</a> '
         f'<a href="/r/{esc(domain)}/proof.json">Download the signed proof</a> '
-        f'<a href="/r/{esc(domain)}">Public record</a></p>')
+        f'<a href="/r/{esc(domain)}">Public record</a> '
+        f'<button type="button" class="btn btn-quiet" data-copy-text="{esc(base)}/r/{esc(domain)}/proof" hidden>Copy link</button></p>')
     parts.append("  </section>")
 
     parts.append('  <section class="panel"><h2>What was observed</h2><table class="facts"><tbody>')
@@ -103,7 +123,8 @@ def render_proof(envelope: Dict[str, Any], origin: str) -> str:
                  "Ed25519 (RFC 8032) and ML-DSA-65 (FIPS 204, empty context).</p></section>")
     parts.append('  <section class="panel"><h2>Embed it</h2>')
     snippet = f"[![quantum-readiness grade]({base}/api/public/badge/{domain}.svg)]({base}/r/{domain}/proof)"
-    parts.append(f'<pre class="snippet">{esc(snippet)}</pre></section>')
+    parts.append(f'<pre class="snippet" id="proof-md">{esc(snippet)}</pre>'
+                 '<p class="copy-row"><button type="button" class="btn" data-copy-from="proof-md" hidden>Copy Markdown</button></p></section>')
     parts.append(_registry._chrome_close())
     return "\n".join(parts)
 

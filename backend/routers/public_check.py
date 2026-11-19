@@ -172,6 +172,8 @@ def create_public_check_router(deps: Any) -> APIRouter:
         """
         basis = "|".join(str(entry.get(key) or "") for key in
                          ("content_hash", "last_observed_at", "observations", "observation_id"))
+        # The page's own version too: after a redesign, a browser holding the old markup gets the new.
+        basis += "|" + _registry.PAGE_VERSION
         return f'"{hashlib.sha256(basis.encode("utf-8")).hexdigest()[:32]}"'
 
     def _canonical_redirect(host: str, domain: str, suffix: str = "") -> Optional[RedirectResponse]:

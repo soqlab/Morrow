@@ -1,293 +1,154 @@
-/* Public registry record pages (/r/{domain}).
+/* Public registry record pages (/r/{domain}) and the signed proof (/r/{domain}/proof).
  *
- * Loaded after public.css, which supplies the shell: body, topbar, nav, footer, .btn, .notice,
- * .eyebrow. Everything here is either a component public.css does not have or a component of this
- * page. Every token read is written as var(--name, #literal): check.css once rendered black on
- * black because a token it expected was defined by a sheet that was not loaded, and a literal
- * fallback is the one fix that cannot regress.
+ * Loaded after instrument.css and feel.css (services/site_chrome.py), which supply the tokens in
+ * both themes, the header, the footer, buttons that give under a press and rows that arrive. This
+ * sheet lays out the record itself, in the front page's language: square corners, 1px rules, mono
+ * uppercase labels, tabular figures, one green action.
  *
- * No animation, no ambient layer. A record is read, cached, crawled and unfurled; the first paint
- * is the whole product.
+ * A record is read, cached, crawled and unfurled: the first paint is the whole record, and every
+ * motion here (rows arriving, the proof's seal landing) runs once and stops under
+ * prefers-reduced-motion. The --reg-* names are kept as aliases for make-safe.css and
+ * make-safe-done.css, which read them.
  */
 
 .registry-page {
-  --reg-line: var(--line, #27303a);
-  --reg-panel: var(--panel, #0d1115);
-  --reg-ink: var(--ink, #eeeeee);
-  --reg-ink-2: var(--ink-2, #b9b9b9);
-  --reg-ink-3: var(--ink-3, #7f7f7f);
-  --reg-blue: var(--blue, #7eb6ff);
-  --reg-ok: #4ec07a;
-  --reg-part: #8fd0a8;
-  --reg-warn: var(--amber, #d9a24b);
-  --reg-none: var(--ink-3, #7f7f7f);
-  --reg-bad: var(--bad, #ff6f6f);
+  --reg-line: var(--line); --reg-panel: var(--bg); --reg-ink: var(--text); --reg-ink-2: var(--muted);
+  --reg-ink-3: var(--dim); --reg-blue: var(--accent); --reg-ok: var(--ok); --reg-part: var(--g-b);
+  --reg-warn: var(--warn); --reg-none: var(--dim); --reg-bad: var(--bad);
+}
+.registry-page .i-main.rec { padding-top: clamp(24px, 4vw, 48px); }
+.rec a { color: inherit; text-underline-offset: 3px; text-decoration-color: var(--line-2); }
+.rec a:hover { text-decoration-color: var(--text); }
+.rec .fine { font-size: 13px; line-height: 1.6; color: var(--dim); }
+.rec .fine a { color: var(--muted); }
+.rec .empty { color: var(--muted); font-size: 14px; }
+.rec .note { display: block; font-size: 12.5px; color: var(--dim); margin-top: 3px; }
+.rec code { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+
+/* posture: a square chip in the grade colours */
+.rec .pill { display: inline-flex; align-items: center; gap: 8px; padding: 3px 9px; border: 1px solid currentColor; font: 500 11px/1.5 var(--mono); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+.rec .pill::before { content: ""; width: 7px; height: 7px; background: currentColor; flex: none; }
+.rec .pill-ok { color: var(--ok); } .rec .pill-part { color: var(--g-b); }
+.rec .pill-warn { color: var(--warn); } .rec .pill-none { color: var(--dim); }
+
+/* ── the head: what the front page's headline is to the board ── */
+.rec .record-head { margin: 0 0 28px; padding: 0 0 26px; border-bottom: 1px solid var(--line-2); }
+.rec .eyebrow { display: flex; align-items: center; gap: 10px; font: 500 11px var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+.rec .eyebrow::before { content: ""; width: 8px; height: 8px; background: var(--acc, var(--dim)); flex: none; }
+.rec .accent-ok { --acc: var(--ok); } .rec .accent-part { --acc: var(--g-b); }
+.rec .accent-warn { --acc: var(--warn); } .rec .accent-none { --acc: var(--dim); }
+.rec .record-head h1 { margin: 0 0 16px; font: 500 clamp(36px, 6vw, 72px)/1 var(--sans); letter-spacing: -.035em; word-break: break-word; }
+.rec .posture-line { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0 0 18px; color: var(--muted); font-size: 15px; }
+.rec .headline { margin: 0 0 8px; font: 500 clamp(19px, 2vw, 24px)/1.3 var(--sans); letter-spacing: -.01em; text-wrap: balance; max-width: 40ch; }
+.rec .lede { margin: 0 0 20px; max-width: 66ch; color: var(--muted); font-size: 16px; }
+.rec .notice { border-left: 2px solid var(--acc, var(--line-2)); background: var(--bg-2); padding: 10px 14px; color: var(--muted); margin: 0 0 18px; }
+
+/* the dates and the count: readouts, as on the instrument */
+.rec .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin: 0 0 20px; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.rec .meta dt { grid-row: 1; padding: 10px 12px 2px; border-right: 1px solid var(--line); font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.rec .meta dd { grid-row: 2; margin: 0; padding: 0 12px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font: 500 14px var(--mono); overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .rec .meta { grid-template-columns: minmax(0, 1fr); }
+  .rec .meta dt, .rec .meta dd { grid-row: auto; }
+  .rec .meta dt { padding-top: 8px; }
+  .rec .meta dd { padding-bottom: 8px; }
 }
 
-/* ------------------------------------------------------------ bits public.css lacks */
+/* buttons: the front page's, one solid green action per page */
+.rec .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--text); font: 500 13px var(--mono); letter-spacing: .02em; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.rec .btn:hover { border-color: var(--text); background: var(--bg-3); }
+.rec .btn[hidden] { display: none; }
+.rec .actions { max-width: none; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin: 0 0 6px; font: 13px var(--mono); }
+.rec .actions a:not(.btn) { color: var(--muted); }
+.rec .actions a:not(.btn):hover { color: var(--text); }
+.rec .actions .btn:first-child { background: var(--ch-grade); border-color: var(--ch-grade); color: var(--on-solid); font-weight: 600; }
+.rec .actions .btn:first-child:hover { filter: brightness(1.08); }
+.rec .btn-quiet { min-height: 32px; padding: 0 10px; font-size: 12px; }
+.rec .copy-row { margin: 10px 0 0; }
+.rec .feel-since { margin: 16px 0 0; }
 
-.registry-page .skip-link {
-  position: absolute;
-  left: -9999px;
-  top: 0;
-  z-index: 100;
-  padding: 10px 14px;
-  background: var(--reg-panel);
-  color: var(--reg-ink);
-  border: 1px solid var(--reg-line);
-}
-.registry-page .skip-link:focus { left: 8px; top: 8px; }
+/* watch: a slim invitation under the head, like the front page's verified-ready strip */
+.rec .watch-strip { display: flex; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin: -10px 0 28px; padding: 14px 16px; border: 1px solid var(--line); border-left: 2px solid var(--ch-trust); background: var(--bg-2); }
+.rec .watch-strip p { margin: 0; flex: 1 1 360px; font-size: 14px; color: var(--muted); max-width: none; }
+.rec .watch-strip b { color: var(--text); font-weight: 500; }
 
-.registry-page .fine {
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--reg-ink-3);
-}
+/* ── panels: a labelled rule, as the instrument's channels ── */
+.rec .panel { margin: 0 0 18px; padding: 0 16px 16px; border: 1px solid var(--line); background: var(--bg); min-width: 0; }
+.rec .panel > h2 { display: flex; align-items: center; gap: 10px; margin: 0 -16px 14px; padding: 9px 16px; border-bottom: 1px solid var(--line); font: 500 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.rec .panel > h2::before { content: ""; width: 8px; height: 8px; background: var(--ch-ref); flex: none; }
+.rec .panel > h2 ~ h2 { margin-top: 18px; border-top: 1px solid var(--line); }
+.rec .panel p { max-width: 72ch; }
+.rec .panel > p:last-child { margin-bottom: 0; }
+.rec .done-mount[hidden] { display: none; }
 
-.registry-page .empty {
-  color: var(--reg-ink-3);
-  font-size: 14.5px;
-}
+/* tables */
+.rec table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.rec th { text-align: left; padding: 8px 12px 8px 0; font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); font-weight: 400; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+.rec td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.rec tbody tr:last-child td { border-bottom: 0; }
+.rec .facts td:first-child { width: 34%; color: var(--muted); padding-left: 2px; }
+.rec .facts .value { font-family: var(--mono); font-size: 13.5px; color: var(--text); overflow-wrap: anywhere; }
+.rec .history td:first-child, .rec .deadlines td:nth-child(n+2) { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
 
-.registry-page .note {
-  display: block;
-  font-size: 12.5px;
-  color: var(--reg-ink-3);
-  margin-top: 3px;
-}
-
-.registry-page .pill {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 999px;
-  border: 1px solid currentColor;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .07em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.registry-page .pill-ok { color: var(--reg-ok); }
-.registry-page .pill-part { color: var(--reg-part); }
-.registry-page .pill-warn { color: var(--reg-warn); }
-.registry-page .pill-none { color: var(--reg-none); }
-
-/* ------------------------------------------------------------------------- the head */
-
-.registry-page .record-head {
-  position: relative;
-  z-index: 1;
-  margin: 30px 0 34px;
-  padding: 26px 26px 24px;
-  border: 1px solid var(--reg-line);
-  border-left-width: 3px;
-  background: var(--reg-panel);
-}
-.registry-page .accent-ok { border-left-color: var(--reg-ok); }
-.registry-page .accent-part { border-left-color: var(--reg-part); }
-.registry-page .accent-warn { border-left-color: var(--reg-warn); }
-.registry-page .accent-none { border-left-color: var(--reg-none); }
-
-.registry-page .record-head h1 {
-  margin: 4px 0 14px;
-  font-size: clamp(26px, 5vw, 40px);
-  line-height: 1.12;
-  letter-spacing: -.01em;
-  word-break: break-word;
-  text-wrap: balance;
+/* algorithms: cards that lift under the pointer */
+.rec .algo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.rec .algo { position: relative; padding: 14px 14px 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--bg); }
+.rec .algo::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 2px; background: var(--vc, var(--line-2)); }
+.rec .algo h3 { margin: 2px 0 2px; font: 500 15px var(--mono); overflow-wrap: anywhere; }
+.rec .algo p { margin: 0 0 8px; max-width: none; font-size: 13.5px; color: var(--muted); }
+.rec .algo .role { font: 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.rec .algo .verdict-line { font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--vc, var(--muted)); }
+.rec .algo .action { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text); }
+.rec .algo-quantum_vulnerable { --vc: var(--bad); }
+.rec .algo-compliant { --vc: var(--ok); }
+.rec .algo-unknown { --vc: var(--warn); }
+@media (hover: hover) {
+  .rec .algo { transition: transform 160ms ease-out, background-color 120ms ease-out; }
+  .rec .algo:hover { transform: translateY(-2px); background: var(--bg-2); }
 }
 
-.registry-page .posture-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: baseline;
-  margin: 0 0 18px;
-  color: var(--reg-ink-2);
-  font-size: 15px;
-}
+/* lists and code */
+.rec .plain { margin: 0 0 6px; padding-left: 18px; max-width: 72ch; }
+.rec .plain li { margin: 0 0 6px; color: var(--muted); font-size: 14.5px; }
+.rec pre { margin: 8px 0 0; padding: 12px 14px; overflow-x: auto; border: 1px solid var(--line); background: var(--bg-2); font: 13px/1.5 var(--mono); }
+.rec pre code { color: var(--text); overflow-wrap: normal; }
+.rec .fine-print p { color: var(--dim); font-size: 13px; margin: 0; }
+.rec .fine-print { padding-top: 14px; }
 
-.registry-page .headline {
-  margin: 0 0 8px;
-  font-size: 19px;
-  line-height: 1.35;
-  text-wrap: balance;
-}
-
-.registry-page .lede {
-  margin: 0 0 20px;
-  max-width: 66ch;
-  color: var(--reg-ink-2);
-}
-
-.registry-page .meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 14px 22px;
-  margin: 0 0 18px;
-  padding: 16px 0 0;
-  border-top: 1px solid var(--reg-line);
-}
-.registry-page .meta dt {
-  font-size: 11.5px;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-  color: var(--reg-ink-3);
-}
-.registry-page .meta dd {
-  margin: 3px 0 0;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  word-break: break-word;
-}
-
-.registry-page .actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 18px;
-  align-items: center;
-  margin: 0;
-}
-
-/* --------------------------------------------------------------------------- panels */
-
-.registry-page .panel {
-  position: relative;
-  z-index: 1;
-  margin: 0 0 26px;
-  padding: 22px 24px;
-  border: 1px solid var(--reg-line);
-  background: var(--reg-panel);
-}
-.registry-page .panel > h2 {
-  margin: 0 0 16px;
-  font-size: 13px;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--reg-ink-3);
-}
-.registry-page .panel > h2 ~ h2 { margin-top: 26px; }
-
-.registry-page .panel p { max-width: 70ch; }
-
-/* --------------------------------------------------------------------------- tables */
-
-.registry-page table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14.5px;
-}
-.registry-page th {
-  text-align: left;
-  padding: 0 14px 9px 0;
-  font-size: 11.5px;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-  color: var(--reg-ink-3);
-  font-weight: 600;
-  border-bottom: 1px solid var(--reg-line);
-}
-.registry-page td {
-  padding: 10px 14px 10px 0;
-  border-bottom: 1px solid var(--reg-line);
-  vertical-align: top;
-}
-.registry-page tr:last-child td { border-bottom: 0; }
-.registry-page .facts td:first-child {
-  width: 34%;
-  color: var(--reg-ink-3);
-}
-.registry-page .facts .value,
-.registry-page .history td,
-.registry-page .deadlines td { font-variant-numeric: tabular-nums; }
-.registry-page .facts .value { color: var(--reg-ink); word-break: break-word; }
-
-/* A long certificate subject or issuer must not push the page sideways. */
-.registry-page .panel > table { display: table; }
-.registry-page .history,
-.registry-page .deadlines { min-width: 0; }
-
-/* ----------------------------------------------------------------------- algorithms */
-
-.registry-page .algo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
-}
-
-.registry-page .algo {
-  padding: 16px 16px 14px;
-  border: 1px solid var(--reg-line);
-  border-top-width: 2px;
-  background: rgba(255, 255, 255, .015);
-}
-.registry-page .algo h3 {
-  margin: 0 0 2px;
-  font-size: 16px;
-  word-break: break-word;
-}
-.registry-page .algo p { margin: 0 0 8px; max-width: none; font-size: 13.5px; }
-.registry-page .algo .role {
-  font-size: 11px;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-  color: var(--reg-ink-3);
-}
-.registry-page .algo .verdict-line {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-.registry-page .algo .action {
-  margin: 10px 0 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--reg-line);
-  font-size: 13px;
-  color: var(--reg-blue);
-}
-
-.registry-page .algo-quantum_vulnerable { border-top-color: var(--reg-bad); }
-.registry-page .algo-quantum_vulnerable .verdict-line { color: var(--reg-bad); }
-.registry-page .algo-compliant { border-top-color: var(--reg-ok); }
-.registry-page .algo-compliant .verdict-line { color: var(--reg-ok); }
-.registry-page .algo-unknown { border-top-color: var(--reg-warn); }
-.registry-page .algo-unknown .verdict-line { color: var(--reg-warn); }
-
-/* ---------------------------------------------------------------------- lists, code */
-
-.registry-page .plain {
-  margin: 0 0 6px;
-  padding-left: 20px;
-  max-width: 70ch;
-}
-.registry-page .plain li { margin: 0 0 7px; color: var(--reg-ink-2); font-size: 14.5px; }
-
-.registry-page pre {
-  margin: 12px 0 0;
-  padding: 12px 14px;
-  overflow-x: auto;
-  border: 1px solid var(--reg-line);
-  background: rgba(0, 0, 0, .28);
-}
-.registry-page pre code,
-.registry-page code {
-  font-family: var(--mono, Consolas, ui-monospace, monospace);
-  font-size: 13px;
-  color: var(--reg-ink-2);
-}
-
-.registry-page .limits h2 { margin-top: 0; }
-.registry-page .fine-print p { color: var(--reg-ink-3); font-size: 13.5px; }
-/* Your connection, right now (static/conn-line.js); empty, it takes no space. */
-.registry-page .conn-line { margin: 12px 0 0; font-family: var(--mono, Consolas, ui-monospace, monospace); font-size: 12px; color: var(--reg-ink-3); }
-.registry-page .conn-line:empty { display: none; }
+/* ── the proof: a seal that lands once, the statement beside it ── */
+.rec .proof-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px 28px; align-items: start; margin: 0 0 6px; }
+.rec .proof-say h1 { margin-bottom: 8px; }
+.rec .seal { display: grid; gap: 4px; width: 232px; padding: 16px 16px 14px; border: 1px solid var(--sc); border-top-width: 4px; background: var(--bg-2); font-family: var(--mono); --sc: var(--ok); animation: feel-seal .6s cubic-bezier(.2, .9, .25, 1.15) .08s 1 both; }
+.rec .seal[data-state="lapsed"] { --sc: var(--bad); }
+.rec .seal-k { font: 500 10.5px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--sc); }
+.rec .seal-v { font: 500 30px/1.05 var(--mono); letter-spacing: -.03em; color: var(--text); animation: feel-rise .5s ease-out .32s 1 both; }
+.rec .seal-x { font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
+.rec .seal-s { font-size: 11.5px; color: var(--dim); padding-top: 6px; margin-top: 4px; border-top: 1px solid var(--line); }
+.rec .seal-ok { font-size: 11.5px; color: var(--ok); }
+.rec .seal-ok:empty { display: none; }
+.rec .seal[data-verified="ok"] { animation: feel-pop .3s cubic-bezier(.2, .8, .2, 1) 1; }
+.rec .seal[data-verified="bad"] .seal-ok { color: var(--bad); }
+.rec .proof-status { font: 500 clamp(22px, 3vw, 32px)/1.15 var(--sans); letter-spacing: -.02em; margin: 0 0 10px; animation: feel-rise .5s ease-out .2s 1 both; }
+.rec .proof-status[data-state="safe"] { color: var(--ok); }
+.rec .proof-status[data-state="lapsed"] { color: var(--bad); }
+.rec .verify-out { min-height: 1.4em; font: 13px var(--mono); }
+.rec .verify-out[data-tone="ok"] { color: var(--ok); }
+.rec .verify-out[data-tone="bad"] { color: var(--bad); }
+.rec pre.snippet { margin-top: 0; }
+@keyframes feel-seal { from { opacity: 0; transform: scale(1.06) rotate(-1.2deg); } 70% { opacity: 1; } to { opacity: 1; transform: none; } }
+@keyframes feel-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 @media (max-width: 620px) {
-  .registry-page .record-head { padding: 20px 18px; }
-  .registry-page .panel { padding: 18px 16px; }
-  .registry-page .facts td:first-child { width: 42%; }
-  /* Four columns of history do not fit a phone; let the one wide table scroll in place
-     rather than the whole document. */
-  .registry-page .history { display: block; overflow-x: auto; white-space: nowrap; }
+  .rec .proof-top { grid-template-columns: minmax(0, 1fr); }
+  .rec .seal { width: 100%; }
+  .rec .btn { white-space: normal; text-align: center; padding-block: 8px; }
+  .rec .facts td:first-child { width: 42%; }
+  .rec .actions .btn:first-child { flex: 1 1 100%; }
+  /* Four columns of history do not fit a phone; the one wide table scrolls in place. */
+  .rec .history, .rec .deadlines { display: block; overflow-x: auto; white-space: nowrap; }
+  .rec .watch-strip .btn { flex: 1 1 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec .seal, .rec .seal-v, .rec .proof-status, .rec .seal[data-verified="ok"] { animation: none; }
+  .rec .algo, .rec .algo:hover { transition: none; transform: none; }
 }

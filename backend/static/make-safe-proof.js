@@ -45,6 +45,10 @@
       var out = check(got[0], got[1]);
       var parts = out.results.map(function (r) { return r.alg + (r.ok ? " verifies" : r.known ? " does NOT verify" : " uses a key this server does not publish"); });
       say((out.valid ? "Valid: " : "Not valid: ") + parts.join(", ") + ".", out.valid ? "ok" : "bad");
+      // The seal answers too, once: verified here, by this browser, or not.
+      var seal = document.querySelector(".seal"), ok = $("#seal-ok");
+      if (seal) seal.setAttribute("data-verified", out.valid ? "ok" : "bad");
+      if (ok) ok.textContent = out.valid ? "Verified in this browser" : "Did not verify in this browser";
     }).catch(function (e) { say("Could not check: " + e.message, "bad"); });
   }
 
