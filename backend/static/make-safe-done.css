@@ -1,8 +1,10 @@
 /* Make it safe: Done (make-safe-done.js). Works inside the instrument views (their tokens, light and
  * dark) and on the /r record (registry tokens, dark), with a literal fallback for every token.
- * Square corners, mono eyebrows, tabular numbers. Motion is short and physical (150-400 ms) and only
- * marks a real state change; under prefers-reduced-motion every change is instant and the end state
- * is the same. */
+ * The front page's language (feel.css, "One language for every public page"): rounded surfaces and
+ * pill buttons from the shared shape tokens, the one action in the safe colour, labels in the system
+ * sans; each falls back to the old square, mono look where those tokens are not loaded. Tabular
+ * numbers. Motion is short and physical (150-400 ms) and only marks a real state change; under
+ * prefers-reduced-motion every change is instant and the end state is the same. */
 
 .dn-host {
   --dn-bg: var(--bg-2, var(--reg-panel, #0b0d10));
@@ -180,6 +182,18 @@ dialog.dn-sheet[open] { animation: dn-rise .28s var(--dn-ease, ease); }
 .dn-sh-more a { color: inherit; text-underline-offset: 3px; }
 .dn-sh-src { font-size: 13px; }
 
+/* ── the front page's language (tokens from instrument.css; old look as the fallback) ── */
+.dn-host, .dn-sheet { font-family: var(--sans, inherit); }
+.dn-eyebrow, .dn-label, .dn-table th { font-family: var(--sans, var(--dn-mono)); font-weight: 600; }
+.dn-ui .dn-btn { border-radius: var(--r-pill, 0); font-weight: 600; }
+.dn-ui .dn-go, .dn-ui .dn-go:hover { background: var(--safe, var(--dn-accent)); border-color: var(--safe, var(--dn-accent)); color: var(--safe-ink, var(--dn-solid-ink)); }
+.dn-ui .dn-go:hover { opacity: .92; }
+.dn-snippet, .dn-perm, .dn-input, .dn-err, .dn-note, .dn-readout { border-radius: var(--r-sm, 0); }
+.dn-grade { border-radius: var(--r-lg, 0); }
+.dn-proof { border-radius: var(--r-lg, 0); }
+dialog.dn-sheet { border-radius: var(--r-lg, 0); }
+.dn-sh-more { border-top: 0; padding: 12px 16px; border: 1px solid var(--dn-hair); border-radius: var(--r-md, 0); }
+
 @media (max-width: 560px) {
   .dn-sh-cmd { grid-template-columns: 1fr; }
   .dn-sh-cmd .dn-sh-copy, .dn-sh-actions .dn-go { width: 100%; }
@@ -190,7 +204,7 @@ dialog.dn-sheet[open] { animation: dn-rise .28s var(--dn-ease, ease); }
   .dn-offer + .dn-actions .dn-go { width: 100%; }
   .dn-proof { padding: 16px; }
   .dn-proof .dn-actions .dn-btn { flex: 1 1 calc(50% - 7px); padding: 0 10px; }
-  dialog.dn-sheet { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; }
+  dialog.dn-sheet { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-width: 1px 0 0; border-radius: var(--r-lg, 0) var(--r-lg, 0) 0 0; }
   dialog.dn-sheet[open] { animation-name: dn-up; }
   .dn-form { padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
   .dn-form .dn-actions .dn-btn { flex: 1 1 100%; }
