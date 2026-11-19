@@ -488,6 +488,32 @@ it; `python -m services.vendor_check --recheck` without a worker).
     DELETE /api/public/vendors/report/{token}     X-Manage-Key: <key returned at creation>
     GET|POST /instrument/vendor-checks, GET|PATCH|DELETE /instrument/vendor-checks/{id}  (signed in)
 
+#### Evidence packs (services/vendor_evidence.py)
+
+For each vendor in a report that is not quantum-safe (graded C to F, newest check still below B, not
+opted out), the buyer can download a signed evidence pack built only from what Morrow measured: the
+public grade checks of the domain (time in UTC, check id, key-exchange group chosen, TLS versions
+accepted, certificate verified, grade and rubric version), the registry's dated observations with their
+permalinks `/r/<domain>/at/<id>`, the deadline for the buyer's kind of data (the board slide's logic,
+services/board_slide.py `_deadline`; "Not sure" is the assumed Shelf-Life default) with its sources,
+and how Morrow measures (`/about-scanner`, this document). The canonical JSON is signed with the same
+Ed25519 + ML-DSA-65 keys as the quantum-safe proof, under the context `morrow.vendor-evidence.v1`, so a
+proof signature can never be replayed as evidence or the reverse; check it offline against
+`/.well-known/morrow-proof-keys.json` (the ZIP carries `verify.py`).
+
+The pack comes with a proposed contract addendum (`data/vendor_addendum.json`, versioned and dated):
+hybrid post-quantum key exchange (X25519MLKEM768 or an equivalent NIST-standardised ML-KEM hybrid,
+NIST FIPS 203) on the named endpoints by a date the buyer chooses (defaulted from the deadline: 1
+January of the last safe year, or 180 days from today when that has passed), re-verification with a
+public check, and notice of crypto changes. It is a template, not legal advice, and says so; it
+claims nothing about any law. Tickets need no credentials and make no calls: a GitHub "new issue"
+link (kept under 8,000 characters), a Jira-importable CSV and a Markdown ticket. Morrow sends nothing.
+
+    GET    /api/public/vendors/report/{token}/evidence/{domain}[.zip]   ?data=<kind of data> &by=YYYY-MM-DD
+    GET    /api/public/vendors/report/{token}/evidence/{domain}/github?repo=owner/name   303 to GitHub
+    GET    /api/public/vendors/report/{token}/evidence.zip              every vendor that needs a pack
+    GET    /api/public/vendors/report/{token}/tickets.csv               Jira import, one row per vendor
+
 ### What changed (`/changes`, services/changes.py)
 
 Grades crossing the line at B, from stored grades only, with the "Not yet post-quantum" naming rules:

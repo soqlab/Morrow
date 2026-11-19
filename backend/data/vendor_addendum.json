@@ -1,0 +1,47 @@
+{
+  "format": "morrow.vendor-addendum/v1",
+  "id": "pq-key-exchange",
+  "version": "1.0",
+  "date": "2026-11-19",
+  "title": "Post-quantum key exchange: proposed contract addendum",
+  "notice": "Template, not legal advice: have your lawyer review it before you use it.",
+  "review": "Written in plain English by SOQLAB and checked against NIST FIPS 203 and the IANA TLS Supported Groups registry for the facts it cites. It has not been reviewed by a lawyer for any country, and it does not say that any law or regulation calls for it.",
+  "placeholders": {
+    "buyer": "[Your company]",
+    "vendor": "[Vendor]",
+    "agreement": "[name and date of the agreement this addendum belongs to]"
+  },
+  "intro": "This addendum forms part of {agreement} between {buyer} and {vendor}. Where it conflicts with that agreement on the matters below, this addendum applies.",
+  "clauses": [
+    {
+      "heading": "Definitions",
+      "text": "\"Hybrid post-quantum key exchange\" means a TLS key exchange that combines a classical elliptic-curve exchange with ML-KEM, the key-encapsulation mechanism standardised in NIST FIPS 203: X25519MLKEM768 (TLS supported group 0x11EC) or an equivalent hybrid group that uses a NIST-standardised ML-KEM parameter set. \"Covered Endpoints\" means: {endpoints}, and any hostname that replaces one of them for the same service."
+    },
+    {
+      "heading": "Commitment",
+      "text": "By {date} (the \"Target Date\"), {vendor} will support hybrid post-quantum key exchange on every Covered Endpoint for TLS 1.3 connections, and will choose it whenever a client offers it."
+    },
+    {
+      "heading": "Re-verification",
+      "text": "{buyer} may check any Covered Endpoint at any time with a public, read-only check, such as Morrow's public check at {check_url}. If such a check, made on or after the Target Date, shows a classical-only key exchange on a Covered Endpoint, {buyer} may send {vendor} the dated result, and {vendor} will reply within 30 days with either evidence that the result is wrong or a date by which it will be put right."
+    },
+    {
+      "heading": "Notice of cryptographic changes",
+      "text": "{vendor} will give {buyer} at least 30 days' written notice before any planned change that removes or weakens hybrid post-quantum key exchange on a Covered Endpoint, and will tell {buyer} within 5 business days after an unplanned change that does so."
+    },
+    {
+      "heading": "Progress",
+      "text": "Until the Target Date, {vendor} will tell {buyer} on request, at most once a quarter, how the work stands and whether the Target Date is still expected to be met."
+    }
+  ],
+  "sources": [
+    {
+      "label": "NIST FIPS 203, Module-Lattice-Based Key-Encapsulation Mechanism Standard (August 2024)",
+      "url": "https://doi.org/10.6028/NIST.FIPS.203"
+    },
+    {
+      "label": "IANA, Transport Layer Security (TLS) Parameters: TLS Supported Groups (X25519MLKEM768 is 0x11EC)",
+      "url": "https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8"
+    }
+  ]
+}

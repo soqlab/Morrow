@@ -8,6 +8,13 @@ of routers/public_grade.py apply):
   GET    /api/public/vendors/report/{token}     the report as JSON (progress while it runs)
   GET    /api/public/vendors/report/{token}.csv the same, as CSV
   DELETE /api/public/vendors/report/{token}     revoke, with header X-Manage-Key
+  GET    /api/public/vendors/report/{token}/evidence/{domain}       one vendor's signed evidence pack, as JSON
+  GET    /api/public/vendors/report/{token}/evidence/{domain}.zip   the same as a ZIP (services/vendor_evidence.py)
+  GET    /api/public/vendors/report/{token}/evidence/{domain}/github?repo=owner/name
+                                                -> 303 to GitHub's prefilled "new issue" page (no call is made)
+  GET    /api/public/vendors/report/{token}/evidence.zip            every vendor that is not quantum-safe
+  GET    /api/public/vendors/report/{token}/tickets.csv             a Jira-importable CSV, one row per vendor
+                                                ?data=<Shelf-Life kind of data> ?by=YYYY-MM-DD on each
   GET    /api/public/changes[.atom|.rss]        what changed (services/changes.py); ?sector= ?kind=
   GET    /api/public/report                     every sector's headline (services/sector_report.py)
   GET    /api/public/report/{sector}[.csv]      one sector's report
@@ -139,6 +146,103 @@ def create_public_reports_router(deps: Any) -> APIRouter:
         except vendor_check.VendorError as exc:
             return _vendor_error(exc)
         return JSONResponse(report, headers=_NO_STORE)
+
+    # ── evidence packs (services/vendor_evidence.py) ──────────────────────
+
+    def _evidence_error(exc: Any) -> JSONResponse:
+        return JSONResponse(exc.as_dict(), status_code=exc.status_code, headers=_NO_STORE)
+
+    def _report_for(token: str, base: str) -> Any:
+        from services import vendor_check
+
+        return vendor_check.read(token, base)
+
+    async def _evidence(request: Request, token: str, work):
+        from services import vendor_check, vendor_evidence
+
+        limited = _read_budget(_ip_of(deps, request))
+        if limited is not None:
+            return limited
+        base = _base(request)
+        try:
+            return await run_in_threadpool(lambda: work(_report_for(token, base), base))
+        except vendor_check.VendorError as exc:
+            return _vendor_error(exc)
+        except vendor_evidence.EvidenceError as exc:
+            return _evidence_error(exc)
+
+    def _q(request: Request, key: str, limit: int = 64) -> str:
+        return str(request.query_params.get(key) or "")[:limit]
+
+    def _zip_response(body: bytes, name: str) -> Response:
+        return Response(body, media_type="application/zip",
+                        headers=dict(_NO_STORE, **{"Content-Disposition": f'attachment; filename="{name}"'}))
+
+    @router.get("/vendors/report/{token}/evidence.zip")
+    async def vendor_evidence_all(request: Request, token: str):
+        from services import vendor_evidence
+
+        def work(report, base):
+            out = vendor_evidence.all_packs(report, base, _q(request, "data"), _q(request, "by", 10))
+            if not out["packs"]:
+                raise vendor_evidence.EvidenceError(409, "nothing_to_pack",
+                                                    "No vendor in this report needs an evidence pack.")
+            return _zip_response(vendor_evidence.zip_all(out["packs"]),
+                                 vendor_evidence.filename(None, count=len(out["packs"])))
+
+        return await _evidence(request, token, work)
+
+    @router.get("/vendors/report/{token}/tickets.csv")
+    async def vendor_evidence_tickets(request: Request, token: str):
+        from services import vendor_evidence
+
+        def work(report, base):
+            out = vendor_evidence.all_packs(report, base, _q(request, "data"), _q(request, "by", 10))
+            stamp = str(report.get("finished_at") or report.get("updated_at") or "")[:10]
+            return Response(vendor_evidence.jira_csv(out["packs"]), media_type="text/csv; charset=utf-8",
+                            headers=dict(_NO_STORE, **{"Content-Disposition": f'attachment; filename="vendor-tickets-{stamp}.csv"'}))
+
+        return await _evidence(request, token, work)
+
+    @router.get("/vendors/report/{token}/evidence/{domain}.zip")
+    async def vendor_evidence_zip(request: Request, token: str, domain: str):
+        from services import vendor_evidence
+
+        def work(report, base):
+            pack = vendor_evidence.make_pack(report, domain[:253], base, _q(request, "data"), _q(request, "by", 10))
+            return _zip_response(vendor_evidence.zip_one(pack), vendor_evidence.filename(pack["domain"]))
+
+        return await _evidence(request, token, work)
+
+    @router.get("/vendors/report/{token}/evidence/{domain}/github")
+    async def vendor_evidence_github(request: Request, token: str, domain: str):
+        from services import vendor_evidence
+
+        def work(report, base):
+            pack = vendor_evidence.make_pack(report, domain[:253], base, _q(request, "data"), _q(request, "by", 10))
+            url = vendor_evidence.github_issue_url(_q(request, "repo", 200), pack["ticket_title"], pack["ticket_body"])
+            return Response(status_code=303, headers=dict(_NO_STORE, Location=url))
+
+        return await _evidence(request, token, work)
+
+    @router.get("/vendors/report/{token}/evidence/{domain}")
+    async def vendor_evidence_json(request: Request, token: str, domain: str):
+        from services import vendor_evidence
+
+        def work(report, base):
+            pack = vendor_evidence.make_pack(report, domain[:253], base, _q(request, "data"), _q(request, "by", 10))
+            doc = pack["envelope"]["document"]
+            return JSONResponse({
+                "domain": pack["domain"], "envelope": pack["envelope"], "verified": vendor_evidence.verify(pack["envelope"]),
+                "deadline": doc["deadline"], "target_date": doc["proposed_target_date"],
+                "addendum": {"markdown": pack["addendum_md"], "version": doc["addendum"]["version"],
+                             "date": doc["addendum"]["date"], "notice": doc["addendum"]["notice"]},
+                "note": pack["note"], "ticket": {"title": pack["ticket_title"], "markdown": pack["ticket_md"]},
+                "zip_name": vendor_evidence.filename(pack["domain"]),
+                "files": list(vendor_evidence.FILE_NAMES),
+            }, headers=_NO_STORE)
+
+        return await _evidence(request, token, work)
 
     @router.delete("/vendors/report/{token}")
     async def vendor_check_revoke(request: Request, token: str):
