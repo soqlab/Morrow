@@ -365,9 +365,10 @@ def test_legal_index_links_every_policy():
     assert module._csp_for("/legal") == module._CSP_STRICT_VALUE
     # The instrument's own footer and every record page point at it too.
     assert 'href="/legal"' in client.get("/").text
-    from services import registry_page
+    # Every page's footer is services/site_chrome.py's now, the record pages' included.
+    from services import site_chrome
 
-    assert ("/legal", "Legal &amp; trust") in registry_page._FOOTER_LINKS
+    assert ("/legal", "Legal &amp; trust") in site_chrome.FOOTER_LINKS
 
 
 def test_nothing_links_to_the_folded_pages_or_the_reset_page():

@@ -1,5 +1,7 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Inspect and control AI data sharing in Morrow. Explicit permissions, local filtering and verifiable processing receipts."><title>AI Data Control | Morrow</title><link rel="icon" href="/ui/favicon.svg"><link rel="stylesheet" href="/ui/instrument.css?v=20261113">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Inspect and control AI data sharing in Morrow. Explicit permissions, local filtering and verifiable processing receipts."><title>AI Data Control | Morrow</title><link rel="icon" href="/ui/favicon.svg"><link rel="stylesheet" href="/ui/instrument.css?v=20261118-feel">
+<link rel="stylesheet" href="/ui/feel.css?v=20261118-feel">
+<script src="/ui/feel.js?v=20261118-feel"></script>
 <link rel="stylesheet" href="/ui/doc.css?v=20261113">
 </head>
 <body class="ins doc" data-ch="ref">
@@ -7,7 +9,10 @@
 <header class="i-top">
   <div class="i-top-in">
     <a class="i-mark" href="/">MORROW</a>
-    <div class="i-top-right"><a class="i-btn" href="/ui/">Sign in</a></div>
+    <div class="i-top-right">
+      <a class="i-cmd-btn i-cmd-link" href="/"><span aria-hidden="true">&rsaquo;</span><span class="t">Check a domain</span></a>
+      <button type="button" class="i-theme" data-theme-toggle hidden><span class="i-theme-ic" aria-hidden="true"></span><span class="i-theme-t">Theme</span></button>
+    </div>
   </div>
 </header>
 <main class="doc-shell" id="content"><section class="doc-hero"><div><span class="eyebrow">CUSTOMER CONTROL / AI TRANSPARENCY</span><h1>Your data is not<br>an open invitation.</h1><p>AI starts off. You decide the destination, workflows and data it may receive. Inspect the boundary, export the evidence, or stop new processing.</p><a class="btn primary" href="/ui/#data-control">Inspect your controls</a></div></section>
@@ -20,11 +25,15 @@
 </main>
 <footer class="i-foot">
   <div class="i-foot-in">
-    <a href="/">Check a domain</a>
+    <span id="i-build" data-build><a href="/trust">Which commit this server runs</a></span>
+    <a href="/plain">Plain version</a>
+    <a href="/trust">No tracking: checked live</a>
     <a href="/legal">Legal &amp; trust</a>
     <a href="/abuse">Opt a domain out</a>
     <a href="/about-scanner">What connects to your server</a>
+    <a href="/watching">Watching</a>
     <a href="/support">Support</a>
+    <a href="/ui/">Sign in</a>
   </div>
 </footer>
 </body></html>

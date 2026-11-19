@@ -7,7 +7,9 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <meta name="description" content="How a domain owner asks never to be checked by the free post-quantum readiness checker, what the opt-out does, and how to report misuse of the service. Draft for legal review.">
   <script src="/ui/check-pages.js?v=20261005" defer></script>
-<link rel="stylesheet" href="/ui/instrument.css?v=20261113">
+<link rel="stylesheet" href="/ui/instrument.css?v=20261118-feel">
+<link rel="stylesheet" href="/ui/feel.css?v=20261118-feel">
+<script src="/ui/feel.js?v=20261118-feel"></script>
 <link rel="stylesheet" href="/ui/doc.css?v=20261113">
 </head>
 <body class="ins doc" data-ch="ref">
@@ -15,7 +17,10 @@
 <header class="i-top">
   <div class="i-top-in">
     <a class="i-mark" href="/">MORROW</a>
-    <div class="i-top-right"><a class="i-btn" href="/ui/">Sign in</a></div>
+    <div class="i-top-right">
+      <a class="i-cmd-btn i-cmd-link" href="/"><span aria-hidden="true">&rsaquo;</span><span class="t">Check a domain</span></a>
+      <button type="button" class="i-theme" data-theme-toggle hidden><span class="i-theme-ic" aria-hidden="true"></span><span class="i-theme-t">Theme</span></button>
+    </div>
   </div>
 </header>
 <main class="doc-shell" id="content">
@@ -101,11 +106,15 @@
 </main>
 <footer class="i-foot">
   <div class="i-foot-in">
-    <a href="/">Check a domain</a>
+    <span id="i-build" data-build><a href="/trust">Which commit this server runs</a></span>
+    <a href="/plain">Plain version</a>
+    <a href="/trust">No tracking: checked live</a>
     <a href="/legal">Legal &amp; trust</a>
     <a href="/abuse">Opt a domain out</a>
     <a href="/about-scanner">What connects to your server</a>
+    <a href="/watching">Watching</a>
     <a href="/support">Support</a>
+    <a href="/ui/">Sign in</a>
   </div>
 </footer>
 </body>

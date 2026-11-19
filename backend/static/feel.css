@@ -1,0 +1,100 @@
+/*
+ * The feel of every public Morrow page: loaded after instrument.css on the instrument views, the
+ * record and proof pages (/r/...), the documents and the 404 page, so they all answer a hand the
+ * same way the front page does.
+ *
+ *   - one header: the wordmark, the one way to check a domain, a light/dark switch (static/feel.js);
+ *   - presses that give a little, focus rings that are always visible, rows and cards that lift
+ *     under the pointer;
+ *   - numbers that count up once and bars that grow once, when they scroll into view;
+ *   - rows that arrive with a short stagger;
+ *   - a crisp "Copied" when something is copied, and a line that says what changed since your
+ *     last visit (real data only, kept in this browser).
+ *
+ * Every animation runs a fixed number of times (never infinite) and everything here stops under
+ * prefers-reduced-motion (the block at the end). Transform and opacity only, so nothing reflows.
+ */
+
+/* ── the header's light/dark switch and the "check a domain" link on server pages ── */
+.i-theme, .ins .i-theme { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--line-2) !important; background: var(--bg-2) !important; color: var(--muted) !important; font: 12px var(--mono) !important; letter-spacing: .04em; cursor: pointer; transition: transform 90ms ease-out, border-color 120ms ease-out, color 120ms ease-out; }
+.i-theme[hidden] { display: none; }
+.i-theme:hover { color: var(--text) !important; border-color: var(--text) !important; }
+.i-theme-ic { width: 12px; height: 12px; border: 1px solid currentColor; background: linear-gradient(90deg, currentColor 50%, transparent 50%); flex: none; }
+a.i-cmd-link { text-decoration: none; min-width: 200px; }
+a.i-cmd-link .t { color: var(--muted); }
+@media (max-width: 560px) {
+  .i-theme-t { display: none; }
+  .ins .i-theme { padding: 0 11px; }
+  a.i-cmd-link { min-width: 0; }
+  /* the instrument's header: the dial and the switch on one line, the command bar the full width under them */
+  .i-top-right { flex-wrap: wrap; }
+  .i-dial ~ .i-cmd-btn { flex: 1 1 100%; order: 3; }
+  .i-dial ~ .i-theme { margin-left: auto; }
+}
+
+/* ── the footer, the same on every page ── */
+.i-foot-in a { text-underline-offset: 3px; }
+.i-foot-in a:hover { color: var(--text); }
+.conn-line { max-width: var(--max); margin: -16px auto 0; padding: 0 var(--gutter) 28px; font: 12px var(--mono); color: var(--dim); }
+.conn-line:empty { display: none; }
+
+/* ── presses, focus, lift ── */
+.ins .i-btn, .ins .btn, .ins .i-cmd-btn, .ins .oopsBtn, .ins .i-dial button, .i-theme { transition: transform 90ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out; }
+.ins .i-btn:active, .ins .btn:active, .ins .i-cmd-btn:active, .ins .oopsBtn:active, .ins .i-dial button:active, .i-theme:active { transform: scale(.975); }
+.ins a:focus-visible, .ins button:focus-visible, .ins select:focus-visible, .ins summary:focus-visible, .ins textarea:focus-visible, .ins input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (hover: hover) {
+  .ins .i-table tbody tr, .ins .cg-list li, .ins .nr-list li, .ins .feel-lift, .ins .rec .facts tbody tr, .ins .rec .history tbody tr { transition: background-color 120ms ease-out, transform 160ms ease-out; }
+  .ins .i-table tbody tr:hover td, .ins .rec .facts tbody tr:hover td, .ins .rec .history tbody tr:hover td { background: var(--bg-2); }
+  .ins .cg-list li:hover, .ins .nr-list li:hover { background: var(--bg-2); }
+  .ins .feel-lift:hover { transform: translateY(-2px); background: var(--bg-2); }
+  .ins .reading, .ins.doc .matrix-row { transition: background-color 120ms ease-out; }
+  .ins .reading:hover, .ins.doc .matrix-row:hover { background: var(--bg-2); }
+}
+
+/* ── tabular figures wherever a number is read ── */
+[data-count], .ins .num, .ins .reading dd, .ins .i-table td, .ins .rec .meta dd, .ins .rec .facts .value { font-variant-numeric: tabular-nums; }
+
+/* ── bars grow in once (static/feel.js sets the width when the bar is in view) ── */
+.ins .bar .seg { transition: width .7s cubic-bezier(.2, .7, .2, 1); }
+.ins .bar .seg:nth-child(2) { transition-delay: 60ms; } .ins .bar .seg:nth-child(3) { transition-delay: 120ms; }
+.ins .bar .seg:nth-child(4) { transition-delay: 180ms; } .ins .bar .seg:nth-child(5) { transition-delay: 240ms; }
+.ins .bar .seg:nth-child(6) { transition-delay: 300ms; }
+.ins .spark .tick { transition: height .6s cubic-bezier(.2, .7, .2, 1); }
+
+/* ── rows arrive with a short stagger, once per render ── */
+.ins .cg-list li, .ins .nr-list li, .ins .i-table tbody tr, .ins .feel-rows > *, .ins .rec .facts tbody tr, .ins .rec .history tbody tr, .ins .rec .algo { animation: feel-row .32s ease-out 1 both; }
+.ins .cg-list li:nth-child(2), .ins .nr-list li:nth-child(2), .ins .i-table tbody tr:nth-child(2), .ins .feel-rows > :nth-child(2), .ins .rec .facts tbody tr:nth-child(2), .ins .rec .history tbody tr:nth-child(2), .ins .rec .algo:nth-child(2) { animation-delay: 35ms; }
+.ins .cg-list li:nth-child(3), .ins .nr-list li:nth-child(3), .ins .i-table tbody tr:nth-child(3), .ins .feel-rows > :nth-child(3), .ins .rec .facts tbody tr:nth-child(3), .ins .rec .history tbody tr:nth-child(3), .ins .rec .algo:nth-child(3) { animation-delay: 70ms; }
+.ins .cg-list li:nth-child(4), .ins .nr-list li:nth-child(4), .ins .i-table tbody tr:nth-child(4), .ins .feel-rows > :nth-child(4), .ins .rec .facts tbody tr:nth-child(4), .ins .rec .history tbody tr:nth-child(4), .ins .rec .algo:nth-child(4) { animation-delay: 105ms; }
+.ins .cg-list li:nth-child(5), .ins .nr-list li:nth-child(5), .ins .i-table tbody tr:nth-child(5), .ins .feel-rows > :nth-child(5), .ins .rec .facts tbody tr:nth-child(5), .ins .rec .history tbody tr:nth-child(5), .ins .rec .algo:nth-child(5) { animation-delay: 140ms; }
+.ins .cg-list li:nth-child(6), .ins .nr-list li:nth-child(6), .ins .i-table tbody tr:nth-child(6), .ins .feel-rows > :nth-child(6), .ins .rec .facts tbody tr:nth-child(6), .ins .rec .history tbody tr:nth-child(6), .ins .rec .algo:nth-child(6) { animation-delay: 175ms; }
+.ins .cg-list li:nth-child(n+7), .ins .nr-list li:nth-child(n+7), .ins .i-table tbody tr:nth-child(n+7), .ins .feel-rows > :nth-child(n+7), .ins .rec .facts tbody tr:nth-child(n+7), .ins .rec .history tbody tr:nth-child(n+7), .ins .rec .algo:nth-child(n+7) { animation-delay: 210ms; }
+@keyframes feel-row { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* vendor check results: a longer, deliberate stagger, worst first as the report orders them */
+.ins #vr-list tbody tr { animation-duration: .4s; }
+.ins #vr-list tbody tr:nth-child(2) { animation-delay: 90ms; } .ins #vr-list tbody tr:nth-child(3) { animation-delay: 180ms; }
+.ins #vr-list tbody tr:nth-child(4) { animation-delay: 270ms; } .ins #vr-list tbody tr:nth-child(5) { animation-delay: 360ms; }
+.ins #vr-list tbody tr:nth-child(n+6) { animation-delay: 450ms; }
+/* a row that is only a note under the row above it arrives with it */
+.ins #vr-list tbody tr.vr-note { animation: none; }
+
+/* ── "Copied": the button answers in place, once ── */
+.ins .is-copied, .ins .is-copied:hover { background: var(--ok) !important; border-color: var(--ok) !important; color: var(--on-solid) !important; animation: feel-pop .26s cubic-bezier(.2, .8, .2, 1) 1; }
+@keyframes feel-pop { 0% { transform: scale(.96); } 60% { transform: scale(1.03); } 100% { transform: none; } }
+.feel-copy-say { font: 12px var(--mono); color: var(--ok); margin-left: 8px; }
+
+/* ── since your last visit (static/feel.js, real data kept in this browser only) ── */
+.feel-since { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 16px; padding: 8px 12px; border: 1px solid var(--line); border-left: 2px solid var(--ok); background: var(--bg-2); font-size: 14px; color: var(--muted); max-width: none; animation: feel-row .32s ease-out 1 both; }
+.feel-since[hidden] { display: none; }
+.feel-since[data-tone="same"] { border-left-color: var(--line-2); }
+.feel-since-k { font: 500 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.feel-since b { color: var(--text); font-weight: 500; }
+.feel-new { display: inline-block; margin-left: 6px; padding: 0 5px; font: 500 10px/18px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--on-solid); background: var(--ok); vertical-align: 1px; }
+
+/* ── reduced motion: nothing moves, everything is where it ends up ── */
+@media (prefers-reduced-motion: reduce) {
+  .ins .cg-list li, .ins .nr-list li, .ins .i-table tbody tr, .ins .feel-rows > *, .ins .rec .facts tbody tr, .ins .rec .history tbody tr, .ins .rec .algo,
+  .ins .is-copied, .feel-since, .ins .rec .seal, .ins .rec .proof-status, .ins .rec .seal-v { animation: none !important; }
+  .ins .bar .seg, .ins .spark .tick, .i-theme, .ins .i-btn, .ins .btn, .ins .i-cmd-btn, .ins .oopsBtn, .ins .i-dial button, .ins .feel-lift { transition: none !important; }
+  .ins .i-btn:active, .ins .btn:active, .ins .i-cmd-btn:active, .ins .oopsBtn:active, .ins .i-dial button:active, .i-theme:active, .ins .feel-lift:hover { transform: none; }
+}

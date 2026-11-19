@@ -13,6 +13,8 @@
 <link rel="stylesheet" href="/ui/instrument-threat.css?v=20261116">
 <link rel="stylesheet" href="/ui/instrument-board.css?v=20261118">
 <link rel="stylesheet" href="/ui/instrument-guided.css?v=20261118">
+<link rel="stylesheet" href="/ui/feel.css?v=20261118-feel">
+<script src="/ui/feel.js?v=20261118-feel"></script>
 <script src="/ui/instrument-data.js?v=20261113" defer></script>
 <script src="/ui/instrument-watch.js?v=20261115-badge" defer></script>
 <script src="/ui/make-safe-done.js?v=20261118b" defer></script>
@@ -21,7 +23,7 @@
 <script src="/ui/instrument-threat.js?v=20261116" defer></script>
 <script src="/ui/instrument-board.js?v=20261118" defer></script>
 <script src="/ui/instrument-guided.js?v=20261118" defer></script>
-<script src="/ui/instrument.js?v=20261118-guided" defer></script>
+<script src="/ui/instrument.js?v=20261118-feel" defer></script>
 </head>
 <body class="ins" data-ch="grade">
 <a class="skip" href="#main">Skip to the content</a>
@@ -31,6 +33,7 @@
     <div class="i-top-right">
       <div class="i-dial" id="i-dial" role="group" aria-label="How technical"></div>
       <button type="button" class="i-cmd-btn" id="i-cmd-btn" aria-label="Go to anything"><span aria-hidden="true">&rsaquo;</span><span class="t">A domain, an algorithm, a scan, a place</span><kbd>Ctrl K</kbd></button>
+      <button type="button" class="i-theme" data-theme-toggle hidden><span class="i-theme-ic" aria-hidden="true"></span><span class="i-theme-t">Theme</span></button>
     </div>
   </div>
   <div class="i-conn" id="i-conn" aria-live="polite" hidden></div>
@@ -48,6 +51,7 @@
     <a href="/abuse">Opt a domain out</a>
     <a href="/about-scanner">What connects to your server</a>
     <a href="/watching">Watching</a>
+    <a href="/support">Support</a>
     <a href="/ui/">Sign in</a>
   </div>
 </footer>
