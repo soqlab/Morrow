@@ -409,3 +409,17 @@ def test_the_story_carries_nothing_inline_and_reads_only_this_origin():
     assert "XMLHttpRequest" not in js and "sendBeacon" not in js and "document.cookie" not in js
     css = _read("home-story.css")
     assert "@import" not in css and "url(" not in css
+
+
+def test_the_list_ships_in_the_image_and_a_missing_list_never_breaks_the_rows(monkeypatch):
+    ignore = (BACKEND.parent / ".dockerignore").read_text(encoding="utf-8")
+    assert "**/data/" in ignore and "!backend/data/infrastructure_hosts.json" in ignore, "the image would leave the list out"
+    monkeypatch.setattr(infra_hosts, "PATH", str(BACKEND / "data" / "no-such-list.json"))
+    infra_hosts._load.cache_clear(); infra_hosts.hosts.cache_clear()
+    try:
+        assert infra_hosts.is_infrastructure("fbcdn.net") is False
+        _seed()
+        assert "fbcdn.net" in [e["domain"] for e in not_ready.page(kind="ready", order="popular", days=8, hide_infra=True)["entries"]]
+    finally:
+        monkeypatch.undo()
+        infra_hosts._load.cache_clear(); infra_hosts.hosts.cache_clear()

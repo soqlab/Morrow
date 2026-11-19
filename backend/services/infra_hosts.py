@@ -14,6 +14,7 @@ host here can still be checked by typing it.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from functools import lru_cache
 from typing import Dict, FrozenSet, List
@@ -23,8 +24,14 @@ PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 
 @lru_cache(maxsize=1)
 def _load() -> Dict[str, List[str]]:
-    with open(PATH, encoding="utf-8") as handle:
-        payload = json.load(handle)
+    # A missing or unreadable list must never break the lists it filters: the rows then show every
+    # name, as they did before the list existed, and the problem is logged.
+    try:
+        with open(PATH, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        logging.getLogger(__name__).warning("infrastructure host list not readable at %s; rows are not filtered", PATH)
+        return {}
     return {str(k): [str(h).strip().lower().rstrip(".") for h in v if str(h).strip()]
             for k, v in (payload.get("categories") or {}).items()}
 
