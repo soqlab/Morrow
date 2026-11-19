@@ -1,63 +1,82 @@
 /*
- * Morrow instrument look. One file of tokens and parts, shared by the instrument views
- * (instrument.html) and by any page restyled to match.
+ * Morrow's one design system: the tokens every public page reads (the instrument views, the front
+ * page's story, the record and proof pages, the documents and the 404 page), then the instrument's
+ * shared parts.
  *
- *   Monochrome ground, 1px rules, mono readouts, one accent. Each channel (a part of the tool)
- *   carries its own colour as --ch. Dark by default; light when the OS asks for it or when the
- *   root has data-theme="light". No shadows, no gradients, no ornament: a panel is a rule.
- *   Motion only answers an event (data arriving, a value changing), never loops on its own,
- *   and stops entirely under prefers-reduced-motion.
+ *   Dark by default; light when the device asks for it, or when the header's switch sets
+ *   html[data-theme] (static/feel.js keeps the choice under localStorage "morrow_theme"). The
+ *   system font stack only: no web font is downloaded. Rounded, generous shapes; one accent.
  *
- *   --bg --bg-2 --bg-3      ground, raised panel, inset/hover
- *   --line --line-2         hairlines (faint, stronger)
- *   --text --muted --dim    text: primary, secondary, labels (all AA on --bg and --bg-2)
- *   --accent                focus and active state
- *   --ok --warn --bad       safe / attention / broken
- *   --ch                    the current channel's colour (set by [data-ch])
+ *   colour   --bg --bg-2 --bg-3         ground, raised surface, inset/hover
+ *            --line --line-2            hairlines (faint, stronger)
+ *            --text --muted --dim       text: primary, secondary, labels (all AA on --bg and --bg-2)
+ *            --safe --safe-ink          quantum-safe: text and fills, and the ink on a --safe fill
+ *            --warn --warn-dim          not yet: text, and the tint behind it (--warn is AA on --warn-dim)
+ *            --ok --bad --accent        ok / broken / focus and active state
+ *            --glow                     the soft halo behind a safe answer
+ *   type     --fs-hero --fs-h2 --fs-big --fs-xl --fs-lg --fs-md --fs-sm --fs-xs
+ *   shape    --r-xs --r-sm --r-md --r-lg --r-xl --r-pill
+ *   depth    --shadow-1 --shadow-2 --shadow-glow
+ *   motion   --ease (settle) --ease-io (in-out) --t-fast --t-med --t-slow
+ *
+ * Motion answers an event or plays once; the only things allowed to move for as long as they are on
+ * screen are the front page's rows of names and its glow, and both stop off screen, on hover and
+ * focus, and under prefers-reduced-motion (static/home-story.css, scripts/motion-smoke.js).
  */
-@font-face { font-family: "Instrument Sans"; src: url("/ui/fonts/instrument-sans.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: "IBM Plex Mono"; src: url("/ui/fonts/plex-mono-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "IBM Plex Mono"; src: url("/ui/fonts/plex-mono-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
-@font-face { font-family: "IBM Plex Mono"; src: url("/ui/fonts/plex-mono-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
 
 :root {
-  --bg: #050607; --bg-2: #0b0d10; --bg-3: #12151a;
-  --line: rgba(232, 240, 248, .10); --line-2: rgba(232, 240, 248, .20);
-  --text: #eef1f4; --muted: #9aa3ac; --dim: #7d868f;
-  --accent: #a6ecff; --on-solid: #000;
-  --ok: #3ee38f; --warn: #ffb547; --bad: #ff7676;
+  --bg: #060708; --bg-2: #0d0f12; --bg-3: #15181d;
+  --line: rgba(232, 240, 248, .09); --line-2: rgba(232, 240, 248, .18);
+  --text: #f4f6f8; --muted: #a9b1bb; --dim: #7d868f;
+  --safe: #b9f26b; --safe-ink: #0b1400; --warn: #ffb547; --warn-dim: #3a2a10; --glow: rgba(185, 242, 107, .18);
+  --accent: #b9f26b; --on-solid: #000;
+  --ok: #3ee38f; --bad: #ff7676;
   --ch-grade: #b9f26b; --ch-conn: #a6ecff; --ch-league: #ffd36b; --ch-atlas: #c9a6ff;
   --ch-ref: #7fd6c2; --ch-trust: #ff9fb5; --ch-tools: #e6e6e6;
   --ch: var(--accent);
-  --g-a: #3ee38f; --g-b: #9be35a; --g-c: #ffd36b; --g-d: #ffb547; --g-e: #ff9364; --g-f: #ff7676;
-  --sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
-  --gutter: clamp(16px, 3.4vw, 48px);
-  --max: 1320px;
+  --g-a: #b9f26b; --g-b: #9be35a; --g-c: #ffd36b; --g-d: #ffb547; --g-e: #ff9364; --g-f: #ff7676;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+  --fs-hero: clamp(46px, 9.2vw, 138px); --fs-big: clamp(112px, 26vw, 360px); --fs-h2: clamp(36px, 6.4vw, 92px);
+  --fs-xl: clamp(26px, 3vw, 40px); --fs-lg: clamp(19px, 1.6vw, 22px); --fs-md: 17px; --fs-sm: 14px; --fs-xs: 12.5px;
+  --r-xs: 8px; --r-sm: 12px; --r-md: 16px; --r-lg: 22px; --r-xl: 30px; --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, .35), 0 24px 60px -24px rgba(0, 0, 0, .8);
+  --shadow-glow: 0 0 0 10px var(--glow), 0 30px 80px -24px var(--safe);
+  --ease: cubic-bezier(.2, .8, .2, 1); --ease-io: cubic-bezier(.65, 0, .35, 1);
+  --t-fast: .16s; --t-med: .4s; --t-slow: .9s;
+  --gutter: clamp(16px, 4vw, 48px);
+  --max: 1240px;
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #f4f5f6; --bg-2: #eceef0; --bg-3: #e2e5e8;
-    --line: rgba(12, 16, 20, .12); --line-2: rgba(12, 16, 20, .26);
-    --text: #0c1014; --muted: #454e57; --dim: #5a636c;
-    --accent: #006f8f; --on-solid: #fff;
-    --ok: #0f7a45; --warn: #8f5200; --bad: #b42b28;
-    --ch-grade: #3f6b00; --ch-conn: #006f8f; --ch-league: #7a5a00; --ch-atlas: #6a3fb0;
+    --bg: #fbfbf9; --bg-2: #f1f2ef; --bg-3: #e7e9e4;
+    --line: rgba(12, 16, 20, .10); --line-2: rgba(12, 16, 20, .22);
+    --text: #0b0d10; --muted: #4b535c; --dim: #5a636c;
+    --safe: #3a7000; --safe-ink: #ffffff; --warn: #8f5200; --warn-dim: #f6e7cf; --glow: rgba(58, 112, 0, .13);
+    --accent: #3a7000; --on-solid: #fff;
+    --ok: #0f7a45; --bad: #b42b28;
+    --ch-grade: #3a7000; --ch-conn: #006f8f; --ch-league: #7a5a00; --ch-atlas: #6a3fb0;
     --ch-ref: #0d6b58; --ch-trust: #a3304f; --ch-tools: #333;
-    --g-a: #0f7a45; --g-b: #4f7a00; --g-c: #7a6400; --g-d: #8f5200; --g-e: #a8461a; --g-f: #b42b28;
+    --g-a: #3a7000; --g-b: #4f7a00; --g-c: #7a6400; --g-d: #8f5200; --g-e: #a8461a; --g-f: #b42b28;
+    --shadow-1: 0 1px 2px rgba(12, 16, 20, .06), 0 8px 24px -12px rgba(12, 16, 20, .18);
+    --shadow-2: 0 2px 6px rgba(12, 16, 20, .06), 0 24px 60px -24px rgba(12, 16, 20, .28);
     color-scheme: light;
   }
 }
 :root[data-theme="light"] {
-  --bg: #f4f5f6; --bg-2: #eceef0; --bg-3: #e2e5e8;
-  --line: rgba(12, 16, 20, .12); --line-2: rgba(12, 16, 20, .26);
-  --text: #0c1014; --muted: #454e57; --dim: #5a636c;
-  --accent: #006f8f; --on-solid: #fff;
-  --ok: #0f7a45; --warn: #8f5200; --bad: #b42b28;
-  --ch-grade: #3f6b00; --ch-conn: #006f8f; --ch-league: #7a5a00; --ch-atlas: #6a3fb0;
+  --bg: #fbfbf9; --bg-2: #f1f2ef; --bg-3: #e7e9e4;
+  --line: rgba(12, 16, 20, .10); --line-2: rgba(12, 16, 20, .22);
+  --text: #0b0d10; --muted: #4b535c; --dim: #5a636c;
+  --safe: #3a7000; --safe-ink: #ffffff; --warn: #8f5200; --warn-dim: #f6e7cf; --glow: rgba(58, 112, 0, .13);
+  --accent: #3a7000; --on-solid: #fff;
+  --ok: #0f7a45; --bad: #b42b28;
+  --ch-grade: #3a7000; --ch-conn: #006f8f; --ch-league: #7a5a00; --ch-atlas: #6a3fb0;
   --ch-ref: #0d6b58; --ch-trust: #a3304f; --ch-tools: #333;
-  --g-a: #0f7a45; --g-b: #4f7a00; --g-c: #7a6400; --g-d: #8f5200; --g-e: #a8461a; --g-f: #b42b28;
+  --g-a: #3a7000; --g-b: #4f7a00; --g-c: #7a6400; --g-d: #8f5200; --g-e: #a8461a; --g-f: #b42b28;
+  --shadow-1: 0 1px 2px rgba(12, 16, 20, .06), 0 8px 24px -12px rgba(12, 16, 20, .18);
+  --shadow-2: 0 2px 6px rgba(12, 16, 20, .06), 0 24px 60px -24px rgba(12, 16, 20, .28);
   color-scheme: light;
 }
 [data-ch="grade"] { --ch: var(--ch-grade); }

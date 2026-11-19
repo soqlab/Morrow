@@ -2,7 +2,8 @@
 //
 // Replaces landing-motion-smoke.js, which checked the decorative landing scene, its motion toggle
 // and its status poll. That page was retired; what is asserted now is the opposite promise:
-//   - nothing animates on its own: after load, no running animation anywhere on the page;
+//   - nothing animates on its own: after load, no running animation anywhere on the page, except
+//     the front page's two named, on-screen-only ones (hs-breathe, hs-marquee: motion-smoke.js);
 //   - every request the page makes goes to this origin;
 //   - the one input recognises what is typed (domain, algorithm, CVE, commit) and the address is
 //     the interface (/<domain> opens that domain's view);
@@ -38,10 +39,15 @@ const SMOKE_EXPOSURE = {
   summaries: { plain: "You're not ready yet, and neither is your payment provider (js.stripe.com).",
     standard: "You're ready, but your payment provider isn't (js.stripe.com).", expert: "1/2 graded third-party hosts are classical." },
 };
+// What /api/public/make-safe answers for a host with no one-click fix: the answer offers "See how to fix it".
+const SMOKE_PLAN = { domain: SMOKE_DOMAIN, grade: "C", one_click: null, stack: "nginx", recipe: null };
+// The front page's story may keep exactly these running while they are on screen (home-story.css).
+const AMBIENT = ["hs-breathe", "hs-marquee"];
 async function routeDomain(page) {
   await page.route(`**/api/public/grade/${SMOKE_DOMAIN}*`, (r) => r.fulfill({ json: SMOKE_GRADE }));
   await page.route(`**/api/public/history/${SMOKE_DOMAIN}*`, (r) => r.fulfill({ json: [] }));
   await page.route(`**/api/public/exposure/${SMOKE_DOMAIN}*`, (r) => r.fulfill({ json: SMOKE_EXPOSURE }));
+  await page.route(`**/api/public/make-safe/${SMOKE_DOMAIN}`, (r) => r.fulfill({ json: SMOKE_PLAN }));
 }
 
 const SMOKE_TOKEN = "smokeTokenAbcdefghijklmnop";
@@ -96,6 +102,7 @@ async function main() {
     page.on("pageerror", (e) => errors.push(String(e)));
     page.on("request", (r) => { const u = r.url(); if (!u.startsWith(origin) && !u.startsWith("data:")) foreign.push(u); });
 
+    await routeDomain(page);
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
     await page.locator("#home-q").waitFor();
     // The live board is public and painted for everyone; with a workspace the estate is shown above it.
@@ -107,19 +114,28 @@ async function main() {
     for (const href of ["/league", "/report", "/changes", "/threat", "/vendors", "/abuse"]) {
       assert.ok(await page.locator(`#board a[href="${href}"]`).count(), `the board does not link ${href}`);
     }
-    // Bars grow in and a fresh change is marked once when the data lands; nothing may keep moving.
-    await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 6000 })
+    // Bars grow in and a fresh change is marked once when the data lands; nothing may keep moving
+    // except the story's two named ambient animations while they are on screen.
+    await page.waitForFunction((ambient) => document.getAnimations().every((a) => a.playState !== "running" || ambient.includes(a.animationName)), AMBIENT, { timeout: 12000 })
       .catch(() => { throw new Error("something animates on its own after load"); });
     assert.ok(await page.locator("#i-build").innerText(), "the commit line is empty");
 
-    // Home is one domain input whose action is Make it safe; nonsense is refused in place.
-    assert.equal(await page.locator("#home-form .i-safe-go").innerText(), "Make it safe");
+    // Home asks one question; its box checks the domain and answers in place. Nonsense is refused in place.
+    assert.equal(await page.locator("h1").count(), 1);
+    assert.equal(await page.locator("#home-form #hs-go").innerText(), "Check it");
     await page.fill("#home-q", "not a domain");
-    await page.locator("#home-form .i-safe-go").click();
-    assert.equal(await page.locator("#home-hint").getAttribute("data-tone"), "bad");
+    await page.locator("#home-form #hs-go").click();
+    assert.equal(await page.locator("#home-hint").getAttribute("data-tone"), "no");
     assert.equal(page.url(), `${base}/`);
     await page.fill("#home-q", `https://${SMOKE_DOMAIN.toUpperCase()}/path`);
     await page.keyboard.press("Enter");
+    await page.locator('#hs-answer .hs-card[data-state="warn"]').waitFor({ timeout: 15000 });
+    assert.equal(page.url(), `${base}/`, "the check left the page instead of answering in place");
+    assert.equal(await page.locator("#hs-answer").getAttribute("aria-live"), "polite");
+    assert.match(await page.locator("#hs-answer .hs-verdict").innerText(), /Not quantum-safe yet/);
+    assert.equal(await page.locator(`#home-make-safe a[href="/r/${SMOKE_DOMAIN}"]`).innerText(), "See how to fix it");
+    assert.ok(await page.locator(`#hs-answer .hs-more a[href="/r/${SMOKE_DOMAIN}"]`).count(), "no link to the full record");
+    await page.locator(`#home-make-safe a[href="/r/${SMOKE_DOMAIN}"]`).click();
     await page.waitForURL(`${base}/r/${SMOKE_DOMAIN}`);
     assert.equal(await page.locator(`.actions a.btn[href="/${SMOKE_DOMAIN}#make-safe"]`).textContent(), "Make it safe");
     await page.goto(`${base}/`, { waitUntil: "networkidle" });
@@ -319,7 +335,7 @@ async function main() {
 
     assert.deepEqual(foreign, [], "the instrument contacted another origin");
     assert.deepEqual(errors, [], "JavaScript errors");
-    console.log("PASS: no ambient motion, this origin only, recognizer, command bar, dial in the URL, the risk sentence and its data picker, harvest clock dials, the Shelf-Life picker, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, the threat board, trust readout, plain without JS, 360px layout.");
+    console.log("PASS: no ambient motion beyond the front page's two named ones, the check answers in place, this origin only, recognizer, command bar, dial in the URL, the risk sentence and its data picker, harvest clock dials, the Shelf-Life picker, outside services worst first, vendor check and its report, what changed, a sector report, watch and claim, /watching, /about-scanner, the threat board, trust readout, plain without JS, 360px layout.");
   } finally {
     await browser.close();
   }

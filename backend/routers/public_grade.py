@@ -227,12 +227,15 @@ def create_public_grade_router(deps: Any) -> APIRouter:
         return Response(body, media_type="application/atom+xml; charset=utf-8", headers={"Cache-Control": "public, max-age=300"})
 
     # With q, order or limit (the front page's board): a slice, by name or newest check, never ranked.
+    # hide_infra=1 (the front page's rows of names): CDN, API, ad and tracking hosts left out
+    # (services/infra_hosts.py, data/infrastructure_hosts.json); count is still the whole list.
     @router.get("/not-ready")
-    async def public_not_ready(sector: str = "", q: str = "", order: str = "", limit: int = 0):
+    async def public_not_ready(sector: str = "", q: str = "", order: str = "", limit: int = 0, hide_infra: str = ""):
         from services import not_ready
 
-        if q or order or limit:
-            body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit)
+        if q or order or limit or _truthy(hide_infra):
+            body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit, "not_ready", 0,
+                                           _truthy(hide_infra))
         else:
             body = await run_in_threadpool(not_ready.entries, sector[:40])
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
@@ -240,10 +243,12 @@ def create_public_grade_router(deps: Any) -> APIRouter:
     # The front page's other column: well-known (Tranco) sites whose newest check is A or B, from the
     # same pass and the same rules (opt-outs never shown; by name, newest check or best-known first).
     @router.get("/checked-safe")
-    async def public_checked_safe(sector: str = "", q: str = "", order: str = "", limit: int = 0, days: int = 0):
+    async def public_checked_safe(sector: str = "", q: str = "", order: str = "", limit: int = 0, days: int = 0,
+                                  hide_infra: str = ""):
         from services import not_ready
 
-        body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit, "ready", days)
+        body = await run_in_threadpool(not_ready.page, sector[:40], q[:80], order[:20], limit, "ready", days,
+                                       _truthy(hide_infra))
         return JSONResponse(body, headers={"Cache-Control": "public, max-age=300"})
 
     @router.post("/corrections")

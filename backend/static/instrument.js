@@ -537,14 +537,19 @@
      announced once with a "morrow:make-safe-action" event, detail { source, domain, container }. */
   function makeSafeRendered(container, detail) {
     if (!container) return;
-    var d = { source: detail.source, domain: detail.domain || null, container: container };
+    var d = { source: detail.source, domain: detail.domain || null, container: container, plan: detail.plan || null };
     try { document.dispatchEvent(new CustomEvent("morrow:make-safe-action", { detail: d })); } catch (e) { /* old browser: no hook */ }
   }
   function viewHome() {
     // Guided mode (instrument-guided.js): three questions and one answer, when this visitor chose it.
     var guided = window.MorrowGuided;
-    if (guided && guided.on()) { guided.start(main); return; }
+    var story = main.getAttribute("data-home-story") === "1";
+    if (guided && guided.on()) { if (story) plainHome(); guided.start(main); return; }
     setView("grade", null);
+    // The front page's story (home-story.js) takes over the first screen the server rendered
+    // (services/home_page.py). Without it, the home view below is drawn as before.
+    if (story && window.MorrowHome && window.MorrowHome.mount()) return;
+    if (story) plainHome();
     // Home's line is a plain headline, not a quotation (instrument-board.css: .i-say-head).
     var sayEl = $("#say"); if (sayEl) sayEl.classList.add("i-say-head");
     say(byDepth({ plain: "Type your website’s address. See if it’s safe from future quantum computers. Make it safe.",
@@ -591,6 +596,12 @@
     // (instrument-board.js). Signed in, your estate is shown above it as well.
     if (window.MorrowBoard) { window.MorrowBoard.mount($("#home-board")); window.MorrowBoard.welcomeBack($("#home-back")); }
     workspace().then(function (w) { if (w) homeSignedIn(); });
+  }
+  /* Undo the server-rendered story frame, for guided mode or when home-story.js is not there. */
+  function plainHome() {
+    document.body.classList.remove("hs-page");
+    main.removeAttribute("data-home-story"); main.className = "";
+    var sayEl = $("#say"); if (sayEl) sayEl.hidden = false;
   }
   function homeSignedIn() {
     var box = $("#home-reading");
@@ -1915,7 +1926,7 @@
   window.MorrowIns = { $: $, $$: $$, esc: esc, enc: enc, getJSON: getJSON, panel: panel, reading: reading, say: say, setView: setView,
     status: status, stamp: stamp, day: day, ago: ago, copy: copy, flash: flash, byDepth: byDepth, depth: function () { return depth; },
     param: param, setParam: setParam, asDomain: asDomain, gradeChip: gradeChip, makeSafeRendered: makeSafeRendered, remember: remember,
-    token: token, workspace: workspace, main: main };
+    token: token, workspace: workspace, main: main, connection: connection, connLine: connLine, homeSignedIn: homeSignedIn };
 
   /* ── start ─────────────────────────────────────────────────────────────── */
   dial();

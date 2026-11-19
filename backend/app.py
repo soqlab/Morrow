@@ -1889,16 +1889,20 @@ async def _pool_exhausted_handler(request: Request, exc: _pg_pool.PoolError):
 
 @app.api_route("/", methods=["GET", "HEAD"])
 def root():
-    """The live instrument: the one input, the visitor's own connection and live counts.
+    """The live instrument's front page: the question, the domain box, and the live story under it.
 
     The product overview that used to answer here is still at /launch.
     """
-    from fastapi.responses import FileResponse
+    from fastapi.responses import HTMLResponse
+    from services import home_page
     path = _instrument.page_path(os.path.join(BASE_DIR, "static"))
     if not os.path.exists(path):
         return RedirectResponse(url="/ui/")
-    return FileResponse(path, media_type="text/html; charset=utf-8",
-                        headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
+    # The same page as every instrument view, with the front page's first screen rendered into it
+    # (services/home_page.py): the question and the domain box paint before any script runs.
+    with open(path, encoding="utf-8") as handle:
+        page = home_page.render(handle.read())
+    return HTMLResponse(page, headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
 
 
 def _public_static_html(filename: str):

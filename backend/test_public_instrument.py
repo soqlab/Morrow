@@ -440,7 +440,9 @@ def test_league_route_and_cli(client, small_league, capsys):
     # Public: sector averages and their trend only. No site is named, whatever the parameters say.
     body = client.get("/api/public/league?sector=finance&sort=domain&limit=600").json()
     assert set(body) == {"generated_at", "rubric_version", "list_size", "graded", "sectors", "last_run",
-                         "names_published"}
+                         "names_published", "spread"}
+    # The spread names sectors (averages), never a site: the front page's sector headline is written from it.
+    assert body["spread"] is None or set(body["spread"]) == {"ahead", "behind", "sectors"}
     assert body["names_published"] is False and "rows" not in body
     text = json.dumps(body)
     assert "bank.example" not in text and "pay.example" not in text and "cloud.example" not in text

@@ -1347,12 +1347,24 @@ def stats() -> Dict[str, Any]:
         domains = conn.execute("SELECT COUNT(DISTINCT domain) AS n FROM public_grade_checks").fetchone()["n"]
         grades = conn.execute("SELECT grade, COUNT(*) AS n FROM public_grade_checks WHERE scanned_at >= ? "
                               "GROUP BY grade", (since,)).fetchall()
+        # Sites, not checks: each site checked this week counted once, by its newest check.
+        sites = conn.execute("SELECT c.domain AS domain, MAX(c.post_quantum) AS pq FROM public_grade_checks c "
+                             "JOIN (SELECT domain, MAX(scanned_at) AS last FROM public_grade_checks "
+                             "WHERE scanned_at >= ? GROUP BY domain) n ON c.domain = n.domain AND c.scanned_at = n.last "
+                             "GROUP BY c.domain", (since,)).fetchall()
     week_n = int(week["n"] or 0)
+    sites_n = len(sites)
+    sites_pq = sum(1 for r in sites if int(r["pq"] or 0))
     return {
         "public_checks_total": int(total or 0),
         "public_checks_7d": week_n,
         "domains_checked": int(domains or 0),
         "pq_share_7d": round(float(week["pq"] or 0) / week_n, 4) if week_n else 0.0,
+        # The front page's "N sites checked this week" and "X% of the sites checked this week are
+        # ready": distinct sites, each by its newest check in the last 7 days.
+        "sites_checked_7d": sites_n,
+        "sites_ready_7d": sites_pq,
+        "sites_ready_share_7d": round(sites_pq / sites_n, 4) if sites_n else 0.0,
         "grades_7d": {g: 0 for g in GRADES} | {str(r["grade"]): int(r["n"]) for r in grades if r["grade"] in GRADES},
         "rubric_version": RUBRIC_VERSION,
         "generated_at": iso(now_utc()),

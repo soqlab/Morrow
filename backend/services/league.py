@@ -532,9 +532,31 @@ def sector_averages() -> Dict[str, Any]:
         "sectors": sectors,
         "last_run": last_run(),
         "names_published": False,
+        "spread": spread(sectors),
     }
     _table_cache[key] = (time.monotonic(), body)
     return body
+
+
+def spread(sectors: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The sector furthest ahead and the one furthest behind, by share of graded sites that are ready.
+
+    The front page's sector headline ("<ahead>, ahead. <behind>, behind.") is written from this, so
+    the names always come from the data. Sectors are averages: no site is named. A tie on share is
+    broken by name, so the answer is stable. None when fewer than two graded sectors differ.
+    """
+    graded = [s for s in sectors if s.get("graded") and s.get("pq_share") is not None]
+    if len(graded) < 2:
+        return None
+    ordered = sorted(sorted(graded, key=lambda s: str(s.get("name") or "")), key=lambda s: -float(s["pq_share"]))
+    ahead, behind = ordered[0], ordered[-1]
+    if float(ahead["pq_share"]) == float(behind["pq_share"]):
+        return None
+    return {"ahead": _sector_brief(ahead), "behind": _sector_brief(behind), "sectors": len(graded)}
+
+
+def _sector_brief(s: Dict[str, Any]) -> Dict[str, Any]:
+    return {"id": s.get("id"), "name": s.get("name"), "pq_share": s.get("pq_share"), "graded": s.get("graded")}
 
 
 def private_rank(domains: List[str]) -> Dict[str, Any]:

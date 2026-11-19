@@ -1,0 +1,41 @@
+{
+  "format": "morrow.infrastructure-hosts/v1",
+  "about": "Host names that are plumbing rather than a site a person visits: content delivery networks, cloud and API endpoints, network operators' own host names, static-file hosts, ad, analytics and tracking hosts, DNS, time and certificate services, and link shorteners. They are popular on the Tranco list because browsers and apps call them in the background, not because anyone types them. The front page's two rows of names leave them out so the rows show sites people know. Only those rows: the full lists (/league, /api/public/not-ready and /api/public/checked-safe without hide_infra) are unchanged, and every host here can still be checked by typing it. A name matches itself and any name under it (fastly.net also covers a.b.fastly.net). Read by services/infra_hosts.py; tested in test_home_story.py.",
+  "categories": {
+    "cdn_and_static": [
+      "fbcdn.net", "cdninstagram.com", "gstatic.com", "gstatic.cn", "googleusercontent.com", "googlevideo.com", "ytimg.com",
+      "ggpht.com", "gvt1.com", "gvt2.com", "1e100.net", "youtube-nocookie.com",
+      "akamai.net", "akamaiedge.net", "akamaihd.net", "akamaized.net", "akamaitechnologies.com", "akadns.net",
+      "edgekey.net", "edgesuite.net", "fastly.net", "fastlylb.net", "fastly-edge.com", "cloudfront.net",
+      "b-cdn.net", "trbcdn.net", "okcdn.ru", "edgecdn.ru", "gcdn.co", "cdn77.org", "edgecastcdn.net", "llnwd.net",
+      "footprint.net", "azureedge.net", "msedge.net", "nflxvideo.net", "nflxext.com", "nflximg.net", "nflxso.net",
+      "live-video.net", "mzstatic.com", "aaplimg.com", "cdn-apple.com", "apple-dns.net", "icloud-content.com",
+      "tiktokv.com", "tiktokcdn.com", "byteoversea.com", "ibytedtos.com", "whatsapp.net", "jsdelivr.net",
+      "cloudflare.net", "workers.dev", "pages.dev", "github.io"
+    ],
+    "cloud_api_and_network": [
+      "amazonaws.com", "elasticbeanstalk.com", "windows.net", "azurewebsites.net", "cloudapp.net", "trafficmanager.net",
+      "googleapis.com", "googleapis.cn", "appspot.com", "run.app", "firebaseio.com", "aliyuncs.com", "oraclecloud.com",
+      "herokuapp.com", "digitaloceanspaces.com", "hstgr.net", "mybluehost.me", "registrar-servers.com",
+      "publicnode.com", "statsigapi.net", "featureassets.org", "prodregistryv2.org", "xboxlive.com", "telephony.goog",
+      "samsungcloud.com", "firefox-portal-detection.com",
+      "triplinkintl.com", "yandex.net", "skyhigh.cloud", "telekom.net", "comcast.net", "charter.net"
+    ],
+    "ads_analytics_tracking": [
+      "doubleclick.net", "googlesyndication.com", "googleadservices.com", "googletagmanager.com", "googletagservices.com",
+      "google-analytics.com", "app-measurement.com", "app-analytics-services.com", "adtrafficquality.google",
+      "crashlytics.com", "scorecardresearch.com", "appsflyersdk.com", "onelink.me", "app.link", "casalemedia.com",
+      "rubiconproject.com", "pubmatic.com", "smartadserver.com", "lijit.com", "360yield.com", "adriver.ru", "dotomi.com",
+      "clarity.ms", "cloudflareinsights.com", "browser-intake-datadoghq.com", "centinel-analytica.com", "criteo.net",
+      "adnxs.com", "telecid.ru"
+    ],
+    "dns_time_and_certificates": [
+      "ntp.org", "lencr.org", "pki.goog", "amazontrust.com", "alidns.com", "alipaydns.com", "cloudns.net",
+      "dnsmadeeasy.com", "cloudflare-dns.com", "dns.google", "opendns.com", "duckdns.org", "dyndns.org", "ddnss.de",
+      "myfritz.net", "quickconnect.to", "icanhazip.com", "ipify.org", "ip-api.com"
+    ],
+    "link_shorteners": [
+      "goo.gl", "youtu.be", "t.co", "bit.ly", "wa.me", "forms.gle", "g.page", "tinyurl.com", "t.me", "discord.gg"
+    ]
+  }
+}

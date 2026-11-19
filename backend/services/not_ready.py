@@ -235,7 +235,7 @@ def _build_named() -> Dict[str, Any]:
 
 
 def page(sector: str = "", q: str = "", order: str = "name", limit: int = 0, kind: str = "not_ready",
-         days: int = 0) -> Dict[str, Any]:
+         days: int = 0, hide_infra: bool = False) -> Dict[str, Any]:
     """A slice for the front page: one sector, a domain search, by name, newest check or best-known first.
 
     ``kind`` is ``not_ready`` (this list) or ``ready`` (well-known sites whose newest check is A or B).
@@ -244,6 +244,8 @@ def page(sector: str = "", q: str = "", order: str = "name", limit: int = 0, kin
     N days. The pass over every Tranco site is kept until a check is stored or PAGE_CACHE_SECONDS pass;
     opt-outs and owners' replies are applied fresh on every call, so an opted-out domain disappears at
     once. ``count`` is the whole list for the sector (and days), ``matched`` the entries matching ``q``.
+    ``hide_infra`` (the front page's rows of names only) leaves out CDN, API, ad and tracking hosts
+    (services/infra_hosts.py) from the entries and ``matched``; ``count`` stays the whole list.
     """
     from services import league, public_grade
 
@@ -267,6 +269,10 @@ def page(sector: str = "", q: str = "", order: str = "name", limit: int = 0, kin
         rows = [e for e in rows if str(e.get("checked_at") or "") >= since]
     in_sector = [e for e in rows if not sector or e["sector"] == sector]
     matched = [e for e in in_sector if needle in e["domain"]] if needle else in_sector
+    if hide_infra:
+        from services import infra_hosts
+
+        matched = [e for e in matched if not infra_hosts.is_infrastructure(e["domain"])]
     if order == "checked":
         matched = sorted(sorted(matched, key=lambda e: e["domain"]), key=lambda e: str(e.get("checked_at") or ""), reverse=True)
     elif order == "popular":
@@ -282,6 +288,7 @@ def page(sector: str = "", q: str = "", order: str = "name", limit: int = 0, kin
         "title": "Not yet post-quantum" if kind == "not_ready" else "Quantum-safe, well-known sites",
         "kind": kind, "entries": out_rows, "count": len(in_sector),
         "matched": len(matched), "sector": sector or None, "query": needle or None, "order": order, "days": days or None,
+        "hide_infra": bool(hide_infra),
         "sectors": sorted({(e["sector"], e["sector_name"]) for e in rows}, key=lambda x: x[1]),
         "methodology": full["methodology"],
     }

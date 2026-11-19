@@ -227,6 +227,12 @@
   /* Read again every POLL_MS while the tab is visible; stop when hidden, resume (at once) when shown. */
   function startPolling() {
     clearInterval(S.poll);
+    // On the front page's story the page already reads the counts every 25 s (home-story.js): the
+    // board takes each of those readings instead of asking again.
+    if (window.MorrowHome && window.MorrowHome.onStats) {
+      if (!S.shared) { S.shared = true; window.MorrowHome.onStats(function (s) { if (document.getElementById("board")) { update(s); live(true); } }); }
+      return;
+    }
     var read = function () {
       if (document.hidden || !document.getElementById("board")) return;
       I().getJSON("/api/public/stats", { cache: "no-store", timeout: 15000 })
