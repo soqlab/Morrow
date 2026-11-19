@@ -167,9 +167,11 @@ dialog.dn-sheet[open] { animation: dn-rise .28s var(--dn-ease, ease); }
 /* ── Morrow Shield: one command plus DNS ────────────────────────────── */
 .dn-shield .dn-sh-h { font-size: 20px; }
 .dn-shield .dn-sh-step { margin: 22px 0 8px; }
-.dn-shield code { font: 12.5px var(--dn-mono); overflow-wrap: anywhere; }
+.dn-shield code { font: 12.5px var(--dn-mono); overflow-wrap: break-word; }
 .dn-sh-cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
 .dn-sh-cmd .dn-sh-pre { margin: 0; }
+/* A shell command is never wrapped mid-flag: it scrolls sideways on a narrow screen instead. */
+.dn-host .dn-shield pre.dn-sh-pre { white-space: pre; overflow-wrap: normal; word-break: normal; overflow-x: auto; }
 .dn-sh-cmd + .dn-fine { margin-top: 8px; }
 .dn-sh-more { margin-top: 16px; border-top: 1px solid var(--dn-hair); padding-top: 12px; }
 .dn-sh-more summary { cursor: pointer; font-size: 14px; font-weight: 500; min-height: 32px; display: flex; align-items: center; }
