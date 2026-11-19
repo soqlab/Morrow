@@ -1,0 +1,88 @@
+# Morrow Shield (shield/): build and test on every pull request and push that touches it; publish
+# the image to GHCR only when a maintainer pushes a tag such as shield-v0.1.0.
+#
+# This workflow runs only for shield/** and this file, so it adds no check to commits that touch
+# neither, and it changes nothing about which other workflows run. The release workflow
+# (release.yml) is triggered by tags matching v*.*.*; shield-v* tags do not match it.
+#
+# Every third-party action is pinned to a full commit SHA; the comment names the tag it was.
+
+name: Shield
+
+on:
+  pull_request:
+    paths: ["shield/**", ".github/workflows/shield.yml"]
+  push:
+    branches: ["**"]
+    paths: ["shield/**", ".github/workflows/shield.yml"]
+    tags: ["shield-v*"]
+
+permissions: {}
+
+jobs:
+  test:
+    name: Shield build and test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: shield
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: shield/go.mod
+          cache-dependency-path: shield/go.sum
+      - name: Formatting, vet and module checksums
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go mod verify
+      - name: Tests (post-quantum and classical handshakes, proxying, WebSocket, redirects, config)
+        run: go test -race -count=1 -timeout 180s ./...
+      - name: Build the image and check it end to end
+        run: |
+          docker build --build-arg VERSION=ci -t morrow-shield:ci .
+          docker compose -f compose.yml config --quiet
+          sh ./ci-smoke.sh morrow-shield:ci
+
+  publish:
+    name: Publish Shield image
+    if: startsWith(github.ref, 'refs/tags/shield-v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io/soqlab/morrow-shield
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Version from tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          v="${TAG#shield-v}"
+          echo "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "tag must be shield-vX.Y.Z"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "minor=${v%.*}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        env:
+          V: ${{ steps.version.outputs.version }}
+          M: ${{ steps.version.outputs.minor }}
+          IMAGE: ghcr.io/soqlab/morrow-shield
+          SOURCE: https://github.com/${{ github.repository }}
+        run: |
+          docker build shield --build-arg VERSION="$V" \
+            --label org.opencontainers.image.source="$SOURCE" \
+            --label org.opencontainers.image.licenses=AGPL-3.0-only \
+            --label org.opencontainers.image.version="$V" \
+            -t "$IMAGE:$V" -t "$IMAGE:$M" -t "$IMAGE:latest"
+          docker push "$IMAGE:$V"
+          docker push "$IMAGE:$M"
+          docker push "$IMAGE:latest"

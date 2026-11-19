@@ -1,0 +1,25 @@
+# Morrow Shield in front of an app on the same machine. Copy this file, change the two
+# SHIELD_* values, then: docker compose up -d
+# DNS for every name in SHIELD_DOMAINS must point at this machine, and ports 80 and 443 must be
+# reachable from the internet (the certificate authority checks them before it issues).
+services:
+  shield:
+    image: ghcr.io/soqlab/morrow-shield:0.1
+    restart: unless-stopped
+    ports:
+      - "443:8443"
+      - "80:8080"
+    environment:
+      SHIELD_DOMAINS: example.com,www.example.com
+      SHIELD_UPSTREAM: http://host.docker.internal:8080
+      # SHIELD_ACME_EMAIL: you@example.com   # optional: expiry notices from the certificate authority
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - shield-data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  shield-data:
