@@ -30,12 +30,16 @@
 .hs-nav a:hover { color: var(--text); }
 .hs-page .i-top-right { margin-left: 8px; }
 @media (max-width: 980px) { .hs-nav { display: none; } .hs-page .i-top-right { margin-left: auto; } }
-/* The depth dial changes the wording of the instrument views; the story reads the same at every
-   depth, so on "/" the header keeps only the command bar (compact) and the theme switch. */
-.hs-page .i-dial { display: none; }
-.hs-page .i-cmd-btn { min-width: 0; padding: 0 10px 0 14px; }
-.hs-page .i-cmd-btn .t { font-size: 13px; }
-@media (max-width: 1180px) { .hs-page .i-cmd-btn .t { display: none; } }
+/* On "/" the header keeps the wordmark, the section links, a small search button (it opens the same
+   command bar, Ctrl K) and the theme switch. The depth dial moves to the footer (home-story.js),
+   where it still works and still writes ?depth= into the address. */
+.hs-page .i-top .i-dial { display: none; }
+.hs-page .i-cmd-btn { min-width: 0; padding: 0 12px; gap: 8px; }
+.hs-page .i-cmd-btn .t { display: none; }
+.hs-page .i-cmd-btn { color: var(--muted) !important; }
+.hs-search { display: block; }
+.hs-page .i-foot .i-dial { display: inline-flex; margin-left: auto; }
+.hs-page .i-foot-in { align-items: center; }
 
 .hs { --pad: clamp(16px, 6vw, 80px); }
 .hs a { color: inherit; }
@@ -92,7 +96,7 @@
 .hs-box textarea.pa-multi { font: 13px/1.5 var(--mono); overflow: auto; max-height: 40vh; }
 .hs-box textarea::placeholder { color: var(--dim); opacity: 1; }
 .hs .hs-box textarea:focus-visible { outline: 0; }
-.hs-btn, .ins .hs-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; cursor: pointer; background: var(--safe); color: var(--safe-ink); font: 650 17px var(--sans); min-height: 50px; padding: 0 26px; border-radius: 15px; text-decoration: none; white-space: nowrap; transition: transform var(--t-fast) var(--ease), opacity var(--t-fast); }
+.hs-btn, .ins .hs-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; text-align: center; gap: 8px; border: 0; cursor: pointer; background: var(--safe); color: var(--safe-ink); font: 650 17px var(--sans); min-height: 50px; min-width: 120px; padding: 0 26px; border-radius: 15px; text-decoration: none; white-space: nowrap; transition: transform var(--t-fast) var(--ease), opacity var(--t-fast); }
 .hs-btn:hover { opacity: .92; }
 .hs-btn:active { transform: scale(.96); }
 .hs-btn[aria-busy="true"] { opacity: .6; cursor: progress; }
@@ -322,6 +326,6 @@ html.hs-smooth { scroll-behavior: smooth; }
   .hs-page .i-dial ~ .i-cmd-btn { flex: none; order: 0; }
   .hs-page .i-dial ~ .i-theme { margin-left: 0; }
   .hs-page .i-top-right { margin-left: auto; }
-  .hs-page .i-cmd-btn { height: 36px; padding: 0 12px; }
+  .hs-page .i-cmd-btn { height: 36px; padding: 0 12px; flex: none; }
   .hs-page .i-cmd-btn kbd { display: none; }
 }

@@ -409,6 +409,15 @@
     n.className = "hs-nav"; n.setAttribute("aria-label", "On this page");
     n.innerHTML = '<a href="#hs-names">Who&rsquo;s ready</a><a href="#hs-done">How it works</a><a href="#hs-sectors">Sectors</a><a href="#hs-board">Every name</a>';
     right.parentNode.insertBefore(n, right);
+    // The depth dial lives in the footer here; it is the same element, so it keeps working.
+    var dial = $("#i-dial"), foot = $(".i-foot-in");
+    if (dial && foot) foot.appendChild(dial);
+    var cmd = $("#i-cmd-btn");
+    if (cmd) {
+      cmd.setAttribute("aria-label", "Search: a domain, an algorithm, a scan, a place (Ctrl K)");
+      var ic = cmd.querySelector('span[aria-hidden="true"]');
+      if (ic) ic.innerHTML = '<svg class="hs-search" viewBox="0 0 20 20" width="16" height="16" focusable="false"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    }
     var top = $(".i-top");
     var onScroll = function () { if (top) top.classList.toggle("hs-scrolled", window.scrollY > 20); };
     window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
