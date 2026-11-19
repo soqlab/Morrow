@@ -37,6 +37,7 @@ import ipaddress
 import json
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -446,7 +447,53 @@ def plan(host: str, result: Dict[str, Any], chosen: str = "",
     from services import make_safe_done
 
     out["one_click"] = make_safe_done.offer(host, detected, safe)
+    # Where there is no one-click fix: Morrow Shield, one command plus DNS (never called one click).
+    out["shield"] = None if out["one_click"] else shield_offer(host, detected, safe)
     return out
+
+
+# ── Morrow Shield (shield/ in this repository) ──────────────────────────────
+
+_SHIELD_HOST_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")
+
+
+def shield_enabled() -> bool:
+    return str(os.getenv("MORROW_MAKE_SAFE_SHIELD_ENABLED", "1")).strip().lower() not in ("0", "false", "no", "off")
+
+
+def shield_offer(host: str, detected: Dict[str, Any], safe: bool) -> Optional[Dict[str, Any]]:
+    """"Put Morrow Shield in front": for a host that is not safe, where no CDN or cloud load balancer
+    is seen in front of it (behind one, that edge's own setting is the fix, and a front door in front
+    of a CDN would undo the CDN). The docker run command is filled in for this host from
+    data/make_safe_recipes.json under ``shield``; the host is checked against a strict hostname
+    pattern first, so nothing but letters, digits, dots and hyphens can reach a shell command."""
+    if safe or not shield_enabled():
+        return None
+    data = recipes().get("shield")
+    if not data:
+        return None
+    if _kind(str(detected.get("stack") or "unknown")) in _EDGE_KINDS:
+        return None
+    host = str(host or "").strip().lower().rstrip(".")
+    if len(host) > 253 or not _SHIELD_HOST_RE.match(host):
+        return None
+
+    def fill(text: str) -> str:
+        return text.replace("{domain}", host).replace("{image}", data["image"])
+
+    return {
+        "name": data["name"],
+        "summary": data["summary"],
+        "image": data["image"],
+        "command": "\n".join(fill(line) for line in data["command"]),
+        "verify_command": fill(data["verify_command"]),
+        "requires": [fill(x) for x in data["requires"]],
+        "limits": list(data["limits"]),
+        "readme_url": data["readme_url"],
+        "sources": copy.deepcopy(data["sources"]),
+        "one_click": False,
+        "checked_on": max(src["checked"] for src in data["sources"]),
+    }
 
 
 # ── Tables ───────────────────────────────────────────────────────────────────

@@ -48,8 +48,8 @@ PAGE_VERSION = "2026-11-19-preflight"
 #: "Your connection, right now", after the footer so its arrival moves nothing on the page.
 _CONN_SCRIPT = "/ui/conn-line.js?v=20261116"
 #: Done, on a record that is not quantum-safe (services/make_safe_done.py).
-DONE_STYLE = "/ui/make-safe-done.css?v=20261118b"
-DONE_SCRIPT = "/ui/make-safe-done.js?v=20261118b"
+DONE_STYLE = "/ui/make-safe-done.css?v=20261119-shield"
+DONE_SCRIPT = "/ui/make-safe-done.js?v=20261119-shield"
 #: Before you switch: pre-flight (services/preflight.py, static/preflight.js), next to Make it safe.
 PREFLIGHT_STYLE = "/ui/preflight.css?v=20261119"
 PREFLIGHT_SCRIPT = "/ui/preflight.js?v=20261119"
