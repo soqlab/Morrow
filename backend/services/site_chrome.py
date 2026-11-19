@@ -16,7 +16,7 @@ from __future__ import annotations
 
 #: Stylesheets and the one script, in the order every server-rendered page loads them.
 #: feel.js is not deferred: it sets the visitor's chosen theme before the first paint.
-ASSET_VERSION = "20261118-feel"
+ASSET_VERSION = "20261119-one"
 STYLES = (
     f"/ui/instrument.css?v={ASSET_VERSION}",
     f"/ui/feel.css?v={ASSET_VERSION}",

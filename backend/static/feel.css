@@ -98,3 +98,135 @@ a.i-cmd-link .t { color: var(--muted); }
   .ins .bar .seg, .ins .spark .tick, .i-theme, .ins .i-btn, .ins .btn, .ins .i-cmd-btn, .ins .oopsBtn, .ins .i-dial button, .ins .feel-lift { transition: none !important; }
   .ins .i-btn:active, .ins .btn:active, .ins .i-cmd-btn:active, .ins .oopsBtn:active, .ins .i-dial button:active, .i-theme:active, .ins .feel-lift:hover { transform: none; }
 }
+
+/* ── One language for every public page ─────────────────────────────────────────────────────────
+ * The front page's story set the shapes (static/home-story.css); this layer carries them to every
+ * view that loads feel.css: the instrument views, the record and proof pages, the documents and the
+ * 404 page. Tokens only (instrument.css): the system font stack, rounded generous shapes, the type
+ * scale, and the safe and warn colours that meet AA in both themes. Nothing here animates: colour,
+ * border and background changes are instant, presses and lifts move by transform only.
+ */
+
+/* the header: translucent over the page, a pill for each control */
+.ins .i-top { position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--bg) 78%, transparent); -webkit-backdrop-filter: saturate(1.4) blur(16px); backdrop-filter: saturate(1.4) blur(16px); }
+.ins .i-top-in { min-height: 64px; }
+.ins .i-mark { font: 700 13px var(--sans); letter-spacing: .32em; }
+.ins .i-mark::before { border-radius: 2px; }
+.ins .i-cmd-btn { border-radius: var(--r-pill); font: 14px var(--sans); }
+.ins .i-cmd-btn kbd { border-radius: 6px; }
+.i-theme, .ins .i-theme { border-radius: var(--r-pill); font: 13px var(--sans) !important; letter-spacing: 0; padding: 0 14px; }
+.i-theme-ic { border-radius: 50%; }
+.ins .i-dial { border-radius: var(--r-pill); overflow: hidden; font: 13px var(--sans); }
+.ins .i-dial button { padding: 6px 12px; }
+.ins .i-conn { font: 13px var(--sans); }
+
+/* the footer */
+.ins .i-foot { margin-top: 56px; }
+.ins .i-foot-in { font: 13px var(--sans); gap: 10px 22px; padding: 32px var(--gutter) 44px; }
+
+/* the view's one line: a headline, in the story's type */
+.ins .i-say { font-size: clamp(24px, 2.7vw, 36px); line-height: 1.15; font-weight: 700; letter-spacing: -.025em; max-width: 34ch; margin: 8px 0 32px; }
+.ins .i-say::before, .ins .i-say::after { content: none; }
+.ins .i-eyebrow { font: 600 12px var(--sans); letter-spacing: .2em; }
+.ins .i-h1 { font-weight: 700; letter-spacing: -.04em; }
+.ins .i-h2 { font-weight: 650; letter-spacing: -.02em; }
+.ins .i-big { font-weight: 650; letter-spacing: -.03em; }
+.ins .i-status { font: 14px var(--sans); }
+.ins .i-fine { font-size: 13.5px; }
+
+/* panels: rounded surfaces with a quiet label, not ruled boxes */
+.ins .ch { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-2); margin: 0 0 20px; overflow: hidden; }
+.ins .ch-head { padding: 14px 20px; border-bottom: 1px solid var(--line); font: 600 12px var(--sans); letter-spacing: .16em; color: var(--dim); }
+.ins .ch-head::before { border-radius: 50%; }
+.ins .ch-body { padding: 20px; }
+.ins .i-empty { border-radius: var(--r-md); }
+
+/* readouts: small cards */
+.ins .readouts { border: 0; gap: 10px; }
+.ins .reading { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg); padding: 12px 14px; }
+.ins .reading dt, .ins .reading .k { font: 600 11px var(--sans); letter-spacing: .12em; }
+.ins .reading dd, .ins .reading .v { font: 600 17px var(--sans); letter-spacing: -.01em; }
+
+/* grades: a rounded disc and round chips, tinted with the grade's colour */
+.ins .grade { border: 0; border-radius: var(--r-xl); background: color-mix(in srgb, var(--gc, var(--dim)) 15%, var(--bg)); font: 780 64px/1 var(--sans); letter-spacing: -.04em; }
+.ins .grade[data-g="A"], .ins .grade[data-g="B"] { background: var(--safe); color: var(--safe-ink); box-shadow: 0 0 0 8px var(--glow); }
+.ins .g-chip { border: 0; border-radius: var(--r-pill); min-width: 28px; height: 24px; padding: 0 8px; background: color-mix(in srgb, var(--gc, var(--dim)) 16%, transparent); font: 700 12.5px var(--sans); }
+
+/* the one input and every button */
+.ins .i-field { border-radius: var(--r-md); padding: 0 16px; border-color: var(--line-2); }
+.ins .i-field input { font: 17px var(--sans); height: 52px; }
+.ins .i-field .p { font-family: var(--sans); }
+.ins .i-btn { border-radius: var(--r-pill); padding: 0 18px; min-height: 40px; font: 600 14px var(--sans); letter-spacing: 0; }
+.ins .i-btn.solid { background: var(--safe) !important; border-color: var(--safe) !important; color: var(--safe-ink) !important; }
+.ins .i-btn.solid:hover { filter: none; opacity: .92; }
+.ins select.i-btn, .ins textarea.i-btn, .ins input.i-btn { border-radius: var(--r-sm); font-family: var(--sans); }
+.ins .fix .i-btn { min-height: 30px; padding: 0 12px; }
+.ins pre { border-radius: var(--r-sm); }
+
+/* tables, lists, bars */
+.ins .i-table th { font: 600 11px var(--sans); letter-spacing: .12em; }
+.ins .i-table .num { font-family: var(--sans); font-variant-numeric: tabular-nums; }
+.ins .bar { border: 0; border-radius: var(--r-pill); overflow: hidden; background: var(--bg-3); }
+.ins .cg-list .k, .ins .risk-pick label, .ins .hv-dial label { font: 600 11px var(--sans); letter-spacing: .12em; }
+.ins .tl-axis, .ins .hv-a0, .ins .hv-a1, .ins .hv-mark b { font-family: var(--sans); }
+.ins .risk { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-2); padding: 18px 20px; }
+.ins .i-tl li::before { border-radius: 50%; }
+
+/* the command bar */
+.ins .i-pal { border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-2); }
+.ins .i-pal-back { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.ins .i-opt .k { font: 600 10.5px var(--sans); }
+.ins .i-main .i-opts { border-radius: 0 0 var(--r-md) var(--r-md); }
+
+/* since your last visit, and the "new" mark */
+.feel-since { border-radius: var(--r-md); border-left-width: 1px; }
+.feel-since-k { font: 600 11px var(--sans); }
+.feel-new { border-radius: var(--r-pill); padding: 0 8px; font: 600 10.5px/18px var(--sans); }
+
+/* the record and proof pages (/r/<domain>, registry.css) */
+.ins .rec .record-head { border-bottom-color: var(--line); }
+.ins .rec .record-head h1 { font-weight: 700; letter-spacing: -.045em; }
+.ins .rec .eyebrow, .ins .rec .meta dt, .ins .rec th, .ins .rec .algo .role, .ins .rec .algo .verdict-line, .ins .rec .seal-k { font-family: var(--sans); font-weight: 600; }
+.ins .rec .eyebrow::before { border-radius: 50%; }
+.ins .rec .headline { font-weight: 600; letter-spacing: -.02em; }
+.ins .rec .pill { border-radius: var(--r-pill); font-family: var(--sans); font-weight: 600; padding: 4px 12px; }
+.ins .rec .pill::before { border-radius: 50%; }
+.ins .rec .meta { border: 0; gap: 10px; }
+.ins .rec .meta dt { border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-md) var(--r-md) 0 0; background: var(--bg-2); }
+.ins .rec .meta dd { border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--r-md) var(--r-md); background: var(--bg-2); font: 600 15px var(--sans); }
+.ins .rec .btn { border-radius: var(--r-pill); font: 600 14px var(--sans); letter-spacing: 0; padding: 0 18px; min-height: 42px; }
+.ins .rec .actions { font-family: var(--sans); font-size: 14px; }
+.ins .rec .actions .btn:first-child { background: var(--safe); border-color: var(--safe); color: var(--safe-ink); }
+.ins .rec .actions .btn:first-child:hover { filter: none; opacity: .92; }
+.ins .rec .notice, .ins .rec .watch-strip { border: 1px solid var(--line); border-radius: var(--r-lg); }
+.ins .rec .panel { border-radius: var(--r-lg); background: var(--bg-2); padding: 0 20px 20px; overflow: hidden; }
+.ins .rec .panel > h2 { margin: 0 -20px 16px; padding: 14px 20px; font: 600 12px var(--sans); letter-spacing: .16em; }
+.ins .rec .panel > h2::before { border-radius: 50%; }
+.ins .rec .algo-grid { border: 0; gap: 12px; }
+.ins .rec .algo { border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
+.ins .rec .algo h3 { font: 650 16px var(--sans); }
+.ins .rec pre { border-radius: var(--r-sm); }
+.ins .rec .seal { border-radius: var(--r-lg); border-width: 1px; border-top-width: 1px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--sc) 16%, transparent); font-family: var(--sans); }
+.ins .rec .seal-v { font: 750 30px/1.05 var(--sans); }
+.ins .rec .proof-status { font-weight: 700; letter-spacing: -.03em; }
+.ins .rec .proof-status[data-state="safe"] { color: var(--safe); }
+.ins .rec .verify-out { font-family: var(--sans); }
+
+/* the documents (doc.css) */
+.ins.doc .eyebrow, .ins.doc .doc-meta b, .ins.doc th, .ins.doc .ops-card small, .ins.doc .matrix-row strong { font-family: var(--sans); font-weight: 600; }
+.ins.doc h1 { font-weight: 700; letter-spacing: -.035em; }
+.ins.doc .doc-meta, .ins.doc .ops-card, .ins.doc .cta, .ins.doc .flowline, .ins.doc .notice { border-radius: var(--r-lg); }
+.ins.doc .notice { border: 1px solid var(--line); }
+.ins.doc .btn { border-radius: var(--r-pill); font-weight: 600; padding: 0 18px; min-height: 40px; }
+.ins.doc .btn.primary { background: var(--safe); color: var(--safe-ink); border-color: var(--safe); }
+.ins.doc code { border-radius: 6px; }
+
+/* the 404 page (oops.css) */
+.oopsPage .oops { border-radius: var(--r-xl); background: var(--bg-2); overflow: hidden; box-shadow: var(--shadow-1); }
+.oopsPage .oopsHead { padding: 14px 20px; font: 600 12px var(--sans); letter-spacing: .16em; }
+.oopsPage .oopsHead > span:first-child::before { border-radius: 50%; }
+.oopsPage .oopsBody { padding: 24px 20px; }
+.oopsPage .oops h1 { font-weight: 700; letter-spacing: -.035em; }
+.oopsPage .oopsSuggest > span, .oopsPage .oopsSuggest small { font-family: var(--sans); }
+.oopsPage .oopsBtn { border-radius: var(--r-pill); font-weight: 600; padding: 0 18px; min-height: 40px; }
+.oopsPage .oopsBtn.pri { background: var(--safe); color: var(--safe-ink); border-color: var(--safe); }
