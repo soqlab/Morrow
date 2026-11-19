@@ -25,6 +25,8 @@
   function enc(v) { return encodeURIComponent(v); }
   function num(n) { return n == null || isNaN(n) ? "-" : Number(n).toLocaleString("en-GB"); }
   function pct(x) { return x == null || isNaN(x) ? "-" : (Math.round(x * 1000) / 10) + "%"; }
+  /* A number that counts up once when it scrolls into view (static/feel.js); the text is the value. */
+  function cnt(text) { return '<span data-count>' + text + "</span>"; }
   function day(iso) { if (!iso) return "-"; var d = new Date(iso); return isNaN(d) ? String(iso) : d.toISOString().slice(0, 10); }
   function stamp(iso) { if (!iso) return "-"; var d = new Date(iso); return isNaN(d) ? String(iso) : d.toISOString().slice(0, 16).replace("T", " ") + " UTC"; }
   function ago(iso) {
@@ -73,6 +75,7 @@
     return "{" + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ":" + canonical(v[k]); }).join(",") + "}";
   }
   function copy(text, btn) {
+    if (window.MorrowFeel) { window.MorrowFeel.copy(text, btn); return; }
     var done = function () { if (btn) { var o = btn.textContent; btn.textContent = "Copied"; setTimeout(function () { btn.textContent = o; }, 1400); } };
     if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
   }
@@ -1199,6 +1202,8 @@
       paintTp();
       if (safeKit) safeKit.mount($("#ms-box"), d, latest || r, { onLive: function () { load(false); } });
       if (location.hash === "#make-safe" && !render.scrolled) { render.scrolled = true; var ms = $("#make-safe"); if (ms) ms.scrollIntoView({ block: "start" }); }
+      // From a record's "Watch this domain" (services/registry_page.py): open at the Watch panel.
+      if (location.hash === "#watch" && !render.scrolled) { render.scrolled = true; var ww = $("#w-wrap"); if (ww) ww.scrollIntoView({ block: "start" }); }
       if (window.MorrowWatch) window.MorrowWatch.domain(d, latest || r);
       function harvest() {
         Promise.all([basis(), shelfLife()]).then(function (got) {
@@ -1251,11 +1256,13 @@
       shown.map(function (s) {
         var segs = ["A", "B", "C", "D", "E", "F"].map(function (g) { var n = (s.grades || {})[g] || 0; return n ? '<i class="seg" data-g="' + g + '" data-w="' + (n / s.graded) + '" title="' + g + ": " + n + '"></i>' : ""; }).join("");
         var trend = (s.trend || []).map(function (t) { return '<i class="tick" data-h="' + t.pq_share + '" title="' + esc(t.week + ": " + pct(t.pq_share) + " of " + t.graded) + '"></i>'; }).join("");
-        return "<tr><td>" + esc(s.name) + '</td><td><span class="bar">' + segs + '</span></td><td class="num">' + pct(s.pq_share) + "</td>" + (withTrend ? '<td><span class="spark">' + trend + "</span></td>" : "") + '<td class="num">' + num(s.graded) + "</td></tr>";
+        return "<tr><td>" + esc(s.name) + '</td><td><span class="bar">' + segs + '</span></td><td class="num">' + cnt(pct(s.pq_share)) + "</td>" + (withTrend ? '<td><span class="spark">' + trend + "</span></td>" : "") + '<td class="num">' + cnt(num(s.graded)) + "</td></tr>";
       }).join("") + "</tbody></table></div>";
   }
   function paintBars() {
-    $$(".bar .seg").forEach(function (el) { el.style.width = (Number(el.getAttribute("data-w")) * 100).toFixed(2) + "%"; });
+    // Bars grow once as they scroll into view (static/feel.js); straight to their width without it.
+    if (window.MorrowFeel) window.MorrowFeel.grow(main);
+    else $$(".bar .seg").forEach(function (el) { el.style.width = (Number(el.getAttribute("data-w")) * 100).toFixed(2) + "%"; });
     $$(".spark .tick").forEach(function (el) { el.style.height = Math.max(2, Number(el.getAttribute("data-h")) * 100).toFixed(1) + "%"; });
   }
   function viewLeague() {
@@ -1271,7 +1278,13 @@
         standard: num(graded) + " named sites in " + SECTORS.filter(function (s) { return s.graded; }).length + " sectors graded; " + pct(g ? pq / g : null) + " negotiate a post-quantum key exchange.",
         expert: num(graded) + "/" + num(L.list_size) + " graded under rubric " + L.rubric_version + "; post-quantum share " + pct(g ? pq / g : null) + "; weekly trend from stored grades." }));
       var lr = L.last_run;
-      $("#lg-body").innerHTML = panel("", "By sector", sectorRows(SECTORS, depth !== "plain"), { ch: "league", right: lr ? "last batch " + esc(ago(lr.finished_at || lr.started_at)) : "no batch has run yet" }) +
+      // How many more sites have a grade than when this browser last opened the league (static/feel.js).
+      var seen = window.MorrowFeel ? window.MorrowFeel.since("league", String(graded || 0)) : null;
+      var more = seen && seen.mark !== "" ? (graded || 0) - Number(seen.mark) : 0;
+      var sinceLine = !seen || isNaN(more) ? "" : window.MorrowFeel.sinceLine(more > 0
+        ? "<b>" + num(more) + " new</b> site" + (more === 1 ? "" : "s") + " graded since your last visit on " + esc(seen.since) + "."
+        : "No new site graded since your last visit on " + esc(seen.since) + ".", more > 0 ? "new" : "same");
+      $("#lg-body").innerHTML = sinceLine + panel("", "By sector", sectorRows(SECTORS, depth !== "plain"), { ch: "league", right: lr ? "last batch " + esc(ago(lr.finished_at || lr.started_at)) : "no batch has run yet" }) +
         '<p class="i-fine"><a href="/report">Sector reports</a>, citable, with their trend and method. <a href="/changes">What changed</a>. <a href="/vendors">Check your vendors</a>.</p>' +
         '<p class="i-fine">Averages only: no site is named or ranked here. Each sector\'s list (in <code>backend/league/sectors.json</code>) is re-graded once a week with the same check as a domain page. Any single domain can still be checked by typing it. ' +
         (depth === "expert" ? SECTORS.filter(function (s) { return s.graded; }).map(function (s) { return "<br>" + esc(s.name) + ": " + esc(s.method); }).join("") : "") + "</p>";
@@ -1821,18 +1834,26 @@
         expert: num(up) + " up, " + num(down) + " down across B since " + since + " (named " + num(C.counts.ready) + "/" + num(C.counts.not_ready) + ", sector counts the rest), " + num(listed) + " self-listed; rubric " + C.rubric_version + "; stored grades only." }));
       var options = '<option value="">All sectors</option>' + (C.sectors || []).map(function (s) { return '<option value="' + esc(s[0]) + '"' + (s[0] === sector ? " selected" : "") + ">" + esc(s[1]) + "</option>"; }).join("");
       var KIND = { ready: "ready", not_ready: "below B", listed: "listed", sector: "sector" };
+      // New since this browser last opened this list (static/feel.js keeps the newest it saw).
+      var seen = window.MorrowFeel ? window.MorrowFeel.since("changes|" + sector, ev.length ? String(ev[0].at) : "") : null;
+      var isNew = function (e) { return !!(seen && seen.mark && String(e.at) > seen.mark); };
+      var fresh = ev.filter(isNew).length;
+      var sinceLine = !seen ? "" : window.MorrowFeel.sinceLine(fresh
+        ? "<b>" + num(fresh) + " new</b> since your last visit on " + esc(seen.since) + ", marked below."
+        : "Nothing new since your last visit on " + esc(seen.since) + ".", fresh ? "new" : "same");
       var items = ev.map(function (e) {
         var title = e.named ? '<a href="' + esc(e.page) + '">' + esc(e.domain) + "</a>" + esc(e.title.slice(e.domain.length)) : esc(e.title) + ' <a href="' + esc(e.page) + '">' + esc(e.sector_name) + " report</a>";
+        if (isNew(e)) title += '<span class="feel-new">new</span>';
         return '<li><span class="mono i-dim">' + esc(day(e.at)) + '</span><span class="k" data-k="' + esc(e.kind) + '">' + esc(KIND[e.kind] || e.kind) + "</span><span>" + title +
           (e.reply ? '<br><span class="i-fine">Reply from the owner, ' + esc(day(e.reply.at)) + ": “" + esc(e.reply.text) + "”</span>" : "") + "</span></li>";
       }).join("");
       var q = sector ? "?sector=" + enc(sector) : "", r = C.rules || {};
-      $("#cg-body").innerHTML = panel("", "Changes, newest first",
+      $("#cg-body").innerHTML = sinceLine + panel("", "Changes, newest first",
         '<p class="i-row"><label for="cg-sector">Sector</label><select id="cg-sector" class="i-btn">' + options + '</select><a class="i-fine" href="/api/public/changes.atom' + q + '">Atom</a><a class="i-fine" href="/api/public/changes.rss' + q + '">RSS</a><a class="i-fine" href="/api/public/changes' + q + '">JSON</a></p>' +
         (items ? '<ol class="cg-list">' + items + "</ol>" : '<p class="i-empty">Nothing has crossed B yet' + (sector ? " in this sector" : "") + ".</p>") +
         '<details class="i-fine"><summary>Who is named, and what counts as a change</summary><p>' + esc(r.named || "") + "</p><p>" + esc(r.changes || "") + "</p><p>" + esc(r.sectors || "") + "</p><p>" + esc(r.measured || "") +
         ' Owners can reply, ask for a correction or opt out from the <a href="/league">league page</a> and <a href="/abuse">opt-out form</a>.</p></details>',
-        { ch: "league", right: num(C.count) + " changes" });
+        { ch: "league", right: cnt(num(C.count)) + " changes" });
       $("#cg-sector").addEventListener("change", function () { setParam("sector", this.value || null); viewChanges(); });
     }).catch(function (e) { say("The change feed is not available right now."); $("#cg-body").innerHTML = '<div class="i-empty">' + esc(e.message) + "</div>"; });
   }
@@ -1855,8 +1876,8 @@
     getJSON("/api/public/report", { cache: "no-store" }).then(function (I) {
       say(I.summary);
       var rows = (I.sectors || []).map(function (s) {
-        return '<tr><td><a href="' + esc(s.url) + '">' + esc(s.name) + '</a></td><td class="num">' + pct(s.ready_share) + '</td><td class="i-fine">' + esc(cmpWords(s.comparison)) + "</td><td>" +
-          trendLine(s.trend, "mini", s.name + ": weekly share post-quantum ready") + '</td><td class="num">' + num(s.graded) + '</td><td class="mono">' + esc(day(s.as_of)) + "</td></tr>";
+        return '<tr><td><a href="' + esc(s.url) + '">' + esc(s.name) + '</a></td><td class="num">' + cnt(pct(s.ready_share)) + '</td><td class="i-fine">' + esc(cmpWords(s.comparison)) + "</td><td>" +
+          trendLine(s.trend, "mini", s.name + ": weekly share post-quantum ready") + '</td><td class="num">' + cnt(num(s.graded)) + '</td><td class="mono">' + esc(day(s.as_of)) + "</td></tr>";
       }).join("");
       $("#rp-body").innerHTML = panel("", "By sector", '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Sector</th><th class="num">Ready</th><th>Change</th><th>Weekly, 0 to 100%</th><th class="num">Graded</th><th>As of</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
         '<p class="i-fine">Ready means graded A or B: a post-quantum key exchange was negotiated. Built from the stored weekly grades of the named sector lists; no site is named. Each report states its sample, method and what is not measured, and has a CSV. <a href="/plain/report">Plain version</a>.</p>', { ch: "league", right: "as of " + esc(day(I.as_of)) });
@@ -1875,12 +1896,12 @@
       var weeks = depth === "expert" && pts.length ? '<div class="i-table-wrap"><table class="i-table"><thead><tr><th>Week of</th><th class="num">Graded</th><th class="num">Ready</th><th class="num">Share</th></tr></thead><tbody>' +
         pts.slice().reverse().map(function (p) { return '<tr><td class="mono">' + esc(p.week) + '</td><td class="num">' + num(p.graded) + '</td><td class="num">' + num(p.ready) + '</td><td class="num">' + pct(p.share) + "</td></tr>"; }).join("") + "</tbody></table></div>" : "";
       $("#rp-body").innerHTML =
-        panel("", R.name, '<dl class="readouts">' + reading("Post-quantum ready", pct(R.ready_share)) + reading("Ready / graded", num(R.ready) + " / " + num(S.graded)) +
+        panel("", R.name, '<dl class="readouts">' + reading("Post-quantum ready", cnt(pct(R.ready_share))) + reading("Ready / graded", cnt(num(R.ready)) + " / " + cnt(num(S.graded))) +
           reading("Compared with", c ? esc(pct(c.share) + ", " + c.month) : "no earlier week") + reading("As of", esc(stamp(R.as_of))) + reading("Rubric", esc(R.rubric_version)) + "</dl>" +
           (S.graded ? '<p><span class="bar">' + segs + '</span></p><p class="i-fine mono">' + ["A", "B", "C", "D", "E", "F"].map(function (g) { return g + " " + num((R.grades || {})[g] || 0); }).join(" · ") + "</p>" : ""), { ch: "league" }) +
         panel("", "Week by week", trendLine(pts, "", R.name + ": weekly share post-quantum ready, 0 to 100%") +
           (pts.length ? '<div class="tl-axis"><span>' + esc(pts[0].week) + '</span><span>0 to 100%, n ' + num(Math.min.apply(null, pts.map(function (p) { return p.graded; }))) + "–" + num(Math.max.apply(null, pts.map(function (p) { return p.graded; }))) + " a week</span><span>" + esc(pts[pts.length - 1].week) + "</span></div>" : "") + weeks, { ch: "league" }) +
-        panel("", "Sample", '<dl class="readouts">' + reading("In the list", num(S.listed)) + reading("Graded", num(S.graded)) + reading("Not reachable", num(S.unreachable)) + reading("Not graded yet", num(S.not_graded_yet)) + reading("Opted out, left out", num(S.opted_out_left_out)) + "</dl>", { ch: "league" }) +
+        panel("", "Sample", '<dl class="readouts">' + reading("In the list", cnt(num(S.listed))) + reading("Graded", cnt(num(S.graded))) + reading("Not reachable", cnt(num(S.unreachable))) + reading("Not graded yet", cnt(num(S.not_graded_yet))) + reading("Opted out, left out", cnt(num(S.opted_out_left_out))) + "</dl>", { ch: "league" }) +
         panel("", "Method", "<p>" + esc(M.list) + " " + esc(M.who) + "</p><p>" + esc(M.measured) + "</p><p>" + esc(M.ready) + " " + esc(M.cadence) + "</p><p>" + esc(M.names) + "</p>" +
           '<p class="i-fine">Not measured:</p><ul class="i-fine">' + (M.not_measured || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
           ((M.sources || []).length ? '<details class="i-fine"><summary>Sources for the list</summary><ul>' + M.sources.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></details>" : ""), { ch: "league" }) +
