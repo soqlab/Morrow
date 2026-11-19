@@ -115,10 +115,12 @@ async function main() {
         assert.equal(await page.locator('link[href*="/ui/experience.css"]').count(), 1);
         assert.equal(await page.locator(".topbar .nav .nav-cta").getAttribute("href"), "/ui/");
       } else {
-        // The documents wear the instrument's chrome: the mark home, Sign in, and the opt-out in the footer.
+        // The documents wear the front page's chrome (services/site_chrome.py): the mark home and the way
+        // to check a domain in the header; Sign in and the opt-out in the footer, as on the front page.
         assert.equal(await page.locator('link[href*="/ui/doc.css"]').count(), 1, route);
         assert.equal(await page.locator(".i-top .i-mark").getAttribute("href"), "/", route);
-        assert.equal(await page.locator(".i-top .i-btn").getAttribute("href"), "/ui/", route);
+        assert.equal(await page.locator(".i-top .i-cmd-link").getAttribute("href"), "/", route);
+        assert.equal(await page.locator('.i-foot a[href="/ui/"]').count(), 1, route);
         assert.equal(await page.locator('.i-foot a[href="/abuse"]').count(), 1, route);
       }
       for (const width of [390, 1440]) {
