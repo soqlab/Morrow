@@ -7,6 +7,8 @@
 .ev-actions { margin: 0 0 8px; }
 .ev-cell { white-space: nowrap; }
 .ev-cell .i-btn + .i-btn { margin-left: 8px; }
+/* The pack opens in place at once: it is not one of the report's arriving rows (feel.css staggers those). */
+.ins #vr-list tbody tr.ev-row { animation: none; }
 .ev-row td { background: var(--bg); white-space: normal; }
 /* The table can scroll sideways on a phone; the pack stays in view at the left edge, as wide as the panel. */
 .ev-box { position: sticky; left: 0; max-width: 78ch; padding: 6px 2px; }
