@@ -13,6 +13,11 @@
  *                                                    "Checking from the outside…".
  *   <div data-morrow-done="example.com">             mounted by itself on load (the /r record).
  *
+ * Where the plan has no one-click fix but carries plan.shield (services/make_safe.shield_offer), the
+ * same mount offers Morrow Shield instead: the docker run command filled in for the host, with Copy,
+ * what must be true, the honest limits, and "I've put it in front", which runs the same outside
+ * check, the same "Quantum-safe." and the same proof. It is never called one click.
+ *
  * Every step on screen is a real request: the change is POST .../done/apply, the outside check is the
  * spaced re-check of make-safe.js (POST .../recheck, spacing set by the server), and the proof is
  * /r/<d>/proof.json. Steps are held on screen for a short minimum so they can be read; nothing is
@@ -115,6 +120,7 @@
 
   Done.prototype.offer = function () {
     var p = this.plan || {}, oc = p.one_click;
+    if (!oc && p.shield && !this.change) { this.shieldOffer(); return; }
     if (!oc) { this.box.hidden = !this.change; if (this.change) this.paintUndoOnly(); return; }
     this.box.hidden = false;
     var grade = p.grade || "";
@@ -131,6 +137,47 @@
         this.soundToggle() +
       '</div>';
     this.wire();
+  };
+
+  // ── Morrow Shield: one command plus DNS, for a host with no one-click fix ──
+  // Never shown as one click: the person runs the command on their own server and points DNS at it;
+  // "I've put it in front" then starts the same outside check, the same "Quantum-safe." and proof.
+
+  Done.prototype.shieldOffer = function () {
+    var p = this.plan || {}, sh = p.shield, grade = p.grade || "";
+    this.shield = false; this.opts.byHand = false; this.box.hidden = false;
+    var list = function (xs) { return (xs || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join(""); };
+    var src = (sh.sources || []).map(function (s) {
+      return '<li><a href="' + esc(s.url) + '" target="_blank" rel="noopener noreferrer">' + esc(s.title) + "</a>, checked " + esc(s.checked) + "</li>";
+    }).join("");
+    this.box.innerHTML =
+      '<div class="dn dn-shield" data-state="offer">' +
+        '<p class="dn-eyebrow">Make it safe <span aria-hidden="true">/</span> ' + esc(sh.name) + '</p>' +
+        '<div class="dn-offer">' +
+          '<div class="dn-face"><div class="dn-grade" data-g="' + esc(grade) + '"><span class="dn-g dn-g-old">' + esc(grade || "?") + '</span></div>' + LOCK + '</div>' +
+          '<div class="dn-copy"><h3 class="dn-h dn-sh-h">Put Morrow Shield in front of ' + esc(this.d) + '</h3>' +
+            '<p class="dn-lede">' + esc(sh.summary) + '</p>' +
+            '<p class="dn-fine"><b>One command and a DNS change, not one click.</b> Shield is free and open source; nothing runs until you run it.</p></div>' +
+        '</div>' +
+        '<p class="dn-label dn-sh-step">1. Run this on your server</p>' +
+        '<div class="dn-sh-cmd"><pre class="dn-snippet dn-sh-pre" tabindex="0" aria-label="The docker run command for ' + esc(this.d) + '">' + esc(sh.command) + '</pre>' +
+          '<button type="button" class="dn-btn dn-ghost dn-sh-copy" data-act="shield-copy">Copy</button></div>' +
+        '<p class="dn-fine">Change <code>SHIELD_UPSTREAM</code> to where your site really runs. To check it on the server: <code>' + esc(sh.verify_command) + '</code></p>' +
+        '<p class="dn-label dn-sh-step">2. What must be true</p>' +
+        '<ul class="dn-cons">' + list(sh.requires) + '</ul>' +
+        '<details class="dn-sh-more"><summary>Honest limits</summary><ul class="dn-cons">' + list(sh.limits) + '</ul>' +
+          (src ? '<p class="dn-fine">Sources:</p><ul class="dn-cons dn-sh-src">' + src + '</ul>' : '') +
+          '<p class="dn-fine"><a href="' + esc(sh.readme_url) + '" target="_blank" rel="noopener noreferrer">How Shield works, its settings and its source <span aria-hidden="true">&#8599;</span></a></p></details>' +
+        '<div class="dn-actions dn-sh-actions"><button type="button" class="dn-btn dn-go" data-act="shield-done">I\u2019ve put it in front</button>' +
+          '<span class="dn-fine">Morrow then checks ' + esc(this.d) + ' from the outside until visitors get post-quantum key exchange.</span></div>' +
+        this.soundToggle() +
+      '</div>';
+    this.wire();
+  };
+
+  Done.prototype.shieldDone = function () {
+    this.shield = true; this.opts.byHand = true;
+    this.run(null);
   };
 
   Done.prototype.soundToggle = function () {
@@ -150,6 +197,8 @@
     if (what === "open") this.openSheet();
     else if (what === "sound") { store("morrow.done.sound", !soundOn()); el.setAttribute("aria-pressed", soundOn() ? "true" : "false"); el.textContent = "Sound: " + (soundOn() ? "on" : "off"); }
     else if (what === "share") this.share(el);
+    else if (what === "shield-copy") this.copy(((this.plan || {}).shield || {}).command || "", el, "Copied");
+    else if (what === "shield-done") this.shieldDone();
     else if (what === "badge") this.badge(el);
     else if (what === "undo") this.askUndo();
     else if (what === "undo-yes") this.undo();
@@ -278,11 +327,11 @@
     this.box.hidden = false;
     this.box.innerHTML =
       '<div class="dn" data-state="running">' +
-        '<p class="dn-eyebrow">Make it safe <span aria-hidden="true">/</span> ' + esc(byHand ? "your change" : ((p.one_click || {}).name || "Cloudflare")) + '</p>' +
+        '<p class="dn-eyebrow">Make it safe <span aria-hidden="true">/</span> ' + esc(this.shield ? "Morrow Shield" : byHand ? "your change" : ((p.one_click || {}).name || "Cloudflare")) + '</p>' +
         '<div class="dn-run">' +
           '<div class="dn-face"><div class="dn-grade" data-g="' + esc(grade) + '"><span class="dn-g dn-g-old">' + esc(grade || "?") + '</span><span class="dn-g dn-g-new" aria-hidden="true"></span></div>' + LOCK + '</div>' +
           '<ol class="dn-steps">' +
-            '<li data-s="change" data-state="' + (byHand ? "done" : "active") + '"><span class="dn-tick" aria-hidden="true"></span><div><p class="dn-step">' + (byHand ? "You made the change." : "Changing the setting…") + '</p><p class="dn-meta"></p></div></li>' +
+            '<li data-s="change" data-state="' + (byHand ? "done" : "active") + '"><span class="dn-tick" aria-hidden="true"></span><div><p class="dn-step">' + (this.shield ? "You put Morrow Shield in front." : byHand ? "You made the change." : "Changing the setting…") + '</p><p class="dn-meta"></p></div></li>' +
             '<li data-s="check" data-state="' + (byHand ? "active" : "idle") + '"><span class="dn-tick" aria-hidden="true"></span><div><p class="dn-step">Checking from the outside…</p>' +
               '<p class="dn-readout" aria-hidden="true"><span class="dn-k">key exchange</span> <span class="dn-kx" data-pq="false">' + esc(kx) + '</span><span class="dn-scan"></span></p><p class="dn-meta"></p></div></li>' +
             '<li data-s="safe" data-state="idle"><span class="dn-tick" aria-hidden="true"></span><div><p class="dn-step dn-final" tabindex="-1">Quantum-safe.</p><p class="dn-meta"></p></div></li>' +
@@ -306,7 +355,7 @@
     this.running = true;
     this.frame(!pv && this.opts.byHand);
     if (!pv) {
-      this.step("change", "done", this.opts.byHand ? "" : "Nothing to change at Cloudflare.", this.opts.byHand ? "You made the change." : "Already set at Cloudflare.");
+      this.step("change", "done", this.opts.byHand ? "" : "Nothing to change at Cloudflare.", this.shield ? "You put Morrow Shield in front." : this.opts.byHand ? "You made the change." : "Already set at Cloudflare.");
       this.checkSoon(0, true);
       return;
     }
@@ -337,7 +386,7 @@
 
   Done.prototype.failActions = function () {
     var run = this.box.querySelector(".dn-run");
-    run.insertAdjacentHTML("afterend", '<div class="dn-actions"><button type="button" class="dn-btn dn-go" data-act="again">Try again</button>' +
+    run.insertAdjacentHTML("afterend", '<div class="dn-actions"><button type="button" class="dn-btn dn-go" data-act="again">' + (this.shield ? "Back to the command" : "Try again") + '</button>' +
       '<a class="dn-btn dn-ghost" href="/' + enc(this.d) + '#make-safe">The step-by-step recipe</a></div>');
     this.wire();
   };
@@ -380,6 +429,7 @@
           var kxEl = self.box.querySelector(".dn-kx");
           if (kxEl && (r.key_exchange || w.key_exchange)) { kxEl.textContent = r.key_exchange || w.key_exchange; kxEl.setAttribute("data-pq", r.post_quantum || w.status === "live" ? "true" : "false"); }
           if (w.status === "live") { self.safe(out); return; }
+          if (self.shield && !self.propagation) self.propagation = 300;
           var cache = self.propagation ? " Resolvers can keep the old DNS answer for up to " + Math.round(self.propagation / 60) + " min after the change." : "";
           if (w.status === "error") self.step("check", "active", "That check did not complete: " + esc(w.last_error || "") + ' <span class="dn-next"></span>');
           else self.step("check", "active", "Still " + esc(w.key_exchange || "classical") + " (check " + esc(w.attempts) + ")." + esc(cache) + ' <span class="dn-next"></span>');
@@ -399,8 +449,11 @@
   Done.prototype.stuck = function (w) {
     this.running = false;
     var tls = this.preview && this.preview.note;
-    this.step("check", "fail", "Still " + esc(w.key_exchange || "classical") + " after " + esc(w.attempts) + " checks. " +
-      (tls ? esc(tls) + " " : "") + "Purge Cloudflare's cache, check SSL/TLS > Edge Certificates > TLS 1.3 is On, then check again.",
+    var next = this.shield
+      ? "Check that DNS for " + esc(this.d) + " points at the server running Shield (resolvers can keep the old answer for the record's TTL), that ports 80 and 443 reach it, and run " +
+        "<code>" + esc((((this.plan || {}).shield) || {}).verify_command || "docker exec morrow-shield shield check " + this.d) + "</code> there. Then check again."
+      : (tls ? esc(tls) + " " : "") + "Purge Cloudflare's cache, check SSL/TLS > Edge Certificates > TLS 1.3 is On, then check again.";
+    this.step("check", "fail", "Still " + esc(w.key_exchange || "classical") + " after " + esc(w.attempts) + " checks. " + next,
       "Still classical from the outside.");
     var run = this.box.querySelector(".dn-run");
     run.insertAdjacentHTML("afterend", '<div class="dn-actions"><button type="button" class="dn-btn dn-go" data-act="recheck">Check again</button>' +

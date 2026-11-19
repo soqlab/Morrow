@@ -164,7 +164,23 @@ dialog.dn-sheet[open] { animation: dn-rise .28s var(--dn-ease, ease); }
 .dn-note { padding: 10px 12px; border: 1px solid var(--dn-hair); font-size: 14px; }
 .dn-form .dn-actions { margin-top: 6px; }
 
+/* ── Morrow Shield: one command plus DNS ────────────────────────────── */
+.dn-shield .dn-sh-h { font-size: 20px; }
+.dn-shield .dn-sh-step { margin: 22px 0 8px; }
+.dn-shield code { font: 12.5px var(--dn-mono); overflow-wrap: anywhere; }
+.dn-sh-cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.dn-sh-cmd .dn-sh-pre { margin: 0; }
+.dn-sh-cmd + .dn-fine { margin-top: 8px; }
+.dn-sh-more { margin-top: 16px; border-top: 1px solid var(--dn-hair); padding-top: 12px; }
+.dn-sh-more summary { cursor: pointer; font-size: 14px; font-weight: 500; min-height: 32px; display: flex; align-items: center; }
+.dn-sh-more summary:focus-visible { outline: 2px solid var(--dn-accent); outline-offset: 3px; }
+.dn-sh-more > * + * { margin-top: 10px; }
+.dn-sh-more a { color: inherit; text-underline-offset: 3px; }
+.dn-sh-src { font-size: 13px; }
+
 @media (max-width: 560px) {
+  .dn-sh-cmd { grid-template-columns: 1fr; }
+  .dn-sh-cmd .dn-sh-copy, .dn-sh-actions .dn-go { width: 100%; }
   .dn-offer, .dn-run { grid-template-columns: 1fr; gap: 14px; }
   .dn-face { grid-auto-flow: column; justify-content: start; align-items: center; justify-items: start; gap: 14px; }
   .dn-grade { width: 64px; height: 64px; font-size: 36px; }
