@@ -1,0 +1,80 @@
+/*
+ * Before you switch: pre-flight (static/preflight.js). On the shared tokens (instrument.css :root:
+ * --bg-2, --line, --text, --muted, --dim, --ok, --bad, --warn, --mono, --ease), so it follows the
+ * light/dark switch on every page that loads them. Transform and opacity only; the one replay runs
+ * once, and nothing moves under prefers-reduced-motion.
+ */
+.pf { display: grid; gap: 14px; min-width: 0; }
+.pf-lede { margin: 0; max-width: 68ch; color: var(--muted); line-height: 1.5; }
+.pf-lede b { color: var(--text); font-weight: 600; }
+
+.pf-race { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.pf-lane { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) minmax(120px, 190px); align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-sm, 12px); background: var(--bg-2); transition: border-color 160ms ease-out; }
+.pf-lane[hidden] { display: none; }
+.pf-name { display: grid; gap: 2px; min-width: 0; }
+.pf-name b { font-weight: 600; font-size: 15px; color: var(--text); }
+.pf-size { font: 12px/1.35 var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.pf-track { position: relative; height: 10px; border-radius: 999px; background: var(--bg-3, var(--line)); overflow: hidden; }
+.pf-bar { position: absolute; inset: 0; transform-origin: left center; transform: scaleX(0); background: var(--muted); border-radius: 999px; transition-property: transform; transition-timing-function: linear; }
+.pf-mark { display: none; }
+.pf-out { font: 13px/1.3 var(--mono); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pf-res::before { content: ""; display: inline-block; width: 1.25em; text-align: center; font-weight: 700; }
+.pf-lane[data-result="ok"] { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.pf-lane[data-result="ok"] .pf-bar { background: var(--ok); }
+.pf-lane[data-result="ok"] .pf-res { color: var(--text); }
+.pf-lane[data-result="ok"] .pf-res::before { content: "\2713"; color: var(--ok); }
+.pf-lane[data-result="bad"] { border-color: color-mix(in srgb, var(--bad) 55%, var(--line)); }
+.pf-lane[data-result="bad"] .pf-bar { background: var(--bad); }
+.pf-lane[data-result="bad"] .pf-res { color: var(--bad); }
+.pf-lane[data-result="bad"] .pf-res::before { content: "\2715"; color: var(--bad); }
+.pf[data-anim] .pf-lane[data-result] .pf-res { animation: pf-land 260ms var(--ease, ease-out) 1 both; }
+.pf[data-state="racing"] .pf-lane:not([data-result]) .pf-bar { background: var(--text); }
+.pf[data-state="sending"] .pf-res { color: var(--dim); }
+@keyframes pf-land { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+.pf-axis { display: none; margin: -4px 0 0; font-family: var(--mono); font-size: 12px; }
+.pf-axis.on { display: block; }
+
+.pf-act { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.pf-go { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--text); background: var(--text); color: var(--on-solid, var(--bg)); font: 600 14px var(--sans); cursor: pointer; border-radius: var(--r-xs, 0); transition: transform 90ms ease-out, opacity 120ms ease-out; }
+.pf-go:active { transform: scale(.975); }
+.pf-go:focus-visible, .pf a:focus-visible, .pf summary:focus-visible, .pf-verdict:focus-visible { outline: 2px solid var(--accent, var(--text)); outline-offset: 2px; }
+.pf-go[disabled], .pf-go[aria-busy="true"] { opacity: .55; cursor: progress; }
+.pf-fine { font-size: 13px; color: var(--dim); line-height: 1.45; }
+.pf-say { flex: 1 1 260px; min-width: 0; }
+
+.pf-verdict { border: 1px solid var(--line-2); border-left-width: 4px; border-radius: var(--r-sm, 12px); padding: 14px 16px; display: grid; gap: 8px; }
+.pf[data-anim] .pf-verdict { animation: pf-land 320ms var(--ease, ease-out) 1 both; }
+.pf-verdict[hidden] { display: none; }
+.pf-verdict p { margin: 0; line-height: 1.5; max-width: 72ch; }
+.pf-v-h { font-size: 20px; font-weight: 650; color: var(--text); display: flex; align-items: center; gap: 10px; }
+.pf-v-ic { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+.pf-verdict[data-v="safe_to_turn_on"], .pf-verdict[data-v="already_safe"] { border-left-color: var(--ok); }
+.pf-verdict[data-v="safe_to_turn_on"] .pf-v-ic, .pf-verdict[data-v="already_safe"] .pf-v-ic { background: var(--ok); }
+.pf-verdict[data-v="path_problem"] { border-left-color: var(--bad); }
+.pf-verdict[data-v="path_problem"] .pf-v-ic { background: var(--bad); }
+.pf-verdict[data-v="couldnt_test"] { border-left-color: var(--warn); }
+.pf-verdict[data-v="couldnt_test"] .pf-v-ic { background: var(--warn); }
+.pf-cause { color: var(--muted); }
+.pf-sub { font: 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dim); margin-top: 4px !important; }
+.pf-fixes { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; line-height: 1.5; }
+.pf-more summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.pf-more ul { margin: 6px 0 10px; padding-left: 1.2em; color: var(--muted); line-height: 1.5; }
+.pf-more p { margin: 8px 0 0; color: var(--muted); }
+.pf a { color: var(--text); text-underline-offset: 3px; }
+.pf-scope { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.pf-inside { font-weight: 600; white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .pf-lane { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name out" "track track"; gap: 8px 12px; padding: 12px; }
+  .pf-name { grid-area: name; }
+  .pf-out { grid-area: out; align-self: start; }
+  .pf-track { grid-area: track; }
+  .pf-inside { white-space: normal; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-bar { transition: none !important; }
+  .pf-lane, .pf-go { transition: none; }
+  .pf[data-anim] .pf-lane[data-result] .pf-res, .pf[data-anim] .pf-verdict { animation: none; }
+}

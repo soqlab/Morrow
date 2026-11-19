@@ -2630,6 +2630,7 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/api/public/stats", "purpose": "aggregate counts of public grade checks; no names"},
             {"path": "/api/public/history/{domain}", "purpose": "stored public grades for one public domain"},
             {"path": "/api/public/exposure/{domain}", "purpose": "the outside services a public domain loads or points at, each given the same guarded key-exchange check; rate limited and cached"},
+            {"path": "/api/public/preflight/{domain}", "purpose": "pre-flight: a classical and a post-quantum ClientHello to port 443 side by side, and whether the larger hello gets through the path; one probe set per domain per few minutes, cached"},
             # The free checker's public documents. A domain owner who found one of our handshakes in
             # their logs has no account and never will, so every one of these has to answer without
             # a login -- /about-scanner and /abuse most of all.
@@ -11656,6 +11657,22 @@ _register_platform_schema("make_safe", lambda *_: _make_safe.init_tables())
 from services import make_safe_done as _make_safe_done  # noqa: E402
 
 _register_platform_schema("make_safe_done", lambda *_: _make_safe_done.init_tables())
+# Pre-flight (services/preflight.py, routers/preflight.py): before a team switches on post-quantum key
+# exchange, a classical and a post-quantum ClientHello side by side, to see whether the larger hello gets
+# through the network path. Public on port 443 behind the public grade's guard and opt-outs; signed in
+# for hosts under the organization's verified domains. No tenant data in its table.
+from routers.preflight import create_preflight_router  # noqa: E402
+from services import preflight as _preflight  # noqa: E402
+
+app.include_router(create_preflight_router(_PlatformAdminDeps(
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+    require_role=lambda request, roles, action, resource_type, resource_id="": _require_role(
+        request, roles, action=action, resource_type=resource_type, resource_id=resource_id),
+    org_id=lambda: current_organization_id(),
+    audit=lambda request, action, resource_type, resource_id, details: _audit_event(
+        request, action=action, resource_type=resource_type, resource_id=resource_id, details=details),
+)))
+_register_platform_schema("public_preflight", lambda *_: _preflight.init_tables())
 # The instrument's public evidence, on the same router: the deploy transparency log (appended at
 # startup, below in _lifespan), the league's miss/run tables. No tenant column in any of them.
 from services import deploy_log as _deploy_log  # noqa: E402
