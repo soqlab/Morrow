@@ -458,3 +458,14 @@ def test_the_evidence_styles_use_tokens_and_stop_for_reduced_motion():
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", css), "a fixed colour: both themes come from the tokens"
     assert not re.search(r"\binfinite\b", css), "nothing animates forever"
     assert "@media (prefers-reduced-motion: reduce)" in css and "@media (max-width: 520px)" in css
+
+
+def test_a_long_overdue_deadline_does_not_name_a_year_decades_back():
+    # Personal data (the "Not sure" default) must stay private for 70 years, so by the arithmetic it was
+    # "overdue since 1970": true, but absurd to a buyer. The pack says it as the board slide does.
+    dl = ve.deadline_for(None, NOW)
+    assert dl["status"] == "overdue" and "1970" not in dl["sentence"]
+    assert "overdue: this data already needed protecting before today" in dl["sentence"]
+    assert dl["sentence"] == "Must be quantum-safe by: Overdue (" + board_slide.build("", [], [], [], [], [], now=NOW)["deadline"]["range"] + "). " + dl["label"]
+    recent = ve.deadline_for("auth-secrets", NOW)
+    assert recent["status"] == "overdue" and f"overdue since {recent['safe_by_likely']}" in recent["sentence"]

@@ -45,6 +45,8 @@ FORMATS = {
 HISTORY_DAYS = 3 * 365
 TREND_MONTHS = 6
 MAX_ACTIONS = 3
+#: An overdue deadline names its year only when it passed within this many years.
+OVERDUE_YEAR_SHOWN_WITHIN = 25
 
 #: app.py installs these: the organization's display name, and the fix queue (/fix-next items).
 ORG_NAME: Optional[Callable[[str], str]] = None
@@ -176,8 +178,12 @@ def _deadline(risk: Optional[Dict[str, Any]], assets: List[Dict[str, Any]], data
                              "over them from now on can't be read later with a quantum computer."})
         return out
     if by_likely <= year:
-        out.update({"status": "overdue", "value": "Overdue", "since": by_likely,
-                    "range": f"overdue since {by_likely}; a quantum computer could read it from {low} to {likely}",
+        # A "since" year decades back (1970 for 70-year personal data) is arithmetic, not news: it reads
+        # like a bug. Name the year only when it is recent; keep it in the data either way.
+        recent = year - by_likely <= OVERDUE_YEAR_SHOWN_WITHIN
+        when = f"overdue since {by_likely}" if recent else "overdue: this data already needed protecting before today"
+        out.update({"status": "overdue", "value": "Overdue", "since": by_likely, "since_shown": recent,
+                    "range": f"{when}; a quantum computer could read it from {low} to {likely}",
                     "label": f"Data sent today must stay private until {year + years}, long after a quantum computer "
                              f"could read it. Every day on a classical key exchange adds to what can be read later."})
     elif by_low <= year:

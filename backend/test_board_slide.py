@@ -171,8 +171,19 @@ def test_deadline_is_mosca_on_the_harvest_clock_with_its_range():
     c = bs.build("", FACTS[:1], [], [], [], [], now=NOW)
     d = c["deadline"]
     assert d["status"] == "overdue" and c["headline"]["value"] == "Overdue" and d["secret_until"] == 2026 + d["years"]
-    assert c["headline"]["range"] == f"overdue since {d['since']}; a quantum computer could read it from {low} to {likely}"
+    # 70-year data was "overdue since 1970": true arithmetic, but it reads like a bug on a slide. A year
+    # more than 25 years back is not named; the year stays in the data for the record.
+    assert c["headline"]["range"] == ("overdue: this data already needed protecting before today; "
+                                      f"a quantum computer could read it from {low} to {likely}")
+    assert "1970" not in c["headline"]["range"] and d["since_shown"] is False
     assert d["since"] == likely - d["years"] and c["headline"]["time_to_safe"] is None
+    # A recent year is still named: passwords and keys (20 years) were due by 2020.
+    recent = bs.build("", FACTS[:1], [], [], [], [], data="auth", now=NOW)
+    assert recent["headline"]["range"] == f"overdue since {likely - 20}; a quantum computer could read it from {low} to {likely}"
+    assert recent["deadline"]["since_shown"] is True and recent["deadline"]["since"] == likely - 20
+    # The edge: exactly 25 years back is still named, 26 is not.
+    assert bs.build("", FACTS[:1], [], [], [], [], data="auth", now=datetime(likely - 20 + 25, 6, 1, tzinfo=timezone.utc))["deadline"]["since_shown"] is True
+    assert bs.build("", FACTS[:1], [], [], [], [], data="auth", now=datetime(likely - 20 + 26, 6, 1, tzinfo=timezone.utc))["deadline"]["since_shown"] is False
     # Passwords and keys (20 years, chosen): by year, the three states.
     for year, status, value in ((2010, "ahead", str(low - 20)), (2016, "due", "Now"), (2026, "overdue", "Overdue")):
         c = bs.build("", FACTS[:1], [], [], [], [], data="auth", now=datetime(year, 6, 1, tzinfo=timezone.utc))

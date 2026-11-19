@@ -196,7 +196,7 @@
   }
   function deadlineHtml(dl) {
     if (!dl) return "";
-    var big = dl.status === "overdue" ? "Overdue since " + dl.since : dl.status === "due" ? "Must be safe now" : dl.status === "ahead" ? "Must be safe by " + dl.value : dl.status === "met" ? "Deadline met" : "No deadline yet";
+    var big = dl.status === "overdue" ? (dl.since_shown === false ? "Overdue" : "Overdue since " + dl.since) : dl.status === "due" ? "Must be safe now" : dl.status === "ahead" ? "Must be safe by " + dl.value : dl.status === "met" ? "Deadline met" : "No deadline yet";
     return '<div class="gd-dl" data-s="' + esc(dl.status) + '"><p class="gd-k">Deadline, an estimate</p><p class="gd-dl-v">' + esc(big) + "</p>" +
       '<p class="gd-dl-l">' + esc(dl.label || "") + (dl.basis ? " " + esc(dl.basis.text) + "." : "") + "</p></div>";
   }

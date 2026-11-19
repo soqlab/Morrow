@@ -10,7 +10,7 @@ deadline and exactly one next action matched to who is asking. Nothing here is n
   - the sentence is services/risk_sentence.build, with the Shelf-Life kind of data picked (or the
     same assumed default when the visitor says "Not sure");
   - the deadline is services/board_slide._deadline, the board slide's own rule ("Overdue since
-    2025", "Now", "2030 to 2035" or "Met"), for this one host;
+    2025", or just "Overdue" when that year is decades back, "Now", "2030 to 2035" or "Met"), for this one host;
   - the supplier's note is services/vendor_check.note, word for word as on a vendor report.
 
 Roles and their one action (ROLE_ACTIONS): ``it`` -> Make it safe (the recipe for the host's own
