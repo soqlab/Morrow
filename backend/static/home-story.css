@@ -68,7 +68,9 @@
 .hs-h1 .wb { position: absolute; left: 0; top: 0; filter: blur(10px); opacity: 0; pointer-events: none; user-select: none; animation: hs-unblur .9s var(--ease) 1 both; }
 .hs-h1 .w1, .hs-h1 .w1 .wb { animation-delay: .05s; } .hs-h1 .w2, .hs-h1 .w2 .wb { animation-delay: .13s; }
 .hs-h1 .w3, .hs-h1 .w3 .wb { animation-delay: .21s; } .hs-h1 .w4, .hs-h1 .w4 .wb { animation-delay: .34s; }
-@keyframes hs-word { from { opacity: 0; transform: translateY(.35em); } to { opacity: 1; transform: none; } }
+/* Each word starts faintly visible, so the question is painted with the first frame (and counts as
+   the largest paint then), and the blurred copy over it makes the blur-in. */
+@keyframes hs-word { from { opacity: .14; transform: translateY(.35em); } to { opacity: 1; transform: none; } }
 @keyframes hs-unblur { 0% { opacity: .9; transform: translateY(.35em); } 100% { opacity: 0; transform: none; } }
 .hs-h1 em { font-style: normal; color: var(--text); }
 .hs-h1 em .wb { color: var(--safe); }
