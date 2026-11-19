@@ -989,7 +989,7 @@ def public_claim(domain: Any) -> Dict[str, Any]:
 
 def about_scanner(example_host: str = "example.com") -> Dict[str, Any]:
     """What Morrow's checker sends, when, and how to stop it, with this server's live settings."""
-    from services import league, public_check, public_grade, third_party
+    from services import league, preflight, public_check, public_grade, third_party
 
     base = _base_url()
     abuse = public_check.abuse_contact()
@@ -1010,6 +1010,13 @@ def about_scanner(example_host: str = "example.com") -> Dict[str, Any]:
                                               "and public DNS (the CNAME chain and A/AAAA records). After you say you "
                                               "made the change, ordinary grades, spaced out from 30 seconds to 15 "
                                               "minutes apart and only while the page is open."},
+            {"part": "Pre-flight", "sends": "Only when somebody presses Run pre-flight: up to six TLS ClientHellos to port "
+                                            "443, each on its own connection and closed after your server's first "
+                                            "answer (a classical one, a post-quantum one, and the same post-quantum one "
+                                            "sent in two parts; a failure is tried once more). No handshake is completed "
+                                            "and no HTTP request is made, so there is no User-Agent to read: the "
+                                            "connections come from the same addresses as the grade. At most one set per "
+                                            f"domain every {preflight.minutes()} minutes, whoever asks."},
             {"part": "The certificate-transparency record", "sends": "Your certificates are read from a public "
                                                                     "Certificate Transparency search, not from your server. Then "
                                                                     f"at most two TLS connections to port {public_check.PORT}: one "
@@ -1026,7 +1033,8 @@ def about_scanner(example_host: str = "example.com") -> Dict[str, Any]:
             {"why": "Somebody watches your domain", "how_often": f"once every {interval_hours():g} hours, however many people "
                                                                   "watch it"},
         ],
-        "never": ["any port but 443", "a private, loopback, link-local or this server's own address (checked once, then "
+        "never": ["any port but 443 (except a pre-flight that a signed-in owner of a verified domain asks for on "
+                  "another port)", "a private, loopback, link-local or this server's own address (checked once, then "
                   "the connection is pinned to that address)", "anything past your homepage: no crawl, no login, no form "
                   "posts, no vulnerability probes", "email: Morrow never writes to anyone about a check",
                   "a connection because of something pasted on the home page: a certificate, configuration file, CBOM, "

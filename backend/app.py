@@ -1784,6 +1784,7 @@ _CSP_STRICT_VALUE = str(
 
 from routers import instrument as _instrument  # noqa: E402
 from routers.pq_signing import is_public_path as _pq_signing_public_path  # noqa: E402
+from services import known_routes as _known_routes  # noqa: E402
 
 
 def _instrument_csp_for(path: str) -> str:
@@ -1816,7 +1817,11 @@ def _is_wall_path(path: str) -> bool:
 
 @app.middleware("http")
 async def _security_headers_middleware(request: Request, call_next):
-    response = await call_next(request)
+    return _apply_security_headers(request, await call_next(request))
+
+
+def _apply_security_headers(request: Request, response: Any) -> Any:
+    """The headers every response carries; also used by the auth gate for the 404 it answers itself."""
     path = request.url.path or ""
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -1854,6 +1859,22 @@ _NOT_FOUND_HTML_PATH = os.path.join(BASE_DIR, "static", "404.html")
 _API_PATH_PREFIXES = ("/v1/", "/api/", "/platform/", "/auth/", "/webhooks/")
 
 
+def _not_found_page(request: Request) -> Optional[Response]:
+    """The 404 page, when a browser asks for one: only for HTML clients and never under an API prefix."""
+    path = request.url.path or ""
+    wants_html = "text/html" in (request.headers.get("accept") or "")
+    if wants_html and not path.startswith(_API_PATH_PREFIXES) and os.path.exists(_NOT_FOUND_HTML_PATH):
+        from fastapi.responses import HTMLResponse
+        with open(_NOT_FOUND_HTML_PATH, encoding="utf-8") as handle:
+            return HTMLResponse(handle.read(), status_code=404)
+    return None
+
+
+def _not_found_response(request: Request) -> Response:
+    """What the router answers for a path no route has: the page for a browser, JSON otherwise."""
+    return _not_found_page(request) or JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+
 @app.exception_handler(StarletteHTTPException)
 async def _not_found_page_handler(request: Request, exc: StarletteHTTPException):
     """A browser asking for a page that does not exist gets the 404 page.
@@ -1861,12 +1882,9 @@ async def _not_found_page_handler(request: Request, exc: StarletteHTTPException)
     Only a 404, only when the client asks for HTML, and never under an API
     prefix: API clients and tests keep the standard JSON error body.
     """
-    path = request.url.path or ""
-    wants_html = "text/html" in (request.headers.get("accept") or "")
-    if exc.status_code == 404 and wants_html and not path.startswith(_API_PATH_PREFIXES) and os.path.exists(_NOT_FOUND_HTML_PATH):
-        from fastapi.responses import HTMLResponse
-        with open(_NOT_FOUND_HTML_PATH, encoding="utf-8") as handle:
-            return HTMLResponse(handle.read(), status_code=404)
+    page = _not_found_page(request) if exc.status_code == 404 else None
+    if page is not None:
+        return page
     return await _default_http_exception_handler(request, exc)
 
 
@@ -2630,6 +2648,7 @@ def _public_access_policy() -> Dict[str, Any]:
             {"path": "/api/public/stats", "purpose": "aggregate counts of public grade checks; no names"},
             {"path": "/api/public/history/{domain}", "purpose": "stored public grades for one public domain"},
             {"path": "/api/public/exposure/{domain}", "purpose": "the outside services a public domain loads or points at, each given the same guarded key-exchange check; rate limited and cached"},
+            {"path": "/api/public/preflight/{domain}", "purpose": "pre-flight: a classical and a post-quantum ClientHello to port 443 side by side, and whether the larger hello gets through the path; one probe set per domain per few minutes, cached"},
             # The free checker's public documents. A domain owner who found one of our handshakes in
             # their logs has no account and never will, so every one of these has to answer without
             # a login -- /about-scanner and /abuse most of all.
@@ -3286,6 +3305,12 @@ async def set_request_auth_context(request: Request, call_next):
             request.state.auth_error = str(err or "invalid bearer token")
         if (AUTH_REQUIRED and not request.state.authenticated
                 and not _auth_public_path(request.url.path) and not _platform_key_authenticates(request)):
+            # A path no route could answer is a 404 for everyone, so a signed-out visitor who
+            # mistypes an address sees the 404 page rather than "missing bearer token". The answer is
+            # built here, never by passing the request on: nothing behind the gate runs unauthenticated.
+            # Any path a route could answer, in any spelling, still gets the 401 below.
+            if not _known_routes.exists(app, request.url.path, ignore=_instrument.is_domain_catch_all):
+                return _apply_security_headers(request, _not_found_response(request))
             await run_in_threadpool(_auth_journal, request, "token.rejected", method="jwt", status_code=401, required=False)
             return JSONResponse(status_code=401, content={"detail": str(request.state.auth_error or "Authentication required")})
     # Validated API requests are activity, not new sign-ins. Never manufacture login events here.
@@ -11656,6 +11681,22 @@ _register_platform_schema("make_safe", lambda *_: _make_safe.init_tables())
 from services import make_safe_done as _make_safe_done  # noqa: E402
 
 _register_platform_schema("make_safe_done", lambda *_: _make_safe_done.init_tables())
+# Pre-flight (services/preflight.py, routers/preflight.py): before a team switches on post-quantum key
+# exchange, a classical and a post-quantum ClientHello side by side, to see whether the larger hello gets
+# through the network path. Public on port 443 behind the public grade's guard and opt-outs; signed in
+# for hosts under the organization's verified domains. No tenant data in its table.
+from routers.preflight import create_preflight_router  # noqa: E402
+from services import preflight as _preflight  # noqa: E402
+
+app.include_router(create_preflight_router(_PlatformAdminDeps(
+    client_ip=lambda request: _client_ip_for_monitoring(request),
+    require_role=lambda request, roles, action, resource_type, resource_id="": _require_role(
+        request, roles, action=action, resource_type=resource_type, resource_id=resource_id),
+    org_id=lambda: current_organization_id(),
+    audit=lambda request, action, resource_type, resource_id, details: _audit_event(
+        request, action=action, resource_type=resource_type, resource_id=resource_id, details=details),
+)))
+_register_platform_schema("public_preflight", lambda *_: _preflight.init_tables())
 # The instrument's public evidence, on the same router: the deploy transparency log (appended at
 # startup, below in _lifespan), the league's miss/run tables. No tenant column in any of them.
 from services import deploy_log as _deploy_log  # noqa: E402

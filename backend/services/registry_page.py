@@ -43,13 +43,16 @@ _STYLES = (
 
 #: Bumped whenever the page's markup changes, and part of the record's ETag (routers/public_check.py):
 #: a browser holding the old page must not be answered 304 and keep it.
-PAGE_VERSION = "2026-11-18-feel"
+PAGE_VERSION = "2026-11-19-preflight"
 
 #: "Your connection, right now", after the footer so its arrival moves nothing on the page.
 _CONN_SCRIPT = "/ui/conn-line.js?v=20261116"
 #: Done, on a record that is not quantum-safe (services/make_safe_done.py).
 DONE_STYLE = "/ui/make-safe-done.css?v=20261119-shield"
 DONE_SCRIPT = "/ui/make-safe-done.js?v=20261119-shield"
+#: Before you switch: pre-flight (services/preflight.py, static/preflight.js), next to Make it safe.
+PREFLIGHT_STYLE = "/ui/preflight.css?v=20261119"
+PREFLIGHT_SCRIPT = "/ui/preflight.js?v=20261119"
 
 #: posture -> (badge fill, page accent class). Green for both post-quantum outcomes, amber for
 #: classical, grey for the two cases where nothing was established.
@@ -410,6 +413,9 @@ def render_record(entry: Dict[str, Any], history: List[Dict[str, Any]], origin: 
     if not pq and not is_historical:
         parts[0] = _with_done(parts[0])
         parts.append(_done_mount(domain))
+    if not is_historical:
+        parts[0] = _with_preflight(parts[0])
+        parts.append(_preflight_section(domain, base))
 
     # ── What was measured
     parts.append('  <section class="panel"><h2>What was measured</h2>')
@@ -540,6 +546,45 @@ def _with_done(head: str) -> str:
                         f'<script src="{DONE_SCRIPT}" defer></script>\n</head>')
 
 
+def _with_preflight(head: str) -> str:
+    return head.replace("</head>", f'<link rel="stylesheet" href="{PREFLIGHT_STYLE}">\n'
+                        f'<script src="{PREFLIGHT_SCRIPT}" defer></script>\n</head>')
+
+
+def _preflight_section(domain: str, base: str) -> str:
+    """Before you switch: pre-flight. The frame is complete without JavaScript (what it is, what it
+    covers, the inside test, the API for a terminal); static/preflight.js shows the button, reads the
+    newest stored run without sending anything, and runs one only when the person presses it."""
+    d = esc(domain)
+    api = f"{esc(base)}/api/public/preflight/{d}"
+    lanes = "".join(
+        f'<li class="pf-lane" data-id="{lid}"><div class="pf-name"><b>{name}</b><span class="pf-size">{hint}</span></div>'
+        '<div class="pf-track" aria-hidden="true"><span class="pf-bar"></span><span class="pf-mark"></span></div>'
+        '<div class="pf-out"><span class="pf-res">Not sent</span></div></li>'
+        for lid, name, hint in (("classical", "Classical hello", "about 250 bytes, one TCP segment"),
+                                ("pq", "Post-quantum hello", "about 1,750 bytes, two TCP segments"),
+                                ("pq_split", "Post-quantum, in two parts", "the same hello, sent in two pieces")))
+    return ('  <section class="panel preflight" id="preflight" aria-labelledby="pf-h">'
+            '<h2 id="pf-h">Before you switch: pre-flight</h2>'
+            f'<div data-preflight="{d}"><div class="pf" data-state="idle">'
+            '<p class="pf-lede">Browsers that offer post-quantum key exchange send a much larger first message '
+            '(the ClientHello), often too large for one network packet, and some firewalls and load balancers drop it. '
+            f'Check the path to <b>{d}</b> before you switch: Morrow sends a classical hello and a post-quantum one, '
+            'side by side.</p>'
+            f'<ol class="pf-race" aria-label="The hellos Morrow sends">{lanes}</ol>'
+            '<p class="pf-axis pf-fine" aria-hidden="true"></p>'
+            '<div class="pf-act"><button type="button" class="i-btn solid pf-go" hidden>Run pre-flight</button>'
+            '<span class="pf-fine pf-say" role="status" aria-live="polite">Up to six connections to port 443 from '
+            "Morrow's server, closed after the first answer.</span></div>"
+            '<div class="pf-verdict" tabindex="-1" hidden></div>'
+            f'<noscript><p class="pf-fine">The side-by-side run needs JavaScript. From a terminal: '
+            f'<code>curl {api}</code></p></noscript>'
+            f'<p class="pf-scope">This is an outside test: it covers the public path from the internet to {d}, not '
+            'your internal networks. <a class="pf-inside" '
+            'href="https://github.com/soqlab/Morrow/blob/main/tools/preflight/README.md" rel="noopener">'
+            'Test from inside your network</a></p></div></div></section>')
+
+
 def _done_mount(domain: str) -> str:
     """Done (static/make-safe-done.js): where the host's DNS provider documents a one-change fix
     (Cloudflare: proxy the record), the page offers it here. The script reads the plan and fills
@@ -585,7 +630,7 @@ def render_missing(domain: str, origin: str, graded: Optional[Dict[str, Any]] = 
         grade = str(graded.get("grade") or "?")
         seen = _seen_attrs(domain, f"grade:{grade}:{graded.get('scanned_at') or ''}", f"grade {grade}")
     return "\n".join([
-        _with_done(head) if done else head,
+        _with_preflight(_with_done(head) if done else head) if graded else (_with_done(head) if done else head),
         _chrome_open(),
         f'  <section class="record-head accent-none" id="record"{seen}>',
         '    <p class="eyebrow">Public post-quantum record</p>',
@@ -601,6 +646,7 @@ def render_missing(domain: str, origin: str, graded: Optional[Dict[str, Any]] = 
         "  </section>",
         *([_watch_strip(domain)] if graded else []),
         *([_done_mount(domain)] if done else []),
+        *([_preflight_section(domain, base)] if graded else []),
         _chrome_close(),
     ])
 
