@@ -30,7 +30,8 @@ DOCUMENTS = ("terms.html", "privacy.html", "dpa.html", "security.html", "support
 #: The sheets the public pages load. make-safe-done.css is left out on purpose: its one repeating
 #: pulse marks a step while it is running and stops when the step ends (motion-smoke checks idle pages).
 SHEETS = ("instrument.css", "feel.css", "registry.css", "doc.css", "oops.css", "make-safe.css",
-          "instrument-board.css", "instrument-guided.css", "instrument-threat.css", "paste.css")
+          "instrument-board.css", "instrument-guided.css", "instrument-threat.css", "paste.css",
+          "preflight.css")
 
 
 def _read(name: str) -> str:

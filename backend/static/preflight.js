@@ -166,6 +166,7 @@
     if (!box.querySelector(".pf")) box.innerHTML = html(domain);
     var root = box.querySelector(".pf");
     var go = root.querySelector(".pf-go");
+    go.hidden = false;                       // a server-rendered frame hides it until this script runs
     var say = root.querySelector(".pf-say");
     var busy = false;
 

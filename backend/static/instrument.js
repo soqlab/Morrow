@@ -1208,8 +1208,14 @@
             '<pre id="d-curl">' + esc("curl " + location.origin + "/api/public/grade/" + d + ".txt") + '</pre><button type="button" class="i-btn" data-copy-el="d-curl">Copy</button>' +
             '<p class="i-fine"><a href="/r/' + enc(d) + '">Certificate-transparency record</a> &middot; <a href="/plain/' + enc(d) + '">plain</a> &middot; <a href="/api/public/grade/' + enc(d) + '">JSON</a></p>', { ch: "ref" });
       }
+      // Before you switch: pre-flight (preflight.js): next to Make it safe, a classical and a post-quantum
+      // ClientHello side by side, sent only when the person presses Run pre-flight.
+      var pre = window.MorrowPreflight;
+      var preflight = pre ? panel("", "Before you switch: pre-flight", '<div id="pf-box">' + pre.html(d) + "</div>", { ch: "tools", id: "preflight" }) : "";
       var outside = panel("", "Who else is exposing you", '<div id="tp-body"></div>', { ch: "atlas", id: "tp" });
-      $("#d-body").innerHTML = riskHtml() + gradeBlock + '<div id="hv-wrap"></div>' + what + '<div id="w-wrap"></div>' + outside + evidence;
+      $("#d-body").innerHTML = riskHtml() + gradeBlock + '<div id="hv-wrap"></div>' + what + preflight + '<div id="w-wrap"></div>' + outside + evidence;
+      if (pre) pre.mount($("#pf-box"), d);
+      if (location.hash === "#preflight" && !render.scrolled) { render.scrolled = true; var pfp = $("#preflight"); if (pfp) pfp.scrollIntoView({ block: "start" }); }
       paintTp();
       if (safeKit) safeKit.mount($("#ms-box"), d, latest || r, { onLive: function () { load(false); } });
       if (location.hash === "#make-safe" && !render.scrolled) { render.scrolled = true; var ms = $("#make-safe"); if (ms) ms.scrollIntoView({ block: "start" }); }

@@ -893,3 +893,75 @@ def test_cli_uses_only_the_standard_library():
     stdlib = set(getattr(sys, "stdlib_module_names", ())) | {"__future__"}
     if stdlib:
         assert names <= stdlib, names - stdlib
+
+
+# ── the panel on the pages ───────────────────────────────────────────────────
+
+
+def _record_page(**overrides):
+    from services import registry_page
+
+    entry = {"domain": "example.com", "posture": _check.POSTURE_CLASSICAL, "observation_id": 7, "observations": 3,
+             "observed_at": "2026-11-18T10:00:00Z", "last_seen_at": "2026-11-18T10:00:00Z",
+             "first_seen_at": "2026-11-01T10:00:00Z",
+             "result": {"verdict": {"headline": "Not protected", "explanation": "Classical only."},
+                        "observed": {"reachable": True, "tls_version": "TLSv1.3"}}}
+    entry.update(overrides)
+    return registry_page.render_record(entry, [], "https://morrow.test")
+
+
+def test_the_record_page_has_the_pre_flight_panel_complete_without_javascript():
+    page = _record_page()
+    assert '<section class="panel preflight" id="preflight"' in page
+    assert "Before you switch: pre-flight" in page
+    assert '<link rel="stylesheet" href="/ui/preflight.css' in page.split("</head>")[0]
+    assert '<script src="/ui/preflight.js' in page.split("</head>")[0]
+    assert '<button type="button" class="i-btn solid pf-go" hidden>Run pre-flight</button>' in page
+    assert "<code>curl https://morrow.test/api/public/preflight/example.com</code>" in page
+    assert "Test from inside your network" in page and "tools/preflight/README.md" in page
+    assert "not your internal networks" in page
+    section = page.split('id="preflight"', 1)[1].split("</section>", 1)[0]
+    assert " style=" not in section and "<script" not in section and " on" not in section.replace(" one", "")
+    # Next to Make it safe: after the record's actions, before what was measured.
+    assert page.index('id="preflight"') < page.index("What was measured")
+
+
+def test_a_graded_domain_without_a_full_record_also_has_the_panel():
+    from services import registry_page
+
+    graded = registry_page.render_missing("example.com", "https://morrow.test",
+                                          {"grade": "C", "post_quantum": False, "scanned_at": "2026-11-18T10:00:00Z"})
+    assert 'id="preflight"' in graded and "/ui/preflight.js" in graded.split("</head>")[0]
+    unknown = registry_page.render_missing("example.com", "https://morrow.test")
+    assert 'id="preflight"' not in unknown
+
+
+def test_a_past_observation_has_no_pre_flight():
+    from services import registry_page
+
+    entry = {"domain": "example.com", "posture": _check.POSTURE_CLASSICAL, "observation_id": 9,
+             "result": {"observed": {"reachable": True}}}
+    page = registry_page.render_record(entry, [], "https://morrow.test", observation=dict(entry, observation_id=3))
+    assert 'id="preflight"' not in page and "/ui/preflight.js" not in page
+
+
+def test_the_domain_view_loads_the_panel_next_to_make_it_safe():
+    static = pathlib.Path(__file__).parent / "static"
+    html = (static / "instrument.html").read_text(encoding="utf-8")
+    assert '<link rel="stylesheet" href="/ui/preflight.css' in html
+    assert html.index("/ui/preflight.js") < html.index("/ui/instrument.js")
+    js = (static / "instrument.js").read_text(encoding="utf-8")
+    assert 'what + preflight + \'<div id="w-wrap">' in js
+    assert '{ ch: "tools", id: "preflight" }' in js
+
+
+def test_the_panel_script_sends_nothing_until_pressed():
+    js = (pathlib.Path(__file__).parent / "static" / "preflight.js").read_text(encoding="utf-8")
+    on_load = js.split("// The newest stored run", 1)[1]
+    assert '"?stored=1"' in on_load
+    # The only request without ?stored=1 is inside the button's click handler.
+    click = js.split('go.addEventListener("click"', 1)[1].split("// The newest stored run", 1)[0]
+    assert 'getJSON("/api/public/preflight/" + enc(domain))' in click
+    assert js.count('getJSON("/api/public/preflight/"') == 2
+    assert "prefers-reduced-motion" in js and "setInterval" not in js
+    assert "localStorage" not in js
