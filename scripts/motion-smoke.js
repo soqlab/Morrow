@@ -11,7 +11,10 @@ const { chromium } = require("../.tools/video/node_modules/playwright");
 const assert = require("node:assert/strict");
 const base = (process.env.MORROW_E2E_BASE_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
 
-const SURFACES = ["/", "/league", "/estate", "/algorithms", "/trust", "/ui/#overview", "/security", "/legal", "/terms",
+// The record and proof addresses answer 404 on a server with no data; their pages still wear the
+// shared frame and feel (services/site_chrome.py), which is what is checked here.
+const SURFACES = ["/", "/league", "/changes", "/report", "/vendors", "/estate", "/algorithms", "/trust", "/ui/#overview", "/security", "/legal", "/terms", "/abuse",
+  "/r/motion-smoke.example", "/r/motion-smoke.example/proof",
   "/vendor-admin/", "/vendor-admin/traffic.html"];
 
 async function main() {
