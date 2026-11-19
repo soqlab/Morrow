@@ -94,6 +94,16 @@ def is_public_path(path: str, app: Any = None) -> bool:
     return False
 
 
+def is_domain_catch_all(path: str, endpoint: Any) -> bool:
+    """The last-resort /{domain} view, which the auth gate leaves out when it asks whether a path exists.
+
+    It takes every single segment, but answers only the ones that look like a domain, and those are
+    already public (is_public_path). Every other single segment it answers 404, so it is no reason
+    to tell a signed-out visitor to sign in.
+    """
+    return path == "/{domain}" and getattr(endpoint, "__module__", "") == __name__
+
+
 def csp_for(path: str, app: Any = None) -> Optional[str]:
     p = str(path or "")
     if p == "/plain" or p.startswith("/plain/"):

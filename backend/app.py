@@ -1784,6 +1784,7 @@ _CSP_STRICT_VALUE = str(
 
 from routers import instrument as _instrument  # noqa: E402
 from routers.pq_signing import is_public_path as _pq_signing_public_path  # noqa: E402
+from services import known_routes as _known_routes  # noqa: E402
 
 
 def _instrument_csp_for(path: str) -> str:
@@ -1816,7 +1817,11 @@ def _is_wall_path(path: str) -> bool:
 
 @app.middleware("http")
 async def _security_headers_middleware(request: Request, call_next):
-    response = await call_next(request)
+    return _apply_security_headers(request, await call_next(request))
+
+
+def _apply_security_headers(request: Request, response: Any) -> Any:
+    """The headers every response carries; also used by the auth gate for the 404 it answers itself."""
     path = request.url.path or ""
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -1854,6 +1859,22 @@ _NOT_FOUND_HTML_PATH = os.path.join(BASE_DIR, "static", "404.html")
 _API_PATH_PREFIXES = ("/v1/", "/api/", "/platform/", "/auth/", "/webhooks/")
 
 
+def _not_found_page(request: Request) -> Optional[Response]:
+    """The 404 page, when a browser asks for one: only for HTML clients and never under an API prefix."""
+    path = request.url.path or ""
+    wants_html = "text/html" in (request.headers.get("accept") or "")
+    if wants_html and not path.startswith(_API_PATH_PREFIXES) and os.path.exists(_NOT_FOUND_HTML_PATH):
+        from fastapi.responses import HTMLResponse
+        with open(_NOT_FOUND_HTML_PATH, encoding="utf-8") as handle:
+            return HTMLResponse(handle.read(), status_code=404)
+    return None
+
+
+def _not_found_response(request: Request) -> Response:
+    """What the router answers for a path no route has: the page for a browser, JSON otherwise."""
+    return _not_found_page(request) or JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+
 @app.exception_handler(StarletteHTTPException)
 async def _not_found_page_handler(request: Request, exc: StarletteHTTPException):
     """A browser asking for a page that does not exist gets the 404 page.
@@ -1861,12 +1882,9 @@ async def _not_found_page_handler(request: Request, exc: StarletteHTTPException)
     Only a 404, only when the client asks for HTML, and never under an API
     prefix: API clients and tests keep the standard JSON error body.
     """
-    path = request.url.path or ""
-    wants_html = "text/html" in (request.headers.get("accept") or "")
-    if exc.status_code == 404 and wants_html and not path.startswith(_API_PATH_PREFIXES) and os.path.exists(_NOT_FOUND_HTML_PATH):
-        from fastapi.responses import HTMLResponse
-        with open(_NOT_FOUND_HTML_PATH, encoding="utf-8") as handle:
-            return HTMLResponse(handle.read(), status_code=404)
+    page = _not_found_page(request) if exc.status_code == 404 else None
+    if page is not None:
+        return page
     return await _default_http_exception_handler(request, exc)
 
 
@@ -3287,6 +3305,12 @@ async def set_request_auth_context(request: Request, call_next):
             request.state.auth_error = str(err or "invalid bearer token")
         if (AUTH_REQUIRED and not request.state.authenticated
                 and not _auth_public_path(request.url.path) and not _platform_key_authenticates(request)):
+            # A path no route could answer is a 404 for everyone, so a signed-out visitor who
+            # mistypes an address sees the 404 page rather than "missing bearer token". The answer is
+            # built here, never by passing the request on: nothing behind the gate runs unauthenticated.
+            # Any path a route could answer, in any spelling, still gets the 401 below.
+            if not _known_routes.exists(app, request.url.path, ignore=_instrument.is_domain_catch_all):
+                return _apply_security_headers(request, _not_found_response(request))
             await run_in_threadpool(_auth_journal, request, "token.rejected", method="jwt", status_code=401, required=False)
             return JSONResponse(status_code=401, content={"detail": str(request.state.auth_error or "Authentication required")})
     # Validated API requests are activity, not new sign-ins. Never manufacture login events here.
