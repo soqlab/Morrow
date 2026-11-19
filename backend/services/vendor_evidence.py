@@ -533,7 +533,7 @@ p{margin:0 0 10px}.lede{font-size:18px;color:var(--ink2)}.fine{font-size:13px;co
 table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
 th{font-weight:600;color:var(--ink2);white-space:nowrap}tr:last-child td{border-bottom:0}
 code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;overflow-wrap:anywhere}
-a{color:inherit}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:12px;font-size:13px}
+a{color:inherit;overflow-wrap:anywhere}p,li{overflow-wrap:break-word}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:12px;font-size:13px}
 .addendum h3{font-size:16px;margin:16px 0 4px}
 @media print{:root{--bg:#fff;--ink:#000;--ink2:#222;--ink3:#444;--rule:#bbb;--panel:#fff}main{padding:0}a{text-decoration:none}h2{break-after:avoid}table,pre,.notice{break-inside:avoid}}
 """

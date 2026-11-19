@@ -8,7 +8,8 @@
 .ev-cell { white-space: nowrap; }
 .ev-cell .i-btn + .i-btn { margin-left: 8px; }
 .ev-row td { background: var(--bg); white-space: normal; }
-.ev-box { max-width: 78ch; padding: 6px 2px; }
+/* The table can scroll sideways on a phone; the pack stays in view at the left edge, as wide as the panel. */
+.ev-box { position: sticky; left: 0; max-width: 78ch; padding: 6px 2px; }
 .ev-box p { margin: 0 0 10px; }
 .ev-steps { list-style: none; margin: 4px 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px var(--mono); }
 .ev-steps li { color: var(--dim); display: inline-flex; align-items: center; gap: 8px; }
@@ -33,6 +34,7 @@
 @keyframes ev-fade { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
 @media (max-width: 520px) {
   .ev-cell { white-space: normal; }
+  .ev-box { width: calc(100vw - 2 * var(--gutter) - 64px); }
   .ev-cell .i-btn { margin: 4px 0 0 0 !important; }
   .ev-choose .ev-field, .ev-gh .ev-field { flex: 1 1 100%; max-width: none; }
 }
