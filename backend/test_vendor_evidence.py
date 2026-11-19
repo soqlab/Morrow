@@ -422,3 +422,39 @@ def test_the_routes_make_no_outbound_calls(monkeypatch):
         assert client.get("/api/public/vendors/report/not-a-real-token/evidence/crm.example").status_code == 404
         client.delete(api, headers={"x-manage-key": made["manage_key"]})
         assert client.get(api + "/evidence/crm.example").status_code == 410
+
+
+# ── the vendor report's UI (static/instrument-evidence.js and .css) ──────────
+
+
+def _static(name):
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", name), encoding="utf-8") as fh:
+        return fh.read().replace("\r\n", "\n")
+
+
+def test_the_report_page_loads_the_evidence_ui_and_hooks_each_paint():
+    page = _static("instrument.html")
+    assert '<script src="/ui/instrument-evidence.js' in page and '<link rel="stylesheet" href="/ui/instrument-evidence.css' in page
+    assert page.index("/ui/instrument-evidence.js") < page.index("/ui/instrument.js")  # listening before the first paint
+    js = _static("instrument.js")
+    assert 'new CustomEvent("morrow:vendor-report", { detail: { report: R, token: tok, api: api } })' in js
+    assert '<div id="vr-packs"></div>' in js
+
+
+def test_the_evidence_ui_sends_nothing_and_checks_the_signatures_itself():
+    js = _static("instrument-evidence.js")
+    assert "sendBeacon" not in js and "XMLHttpRequest" not in js and "document.cookie" not in js
+    # Every fetch is same-origin: the report's own API, the published keys and the Shelf-Life list.
+    assert not re.search(r"fetch\(\s*[\"']https?://", js) and "api.github.com" not in js
+    assert '"/.well-known/morrow-proof-keys.json"' in js and '"/ui/vendor/morrow-pq-verify.js"' in js
+    assert 'doc.format === "morrow.vendor-evidence/v1"' in js and "ed25519Verify" in js and "mlDsa65Verify" in js
+    assert "Signed and ready" in js and "Download all evidence packs" in js and "Evidence pack" in js
+    assert "M.copy(" in js  # the shared copy answers "Copied"
+    assert "Not sure" in js
+
+
+def test_the_evidence_styles_use_tokens_and_stop_for_reduced_motion():
+    css = re.sub(r"/\*.*?\*/", "", _static("instrument-evidence.css"), flags=re.S)
+    assert not re.search(r"#[0-9a-fA-F]{3,8}\b", css), "a fixed colour: both themes come from the tokens"
+    assert not re.search(r"\binfinite\b", css), "nothing animates forever"
+    assert "@media (prefers-reduced-motion: reduce)" in css and "@media (max-width: 520px)" in css

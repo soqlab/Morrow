@@ -1760,7 +1760,7 @@
     var seq = ++vrSeq, last = {}, open = {};
     setView("grade", "Vendor report");
     say("Reading the report…");
-    main.innerHTML = '<div id="vr-top"></div><div id="vr-body"></div><div id="vr-foot"></div>';
+    main.innerHTML = '<div id="vr-top"></div><div id="vr-packs"></div><div id="vr-body"></div><div id="vr-foot"></div>';
     var mine = vendorKeys().filter(function (x) { return x.token === tok; })[0];
     var api = "/api/public/vendors/report/" + enc(tok);
     function load() {
@@ -1818,6 +1818,8 @@
         '<p class="i-fine">Anyone with the link can read this report until ' + esc(day(R.expires_at)) + (R.saved ? ". It is re-checked every " + (R.interval_days === 1 ? "day" : R.interval_days + " days") + (R.next_check_at ? ", next on " + esc(day(R.next_check_at)) : "") + ", so the link stays current." : ".") + " " + esc(R.sends_nothing || "") + "</p>" +
         (hist ? '<p class="i-fine">Earlier checks of this list:</p><ul class="i-fine">' + hist + "</ul>" : "") + '<p class="i-fine">' + esc(R.basis || "") + "</p>", { ch: "grade" });
       paintBars();
+      // Evidence packs (static/instrument-evidence.js) add their actions to this paint.
+      try { document.dispatchEvent(new CustomEvent("morrow:vendor-report", { detail: { report: R, token: tok, api: api } })); } catch (e) { /* old browser: no hook */ }
       $("#vr-copy").addEventListener("click", function () { copy(link, this); });
       var rv = $("#vr-revoke");
       if (rv) rv.addEventListener("click", function () {

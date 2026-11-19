@@ -1,0 +1,41 @@
+/* Evidence packs on the vendor report (static/instrument-evidence.js). The instrument's tokens only. */
+.ev-lede { max-width: 70ch; margin: 0 0 14px; }
+.ev-choose { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 0 0 14px; }
+.ev-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); min-width: 0; }
+.ev-field small { color: var(--dim); font-size: 12px; }
+.ev-field select.i-btn, .ev-field input.i-btn { min-height: 40px; padding: 0 10px; font: 14px var(--sans); color: var(--text); background: var(--bg-2); max-width: 100%; }
+.ev-actions { margin: 0 0 8px; }
+.ev-cell { white-space: nowrap; }
+.ev-cell .i-btn + .i-btn { margin-left: 8px; }
+.ev-row td { background: var(--bg); white-space: normal; }
+.ev-box { max-width: 78ch; padding: 6px 2px; }
+.ev-box p { margin: 0 0 10px; }
+.ev-steps { list-style: none; margin: 4px 0 6px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px var(--mono); }
+.ev-steps li { color: var(--dim); display: inline-flex; align-items: center; gap: 8px; }
+.ev-steps li::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid currentColor; flex: none; }
+.ev-steps li[data-s="now"] { color: var(--text); }
+.ev-steps li[data-s="now"]::before { background: var(--accent); border-color: var(--accent); }
+.ev-steps li[data-s="done"] { color: var(--ok); }
+.ev-steps li[data-s="done"]::before { background: currentColor; }
+.ev-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 0 0 12px; }
+.ev-seal { display: inline-flex; align-items: center; gap: 10px; padding: 4px 14px 4px 4px; border: 1px solid var(--line-2); border-radius: var(--r-pill); background: var(--bg); font-weight: 600; }
+.ev-seal-mark { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--safe); color: var(--safe-ink); font-size: 16px; line-height: 1; }
+.ev-seal.is-landing .ev-seal-mark { animation: ev-land .52s var(--ease) both; }
+.ev-seal.is-landing .ev-seal-t { animation: ev-fade .4s .28s var(--ease) both; }
+.ev-deadline { color: var(--warn); font-weight: 500; }
+.ev-notice { border-left: 3px solid var(--warn); padding: 6px 0 6px 12px; font-weight: 600; }
+.ev-notice .i-fine { font-weight: 400; }
+.ev-gh { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 0 0 10px; }
+.ev-gh .ev-field { flex: 1 1 220px; max-width: 320px; }
+.ev-gh [aria-disabled="true"] { opacity: .5; }
+.ev-moment { margin: 4px 0 10px; min-height: 1.4em; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+@keyframes ev-land { 0% { transform: scale(1.9) rotate(-18deg); opacity: 0; } 62% { transform: scale(.92) rotate(3deg); opacity: 1; } 100% { transform: scale(1) rotate(0); } }
+@keyframes ev-fade { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+@media (max-width: 520px) {
+  .ev-cell { white-space: normal; }
+  .ev-cell .i-btn { margin: 4px 0 0 0 !important; }
+  .ev-choose .ev-field, .ev-gh .ev-field { flex: 1 1 100%; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ev-seal.is-landing .ev-seal-mark, .ev-seal.is-landing .ev-seal-t { animation: none !important; }
+}
